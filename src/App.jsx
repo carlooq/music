@@ -11,7 +11,9 @@ import { db } from "./firebase-config.js";
 import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
 import { parseCSV, shuffle, randomStartSeconds } from "./utils.js";
 import { REAL_SONGS } from "./songs.js";
-import { Play, Music4, Trophy, RotateCcw, Users, ChevronRight, Copy, Check } from "lucide-react";
+import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
+import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult } from "./stats.js";
+import { Play, Music4, Trophy, RotateCcw, Users, ChevronRight, Copy, Check, LogIn, LogOut, BarChart3 } from "lucide-react";
 
 // ---------- vinyl / now-playing widget ----------
 
@@ -97,9 +99,18 @@ function TimelineCard({ year, title, artist }) {
   );
 }
 
+function StatBox({ label, value }) {
+  return (
+    <div className="rounded-lg px-4 py-3 flex-1" style={{ background: "var(--surface2)", minWidth: 110 }}>
+      <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: "var(--accent)" }}>{value}</p>
+      <p style={{ color: "var(--muted)", fontSize: 10, textTransform: "uppercase" }}>{label}</p>
+    </div>
+  );
+}
+
 // ---------- main app ----------
 
-const playerId = getOrCreatePlayerId();
+const guestId = getOrCreatePlayerId();
 
 export default function App() {
   const [screen, setScreen] = useState("home"); // home | lobby | playing | roundResult | gameover
@@ -118,6 +129,62 @@ export default function App() {
   const [chosenSlot, setChosenSlot] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const iframeRef = useRef(null);
+
+  const [user, setUser] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [authMode, setAuthMode] = useState("login"); // login | register
+  const [authUsername, setAuthUsername] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [showStats, setShowStats] = useState(false);
+  const [stats, setStats] = useState(null);
+
+  const playerId = user ? user.uid : guestId;
+
+  useEffect(() => {
+    const unsub = watchAuthState(async (u) => {
+      setUser(u);
+      setAuthChecked(true);
+      if (u) {
+        await ensureStatsDoc(u.uid, u.displayName || authUsername);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  async function handleAuthSubmit() {
+    if (!authUsername.trim() || !authPassword) {
+      setAuthError("Podaj login i hasło.");
+      return;
+    }
+    setAuthBusy(true);
+    setAuthError("");
+    try {
+      if (authMode === "register") {
+        await registerWithUsername(authUsername, authPassword);
+      } else {
+        await loginWithUsername(authUsername, authPassword);
+      }
+      setAuthPassword("");
+    } catch (e) {
+      setAuthError(friendlyAuthError(e));
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function handleLogout() {
+    await logout();
+    setShowStats(false);
+  }
+
+  async function openStats() {
+    if (!user) return;
+    const s = await getStats(user.uid);
+    setStats(s);
+    setShowStats(true);
+  }
 
   useEffect(() => {
     if (!roomId) return;
@@ -145,6 +212,10 @@ export default function App() {
     setIsPlaying(false);
   }, [room?.currentCard?.id]);
 
+  useEffect(() => {
+    if (user?.displayName) saveName(user.displayName);
+  }, [user?.displayName]);
+
   function saveName(v) {
     setName(v);
     localStorage.setItem("hitster-player-name", v);
@@ -162,7 +233,7 @@ export default function App() {
         hostId: playerId,
         target: 5,
         status: "lobby",
-        players: [{ id: playerId, name: name.trim() }],
+        players: [{ id: playerId, name: name.trim(), authed: !!user }],
         deck: [],
         deckIndex: 0,
         currentPlayerId: null,
@@ -195,7 +266,7 @@ export default function App() {
         const data = snap.data();
         const already = data.players.some((p) => p.id === playerId);
         if (!already) {
-          tx.update(ref, { players: [...data.players, { id: playerId, name: name.trim() }] });
+          tx.update(ref, { players: [...data.players, { id: playerId, name: name.trim(), authed: !!user }] });
         }
       });
       setRoomId(code);
@@ -226,15 +297,16 @@ export default function App() {
   async function startGame() {
     if (!room) return;
     const pool = customSongs || REAL_SONGS;
-    const needed = target * room.players.length;
+    const EXTRA_CARDS_PER_PLAYER = 7;
+    const needed = room.players.length * (target + EXTRA_CARDS_PER_PLAYER);
     if (pool.length < needed) {
-      setError(`Za mało utworów (masz ${pool.length}, potrzeba ${needed}).`);
+      setError(`Za mało utworów (masz ${pool.length}, potrzeba ${needed}: (${target}+${EXTRA_CARDS_PER_PLAYER}) × ${room.players.length} graczy).`);
       return;
     }
     setBusy(true);
     setError("");
     try {
-      const deck = shuffle(pool);
+      const deck = shuffle(pool).slice(0, needed);
       const players = room.players;
       const timelines = {};
       players.forEach((p, i) => {
@@ -280,6 +352,7 @@ export default function App() {
     setBusy(true);
     try {
       const ref = doc(db, "rooms", roomId);
+      let capturedResult = null;
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
@@ -293,12 +366,16 @@ export default function App() {
         if (correct) {
           newTimelines[data.currentPlayerId] = [...timeline, card];
         }
+        capturedResult = { correct, card };
         tx.update(ref, {
           status: "roundResult",
           lastResult: { correct, card },
           timelines: newTimelines,
         });
       });
+      if (user && capturedResult) {
+        recordCardGuess(user.uid, capturedResult.card.year, capturedResult.correct).catch(() => {});
+      }
     } catch (e) {
       setError("Błąd zatwierdzania: " + e.message);
     } finally {
@@ -310,6 +387,7 @@ export default function App() {
     setBusy(true);
     try {
       const ref = doc(db, "rooms", roomId);
+      let gameOverInfo = null;
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
@@ -318,6 +396,7 @@ export default function App() {
         const winnerEntry = Object.entries(data.timelines).find(([, t]) => t.length >= data.target);
         if (winnerEntry) {
           tx.update(ref, { status: "gameover", winnerId: winnerEntry[0] });
+          gameOverInfo = { winnerId: winnerEntry[0], players };
           return;
         }
         if (data.deckIndex >= data.deck.length) {
@@ -326,6 +405,7 @@ export default function App() {
             if ((data.timelines[p.id] || []).length > (data.timelines[bestId] || []).length) bestId = p.id;
           });
           tx.update(ref, { status: "gameover", winnerId: bestId });
+          gameOverInfo = { winnerId: bestId, players };
           return;
         }
         const idx = players.findIndex((p) => p.id === data.currentPlayerId);
@@ -339,6 +419,13 @@ export default function App() {
           lastResult: null,
         });
       });
+      if (gameOverInfo) {
+        gameOverInfo.players
+          .filter((p) => p.authed)
+          .forEach((p) => {
+            recordGameResult(p.id, p.id === gameOverInfo.winnerId).catch(() => {});
+          });
+      }
     } catch (e) {
       setError("Błąd przechodzenia dalej: " + e.message);
     } finally {
@@ -408,12 +495,123 @@ export default function App() {
           </div>
         )}
 
-        {screen === "home" && (
+        {screen === "home" && showStats && (
           <div className="w-full flex flex-col gap-5">
             <section className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
-              <label className="text-xs uppercase" style={{ color: "var(--muted)" }}>Twoje imię</label>
-              <input type="text" value={name} onChange={(e) => saveName(e.target.value)} className="w-full mt-2" placeholder="np. Kasia" />
+              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 12 }}>TWOJE STATYSTYKI</h2>
+              {!stats ? (
+                <p style={{ color: "var(--muted)", fontSize: 13 }}>Brak jeszcze żadnych rozegranych gier.</p>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  <div className="flex gap-4 flex-wrap">
+                    <StatBox label="Rozegrane gry" value={stats.gamesPlayed || 0} />
+                    <StatBox label="Wygrane" value={stats.gamesWon || 0} />
+                    <StatBox
+                      label="% wygranych"
+                      value={stats.gamesPlayed ? Math.round(((stats.gamesWon || 0) / stats.gamesPlayed) * 100) + "%" : "—"}
+                    />
+                    <StatBox
+                      label="Trafność kart"
+                      value={stats.cardsTotal ? Math.round(((stats.cardsCorrect || 0) / stats.cardsTotal) * 100) + "%" : "—"}
+                    />
+                  </div>
+                  {stats.decades && Object.keys(stats.decades).length > 0 && (
+                    <div>
+                      <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase", marginBottom: 8 }}>Skuteczność wg dekad</p>
+                      <div className="flex flex-col gap-1">
+                        {Object.entries(stats.decades)
+                          .sort(([a], [b]) => a.localeCompare(b))
+                          .map(([label, d]) => (
+                            <div key={label} className="flex items-center justify-between text-sm">
+                              <span>{label}</span>
+                              <span style={{ color: "var(--accent)" }}>
+                                {d.correct}/{d.total} ({Math.round((d.correct / d.total) * 100)}%)
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </section>
+            <button
+              onClick={() => setShowStats(false)}
+              className="w-full py-3 rounded-xl text-sm font-bold"
+              style={{ border: "1px solid #33294f", color: "var(--muted)" }}
+            >
+              Wróć
+            </button>
+          </div>
+        )}
+
+        {screen === "home" && !showStats && (
+          <div className="w-full flex flex-col gap-5">
+            <section className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              {user ? (
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>Cześć, {user.displayName}!</p>
+                    <p style={{ color: "var(--muted)", fontSize: 11 }}>Zalogowano — Twoje statystyki są zapisywane.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={openStats} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: "var(--accent)", color: "#1a1428" }}>
+                      <BarChart3 size={14} /> Statystyki
+                    </button>
+                    <button onClick={handleLogout} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs" style={{ border: "1px solid #33294f", color: "var(--muted)" }}>
+                      <LogOut size={14} /> Wyloguj
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex gap-2 mb-3">
+                    <button
+                      onClick={() => setAuthMode("login")}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold"
+                      style={{ background: authMode === "login" ? "var(--accent)" : "var(--surface2)", color: authMode === "login" ? "#1a1428" : "var(--muted)" }}
+                    >
+                      Zaloguj
+                    </button>
+                    <button
+                      onClick={() => setAuthMode("register")}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold"
+                      style={{ background: authMode === "register" ? "var(--accent)" : "var(--surface2)", color: authMode === "register" ? "#1a1428" : "var(--muted)" }}
+                    >
+                      Zarejestruj
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <input type="text" value={authUsername} onChange={(e) => setAuthUsername(e.target.value)} placeholder="Login" />
+                    <input
+                      type="password"
+                      value={authPassword}
+                      onChange={(e) => setAuthPassword(e.target.value)}
+                      placeholder="Hasło (wymyśl inne niż wszędzie indziej!)"
+                    />
+                    <button
+                      onClick={handleAuthSubmit}
+                      disabled={authBusy}
+                      className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold"
+                      style={{ background: "var(--good)", color: "#0d1f1a" }}
+                    >
+                      <LogIn size={16} /> {authMode === "login" ? "Zaloguj się" : "Zarejestruj się"}
+                    </button>
+                    {authError && <p style={{ color: "var(--bad)", fontSize: 12 }}>{authError}</p>}
+                    <p style={{ color: "var(--muted)", fontSize: 11 }}>
+                      Konto = zbieramy Twoje statystyki gier (wygrane, skuteczność odgadywania). Możesz też zagrać bez konta poniżej.
+                    </p>
+                  </div>
+                </>
+              )}
+            </section>
+
+            {!user && (
+              <section className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+                <label className="text-xs uppercase" style={{ color: "var(--muted)" }}>Graj bez konta — podaj imię</label>
+                <input type="text" value={name} onChange={(e) => saveName(e.target.value)} className="w-full mt-2" placeholder="np. Kasia" />
+              </section>
+            )}
 
             <section className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
               <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>NOWA GRA</h2>
