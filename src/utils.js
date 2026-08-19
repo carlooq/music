@@ -53,6 +53,12 @@ export function shuffle(arr) {
   return a;
 }
 
+export function requiredApprovals(totalPlayers) {
+  const voters = totalPlayers - 1; // wszyscy oprócz odgadującego
+  if (voters <= 0) return 0;
+  return Math.ceil((voters * 2) / 3);
+}
+
 export function randomStartSeconds() {
   return Math.floor(Math.random() * 106) + 15; // 15–120s
 }

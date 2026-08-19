@@ -10,11 +10,15 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase-config.js";
 import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
-import { shuffle, randomStartSeconds, fuzzyMatch } from "./utils.js";
+import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId } from "./utils.js";
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
 import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, topArtists, getLeaderboard } from "./stats.js";
-import { Play, Music4, Trophy, RotateCcw, Users, ChevronRight, Copy, Check, LogIn, LogOut, BarChart3, Flame, Crown } from "lucide-react";
+import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb } from "./songsDb.js";
+import { Play, Music4, Trophy, RotateCcw, Users, ChevronRight, Copy, Check, LogIn, LogOut, BarChart3, Flame, Crown, Shield, Search, Trash2, Pencil, Save, X } from "lucide-react";
+
+// 👉 PODMIEŃ TO NA SWOJE WŁASNE HASŁO trybu admina
+const ADMIN_PASSWORD = "0987654321";
 
 const CATEGORIES = [
   { slug: "najwieksze-hity", label: "Największe Hity" },
@@ -164,7 +168,6 @@ export default function App() {
   const [decisionLeft, setDecisionLeft] = useState(60); // seconds left of the 60s total decision timer
   const [guessArtist, setGuessArtist] = useState("");
   const [guessTitle, setGuessTitle] = useState("");
-  const [guessFeedback, setGuessFeedback] = useState(null); // "correct" | "wrong" | null
   const iframeRef = useRef(null);
   const playIntervalRef = useRef(null);
   const decisionIntervalRef = useRef(null);
@@ -186,7 +189,120 @@ export default function App() {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [leaderboard, setLeaderboard] = useState(null);
 
+  const [librarySongs, setLibrarySongs] = useState(null); // null = jeszcze nie sprawdzono
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [adminPasswordInput, setAdminPasswordInput] = useState("");
+  const [adminUnlocked, setAdminUnlocked] = useState(false);
+  const [adminError, setAdminError] = useState("");
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [adminSearch, setAdminSearch] = useState("");
+  const [adminBusy, setAdminBusy] = useState(false);
+  const [adminEditingId, setAdminEditingId] = useState(null);
+  const [adminEditDraft, setAdminEditDraft] = useState({});
+  const [adminNewSong, setAdminNewSong] = useState({ artist: "", title: "", url: "", year: "", categories: "" });
+  const [migrateProgress, setMigrateProgress] = useState(null);
+
   const playerId = user ? user.uid : guestId;
+
+  const effectivePool = librarySongs && librarySongs.length > 0 ? librarySongs : REAL_SONGS;
+
+  useEffect(() => {
+    fetchAllSongsFromDb()
+      .then((songs) => setLibrarySongs(songs))
+      .catch(() => setLibrarySongs([])); // brak kolekcji / błąd → cicho wracamy do wbudowanej listy
+  }, []);
+
+  function refreshLibrary() {
+    fetchAllSongsFromDb()
+      .then((songs) => setLibrarySongs(songs))
+      .catch(() => {});
+  }
+
+  function unlockAdmin() {
+    if (adminPasswordInput === ADMIN_PASSWORD) {
+      setAdminUnlocked(true);
+      setShowAdminLogin(false);
+      setAdminError("");
+      setAdminPasswordInput("");
+    } else {
+      setAdminError("Złe hasło.");
+    }
+  }
+
+  async function handleAdminSave(id) {
+    setAdminBusy(true);
+    try {
+      const categories = (adminEditDraft.categoriesText || "")
+        .split(";")
+        .map((c) => c.trim())
+        .filter(Boolean);
+      await updateSongInDb(id, {
+        artist: adminEditDraft.artist,
+        title: adminEditDraft.title,
+        year: parseInt(adminEditDraft.year, 10),
+        categories,
+      });
+      setAdminEditingId(null);
+      refreshLibrary();
+    } catch (e) {
+      setError("Błąd zapisu: " + e.message);
+    } finally {
+      setAdminBusy(false);
+    }
+  }
+
+  async function handleAdminDelete(id) {
+    setAdminBusy(true);
+    try {
+      await deleteSongFromDb(id);
+      refreshLibrary();
+    } catch (e) {
+      setError("Błąd usuwania: " + e.message);
+    } finally {
+      setAdminBusy(false);
+    }
+  }
+
+  async function handleAdminAdd() {
+    const videoId = getYouTubeId(adminNewSong.url);
+    const year = parseInt(adminNewSong.year, 10);
+    if (!videoId || !adminNewSong.artist.trim() || !adminNewSong.title.trim() || isNaN(year)) {
+      setError("Uzupełnij wykonawcę, tytuł, poprawny link YouTube i rok.");
+      return;
+    }
+    setAdminBusy(true);
+    try {
+      await addSongToDb({
+        videoId,
+        artist: adminNewSong.artist.trim(),
+        title: adminNewSong.title.trim(),
+        year,
+        categories: adminNewSong.categories.split(";").map((c) => c.trim()).filter(Boolean),
+      });
+      setAdminNewSong({ artist: "", title: "", url: "", year: "", categories: "" });
+      refreshLibrary();
+    } catch (e) {
+      setError("Błąd dodawania: " + e.message);
+    } finally {
+      setAdminBusy(false);
+    }
+  }
+
+  async function handleMigrate() {
+    if (!window.confirm(`Wgrać ${REAL_SONGS.length} utworów z wbudowanej listy do bazy? Rób to tylko raz.`)) return;
+    setAdminBusy(true);
+    setMigrateProgress({ done: 0, total: REAL_SONGS.length });
+    try {
+      await migrateBundledLibraryToDb((done, total) => setMigrateProgress({ done, total }));
+      refreshLibrary();
+    } catch (e) {
+      setError("Błąd migracji: " + e.message);
+    } finally {
+      setAdminBusy(false);
+      setMigrateProgress(null);
+    }
+  }
+
 
   useEffect(() => {
     const unsub = watchAuthState(async (u) => {
@@ -266,10 +382,9 @@ export default function App() {
     setPlayElapsed(0);
     setGuessArtist("");
     setGuessTitle("");
-    setGuessFeedback(null);
     timeoutFiredRef.current = false;
     if (playIntervalRef.current) clearInterval(playIntervalRef.current);
-  }, [room?.currentCard?.id]);
+  }, [room?.currentCard?.id, room?.openerCreatedAt, room?.openerWinnerId]);
 
   // 60s total decision timer, driven off the shared turnDeadline so every
   // client (and especially the active player) sees the same countdown.
@@ -289,6 +404,81 @@ export default function App() {
     decisionIntervalRef.current = setInterval(tick, 500);
     return () => clearInterval(decisionIntervalRef.current);
   }, [screen, room?.turnDeadline, room?.currentPlayerId]);
+
+  // automatyczne przejście do kolejnej tury po wyniku rundy (licznik 3-2-1);
+  // triggeruje tylko klient gracza, którego tura się właśnie kończy
+  const advanceFiredRef = useRef(null);
+  const [advanceCountdown, setAdvanceCountdown] = useState(null);
+  useEffect(() => {
+    if (screen !== "roundResult" || !room?.resultAt) {
+      setAdvanceCountdown(null);
+      return;
+    }
+    const ADVANCE_SECONDS = 3;
+    const tick = () => {
+      const left = Math.max(0, ADVANCE_SECONDS - (Date.now() - room.resultAt) / 1000);
+      setAdvanceCountdown(Math.ceil(left));
+      if (left <= 0 && room.currentPlayerId === playerId && advanceFiredRef.current !== room.resultAt) {
+        advanceFiredRef.current = room.resultAt;
+        nextRound();
+      }
+    };
+    tick();
+    const id = setInterval(tick, 200);
+    return () => clearInterval(id);
+  }, [screen, room?.resultAt, room?.currentPlayerId]);
+
+  // minigra "kto zaczyna": 3s odliczanie + 20s na odpowiedź; jeśli nikt nie
+  // trafi, host (jedyny gwarantowany klient) rozstrzyga losowo na siebie
+  const OPENER_COUNTDOWN_MS = 3000;
+  const OPENER_ANSWER_MS = 20000;
+  const [openerPhase, setOpenerPhase] = useState("countdown"); // "countdown" | "answering"
+  const [openerLockedOut, setOpenerLockedOut] = useState(false);
+  const openerFallbackFiredRef = useRef(null);
+
+  useEffect(() => {
+    setOpenerLockedOut(false);
+  }, [room?.openerCreatedAt]);
+
+  useEffect(() => {
+    if (screen !== "opener" || !room?.openerCreatedAt) return;
+    const tick = () => {
+      const elapsed = Date.now() - room.openerCreatedAt;
+      setOpenerPhase(elapsed < OPENER_COUNTDOWN_MS ? "countdown" : "answering");
+      const isHostNow = room.hostId === playerId;
+      if (
+        isHostNow &&
+        !room.openerWinnerId &&
+        elapsed >= OPENER_COUNTDOWN_MS + OPENER_ANSWER_MS &&
+        openerFallbackFiredRef.current !== room.openerCreatedAt
+      ) {
+        openerFallbackFiredRef.current = room.openerCreatedAt;
+        (async () => {
+          try {
+            const ref = doc(db, "rooms", roomId);
+            await runTransaction(db, async (tx) => {
+              const snap = await tx.get(ref);
+              const data = snap.data();
+              if (data.status !== "opener" || data.openerWinnerId) return;
+              tx.update(ref, {
+                status: "playing",
+                openerWinnerId: data.hostId,
+                currentPlayerId: data.hostId,
+                startingPlayerId: data.hostId,
+                turnDeadline: Date.now() + DECISION_SECONDS * 1000,
+              });
+            });
+          } catch (e) {
+            // ciche niepowodzenie
+          }
+        })();
+      }
+    };
+    tick();
+    const id = setInterval(tick, 300);
+    return () => clearInterval(id);
+  }, [screen, room?.openerCreatedAt, room?.openerWinnerId, room?.hostId, roomId, playerId]);
+
 
   useEffect(() => {
     if (user?.displayName) saveName(user.displayName);
@@ -319,7 +509,7 @@ export default function App() {
         startSeconds: 0,
         timelines: {},
         lastResult: null,
-        winnerId: null,
+        winnerIds: [],
         createdAt: serverTimestamp(),
       });
       setRoomId(code);
@@ -372,28 +562,31 @@ export default function App() {
     });
   }
 
-  async function startGame() {
+  async function beginGame() {
     if (!room) return;
     if (!target || target < 1) {
       setError("Podaj liczbę kart do wygrania.");
       return;
     }
-    const basePool = REAL_SONGS;
+    const basePool = effectivePool;
     const filterActive = !selectedCategories.includes("wszystkie") && selectedCategories.length > 0;
     const pool = filterActive
       ? basePool.filter((s) => s.categories && s.categories.some((c) => selectedCategories.includes(c)))
       : basePool;
     const EXTRA_CARDS_PER_PLAYER = 7;
     const needed = room.players.length * (target + EXTRA_CARDS_PER_PLAYER);
-    if (pool.length < needed) {
+    if (pool.length < needed + 1) {
       const catNote = filterActive ? ` w wybranych kategoriach (${selectedCategories.join(", ")})` : "";
-      setError(`Za mało utworów${catNote} (masz ${pool.length}, potrzeba ${needed}: (${target}+${EXTRA_CARDS_PER_PLAYER}) × ${room.players.length} graczy).`);
+      setError(`Za mało utworów${catNote} (masz ${pool.length}, potrzeba ${needed + 1}: (${target}+${EXTRA_CARDS_PER_PLAYER}) × ${room.players.length} graczy + 1 na rundę otwierającą).`);
       return;
     }
     setBusy(true);
     setError("");
     try {
-      const deck = shuffle(pool).slice(0, needed);
+      // +1 karta na minigrę "kto zaczyna" — osobna, nie wchodzi do talii rozgrywki
+      const extended = shuffle(pool).slice(0, needed + 1);
+      const openerCard = extended[0];
+      const deck = extended.slice(1);
       const players = room.players;
       const timelines = {};
       const tokens = {};
@@ -401,25 +594,64 @@ export default function App() {
         timelines[p.id] = [deck[i]];
         tokens[p.id] = 1;
       });
+
+      const decoys = shuffle(deck.filter((s) => s.id !== openerCard.id)).slice(0, 3);
+      const shuffledOptions = shuffle([openerCard, ...decoys]);
+      const openerCorrectIndex = shuffledOptions.findIndex((s) => s.id === openerCard.id);
+      const openerOptions = shuffledOptions.map((s) => ({ artist: s.artist, title: s.title }));
+
       const ref = doc(db, "rooms", roomId);
       await updateDoc(ref, {
-        status: "playing",
+        status: "opener",
         target,
         deck,
         deckIndex: players.length + 1,
-        currentPlayerId: players[0].id,
         currentCard: deck[players.length],
         startSeconds: randomStartSeconds(),
-        turnDeadline: Date.now() + DECISION_SECONDS * 1000,
         timelines,
         tokens,
         lastResult: null,
-        winnerId: null,
+        pendingGuess: null,
+        votes: {},
+        requiredApprovals: 0,
+        resultAt: null,
+        winnerIds: [],
+        finishingRound: false,
+        currentPlayerId: null,
+        startingPlayerId: null,
+        openerCard,
+        openerOptions,
+        openerCorrectIndex,
+        openerStartSeconds: randomStartSeconds(),
+        openerCreatedAt: Date.now(),
+        openerWinnerId: null,
       });
     } catch (e) {
       setError("Nie udało się rozpocząć gry: " + e.message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function answerOpener(index) {
+    if (!room || room.status !== "opener" || room.openerWinnerId) return;
+    try {
+      const ref = doc(db, "rooms", roomId);
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const data = snap.data();
+        if (data.status !== "opener" || data.openerWinnerId) return;
+        if (index !== data.openerCorrectIndex) return; // zła odpowiedź — nikt nie wygrywa
+        tx.update(ref, {
+          status: "playing",
+          openerWinnerId: playerId,
+          currentPlayerId: playerId,
+          startingPlayerId: playerId,
+          turnDeadline: Date.now() + DECISION_SECONDS * 1000,
+        });
+      });
+    } catch (e) {
+      setError("Błąd rundy otwierającej: " + e.message);
     }
   }
 
@@ -432,8 +664,9 @@ export default function App() {
 
     if (willPlay) {
       setPlayElapsed(0);
+      const startAt = screen === "opener" ? room.openerStartSeconds : room.startSeconds;
       if (win) {
-        win.postMessage(JSON.stringify({ event: "command", func: "seekTo", args: [room.startSeconds, true] }), "*");
+        win.postMessage(JSON.stringify({ event: "command", func: "seekTo", args: [startAt, true] }), "*");
         win.postMessage(JSON.stringify({ event: "command", func: "unMute", args: [] }), "*");
         win.postMessage(JSON.stringify({ event: "command", func: "setVolume", args: [100] }), "*");
         win.postMessage(JSON.stringify({ event: "command", func: "playVideo", args: [] }), "*");
@@ -458,6 +691,9 @@ export default function App() {
   async function confirmPlacement() {
     if (chosenSlot === null || !room) return;
     setBusy(true);
+    const artist = guessArtist.trim();
+    const title = guessTitle.trim();
+    const hasGuess = artist.length > 0 || title.length > 0;
     try {
       const ref = doc(db, "rooms", roomId);
       let capturedResult = null;
@@ -471,15 +707,31 @@ export default function App() {
         const card = data.currentCard;
         const correct = (!before || before.year <= card.year) && (!after || card.year <= after.year);
         const newTimelines = { ...data.timelines };
-        if (correct) {
-          newTimelines[data.currentPlayerId] = [...timeline, card];
-        }
+        if (correct) newTimelines[data.currentPlayerId] = [...timeline, card];
         capturedResult = { correct, card };
-        tx.update(ref, {
-          status: "roundResult",
-          lastResult: { correct, card },
-          timelines: newTimelines,
-        });
+
+        const players = data.players;
+        if (hasGuess && players.length > 1) {
+          tx.update(ref, {
+            status: "voting",
+            lastResult: { correct, card },
+            timelines: newTimelines,
+            pendingGuess: { artist, title },
+            votes: {},
+            requiredApprovals: requiredApprovals(players.length),
+            resultAt: null,
+          });
+        } else {
+          // brak zgadywania, albo gra solo — bez głosowania (a w solo od razu przyznajemy token)
+          tx.update(ref, {
+            status: "roundResult",
+            lastResult: { correct, card, tokenAwarded: hasGuess },
+            timelines: newTimelines,
+            pendingGuess: null,
+            resultAt: Date.now(),
+            ...(hasGuess ? { [`tokens.${data.currentPlayerId}`]: increment(1) } : {}),
+          });
+        }
       });
       if (user && capturedResult) {
         recordCardGuess(user.uid, capturedResult.card.year, capturedResult.correct, capturedResult.card.artist).catch(() => {});
@@ -491,49 +743,82 @@ export default function App() {
     }
   }
 
-  async function submitGuess() {
-    if (!room || guessFeedback !== null) return;
-    const card = room.currentCard;
-    const artistOk = fuzzyMatch(guessArtist, card.artist);
-    const titleOk = fuzzyMatch(guessTitle, card.title);
-    const correct = artistOk && titleOk;
-    setGuessFeedback(correct ? "correct" : "wrong");
-    if (correct) {
-      try {
-        const ref = doc(db, "rooms", roomId);
-        await updateDoc(ref, { [`tokens.${playerId}`]: increment(1) });
-      } catch (e) {
-        // nie krytyczne — gra toczy się dalej nawet jeśli token się nie zapisał
-      }
-    }
-  }
-
   async function buyCard() {
     if (!room || (room.tokens?.[playerId] || 0) < BUY_CARD_TOKENS) return;
     setBusy(true);
     try {
       const ref = doc(db, "rooms", roomId);
-      let capturedResult = null;
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
         if ((data.tokens?.[data.currentPlayerId] || 0) < BUY_CARD_TOKENS) return;
-        const card = data.currentCard;
+        if (data.deckIndex >= data.deck.length) return; // brak kart w talii do kupienia
+
+        const boughtCard = data.deck[data.deckIndex];
         const timeline = data.timelines[data.currentPlayerId] || [];
-        const newTimelines = { ...data.timelines, [data.currentPlayerId]: [...timeline, card] };
-        capturedResult = { correct: true, card, bought: true };
-        tx.update(ref, {
-          status: "roundResult",
-          lastResult: { correct: true, card, bought: true },
+        const newTimelines = { ...data.timelines, [data.currentPlayerId]: [...timeline, boughtCard] };
+
+        const update = {
           timelines: newTimelines,
+          deckIndex: data.deckIndex + 1,
           [`tokens.${data.currentPlayerId}`]: increment(-BUY_CARD_TOKENS),
-        });
+        };
+
+        // kupiona karta może dopełnić cel — nie kończymy gry od razu,
+        // tylko oznaczamy rundę do dogrania (jak przy normalnym trafieniu celu)
+        if (newTimelines[data.currentPlayerId].length >= data.target) {
+          update.finishingRound = true;
+        }
+
+        tx.update(ref, update);
       });
-      if (user && capturedResult) {
-        recordCardGuess(user.uid, capturedResult.card.year, true, capturedResult.card.artist).catch(() => {});
-      }
     } catch (e) {
       setError("Błąd kupowania karty: " + e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function castVote(accept) {
+    if (!room || room.status !== "voting") return;
+    if (playerId === room.currentPlayerId) return; // nie głosujesz na własne zgadywanie
+    if (room.votes && room.votes[playerId] !== undefined) return; // już zagłosowano
+    setBusy(true);
+    try {
+      const ref = doc(db, "rooms", roomId);
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const data = snap.data();
+        if (data.status !== "voting") return;
+        if (data.votes && data.votes[playerId] !== undefined) return;
+        const newVotes = { ...(data.votes || {}), [playerId]: accept };
+        const approvals = Object.values(newVotes).filter((v) => v === true).length;
+        const rejections = Object.values(newVotes).filter((v) => v === false).length;
+        const totalVoters = data.players.length - 1;
+        const remaining = totalVoters - (approvals + rejections);
+        const required = data.requiredApprovals;
+
+        if (approvals >= required) {
+          tx.update(ref, {
+            status: "roundResult",
+            votes: newVotes,
+            lastResult: { ...data.lastResult, tokenAwarded: true },
+            resultAt: Date.now(),
+            [`tokens.${data.currentPlayerId}`]: increment(1),
+          });
+        } else if (approvals + remaining < required) {
+          tx.update(ref, {
+            status: "roundResult",
+            votes: newVotes,
+            lastResult: { ...data.lastResult, tokenAwarded: false },
+            resultAt: Date.now(),
+          });
+        } else {
+          tx.update(ref, { votes: newVotes });
+        }
+      });
+    } catch (e) {
+      setError("Błąd głosowania: " + e.message);
     } finally {
       setBusy(false);
     }
@@ -575,6 +860,8 @@ export default function App() {
         tx.update(ref, {
           status: "roundResult",
           lastResult: { correct: false, card, timedOut: true },
+          pendingGuess: null,
+          resultAt: Date.now(),
         });
       });
     } catch (e) {
@@ -591,24 +878,28 @@ export default function App() {
         const snap = await tx.get(ref);
         const data = snap.data();
         const players = data.players;
-
-        const winnerEntry = Object.entries(data.timelines).find(([, t]) => t.length >= data.target);
-        if (winnerEntry) {
-          tx.update(ref, { status: "gameover", winnerId: winnerEntry[0] });
-          gameOverInfo = { winnerId: winnerEntry[0], players };
-          return;
-        }
-        if (data.deckIndex >= data.deck.length) {
-          let bestId = players[0].id;
-          players.forEach((p) => {
-            if ((data.timelines[p.id] || []).length > (data.timelines[bestId] || []).length) bestId = p.id;
-          });
-          tx.update(ref, { status: "gameover", winnerId: bestId });
-          gameOverInfo = { winnerId: bestId, players };
-          return;
-        }
         const idx = players.findIndex((p) => p.id === data.currentPlayerId);
         const nextIdx = (idx + 1) % players.length;
+
+        const someoneReachedTarget = Object.values(data.timelines).some((t) => t.length >= data.target);
+        const finishingRound = data.finishingRound || someoneReachedTarget;
+        const deckExhausted = data.deckIndex >= data.deck.length;
+        // runda kończy się, gdy tura wraca do gracza, który zaczynał —
+        // wtedy wszyscy mieli dokładnie tyle samo tur
+        const lapWillComplete = players[nextIdx].id === data.startingPlayerId;
+
+        if (deckExhausted || (finishingRound && lapWillComplete)) {
+          let best = 0;
+          players.forEach((p) => {
+            const len = (data.timelines[p.id] || []).length;
+            if (len > best) best = len;
+          });
+          const winnerIds = players.filter((p) => (data.timelines[p.id] || []).length === best).map((p) => p.id);
+          tx.update(ref, { status: "gameover", winnerIds });
+          gameOverInfo = { winnerIds, players };
+          return;
+        }
+
         tx.update(ref, {
           status: "playing",
           currentPlayerId: players[nextIdx].id,
@@ -617,13 +908,17 @@ export default function App() {
           startSeconds: randomStartSeconds(),
           turnDeadline: Date.now() + DECISION_SECONDS * 1000,
           lastResult: null,
+          pendingGuess: null,
+          votes: {},
+          resultAt: null,
+          finishingRound,
         });
       });
       if (gameOverInfo) {
         gameOverInfo.players
           .filter((p) => p.authed)
           .forEach((p) => {
-            recordGameResult(p.id, p.id === gameOverInfo.winnerId).catch(() => {});
+            recordGameResult(p.id, gameOverInfo.winnerIds.includes(p.id)).catch(() => {});
           });
       }
     } catch (e) {
@@ -651,10 +946,16 @@ export default function App() {
         deck: [],
         deckIndex: 0,
         currentPlayerId: null,
+        startingPlayerId: null,
         currentCard: null,
         timelines: {},
         lastResult: null,
-        winnerId: null,
+        winnerIds: [],
+        finishingRound: false,
+        openerCard: null,
+        openerOptions: [],
+        openerWinnerId: null,
+        openerCreatedAt: null,
       });
     } finally {
       setBusy(false);
@@ -834,7 +1135,124 @@ export default function App() {
           </div>
         )}
 
-        {screen === "home" && !showStats && !showLeaderboard && (
+        {screen === "home" && showAdminPanel && (
+          <div className="w-full flex flex-col gap-5">
+            <div className="flex items-center justify-between">
+              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24 }}>PANEL ADMINA</h2>
+              <button onClick={() => setShowAdminPanel(false)} className="text-xs" style={{ color: "var(--muted)" }}>
+                ← Wróć
+              </button>
+            </div>
+
+            {(!librarySongs || librarySongs.length === 0) && (
+              <section className="w-full rounded-2xl p-4" style={{ background: "rgba(231,178,76,0.1)", border: "1px solid var(--accent)" }}>
+                <p style={{ fontSize: 12, marginBottom: 8 }}>
+                  Baza w Firestore jest pusta — gra korzysta teraz z wbudowanej listy ({REAL_SONGS.length} utworów), której nie da się edytować na żywo.
+                  Wgraj ją do bazy jednym kliknięciem, żeby móc dalej edytować bezpośrednio w appce:
+                </p>
+                <button
+                  onClick={handleMigrate}
+                  disabled={adminBusy}
+                  className="px-4 py-2 rounded-lg text-sm font-bold"
+                  style={{ background: "var(--accent)", color: "#1a1428" }}
+                >
+                  {migrateProgress ? `Wgrywanie… ${migrateProgress.done}/${migrateProgress.total}` : "Wgraj wbudowaną listę do bazy"}
+                </button>
+              </section>
+            )}
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>Dodaj nowy utwór</p>
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2 flex-wrap">
+                  <input type="text" placeholder="Wykonawca" value={adminNewSong.artist} onChange={(e) => setAdminNewSong({ ...adminNewSong, artist: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
+                  <input type="text" placeholder="Tytuł" value={adminNewSong.title} onChange={(e) => setAdminNewSong({ ...adminNewSong, title: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
+                </div>
+                <input type="text" placeholder="Link YouTube" value={adminNewSong.url} onChange={(e) => setAdminNewSong({ ...adminNewSong, url: e.target.value })} />
+                <div className="flex gap-2 flex-wrap">
+                  <input type="number" placeholder="Rok" value={adminNewSong.year} onChange={(e) => setAdminNewSong({ ...adminNewSong, year: e.target.value })} style={{ width: 90 }} />
+                  <input type="text" placeholder="kategorie;po;średniku" value={adminNewSong.categories} onChange={(e) => setAdminNewSong({ ...adminNewSong, categories: e.target.value })} className="flex-1" style={{ minWidth: 140 }} />
+                </div>
+                <button onClick={handleAdminAdd} disabled={adminBusy} className="px-4 py-2 rounded-lg text-sm font-bold" style={{ background: "var(--good)", color: "#0d1f1a" }}>
+                  + Dodaj
+                </button>
+              </div>
+            </section>
+
+            <div className="flex items-center gap-2">
+              <Search size={16} color="var(--muted)" />
+              <input type="text" value={adminSearch} onChange={(e) => setAdminSearch(e.target.value)} placeholder="Szukaj po wykonawcy lub tytule…" className="flex-1" />
+            </div>
+
+            <p style={{ fontSize: 11, color: "var(--muted)" }}>
+              {librarySongs ? `${librarySongs.length} utworów w bazie` : "Ładowanie…"}
+            </p>
+
+            <div className="flex flex-col gap-2">
+              {(librarySongs || [])
+                .filter((s) => {
+                  const q = adminSearch.trim().toLowerCase();
+                  if (!q) return true;
+                  return s.artist.toLowerCase().includes(q) || s.title.toLowerCase().includes(q);
+                })
+                .slice(0, 200)
+                .map((s) => (
+                  <div key={s.id} className="rounded-lg p-3" style={{ background: "var(--surface2)" }}>
+                    {adminEditingId === s.id ? (
+                      <div className="flex flex-col gap-2">
+                        <div className="flex gap-2 flex-wrap">
+                          <input type="text" value={adminEditDraft.artist} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, artist: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
+                          <input type="text" value={adminEditDraft.title} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, title: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
+                        </div>
+                        <div className="flex gap-2 flex-wrap">
+                          <input type="number" value={adminEditDraft.year} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, year: e.target.value })} style={{ width: 90 }} />
+                          <input type="text" value={adminEditDraft.categoriesText} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, categoriesText: e.target.value })} placeholder="kategorie;po;średniku" className="flex-1" style={{ minWidth: 140 }} />
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => handleAdminSave(s.id)} disabled={adminBusy} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: "var(--good)", color: "#0d1f1a" }}>
+                            <Save size={12} /> Zapisz
+                          </button>
+                          <button onClick={() => setAdminEditingId(null)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs" style={{ border: "1px solid #33294f", color: "var(--muted)" }}>
+                            <X size={12} /> Anuluj
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div>
+                          <p style={{ fontSize: 13 }}>
+                            <strong>{s.artist}</strong> — {s.title} ({s.year})
+                          </p>
+                          <p style={{ fontSize: 10, color: "var(--muted)" }}>{(s.categories || []).join(", ") || "brak kategorii"}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setAdminEditingId(s.id);
+                              setAdminEditDraft({ artist: s.artist, title: s.title, year: s.year, categoriesText: (s.categories || []).join(";") });
+                            }}
+                            style={{ color: "var(--accent)" }}
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button onClick={() => handleAdminDelete(s.id)} disabled={adminBusy} style={{ color: "var(--bad)" }}>
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              {librarySongs && librarySongs.length > 200 && (
+                <p style={{ fontSize: 11, color: "var(--muted)", textAlign: "center" }}>
+                  Pokazuję pierwsze 200 wyników — zawęź wyszukiwanie, żeby znaleźć więcej.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {screen === "home" && !showStats && !showLeaderboard && !showAdminPanel && (
           <div className="w-full flex flex-col gap-5">
             <section className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
               {user ? (
@@ -909,6 +1327,40 @@ export default function App() {
             >
               <Trophy size={16} /> Ranking graczy
             </button>
+
+            {adminUnlocked ? (
+              <button
+                onClick={() => setShowAdminPanel(true)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold"
+                style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
+              >
+                <Shield size={16} /> Panel admina ({effectivePool.length} utworów)
+              </button>
+            ) : showAdminLogin ? (
+              <div className="w-full rounded-xl p-3 flex gap-2 items-center flex-wrap" style={{ background: "var(--surface2)", border: "1px solid #33294f" }}>
+                <input
+                  type="password"
+                  value={adminPasswordInput}
+                  onChange={(e) => setAdminPasswordInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && unlockAdmin()}
+                  placeholder="Hasło admina"
+                  className="flex-1"
+                  style={{ minWidth: 120 }}
+                />
+                <button onClick={unlockAdmin} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: "var(--accent)", color: "#1a1428" }}>
+                  Odblokuj
+                </button>
+                {adminError && <span style={{ color: "var(--bad)", fontSize: 11 }}>{adminError}</span>}
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowAdminLogin(true)}
+                className="self-center text-xs"
+                style={{ color: "var(--muted)" }}
+              >
+                🔐 Tryb admina
+              </button>
+            )}
 
             <section className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
               <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>NOWA GRA</h2>
@@ -1009,10 +1461,10 @@ export default function App() {
                 </div>
 
                 <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 6 }}>
-                  Gracie z pełną biblioteką {REAL_SONGS.length} utworów.
+                  Gracie z pełną biblioteką {effectivePool.length} utworów.
                 </p>
                 <button
-                  onClick={startGame}
+                  onClick={beginGame}
                   disabled={busy || !target}
                   className="w-full mt-4 py-3 rounded-xl text-lg font-bold flex items-center justify-center gap-2"
                   style={{ background: "var(--good)", color: "#0d1f1a", fontFamily: "'Bebas Neue', sans-serif" }}
@@ -1027,7 +1479,72 @@ export default function App() {
           </div>
         )}
 
-        {(screen === "playing" || screen === "roundResult") && room && room.currentCard && (
+        {screen === "opener" && room && room.openerCard && (
+          <div className="w-full flex flex-col items-center gap-6">
+            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, textAlign: "center" }}>KTO ZACZYNA?</p>
+
+            {openerPhase === "countdown" ? (
+              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 64, color: "var(--accent)" }}>
+                {Math.max(1, Math.ceil((OPENER_COUNTDOWN_MS - (Date.now() - room.openerCreatedAt)) / 1000))}
+              </p>
+            ) : (
+              <>
+                <div className="w-full rounded-2xl p-5 flex flex-col items-center" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+                  <Vinyl spinning={isPlaying} revealed={!!room.openerWinnerId} progress={playElapsed / PLAY_CAP_SECONDS} />
+                  <div style={{ width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }}>
+                    <iframe
+                      key={"opener-" + room.openerCard.id}
+                      ref={iframeRef}
+                      title="opener-player"
+                      width="280"
+                      height="158"
+                      src={`https://www.youtube.com/embed/${room.openerCard.videoId}?enablejsapi=1&autoplay=1&mute=1&start=${room.openerStartSeconds}&controls=0&modestbranding=1&rel=0`}
+                      allow="autoplay; encrypted-media"
+                      style={{ border: "none" }}
+                    />
+                  </div>
+                  <button onClick={togglePlay} className="mt-4 flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold" style={{ background: "var(--accent)", color: "#1a1428" }}>
+                    <Play size={16} />
+                    {isPlaying ? `Gra… (${Math.ceil(PLAY_CAP_SECONDS - playElapsed)}s)` : "Odtwórz dźwięk"}
+                  </button>
+                </div>
+
+                {room.openerWinnerId ? (
+                  <p style={{ color: "var(--good)", fontSize: 16, fontWeight: "bold" }}>
+                    {room.players.find((p) => p.id === room.openerWinnerId)?.name} zgadł(a) pierwszy(a) i zaczyna!
+                  </p>
+                ) : (
+                  <>
+                    <p style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase" }}>Kto pierwszy zaznaczy poprawną odpowiedź, zaczyna grę</p>
+                    <div className="w-full grid grid-cols-1 gap-2">
+                      {room.openerOptions.map((opt, i) => (
+                        <button
+                          key={i}
+                          onClick={() => {
+                            setOpenerLockedOut(true);
+                            answerOpener(i);
+                          }}
+                          disabled={openerLockedOut}
+                          className="w-full py-3 rounded-xl text-sm font-bold text-left px-4"
+                          style={{
+                            background: openerLockedOut ? "#33294f" : "var(--surface2)",
+                            color: openerLockedOut ? "var(--muted)" : "var(--text)",
+                            border: "1px solid #33294f",
+                          }}
+                        >
+                          {opt.artist} — {opt.title}
+                        </button>
+                      ))}
+                    </div>
+                    {openerLockedOut && <p style={{ color: "var(--muted)", fontSize: 11 }}>Odpowiedziałeś(aś) — czekaj na wynik…</p>}
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {(screen === "playing" || screen === "voting" || screen === "roundResult") && room && room.currentCard && (
           <div className="w-full flex flex-col items-center gap-6">
             <div className="w-full rounded-2xl p-5 flex flex-col items-center" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
               <p style={{ color: "var(--accent)", fontSize: 12, textTransform: "uppercase", letterSpacing: 2 }}>Tura gracza</p>
@@ -1065,23 +1582,16 @@ export default function App() {
             {screen === "playing" && isMyTurn && (
               <div className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
                 <div className="flex items-center justify-between mb-2">
-                  <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase" }}>Zgadnij wykonawcę i tytuł (+1 token)</p>
+                  <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase" }}>Zgadnij wykonawcę i tytuł (opcjonalnie, +1 token)</p>
                   <span style={{ color: "var(--accent)", fontSize: 12, fontWeight: "bold" }}>🪙 {room.tokens?.[playerId] || 0}</span>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  <input type="text" value={guessArtist} onChange={(e) => setGuessArtist(e.target.value)} placeholder="Wykonawca" disabled={guessFeedback !== null} className="flex-1" style={{ minWidth: 120 }} />
-                  <input type="text" value={guessTitle} onChange={(e) => setGuessTitle(e.target.value)} placeholder="Tytuł" disabled={guessFeedback !== null} className="flex-1" style={{ minWidth: 120 }} />
-                  <button
-                    onClick={submitGuess}
-                    disabled={guessFeedback !== null || !guessArtist.trim() || !guessTitle.trim()}
-                    className="px-4 py-2 rounded-lg text-sm font-bold"
-                    style={{ background: "var(--accent)", color: "#1a1428" }}
-                  >
-                    Zgadnij
-                  </button>
+                  <input type="text" value={guessArtist} onChange={(e) => setGuessArtist(e.target.value)} placeholder="Wykonawca" className="flex-1" style={{ minWidth: 120 }} />
+                  <input type="text" value={guessTitle} onChange={(e) => setGuessTitle(e.target.value)} placeholder="Tytuł" className="flex-1" style={{ minWidth: 120 }} />
                 </div>
-                {guessFeedback === "correct" && <p style={{ color: "var(--good)", fontSize: 12, marginTop: 6 }}>✓ Trafione! +1 token</p>}
-                {guessFeedback === "wrong" && <p style={{ color: "var(--bad)", fontSize: 12, marginTop: 6 }}>✗ Niestety nie tym razem.</p>}
+                <p style={{ color: "var(--muted)", fontSize: 10, marginTop: 4 }}>
+                  Inni gracze zagłosują, czy Twoja odpowiedź się liczy — zostaw puste, jeśli nie zgadujesz.
+                </p>
 
                 <div className="flex gap-2 mt-3 flex-wrap">
                   <button
@@ -1151,6 +1661,38 @@ export default function App() {
               </div>
             )}
 
+            {screen === "voting" && room.pendingGuess && (
+              <div className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, textAlign: "center", marginBottom: 10 }}>
+                  {isMyTurn ? "Czekasz na głosy…" : `Czy ${turnPlayerName} zgadł(a) poprawnie?`}
+                </p>
+                <div className="rounded-lg p-3 mb-2" style={{ background: "var(--surface2)" }}>
+                  <p style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase" }}>Prawidłowa odpowiedź</p>
+                  <p style={{ fontSize: 15 }}>{room.lastResult.card.artist} — „{room.lastResult.card.title}"</p>
+                </div>
+                <div className="rounded-lg p-3 mb-3" style={{ background: "var(--surface2)" }}>
+                  <p style={{ fontSize: 10, color: "var(--accent)", textTransform: "uppercase" }}>Odpowiedź gracza</p>
+                  <p style={{ fontSize: 15 }}>{room.pendingGuess.artist || "—"} — „{room.pendingGuess.title || "—"}"</p>
+                </div>
+                <p style={{ color: "var(--muted)", fontSize: 11, textAlign: "center", marginBottom: 10 }}>
+                  Potrzeba {room.requiredApprovals} głos{room.requiredApprovals === 1 ? "u" : "ów"} na TAK
+                  {" · "}oddano {Object.keys(room.votes || {}).length}/{room.players.length - 1}
+                </p>
+                {!isMyTurn && (room.votes?.[playerId] === undefined ? (
+                  <div className="flex gap-3">
+                    <button onClick={() => castVote(true)} disabled={busy} className="flex-1 py-3 rounded-xl text-sm font-bold" style={{ background: "var(--good)", color: "#0d1f1a" }}>
+                      ✓ TAK, zalicza się
+                    </button>
+                    <button onClick={() => castVote(false)} disabled={busy} className="flex-1 py-3 rounded-xl text-sm font-bold" style={{ background: "var(--bad)", color: "#2a1414" }}>
+                      ✗ NIE
+                    </button>
+                  </div>
+                ) : (
+                  <p style={{ textAlign: "center", color: "var(--muted)", fontSize: 12 }}>Twój głos: {room.votes[playerId] ? "TAK" : "NIE"}</p>
+                ))}
+              </div>
+            )}
+
             {screen === "roundResult" && room.lastResult && (
               <div className="w-full flex flex-col items-center gap-4">
                 <div
@@ -1167,10 +1709,15 @@ export default function App() {
                     {room.lastResult.card.artist} — „{room.lastResult.card.title}"
                   </p>
                   <p style={{ color: "var(--accent)", fontFamily: "'Bebas Neue', sans-serif", fontSize: 22 }}>{room.lastResult.card.year}</p>
+                  {room.lastResult.tokenAwarded !== undefined && (
+                    <p style={{ fontSize: 12, marginTop: 6, color: room.lastResult.tokenAwarded ? "var(--accent)" : "var(--muted)" }}>
+                      {room.lastResult.tokenAwarded ? "🪙 Zgadywanie zaliczone! +1 token" : "Zgadywanie nie zaliczone"}
+                    </p>
+                  )}
                 </div>
-                <button onClick={nextRound} disabled={busy} className="w-full py-3 rounded-xl text-lg font-bold" style={{ background: "var(--accent)", color: "#1a1428", fontFamily: "'Bebas Neue', sans-serif" }}>
-                  NASTĘPNY GRACZ →
-                </button>
+                <p style={{ color: "var(--muted)", fontSize: 13 }}>
+                  Kolejny gracz za {advanceCountdown ?? 3}…
+                </p>
               </div>
             )}
 
@@ -1184,22 +1731,27 @@ export default function App() {
                     color: p.id === room.currentPlayerId ? "#1a1428" : "var(--muted)",
                   }}
                 >
-                  {p.name}: {(room.timelines[p.id] || []).length}/{room.target}
+                  {p.name}: {(room.timelines[p.id] || []).length}/{room.target} · 🪙{room.tokens?.[p.id] || 0}
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {screen === "gameover" && room && room.winnerId && (
+        {screen === "gameover" && room && room.winnerIds && room.winnerIds.length > 0 && (
           <div className="w-full flex flex-col items-center gap-5 text-center">
             <Trophy size={48} color="var(--accent)" />
             <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34 }}>
-              {room.players.find((p) => p.id === room.winnerId)?.name} WYGRYWA!
+              {room.winnerIds.length > 1
+                ? `REMIS: ${room.winnerIds.map((id) => room.players.find((p) => p.id === id)?.name).join(" i ")}!`
+                : `${room.players.find((p) => p.id === room.winnerIds[0])?.name} WYGRYWA!`}
             </p>
-            <p style={{ color: "var(--muted)", fontSize: 13 }}>
-              Oś czasu: {(room.timelines[room.winnerId] || []).map((c) => c.year).sort((a, b) => a - b).join(" → ")}
-            </p>
+            {room.winnerIds.map((id) => (
+              <p key={id} style={{ color: "var(--muted)", fontSize: 13 }}>
+                {room.winnerIds.length > 1 && <strong style={{ color: "var(--text)" }}>{room.players.find((p) => p.id === id)?.name}: </strong>}
+                Oś czasu: {(room.timelines[id] || []).map((c) => c.year).sort((a, b) => a - b).join(" → ")}
+              </p>
+            ))}
             {isHost && (
               <button onClick={playAgain} className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold" style={{ background: "var(--accent)", color: "#1a1428" }}>
                 <RotateCcw size={16} /> ZAGRAJ PONOWNIE
