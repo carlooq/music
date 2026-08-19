@@ -6,10 +6,11 @@ import {
   onSnapshot,
   runTransaction,
   serverTimestamp,
+  increment,
 } from "firebase/firestore";
 import { db } from "./firebase-config.js";
 import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
-import { parseCSV, shuffle, randomStartSeconds } from "./utils.js";
+import { shuffle, randomStartSeconds, fuzzyMatch } from "./utils.js";
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
 import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, topArtists, getLeaderboard } from "./stats.js";
@@ -26,9 +27,32 @@ const CATEGORIES = [
 
 // ---------- vinyl / now-playing widget ----------
 
-function Vinyl({ spinning, revealed }) {
+function Vinyl({ spinning, revealed, progress = 0 }) {
+  const radius = 112;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - progress);
   return (
     <div className="relative flex flex-col items-center">
+      <svg
+        width={236}
+        height={236}
+        className="absolute"
+        style={{ top: -8, left: -8, transform: "rotate(-90deg)" }}
+      >
+        <circle cx={118} cy={118} r={radius} stroke="rgba(231,178,76,0.15)" strokeWidth={4} fill="none" />
+        <circle
+          cx={118}
+          cy={118}
+          r={radius}
+          stroke="var(--accent)"
+          strokeWidth={4}
+          fill="none"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          style={{ transition: "stroke-dashoffset 0.2s linear" }}
+        />
+      </svg>
       <div
         className="relative rounded-full flex items-center justify-center"
         style={{
@@ -131,14 +155,24 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const [customInput, setCustomInput] = useState("");
-  const [customSongs, setCustomSongs] = useState(null);
   const [target, setTarget] = useState(10);
   const [selectedCategories, setSelectedCategories] = useState(["wszystkie"]);
 
   const [chosenSlot, setChosenSlot] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playElapsed, setPlayElapsed] = useState(0); // seconds played in current listen session (0-25)
+  const [decisionLeft, setDecisionLeft] = useState(60); // seconds left of the 60s total decision timer
+  const [guessArtist, setGuessArtist] = useState("");
+  const [guessTitle, setGuessTitle] = useState("");
+  const [guessFeedback, setGuessFeedback] = useState(null); // "correct" | "wrong" | null
   const iframeRef = useRef(null);
+  const playIntervalRef = useRef(null);
+  const decisionIntervalRef = useRef(null);
+
+  const PLAY_CAP_SECONDS = 25;
+  const DECISION_SECONDS = 60;
+  const BUY_CARD_TOKENS = 3;
+  const SWAP_SONG_TOKENS = 1;
 
   const [user, setUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
@@ -225,10 +259,36 @@ export default function App() {
   }, [roomId]);
 
   // reset local per-round UI whenever the shared card changes
+  const timeoutFiredRef = useRef(false);
   useEffect(() => {
     setChosenSlot(null);
     setIsPlaying(false);
+    setPlayElapsed(0);
+    setGuessArtist("");
+    setGuessTitle("");
+    setGuessFeedback(null);
+    timeoutFiredRef.current = false;
+    if (playIntervalRef.current) clearInterval(playIntervalRef.current);
   }, [room?.currentCard?.id]);
+
+  // 60s total decision timer, driven off the shared turnDeadline so every
+  // client (and especially the active player) sees the same countdown.
+  useEffect(() => {
+    if (decisionIntervalRef.current) clearInterval(decisionIntervalRef.current);
+    if (screen !== "playing" || !room?.turnDeadline) return;
+
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((room.turnDeadline - Date.now()) / 1000));
+      setDecisionLeft(left);
+      if (left <= 0 && room.currentPlayerId === playerId && !timeoutFiredRef.current) {
+        timeoutFiredRef.current = true;
+        handleTimeout();
+      }
+    };
+    tick();
+    decisionIntervalRef.current = setInterval(tick, 500);
+    return () => clearInterval(decisionIntervalRef.current);
+  }, [screen, room?.turnDeadline, room?.currentPlayerId]);
 
   useEffect(() => {
     if (user?.displayName) saveName(user.displayName);
@@ -302,16 +362,6 @@ export default function App() {
     setTimeout(() => setCopied(false), 1500);
   }
 
-  function handleParseCustom() {
-    const songs = parseCSV(customInput);
-    if (!songs.length) {
-      setError("Nie znaleziono poprawnych wierszy. Format: url,wykonawca,tytuł,rok");
-      return;
-    }
-    setCustomSongs(songs);
-    setError("");
-  }
-
   function toggleCategory(slug) {
     setSelectedCategories((prev) => {
       if (slug === "wszystkie") return ["wszystkie"];
@@ -328,7 +378,7 @@ export default function App() {
       setError("Podaj liczbę kart do wygrania.");
       return;
     }
-    const basePool = customSongs || REAL_SONGS;
+    const basePool = REAL_SONGS;
     const filterActive = !selectedCategories.includes("wszystkie") && selectedCategories.length > 0;
     const pool = filterActive
       ? basePool.filter((s) => s.categories && s.categories.some((c) => selectedCategories.includes(c)))
@@ -346,8 +396,10 @@ export default function App() {
       const deck = shuffle(pool).slice(0, needed);
       const players = room.players;
       const timelines = {};
+      const tokens = {};
       players.forEach((p, i) => {
         timelines[p.id] = [deck[i]];
+        tokens[p.id] = 1;
       });
       const ref = doc(db, "rooms", roomId);
       await updateDoc(ref, {
@@ -358,7 +410,9 @@ export default function App() {
         currentPlayerId: players[0].id,
         currentCard: deck[players.length],
         startSeconds: randomStartSeconds(),
+        turnDeadline: Date.now() + DECISION_SECONDS * 1000,
         timelines,
+        tokens,
         lastResult: null,
         winnerId: null,
       });
@@ -370,17 +424,34 @@ export default function App() {
   }
 
   function togglePlay() {
+    const win = iframeRef.current && iframeRef.current.contentWindow;
     const willPlay = !isPlaying;
     setIsPlaying(willPlay);
-    const win = iframeRef.current && iframeRef.current.contentWindow;
-    if (win) {
-      if (willPlay) {
+
+    if (playIntervalRef.current) clearInterval(playIntervalRef.current);
+
+    if (willPlay) {
+      setPlayElapsed(0);
+      if (win) {
+        win.postMessage(JSON.stringify({ event: "command", func: "seekTo", args: [room.startSeconds, true] }), "*");
         win.postMessage(JSON.stringify({ event: "command", func: "unMute", args: [] }), "*");
         win.postMessage(JSON.stringify({ event: "command", func: "setVolume", args: [100] }), "*");
         win.postMessage(JSON.stringify({ event: "command", func: "playVideo", args: [] }), "*");
-      } else {
-        win.postMessage(JSON.stringify({ event: "command", func: "mute", args: [] }), "*");
       }
+      const startedAt = Date.now();
+      playIntervalRef.current = setInterval(() => {
+        const elapsed = (Date.now() - startedAt) / 1000;
+        if (elapsed >= PLAY_CAP_SECONDS) {
+          setPlayElapsed(PLAY_CAP_SECONDS);
+          setIsPlaying(false);
+          clearInterval(playIntervalRef.current);
+          if (win) win.postMessage(JSON.stringify({ event: "command", func: "pauseVideo", args: [] }), "*");
+        } else {
+          setPlayElapsed(elapsed);
+        }
+      }, 200);
+    } else {
+      if (win) win.postMessage(JSON.stringify({ event: "command", func: "pauseVideo", args: [] }), "*");
     }
   }
 
@@ -420,6 +491,97 @@ export default function App() {
     }
   }
 
+  async function submitGuess() {
+    if (!room || guessFeedback !== null) return;
+    const card = room.currentCard;
+    const artistOk = fuzzyMatch(guessArtist, card.artist);
+    const titleOk = fuzzyMatch(guessTitle, card.title);
+    const correct = artistOk && titleOk;
+    setGuessFeedback(correct ? "correct" : "wrong");
+    if (correct) {
+      try {
+        const ref = doc(db, "rooms", roomId);
+        await updateDoc(ref, { [`tokens.${playerId}`]: increment(1) });
+      } catch (e) {
+        // nie krytyczne — gra toczy się dalej nawet jeśli token się nie zapisał
+      }
+    }
+  }
+
+  async function buyCard() {
+    if (!room || (room.tokens?.[playerId] || 0) < BUY_CARD_TOKENS) return;
+    setBusy(true);
+    try {
+      const ref = doc(db, "rooms", roomId);
+      let capturedResult = null;
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const data = snap.data();
+        if ((data.tokens?.[data.currentPlayerId] || 0) < BUY_CARD_TOKENS) return;
+        const card = data.currentCard;
+        const timeline = data.timelines[data.currentPlayerId] || [];
+        const newTimelines = { ...data.timelines, [data.currentPlayerId]: [...timeline, card] };
+        capturedResult = { correct: true, card, bought: true };
+        tx.update(ref, {
+          status: "roundResult",
+          lastResult: { correct: true, card, bought: true },
+          timelines: newTimelines,
+          [`tokens.${data.currentPlayerId}`]: increment(-BUY_CARD_TOKENS),
+        });
+      });
+      if (user && capturedResult) {
+        recordCardGuess(user.uid, capturedResult.card.year, true, capturedResult.card.artist).catch(() => {});
+      }
+    } catch (e) {
+      setError("Błąd kupowania karty: " + e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function swapSong() {
+    if (!room || (room.tokens?.[playerId] || 0) < SWAP_SONG_TOKENS) return;
+    setBusy(true);
+    try {
+      const ref = doc(db, "rooms", roomId);
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const data = snap.data();
+        if ((data.tokens?.[data.currentPlayerId] || 0) < SWAP_SONG_TOKENS) return;
+        if (data.deckIndex >= data.deck.length) return; // brak kart w talii do wymiany
+        tx.update(ref, {
+          currentCard: data.deck[data.deckIndex],
+          deckIndex: data.deckIndex + 1,
+          startSeconds: randomStartSeconds(),
+          turnDeadline: Date.now() + DECISION_SECONDS * 1000,
+          [`tokens.${data.currentPlayerId}`]: increment(-SWAP_SONG_TOKENS),
+        });
+      });
+    } catch (e) {
+      setError("Błąd wymiany piosenki: " + e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleTimeout() {
+    try {
+      const ref = doc(db, "rooms", roomId);
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const data = snap.data();
+        if (data.status !== "playing") return; // ktoś już zdążył zatwierdzić/kupić
+        const card = data.currentCard;
+        tx.update(ref, {
+          status: "roundResult",
+          lastResult: { correct: false, card, timedOut: true },
+        });
+      });
+    } catch (e) {
+      // ciche niepowodzenie — najwyżej gracz sam kliknie coś innego
+    }
+  }
+
   async function nextRound() {
     setBusy(true);
     try {
@@ -453,6 +615,7 @@ export default function App() {
           currentCard: data.deck[data.deckIndex],
           deckIndex: data.deckIndex + 1,
           startSeconds: randomStartSeconds(),
+          turnDeadline: Date.now() + DECISION_SECONDS * 1000,
           lastResult: null,
         });
       });
@@ -846,15 +1009,8 @@ export default function App() {
                 </div>
 
                 <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 6 }}>
-                  Domyślnie gracie z Twoją wgraną listą ({REAL_SONGS.length} utworów). Możesz też wkleić inną:
+                  Gracie z pełną biblioteką {REAL_SONGS.length} utworów.
                 </p>
-                <textarea rows={4} value={customInput} onChange={(e) => setCustomInput(e.target.value)} placeholder="url,wykonawca,tytuł,rok" className="w-full" />
-                <div className="flex gap-2 mt-2 items-center flex-wrap">
-                  <button onClick={handleParseCustom} className="px-3 py-1.5 rounded-lg text-xs" style={{ border: "1px solid #33294f", color: "var(--muted)" }}>
-                    Wczytaj tę listę
-                  </button>
-                  {customSongs && <span style={{ color: "var(--good)", fontSize: 12 }}>✓ {customSongs.length} utworów gotowe</span>}
-                </div>
                 <button
                   onClick={startGame}
                   disabled={busy || !target}
@@ -879,7 +1035,13 @@ export default function App() {
                 {isMyTurn ? "Twoja kolej!" : turnPlayerName}
               </p>
 
-              <Vinyl spinning={isPlaying} revealed={screen === "roundResult"} />
+              {screen === "playing" && (
+                <p style={{ color: decisionLeft <= 10 ? "var(--bad)" : "var(--muted)", fontSize: 13, fontWeight: "bold" }}>
+                  ⏱ {decisionLeft}s na decyzję
+                </p>
+              )}
+
+              <Vinyl spinning={isPlaying} revealed={screen === "roundResult"} progress={playElapsed / PLAY_CAP_SECONDS} />
 
               <div style={{ width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }}>
                 <iframe
@@ -896,9 +1058,58 @@ export default function App() {
 
               <button onClick={togglePlay} className="mt-4 flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold" style={{ background: "var(--accent)", color: "#1a1428" }}>
                 <Play size={16} />
-                {isPlaying ? "Gra…" : "Odtwórz dźwięk"}
+                {isPlaying ? `Gra… (${Math.ceil(PLAY_CAP_SECONDS - playElapsed)}s)` : playElapsed >= PLAY_CAP_SECONDS ? "Odtwórz ponownie" : "Odtwórz dźwięk"}
               </button>
             </div>
+
+            {screen === "playing" && isMyTurn && (
+              <div className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+                <div className="flex items-center justify-between mb-2">
+                  <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase" }}>Zgadnij wykonawcę i tytuł (+1 token)</p>
+                  <span style={{ color: "var(--accent)", fontSize: 12, fontWeight: "bold" }}>🪙 {room.tokens?.[playerId] || 0}</span>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <input type="text" value={guessArtist} onChange={(e) => setGuessArtist(e.target.value)} placeholder="Wykonawca" disabled={guessFeedback !== null} className="flex-1" style={{ minWidth: 120 }} />
+                  <input type="text" value={guessTitle} onChange={(e) => setGuessTitle(e.target.value)} placeholder="Tytuł" disabled={guessFeedback !== null} className="flex-1" style={{ minWidth: 120 }} />
+                  <button
+                    onClick={submitGuess}
+                    disabled={guessFeedback !== null || !guessArtist.trim() || !guessTitle.trim()}
+                    className="px-4 py-2 rounded-lg text-sm font-bold"
+                    style={{ background: "var(--accent)", color: "#1a1428" }}
+                  >
+                    Zgadnij
+                  </button>
+                </div>
+                {guessFeedback === "correct" && <p style={{ color: "var(--good)", fontSize: 12, marginTop: 6 }}>✓ Trafione! +1 token</p>}
+                {guessFeedback === "wrong" && <p style={{ color: "var(--bad)", fontSize: 12, marginTop: 6 }}>✗ Niestety nie tym razem.</p>}
+
+                <div className="flex gap-2 mt-3 flex-wrap">
+                  <button
+                    onClick={swapSong}
+                    disabled={busy || (room.tokens?.[playerId] || 0) < SWAP_SONG_TOKENS}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold"
+                    style={{
+                      background: (room.tokens?.[playerId] || 0) < SWAP_SONG_TOKENS ? "#33294f" : "var(--surface2)",
+                      color: (room.tokens?.[playerId] || 0) < SWAP_SONG_TOKENS ? "var(--muted)" : "var(--text)",
+                      border: "1px solid #33294f",
+                    }}
+                  >
+                    🔁 Wymień piosenkę ({SWAP_SONG_TOKENS} 🪙)
+                  </button>
+                  <button
+                    onClick={buyCard}
+                    disabled={busy || (room.tokens?.[playerId] || 0) < BUY_CARD_TOKENS}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold"
+                    style={{
+                      background: (room.tokens?.[playerId] || 0) < BUY_CARD_TOKENS ? "#33294f" : "var(--good)",
+                      color: (room.tokens?.[playerId] || 0) < BUY_CARD_TOKENS ? "var(--muted)" : "#0d1f1a",
+                    }}
+                  >
+                    🎁 Kup kartę w ciemno ({BUY_CARD_TOKENS} 🪙)
+                  </button>
+                </div>
+              </div>
+            )}
 
             {screen === "playing" && isMyTurn && (
               <div className="w-full">
@@ -950,7 +1161,7 @@ export default function App() {
                   }}
                 >
                   <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: room.lastResult.correct ? "var(--good)" : "var(--bad)" }}>
-                    {room.lastResult.correct ? "TRAFIONE!" : "PUDŁO!"}
+                    {room.lastResult.bought ? "KARTA KUPIONA!" : room.lastResult.timedOut ? "CZAS MINĄŁ!" : room.lastResult.correct ? "TRAFIONE!" : "PUDŁO!"}
                   </p>
                   <p style={{ fontSize: 14, marginTop: 4 }}>
                     {room.lastResult.card.artist} — „{room.lastResult.card.title}"
