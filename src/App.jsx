@@ -267,9 +267,35 @@ export default function App() {
 
   const effectivePool = librarySongs && librarySongs.length > 0 ? librarySongs : REAL_SONGS;
 
+  const LIBRARY_CACHE_KEY = "hitster-library-cache-v1";
+  const LIBRARY_CACHE_TTL_MS = 60 * 60 * 1000; // 1h — świeża baza wystarczająco często, a nie za każdym odświeżeniem
+
+  function saveLibraryCache(songs) {
+    try {
+      localStorage.setItem(LIBRARY_CACHE_KEY, JSON.stringify({ songs, ts: Date.now() }));
+    } catch (e) {
+      // localStorage może być niedostępny (np. tryb prywatny) — nic się nie dzieje, po prostu nie cache'ujemy
+    }
+  }
+
   useEffect(() => {
+    try {
+      const cached = localStorage.getItem(LIBRARY_CACHE_KEY);
+      if (cached) {
+        const { songs, ts } = JSON.parse(cached);
+        if (Array.isArray(songs) && songs.length > 0 && Date.now() - ts < LIBRARY_CACHE_TTL_MS) {
+          setLibrarySongs(songs);
+          return; // świeży cache — zero odczytów z Firestore
+        }
+      }
+    } catch (e) {
+      // uszkodzony/nieodczytywalny cache — po prostu pobieramy normalnie
+    }
     fetchAllSongsFromDb()
-      .then((songs) => setLibrarySongs(songs))
+      .then((songs) => {
+        setLibrarySongs(songs);
+        saveLibraryCache(songs);
+      })
       .catch(() => setLibrarySongs([])); // brak kolekcji / błąd → cicho wracamy do wbudowanej listy
   }, []);
 
@@ -279,7 +305,10 @@ export default function App() {
 
   function refreshLibrary() {
     fetchAllSongsFromDb()
-      .then((songs) => setLibrarySongs(songs))
+      .then((songs) => {
+        setLibrarySongs(songs);
+        saveLibraryCache(songs);
+      })
       .catch(() => {});
   }
 
@@ -314,7 +343,11 @@ export default function App() {
         videoId,
         categories,
       });
-      setLibrarySongs((prev) => prev.map((s) => (s.id === id ? { ...s, artist: adminEditDraft.artist, title: adminEditDraft.title, year: parseInt(adminEditDraft.year, 10), videoId, categories } : s)));
+      setLibrarySongs((prev) => {
+        const next = prev.map((s) => (s.id === id ? { ...s, artist: adminEditDraft.artist, title: adminEditDraft.title, year: parseInt(adminEditDraft.year, 10), videoId, categories } : s));
+        saveLibraryCache(next);
+        return next;
+      });
       setAdminEditingId(null);
     } catch (e) {
       setError("Błąd zapisu: " + e.message);
@@ -327,7 +360,11 @@ export default function App() {
     setAdminBusy(true);
     try {
       await deleteSongFromDb(id);
-      setLibrarySongs((prev) => prev.filter((s) => s.id !== id));
+      setLibrarySongs((prev) => {
+        const next = prev.filter((s) => s.id !== id);
+        saveLibraryCache(next);
+        return next;
+      });
     } catch (e) {
       setError("Błąd usuwania: " + e.message);
     } finally {
@@ -352,7 +389,11 @@ export default function App() {
         categories: adminNewSong.categories.split(";").map((c) => c.trim()).filter(Boolean),
       });
       setAdminNewSong({ artist: "", title: "", url: "", year: "", categories: "" });
-      setLibrarySongs((prev) => [...(prev || []), added]);
+      setLibrarySongs((prev) => {
+        const next = [...(prev || []), added];
+        saveLibraryCache(next);
+        return next;
+      });
     } catch (e) {
       setError("Błąd dodawania: " + e.message);
     } finally {
@@ -417,7 +458,11 @@ export default function App() {
         recordSongAdded(p.submittedByUid).catch(() => {});
       }
       setProposals((prev) => prev.filter((x) => x.id !== p.id));
-      setLibrarySongs((prev) => [...(prev || []), added]);
+      setLibrarySongs((prev) => {
+        const next = [...(prev || []), added];
+        saveLibraryCache(next);
+        return next;
+      });
     } catch (e) {
       setError("Błąd akceptacji: " + e.message);
     } finally {
