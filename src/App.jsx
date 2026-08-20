@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, memo } from "react";
 import {
   doc,
   setDoc,
@@ -34,7 +34,7 @@ const CATEGORIES = [
 
 // ---------- vinyl / now-playing widget ----------
 
-function Vinyl({ spinning, revealed, progress = 0 }) {
+const Vinyl = memo(function Vinyl({ spinning, revealed, progress = 0 }) {
   const radius = 112;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference * (1 - progress);
@@ -109,9 +109,9 @@ function Vinyl({ spinning, revealed, progress = 0 }) {
       />
     </div>
   );
-}
+});
 
-function SlotButton({ index, chosen, onPick, label }) {
+const SlotButton = memo(function SlotButton({ index, chosen, onPick, label }) {
   return (
     <button
       onClick={() => onPick(index)}
@@ -129,13 +129,13 @@ function SlotButton({ index, chosen, onPick, label }) {
       +
     </button>
   );
-}
+});
 
-function TimelineCard({ year, title, artist, onHold, onRelease }) {
+const TimelineCard = memo(function TimelineCard({ year, title, artist, onHold, onRelease }) {
   const timerRef = useRef(null);
   const start = () => {
     timerRef.current = setTimeout(() => {
-      onHold && onHold();
+      onHold && onHold({ year, title, artist });
     }, 350);
   };
   const cancel = () => {
@@ -158,16 +158,16 @@ function TimelineCard({ year, title, artist, onHold, onRelease }) {
       </span>
     </div>
   );
-}
+});
 
-function StatBox({ label, value }) {
+const StatBox = memo(function StatBox({ label, value }) {
   return (
     <div className="rounded-lg px-4 py-3 flex-1" style={{ background: "var(--surface2)", minWidth: 110 }}>
       <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: "var(--accent)" }}>{value}</p>
       <p style={{ color: "var(--muted)", fontSize: 10, textTransform: "uppercase" }}>{label}</p>
     </div>
   );
-}
+});
 
 // ---------- main app ----------
 
@@ -189,7 +189,9 @@ export default function App() {
 
   const [chosenSlot, setChosenSlot] = useState(null);
   const [heldCard, setHeldCard] = useState(null);
+  const clearHeldCard = useCallback(() => setHeldCard(null), []);
   const [showChat, setShowChat] = useState(false);
+  const [chatSeenCount, setChatSeenCount] = useState(0);
   const [chatInput, setChatInput] = useState("");
   const chatEndRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -278,7 +280,12 @@ export default function App() {
     }
   }
 
-  useEffect(() => {
+  // Ładuje bibliotekę TYLKO gdy jest faktycznie potrzebna (host w lobby,
+  // panel admina) — dołączenie do cudzej gry i zwykłe granie nigdy jej nie
+  // wymaga, więc nie ma sensu pobierać 700+ dokumentów za każdym razem.
+  function ensureLibraryLoaded() {
+    if (librarySongs !== null) return; // już wczytana (albo w trakcie) w tej sesji
+    setLibrarySongs(undefined); // znacznik "ładowanie", żeby nie odpalić drugi raz równolegle
     try {
       const cached = localStorage.getItem(LIBRARY_CACHE_KEY);
       if (cached) {
@@ -297,7 +304,11 @@ export default function App() {
         saveLibraryCache(songs);
       })
       .catch(() => setLibrarySongs([])); // brak kolekcji / błąd → cicho wracamy do wbudowanej listy
-  }, []);
+  }
+
+  useEffect(() => {
+    if (screen === "lobby") ensureLibraryLoaded();
+  }, [screen]);
 
   useEffect(() => {
     setAdminPage(1);
@@ -319,6 +330,7 @@ export default function App() {
       setAdminError("");
       setAdminPasswordInput("");
       loadProposals();
+      ensureLibraryLoaded();
     } else {
       setAdminError("Złe hasło.");
     }
@@ -576,6 +588,7 @@ export default function App() {
 
   async function openStats() {
     if (!user) return;
+    ensureLibraryLoaded();
     const s = await getStats(user.uid);
     setStats(s);
     setShowStats(true);
@@ -586,8 +599,13 @@ export default function App() {
     setLeaderboard(null);
     setViewingPlayer(null);
     setShowLeaderboard(true);
-    const list = await getLeaderboard(10, sortBy);
-    setLeaderboard(list);
+    try {
+      const list = await getLeaderboard(10, sortBy);
+      setLeaderboard(list);
+    } catch (e) {
+      setLeaderboard([]);
+      setError("Nie udało się wczytać rankingu: " + e.message);
+    }
   }
 
   async function viewPlayerProfile(p) {
@@ -1441,6 +1459,9 @@ export default function App() {
   useEffect(() => {
     if (showChat && chatEndRef.current) {
       chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+    if (showChat) {
+      setChatSeenCount(room?.messages?.length || 0);
     }
   }, [showChat, room?.messages?.length]);
 
@@ -2502,7 +2523,7 @@ export default function App() {
                   <SlotButton index={0} chosen={chosenSlot} onPick={setChosenSlot} label="najstarsza" />
                   {turnTimeline.map((c, i) => (
                     <React.Fragment key={c.id}>
-                      <TimelineCard year={c.year} title={c.title} artist={c.artist} onHold={() => setHeldCard(c)} onRelease={() => setHeldCard(null)} />
+                      <TimelineCard year={c.year} title={c.title} artist={c.artist} onHold={setHeldCard} onRelease={clearHeldCard} />
                       <SlotButton index={i + 1} chosen={chosenSlot} onPick={setChosenSlot} label="tutaj" />
                     </React.Fragment>
                   ))}
@@ -2529,7 +2550,7 @@ export default function App() {
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-2">
                   {turnTimeline.map((c) => (
-                    <TimelineCard key={c.id} year={c.year} title={c.title} artist={c.artist} onHold={() => setHeldCard(c)} onRelease={() => setHeldCard(null)} />
+                    <TimelineCard key={c.id} year={c.year} title={c.title} artist={c.artist} onHold={setHeldCard} onRelease={clearHeldCard} />
                   ))}
                 </div>
               </div>
@@ -2702,6 +2723,7 @@ export default function App() {
 
       {heldCard && (
         <div
+          onClick={() => setHeldCard(null)}
           style={{
             position: "fixed",
             inset: 0,
@@ -2714,12 +2736,14 @@ export default function App() {
           }}
         >
           <div
+            onClick={(e) => e.stopPropagation()}
             className="rounded-2xl p-5 text-center"
             style={{ background: "var(--surface)", border: "1px solid var(--accent)", maxWidth: 320 }}
           >
             <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 40, color: "var(--accent)" }}>{heldCard.year}</p>
             <p style={{ fontSize: 15, fontWeight: "bold", marginTop: 4 }}>{heldCard.artist}</p>
             <p style={{ fontSize: 14, color: "var(--muted)", marginTop: 2 }}>„{heldCard.title}"</p>
+            <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 10 }}>(kliknij poza kartą, żeby zamknąć)</p>
           </div>
         </div>
       )}
@@ -2746,27 +2770,30 @@ export default function App() {
             }}
           >
             <MessageCircle size={24} />
-            {room.messages && room.messages.length > 0 && (
-              <span
-                style={{
-                  position: "absolute",
-                  top: -2,
-                  right: -2,
-                  background: "var(--bad)",
-                  color: "#fff",
-                  fontSize: 10,
-                  fontWeight: "bold",
-                  borderRadius: "50%",
-                  width: 18,
-                  height: 18,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                {room.messages.length > 99 ? "99+" : room.messages.length}
-              </span>
-            )}
+            {(() => {
+              const unread = Math.max(0, (room.messages?.length || 0) - chatSeenCount);
+              return unread > 0 ? (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: -2,
+                    right: -2,
+                    background: "var(--bad)",
+                    color: "#fff",
+                    fontSize: 10,
+                    fontWeight: "bold",
+                    borderRadius: "50%",
+                    width: 18,
+                    height: 18,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              ) : null;
+            })()}
           </button>
 
           {showChat && (
