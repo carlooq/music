@@ -1,9 +1,9 @@
-import { doc, getDoc, setDoc, updateDoc, increment, collection, query, orderBy, limit, getDocs } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, increment, arrayUnion, collection, query, orderBy, limit, getDocs } from "firebase/firestore";
 import { db } from "./firebase-config.js";
 
 export function decadeLabel(year) {
   const start = Math.floor(year / 10) * 10;
-  return `${start}s`; // e.g. "1980s"
+  return `${start}s`; // e.g. "1980s", "2020s"
 }
 
 // Firestore treats "." as a nested-path separator, so artist names that
@@ -22,11 +22,18 @@ export async function ensureStatsDoc(uid, username) {
       gamesWon: 0,
       cardsCorrect: 0,
       cardsTotal: 0,
+      guessesCorrect: 0,
+      heardSongs: [],
+      guessedSongs: [],
       decades: {},
       artists: {},
       currentStreak: 0,
       longestStreak: 0,
     });
+  } else if (username && snap.data().username !== username) {
+    // odświeżamy nazwę przy każdym logowaniu — naprawia stare konta, którym
+    // nazwa nie zapisała się poprawnie przy pierwszej rejestracji
+    await updateDoc(ref, { username });
   }
 }
 
@@ -36,8 +43,9 @@ export async function getStats(uid) {
   return snap.exists() ? snap.data() : null;
 }
 
-// Called once per card placement, for the player who just placed it.
-export async function recordCardGuess(uid, year, correct, artist) {
+// Called once per card placement (w tym przy przekroczeniu czasu — to
+// wcześniej się nie liczyło i zaniżało statystyki dekad/kart).
+export async function recordCardGuess(uid, year, correct, artist, videoId) {
   const ref = doc(db, "userStats", uid);
   const decade = decadeLabel(year);
   const aKey = artistKey(artist || "Nieznany");
@@ -58,6 +66,7 @@ export async function recordCardGuess(uid, year, correct, artist) {
     [`artists.${aKey}.correct`]: (prevArtist.correct || 0) + (correct ? 1 : 0),
     currentStreak: newCurrentStreak,
     longestStreak: newLongestStreak,
+    ...(videoId ? { heardSongs: arrayUnion(videoId) } : {}),
   });
 }
 
@@ -68,6 +77,15 @@ export async function recordGameResult(uid, won) {
     gamesPlayed: increment(1),
     gamesWon: increment(won ? 1 : 0),
   });
+}
+
+// Called whenever a player's artist+title guess gets approved (bezpośrednio
+// lub przez głosowanie) — licznik + zbiór unikalnych trafionych utworów.
+export async function recordSuccessfulGuess(uid, videoId) {
+  const ref = doc(db, "userStats", uid);
+  const update = { guessesCorrect: increment(1) };
+  if (videoId) update.guessedSongs = arrayUnion(videoId);
+  await updateDoc(ref, update);
 }
 
 // Best/worst artists for a player, requiring a minimum number of
@@ -82,9 +100,9 @@ export function topArtists(stats, count = 5, minAttempts = 2) {
   return { best, worst };
 }
 
-// Top players globally, sorted by number of games won.
-export async function getLeaderboard(count = 10) {
-  const q = query(collection(db, "userStats"), orderBy("gamesWon", "desc"), limit(count));
+// Top players globally. sortBy: "gamesWon" (domyślnie) albo "guessesCorrect".
+export async function getLeaderboard(count = 10, sortBy = "gamesWon") {
+  const q = query(collection(db, "userStats"), orderBy(sortBy, "desc"), limit(count));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
 }

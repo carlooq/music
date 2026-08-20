@@ -7,16 +7,17 @@ import {
   runTransaction,
   serverTimestamp,
   increment,
+  arrayUnion,
 } from "firebase/firestore";
 import { db } from "./firebase-config.js";
 import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
 import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId } from "./utils.js";
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
-import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, topArtists, getLeaderboard } from "./stats.js";
+import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, topArtists, getLeaderboard } from "./stats.js";
 import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, applyCategoryPatchToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal } from "./songsDb.js";
 import { playCorrectSound, playWrongSound, playApplause, unlockAudio } from "./sounds.js";
-import { Play, Music4, Trophy, RotateCcw, Users, ChevronRight, Copy, Check, LogIn, LogOut, BarChart3, Flame, Crown, Shield, Search, Trash2, Pencil, Save, X } from "lucide-react";
+import { Play, Music4, Trophy, RotateCcw, Users, ChevronRight, Copy, Check, LogIn, LogOut, BarChart3, Flame, Crown, Shield, Search, Trash2, Pencil, Save, X, MessageCircle, Send } from "lucide-react";
 
 // 👉 PODMIEŃ TO NA SWOJE WŁASNE HASŁO trybu admina
 const ADMIN_PASSWORD = "zmien-to-haslo-123";
@@ -123,11 +124,26 @@ function SlotButton({ index, chosen, onPick, label }) {
   );
 }
 
-function TimelineCard({ year, title, artist }) {
+function TimelineCard({ year, title, artist, onHold, onRelease }) {
+  const timerRef = useRef(null);
+  const start = () => {
+    timerRef.current = setTimeout(() => {
+      onHold && onHold();
+    }, 350);
+  };
+  const cancel = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    onRelease && onRelease();
+  };
   return (
     <div
-      className="rounded-lg flex flex-col items-center justify-center text-center px-3"
-      style={{ width: 92, height: 60, background: "var(--surface2)", border: "1px solid #33294f" }}
+      onMouseDown={start}
+      onMouseUp={cancel}
+      onMouseLeave={cancel}
+      onTouchStart={start}
+      onTouchEnd={cancel}
+      className="rounded-lg flex flex-col items-center justify-center text-center px-3 select-none"
+      style={{ width: 92, height: 60, background: "var(--surface2)", border: "1px solid #33294f", cursor: "pointer", touchAction: "manipulation" }}
     >
       <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: "var(--accent)" }}>{year}</span>
       <span style={{ fontSize: 9, color: "var(--muted)", lineHeight: 1.1, marginTop: 2 }}>
@@ -164,6 +180,10 @@ export default function App() {
   const [selectedCategories, setSelectedCategories] = useState(["wszystkie"]);
 
   const [chosenSlot, setChosenSlot] = useState(null);
+  const [heldCard, setHeldCard] = useState(null);
+  const [showChat, setShowChat] = useState(false);
+  const [chatInput, setChatInput] = useState("");
+  const chatEndRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playElapsed, setPlayElapsed] = useState(0); // seconds played in current listen session (0-25)
   const [decisionLeft, setDecisionLeft] = useState(60); // seconds left of the 60s total decision timer
@@ -189,6 +209,8 @@ export default function App() {
   const [showStats, setShowStats] = useState(false);
   const [stats, setStats] = useState(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [leaderboardSort, setLeaderboardSort] = useState("gamesWon"); // "gamesWon" | "guessesCorrect"
+  const [viewingPlayer, setViewingPlayer] = useState(null); // { uid, username, stats }
   const [leaderboard, setLeaderboard] = useState(null);
 
   const [librarySongs, setLibrarySongs] = useState(null); // null = jeszcze nie sprawdzono
@@ -502,10 +524,18 @@ export default function App() {
     setShowStats(true);
   }
 
-  async function openLeaderboard() {
-    const list = await getLeaderboard(10);
-    setLeaderboard(list);
+  async function openLeaderboard(sortBy = leaderboardSort) {
+    setLeaderboardSort(sortBy);
+    setLeaderboard(null);
+    setViewingPlayer(null);
     setShowLeaderboard(true);
+    const list = await getLeaderboard(10, sortBy);
+    setLeaderboard(list);
+  }
+
+  async function viewPlayerProfile(p) {
+    const s = await getStats(p.uid);
+    setViewingPlayer({ uid: p.uid, username: p.username, stats: s });
   }
 
   useEffect(() => {
@@ -629,6 +659,7 @@ export default function App() {
   const OPENER_ANSWER_MS = 20000;
   const OPENER_REVEAL_MS = 5000; // dłuższy czas na pokazanie zwycięzcy przed startem
   const [openerPhase, setOpenerPhase] = useState("countdown"); // "countdown" | "answering"
+  const [openerCountdownNum, setOpenerCountdownNum] = useState(3);
   const [openerLockedOut, setOpenerLockedOut] = useState(false);
   const openerFallbackFiredRef = useRef(null);
   const openerFinalizeFiredRef = useRef(null);
@@ -643,6 +674,7 @@ export default function App() {
     const tick = () => {
       const elapsed = Date.now() - room.openerCreatedAt;
       setOpenerPhase(elapsed < OPENER_COUNTDOWN_MS ? "countdown" : "answering");
+      setOpenerCountdownNum(Math.max(1, Math.ceil((OPENER_COUNTDOWN_MS - elapsed) / 1000)));
       const isHostNow = room.hostId === playerId;
       if (
         isHostNow &&
@@ -730,6 +762,7 @@ export default function App() {
         lastResult: null,
         winnerIds: [],
         createdAt: serverTimestamp(),
+        messages: [],
       });
       setRoomId(code);
     } catch (e) {
@@ -939,6 +972,7 @@ export default function App() {
     try {
       const ref = doc(db, "rooms", roomId);
       let capturedResult = null;
+      let instantGuessAwardedTo = null;
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
@@ -984,6 +1018,7 @@ export default function App() {
           });
         } else {
           // brak zgadywania, albo gra solo — bez głosowania (a w solo od razu przyznajemy token)
+          if (hasGuess) instantGuessAwardedTo = data.currentPlayerId;
           tx.update(ref, {
             status: "roundResult",
             lastResult: { correct, card, tokenAwarded: hasGuess },
@@ -996,7 +1031,10 @@ export default function App() {
         }
       });
       if (user && capturedResult) {
-        recordCardGuess(user.uid, capturedResult.card.year, capturedResult.correct, capturedResult.card.artist).catch(() => {});
+        recordCardGuess(user.uid, capturedResult.card.year, capturedResult.correct, capturedResult.card.artist, capturedResult.card.videoId).catch(() => {});
+      }
+      if (user && instantGuessAwardedTo === user.uid) {
+        recordSuccessfulGuess(user.uid, capturedResult?.card?.videoId).catch(() => {});
       }
     } catch (e) {
       setError("Błąd zatwierdzania: " + e.message);
@@ -1056,6 +1094,8 @@ export default function App() {
     setBusy(true);
     try {
       const ref = doc(db, "rooms", roomId);
+      let awardedGuessTo = null;
+      let awardedGuessVideoId = null;
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
@@ -1069,6 +1109,11 @@ export default function App() {
         const required = data.requiredApprovals;
 
         if (approvals >= required) {
+          const guesser = data.players.find((p) => p.id === data.currentPlayerId);
+          if (guesser?.authed) {
+            awardedGuessTo = data.currentPlayerId;
+            awardedGuessVideoId = data.lastResult?.card?.videoId;
+          }
           tx.update(ref, {
             status: "roundResult",
             votes: newVotes,
@@ -1087,6 +1132,9 @@ export default function App() {
           tx.update(ref, { votes: newVotes });
         }
       });
+      if (awardedGuessTo) {
+        recordSuccessfulGuess(awardedGuessTo, awardedGuessVideoId).catch(() => {});
+      }
     } catch (e) {
       setError("Błąd głosowania: " + e.message);
     } finally {
@@ -1122,11 +1170,13 @@ export default function App() {
   async function handleTimeout() {
     try {
       const ref = doc(db, "rooms", roomId);
+      let capturedCard = null;
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
         if (data.status !== "playing") return; // ktoś już zdążył zatwierdzić/kupić
         const card = data.currentCard;
+        capturedCard = card;
         const elapsed = Date.now() - (data.turnStartedAt || Date.now());
         const newDecisionTimes = { ...(data.decisionTimes || {}) };
         newDecisionTimes[data.currentPlayerId] = [...(newDecisionTimes[data.currentPlayerId] || []), elapsed];
@@ -1141,6 +1191,9 @@ export default function App() {
           playedCards: newPlayedCards,
         });
       });
+      if (user && capturedCard) {
+        recordCardGuess(user.uid, capturedCard.year, false, capturedCard.artist, capturedCard.videoId).catch(() => {});
+      }
     } catch (e) {
       // ciche niepowodzenie — najwyżej gracz sam kliknie coś innego
     }
@@ -1171,7 +1224,29 @@ export default function App() {
             const len = (data.timelines[p.id] || []).length;
             if (len > best) best = len;
           });
-          const winnerIds = players.filter((p) => (data.timelines[p.id] || []).length === best).map((p) => p.id);
+          let contenders = players.filter((p) => (data.timelines[p.id] || []).length === best);
+
+          if (contenders.length > 1) {
+            let bestTokens = 0;
+            contenders.forEach((p) => {
+              const t = data.tokens?.[p.id] || 0;
+              if (t > bestTokens) bestTokens = t;
+            });
+            const byTokens = contenders.filter((p) => (data.tokens?.[p.id] || 0) === bestTokens);
+            if (byTokens.length > 0) contenders = byTokens;
+          }
+
+          if (contenders.length > 1) {
+            let bestGuesses = 0;
+            contenders.forEach((p) => {
+              const g = data.gameGuesses?.[p.id] || 0;
+              if (g > bestGuesses) bestGuesses = g;
+            });
+            const byGuesses = contenders.filter((p) => (data.gameGuesses?.[p.id] || 0) === bestGuesses);
+            if (byGuesses.length > 0) contenders = byGuesses;
+          }
+
+          const winnerIds = contenders.map((p) => p.id);
           tx.update(ref, { status: "gameover", winnerIds });
           gameOverInfo = { winnerIds, players };
           return;
@@ -1213,7 +1288,29 @@ export default function App() {
     setChosenSlot(null);
     setIsPlaying(false);
     setError("");
+    setShowChat(false);
+    setChatInput("");
   }
+
+  async function sendChatMessage() {
+    const text = chatInput.trim();
+    if (!text || !roomId) return;
+    setChatInput("");
+    try {
+      const ref = doc(db, "rooms", roomId);
+      await updateDoc(ref, {
+        messages: arrayUnion({ playerId, name: name || user?.displayName || "Gracz", text, ts: Date.now() }),
+      });
+    } catch (e) {
+      // ciche niepowodzenie — wiadomość po prostu nie doleci
+    }
+  }
+
+  useEffect(() => {
+    if (showChat && chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [showChat, room?.messages?.length]);
 
   async function playAgain() {
     setBusy(true);
@@ -1303,6 +1400,9 @@ export default function App() {
                       value={stats.cardsTotal ? Math.round(((stats.cardsCorrect || 0) / stats.cardsTotal) * 100) + "%" : "—"}
                     />
                     <StatBox label="Rekordowy streak" value={(stats.longestStreak || 0) + " 🔥"} />
+                    <StatBox label="🎧 Odgadnięte wykonawcy/tytuły" value={stats.guessesCorrect || 0} />
+                    <StatBox label="🎵 Przesłuchane piosenki" value={`${(stats.heardSongs || []).length}/${effectivePool.length}`} />
+                    <StatBox label="🔎 Odgadnięte piosenki" value={`${(stats.guessedSongs || []).length}/${effectivePool.length}`} />
                   </div>
 
                   {stats.decades && Object.keys(stats.decades).length > 0 && (
@@ -1379,26 +1479,49 @@ export default function App() {
           </div>
         )}
 
-        {screen === "home" && showLeaderboard && (
+        {screen === "home" && showLeaderboard && !viewingPlayer && (
           <div className="w-full flex flex-col gap-5">
             <section className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
               <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 12 }}>RANKING GRACZY</h2>
+              <div className="flex gap-2 mb-4">
+                <button
+                  onClick={() => openLeaderboard("gamesWon")}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold"
+                  style={{ background: leaderboardSort === "gamesWon" ? "var(--accent)" : "var(--surface2)", color: leaderboardSort === "gamesWon" ? "#1a1428" : "var(--muted)" }}
+                >
+                  🏆 Wygrane
+                </button>
+                <button
+                  onClick={() => openLeaderboard("guessesCorrect")}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold"
+                  style={{ background: leaderboardSort === "guessesCorrect" ? "var(--accent)" : "var(--surface2)", color: leaderboardSort === "guessesCorrect" ? "#1a1428" : "var(--muted)" }}
+                >
+                  🎧 Zgadywanie
+                </button>
+              </div>
               {!leaderboard ? (
                 <p style={{ color: "var(--muted)", fontSize: 13 }}>Ładowanie…</p>
               ) : leaderboard.length === 0 ? (
-                <p style={{ color: "var(--muted)", fontSize: 13 }}>Nikt jeszcze nie wygrał żadnej gry.</p>
+                <p style={{ color: "var(--muted)", fontSize: 13 }}>Brak jeszcze żadnych wyników.</p>
               ) : (
                 <div className="flex flex-col gap-2">
                   {leaderboard.map((p, i) => (
-                    <div key={p.uid} className="flex items-center justify-between px-3 py-2 rounded-lg" style={{ background: "var(--surface2)" }}>
+                    <button
+                      key={p.uid}
+                      onClick={() => viewPlayerProfile(p)}
+                      className="flex items-center justify-between px-3 py-2 rounded-lg w-full text-left"
+                      style={{ background: "var(--surface2)" }}
+                    >
                       <div className="flex items-center gap-3">
                         <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: i === 0 ? "var(--accent)" : "var(--muted)", width: 24 }}>
                           {i === 0 ? <Crown size={18} /> : `#${i + 1}`}
                         </span>
                         <span>{p.username}</span>
                       </div>
-                      <span style={{ color: "var(--accent)", fontFamily: "'Bebas Neue', sans-serif", fontSize: 18 }}>{p.gamesWon || 0} wygranych</span>
-                    </div>
+                      <span style={{ color: "var(--accent)", fontFamily: "'Bebas Neue', sans-serif", fontSize: 18 }}>
+                        {leaderboardSort === "gamesWon" ? `${p.gamesWon || 0} wygranych` : `${p.guessesCorrect || 0} zgadniętych`}
+                      </span>
+                    </button>
                   ))}
                 </div>
               )}
@@ -1409,6 +1532,58 @@ export default function App() {
               style={{ border: "1px solid #33294f", color: "var(--muted)" }}
             >
               Wróć
+            </button>
+          </div>
+        )}
+
+        {screen === "home" && showLeaderboard && viewingPlayer && (
+          <div className="w-full flex flex-col gap-5">
+            <section className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 12 }}>{viewingPlayer.username}</h2>
+              {!viewingPlayer.stats ? (
+                <p style={{ color: "var(--muted)", fontSize: 13 }}>Brak jeszcze żadnych rozegranych gier.</p>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  <div className="flex gap-4 flex-wrap">
+                    <StatBox label="Rozegrane gry" value={viewingPlayer.stats.gamesPlayed || 0} />
+                    <StatBox label="Wygrane" value={viewingPlayer.stats.gamesWon || 0} />
+                    <StatBox
+                      label="% wygranych"
+                      value={viewingPlayer.stats.gamesPlayed ? Math.round(((viewingPlayer.stats.gamesWon || 0) / viewingPlayer.stats.gamesPlayed) * 100) + "%" : "—"}
+                    />
+                    <StatBox
+                      label="Trafność kart"
+                      value={viewingPlayer.stats.cardsTotal ? Math.round(((viewingPlayer.stats.cardsCorrect || 0) / viewingPlayer.stats.cardsTotal) * 100) + "%" : "—"}
+                    />
+                    <StatBox label="Rekordowy streak" value={(viewingPlayer.stats.longestStreak || 0) + " 🔥"} />
+                    <StatBox label="🎧 Odgadnięte wykonawcy/tytuły" value={viewingPlayer.stats.guessesCorrect || 0} />
+                  </div>
+                  {viewingPlayer.stats.decades && Object.keys(viewingPlayer.stats.decades).length > 0 && (
+                    <div>
+                      <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase", marginBottom: 8 }}>Skuteczność wg dekad</p>
+                      <div className="flex flex-col gap-1">
+                        {Object.entries(viewingPlayer.stats.decades)
+                          .sort(([a], [b]) => a.localeCompare(b))
+                          .map(([label, d]) => (
+                            <div key={label} className="flex items-center justify-between text-sm">
+                              <span>{label}</span>
+                              <span style={{ color: "var(--accent)" }}>
+                                {d.correct}/{d.total} ({Math.round((d.correct / d.total) * 100)}%)
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+            <button
+              onClick={() => setViewingPlayer(null)}
+              className="w-full py-3 rounded-xl text-sm font-bold"
+              style={{ border: "1px solid #33294f", color: "var(--muted)" }}
+            >
+              ← Wróć do rankingu
             </button>
           </div>
         )}
@@ -1932,7 +2107,15 @@ export default function App() {
                 </div>
 
                 <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 6 }}>
-                  Gracie z pełną biblioteką {effectivePool.length} utworów.
+                  {(() => {
+                    const filterActive = !selectedCategories.includes("wszystkie") && selectedCategories.length > 0;
+                    const count = filterActive
+                      ? effectivePool.filter((s) => s.categories && s.categories.some((c) => selectedCategories.includes(c))).length
+                      : effectivePool.length;
+                    return filterActive
+                      ? `${count} utworów pasuje do wybranych kategorii (z ${effectivePool.length} w całej bibliotece).`
+                      : `Gracie z pełną biblioteką ${effectivePool.length} utworów.`;
+                  })()}
                 </p>
                 <button
                   onClick={beginGame}
@@ -1969,7 +2152,7 @@ export default function App() {
                   KTO ZACZYNA?
                 </p>
                 <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 160, color: "var(--accent)", lineHeight: 1 }}>
-                  {Math.max(1, Math.ceil((OPENER_COUNTDOWN_MS - (Date.now() - room.openerCreatedAt)) / 1000))}
+                  {openerCountdownNum}
                 </p>
               </div>
             ) : (
@@ -2128,7 +2311,7 @@ export default function App() {
                   <SlotButton index={0} chosen={chosenSlot} onPick={setChosenSlot} label="najstarsza" />
                   {turnTimeline.map((c, i) => (
                     <React.Fragment key={c.id}>
-                      <TimelineCard year={c.year} title={c.title} artist={c.artist} />
+                      <TimelineCard year={c.year} title={c.title} artist={c.artist} onHold={() => setHeldCard(c)} onRelease={() => setHeldCard(null)} />
                       <SlotButton index={i + 1} chosen={chosenSlot} onPick={setChosenSlot} label="tutaj" />
                     </React.Fragment>
                   ))}
@@ -2155,7 +2338,7 @@ export default function App() {
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-2">
                   {turnTimeline.map((c) => (
-                    <TimelineCard key={c.id} year={c.year} title={c.title} artist={c.artist} />
+                    <TimelineCard key={c.id} year={c.year} title={c.title} artist={c.artist} onHold={() => setHeldCard(c)} onRelease={() => setHeldCard(null)} />
                   ))}
                 </div>
               </div>
@@ -2325,6 +2508,152 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {heldCard && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100,
+            padding: 24,
+          }}
+        >
+          <div
+            className="rounded-2xl p-5 text-center"
+            style={{ background: "var(--surface)", border: "1px solid var(--accent)", maxWidth: 320 }}
+          >
+            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 40, color: "var(--accent)" }}>{heldCard.year}</p>
+            <p style={{ fontSize: 15, fontWeight: "bold", marginTop: 4 }}>{heldCard.artist}</p>
+            <p style={{ fontSize: 14, color: "var(--muted)", marginTop: 2 }}>„{heldCard.title}"</p>
+          </div>
+        </div>
+      )}
+
+      {room && screen !== "home" && (
+        <>
+          <button
+            onClick={() => setShowChat((v) => !v)}
+            style={{
+              position: "fixed",
+              bottom: 20,
+              right: 20,
+              width: 56,
+              height: 56,
+              borderRadius: "50%",
+              background: "var(--accent)",
+              color: "#1a1428",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+              zIndex: 90,
+              border: "none",
+            }}
+          >
+            <MessageCircle size={24} />
+            {room.messages && room.messages.length > 0 && (
+              <span
+                style={{
+                  position: "absolute",
+                  top: -2,
+                  right: -2,
+                  background: "var(--bad)",
+                  color: "#fff",
+                  fontSize: 10,
+                  fontWeight: "bold",
+                  borderRadius: "50%",
+                  width: 18,
+                  height: 18,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {room.messages.length > 99 ? "99+" : room.messages.length}
+              </span>
+            )}
+          </button>
+
+          {showChat && (
+            <div
+              style={{
+                position: "fixed",
+                bottom: 88,
+                right: 20,
+                width: "min(360px, calc(100vw - 40px))",
+                height: "min(480px, calc(100vh - 140px))",
+                background: "var(--surface)",
+                border: "1px solid #2a2340",
+                borderRadius: 16,
+                display: "flex",
+                flexDirection: "column",
+                boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
+                zIndex: 90,
+                overflow: "hidden",
+              }}
+            >
+              <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid #2a2340" }}>
+                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18 }}>Czat pokoju</p>
+                <button onClick={() => setShowChat(false)} style={{ color: "var(--muted)" }}>
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-3 py-2 flex flex-col gap-2">
+                {(!room.messages || room.messages.length === 0) && (
+                  <p style={{ color: "var(--muted)", fontSize: 12, textAlign: "center", marginTop: 20 }}>
+                    Brak wiadomości — napisz coś pierwszy!
+                  </p>
+                )}
+                {(room.messages || [])
+                  .slice()
+                  .sort((a, b) => a.ts - b.ts)
+                  .map((m, i) => (
+                    <div
+                      key={i}
+                      className="rounded-lg px-3 py-2"
+                      style={{
+                        background: m.playerId === playerId ? "var(--accent)" : "var(--surface2)",
+                        color: m.playerId === playerId ? "#1a1428" : "var(--text)",
+                        alignSelf: m.playerId === playerId ? "flex-end" : "flex-start",
+                        maxWidth: "85%",
+                      }}
+                    >
+                      {m.playerId !== playerId && (
+                        <p style={{ fontSize: 10, color: "var(--accent)", fontWeight: "bold", marginBottom: 2 }}>{m.name}</p>
+                      )}
+                      <p style={{ fontSize: 13, wordBreak: "break-word" }}>{m.text}</p>
+                    </div>
+                  ))}
+                <div ref={chatEndRef} />
+              </div>
+
+              <div className="flex items-center gap-2 px-3 py-3" style={{ borderTop: "1px solid #2a2340" }}>
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && sendChatMessage()}
+                  placeholder="Napisz wiadomość…"
+                  className="flex-1"
+                  maxLength={300}
+                />
+                <button
+                  onClick={sendChatMessage}
+                  disabled={!chatInput.trim()}
+                  style={{ color: chatInput.trim() ? "var(--accent)" : "var(--muted)" }}
+                >
+                  <Send size={20} />
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
