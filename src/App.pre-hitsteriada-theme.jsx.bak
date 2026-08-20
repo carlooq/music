@@ -18,7 +18,6 @@ import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSucc
 import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, applyCategoryPatchToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal } from "./songsDb.js";
 import { playCorrectSound, playWrongSound, playApplause, unlockAudio } from "./sounds.js";
 import { Play, Music4, Trophy, RotateCcw, Users, ChevronRight, Copy, Check, LogIn, LogOut, BarChart3, Flame, Crown, Shield, Search, Trash2, Pencil, Save, X, MessageCircle, Send } from "lucide-react";
-import logoImg from "./assets/logo.png";
 
 // 👉 PODMIEŃ TO NA SWOJE WŁASNE HASŁO trybu admina
 const ADMIN_PASSWORD = "zmien-to-haslo-123";
@@ -46,24 +45,18 @@ function Vinyl({ spinning, revealed, progress = 0 }) {
         className="absolute"
         style={{ top: -8, left: -8, transform: "rotate(-90deg)" }}
       >
-        <defs>
-          <linearGradient id="vinylGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="var(--accent)" />
-            <stop offset="100%" stopColor="var(--accent2)" />
-          </linearGradient>
-        </defs>
-        <circle cx={118} cy={118} r={radius} stroke="rgba(34,211,197,0.15)" strokeWidth={4} fill="none" />
+        <circle cx={118} cy={118} r={radius} stroke="rgba(231,178,76,0.15)" strokeWidth={4} fill="none" />
         <circle
           cx={118}
           cy={118}
           r={radius}
-          stroke="url(#vinylGradient)"
+          stroke="var(--accent)"
           strokeWidth={4}
           fill="none"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
           strokeLinecap="round"
-          style={{ transition: "stroke-dashoffset 0.2s linear", filter: "drop-shadow(0 0 5px rgba(34,211,197,0.5))" }}
+          style={{ transition: "stroke-dashoffset 0.2s linear" }}
         />
       </svg>
       <div
@@ -71,8 +64,8 @@ function Vinyl({ spinning, revealed, progress = 0 }) {
         style={{
           width: 220,
           height: 220,
-          background: "radial-gradient(circle at 35% 30%, #1c2946 0%, #101827 60%, #060a14 100%)",
-          boxShadow: "0 20px 45px -15px rgba(0,0,0,0.7), inset 0 0 0 6px #060a14, 0 0 30px -10px var(--accent)",
+          background: "radial-gradient(circle at 35% 30%, #2b2440 0%, #171226 60%, #0d0a17 100%)",
+          boxShadow: "0 20px 45px -15px rgba(0,0,0,0.7), inset 0 0 0 6px #0d0a17",
           animation: spinning ? "spin-record 3.2s linear infinite" : "none",
         }}
       >
@@ -80,18 +73,18 @@ function Vinyl({ spinning, revealed, progress = 0 }) {
           <div
             key={n}
             className="absolute rounded-full"
-            style={{ width: 220 - n * 34, height: 220 - n * 34, border: "1px solid rgba(34,211,197,0.1)" }}
+            style={{ width: 220 - n * 34, height: 220 - n * 34, border: "1px solid rgba(231,178,76,0.08)" }}
           />
         ))}
         <div
           className="rounded-full flex items-center justify-center text-center px-2"
-          style={{ width: 78, height: 78, background: "linear-gradient(135deg, var(--accent), var(--accent2))", color: "#061018" }}
+          style={{ width: 78, height: 78, background: "var(--accent)", color: "#1a1428" }}
         >
           <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, lineHeight: 1 }}>
             {revealed ? "ODKRYTE" : "?"}
           </span>
         </div>
-        <div className="absolute rounded-full" style={{ width: 10, height: 10, background: "#060a14" }} />
+        <div className="absolute rounded-full" style={{ width: 10, height: 10, background: "#0d0a17" }} />
       </div>
       <div
         className="absolute"
@@ -1367,18 +1360,6 @@ export default function App() {
     setChatInput("");
   }
 
-  function goHome() {
-    if (roomId) {
-      leaveRoom();
-    } else {
-      setShowStats(false);
-      setShowLeaderboard(false);
-      setShowAdminPanel(false);
-      setViewingPlayer(null);
-      setShowProposeForm(false);
-    }
-  }
-
   async function sendChatMessage() {
     const text = chatInput.trim();
     if (!text || !roomId) return;
@@ -1435,68 +1416,30 @@ export default function App() {
   return (
     <div
       className="min-h-screen w-full flex flex-col items-center"
-      style={{
-        background:
-          "radial-gradient(ellipse 900px 650px at 10% -8%, rgba(34,211,197,0.16), transparent 60%), radial-gradient(ellipse 800px 650px at 100% 0%, rgba(124,92,255,0.14), transparent 55%), radial-gradient(ellipse 700px 500px at 50% 115%, rgba(34,211,197,0.10), transparent 55%), var(--bg)",
-        color: "var(--text)",
-        fontFamily: "'Space Mono', monospace",
-        padding: "32px 16px 64px",
-      }}
+      style={{ background: "var(--bg)", color: "var(--text)", fontFamily: "'Space Mono', monospace", padding: "32px 16px 64px" }}
     >
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap');
         :root {
-          --bg: #0a0f1c; --surface: #121a2c; --surface2: #1b2540;
-          --accent: #22d3c5; --accent2: #7c5cff; --gold: #ffb020;
-          --good: #34d399; --bad: #f43f5e;
-          --text: #edf1f7; --muted: #8391ab;
+          --bg: #120f1d; --surface: #1d1830; --surface2: #241d3a;
+          --accent: #e7b24c; --good: #4fd1ae; --bad: #e8615d;
+          --text: #f5f1e8; --muted: #9c93b5;
         }
         @keyframes spin-record { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframes bg-drift {
-          0%, 100% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-        }
-        button { transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease; }
-        .btn-grad {
-          background: linear-gradient(135deg, var(--accent), var(--accent2));
-          background-size: 160% 160%;
-          color: #061018;
-          box-shadow: 0 6px 20px -6px rgba(34,211,197,0.5);
-          animation: bg-drift 6s ease infinite;
-        }
-        .btn-grad:hover { filter: brightness(1.08); transform: translateY(-2px); box-shadow: 0 10px 26px -6px rgba(34,211,197,0.65); }
-        .btn-grad:active { transform: translateY(0); }
-        .card-glow {
-          position: relative;
-          box-shadow: 0 0 0 1px rgba(34,211,197,0.12), 0 12px 30px -18px rgba(0,0,0,0.6);
-          transition: box-shadow 0.2s ease, transform 0.2s ease;
-        }
-        .card-glow::before {
-          content: ""; position: absolute; top: 0; left: 16px; right: 16px; height: 2px;
-          background: linear-gradient(90deg, transparent, var(--accent), var(--accent2), transparent);
-          opacity: 0.7;
-        }
-        .row-hover { transition: transform 0.15s ease, background 0.15s ease; }
-        .row-hover:hover { transform: translateX(2px); background: var(--surface2) !important; }
         .slot-btn { transition: all 0.15s ease; }
-        .slot-btn:hover { background: linear-gradient(135deg, var(--accent), var(--accent2)) !important; color: #061018 !important; box-shadow: 0 0 14px -2px var(--accent); }
-        input[type="text"], input[type="number"], input[type="password"], textarea {
-          background: var(--surface2); border: 1px solid #2a3555; color: var(--text);
+        .slot-btn:hover { background: var(--accent) !important; color: #1a1428 !important; }
+        input[type="text"], input[type="number"], textarea {
+          background: var(--surface2); border: 1px solid #33294f; color: var(--text);
           border-radius: 8px; padding: 8px 10px; font-family: 'Space Mono', monospace;
-          transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
-        input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34,211,197,0.18); }
+        input:focus, textarea:focus { outline: 2px solid var(--accent); }
       `}</style>
 
       <div className="w-full flex flex-col items-center" style={{ maxWidth: 720 }}>
-        <button
-          onClick={goHome}
-          className="flex items-center justify-center mb-1"
-          style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
-          title="Strona główna"
-        >
-          <img src={logoImg} alt="Hitsteriada" style={{ height: 92, filter: "drop-shadow(0 0 18px rgba(34,211,197,0.35))" }} />
-        </button>
+        <div className="flex items-center gap-2 mb-1">
+          <Music4 size={22} color="var(--accent)" />
+          <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 38, letterSpacing: 1 }}>OŚ CZASU MUZYKI</h1>
+        </div>
         <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 24 }}>online • każdy gra u siebie, w swoim miejscu</p>
 
         {error && (
@@ -1507,7 +1450,7 @@ export default function App() {
 
         {screen === "home" && showStats && (
           <div className="w-full flex flex-col gap-5">
-            <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+            <section className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
               <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 12 }}>TWOJE STATYSTYKI</h2>
               {!stats ? (
                 <p style={{ color: "var(--muted)", fontSize: 13 }}>Brak jeszcze żadnych rozegranych gier.</p>
@@ -1607,7 +1550,7 @@ export default function App() {
 
         {screen === "home" && showLeaderboard && !viewingPlayer && (
           <div className="w-full flex flex-col gap-5">
-            <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+            <section className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
               <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 12 }}>RANKING GRACZY</h2>
               <div className="flex gap-2 mb-4">
                 <button
@@ -1664,7 +1607,7 @@ export default function App() {
 
         {screen === "home" && showLeaderboard && viewingPlayer && (
           <div className="w-full flex flex-col gap-5">
-            <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+            <section className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
               <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 12 }}>{viewingPlayer.username}</h2>
               {!viewingPlayer.stats ? (
                 <p style={{ color: "var(--muted)", fontSize: 13 }}>Brak jeszcze żadnych rozegranych gier.</p>
@@ -1975,7 +1918,7 @@ export default function App() {
 
         {screen === "home" && !showStats && !showLeaderboard && !showAdminPanel && (
           <div className="w-full flex flex-col gap-5">
-            <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+            <section className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
               {user ? (
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div>
@@ -2035,7 +1978,7 @@ export default function App() {
             </section>
 
             {!user && (
-              <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+              <section className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
                 <label className="text-xs uppercase" style={{ color: "var(--muted)" }}>Graj bez konta — podaj imię</label>
                 <input type="text" value={name} onChange={(e) => saveName(e.target.value)} className="w-full mt-2" placeholder="np. Kasia" />
               </section>
@@ -2135,15 +2078,15 @@ export default function App() {
               </button>
             )}
 
-            <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+            <section className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
               <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>NOWA GRA</h2>
               <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 10 }}>Stwórz pokój i wyślij kod znajomym.</p>
-              <button onClick={createRoom} disabled={busy} className="px-4 py-2 rounded-lg text-sm font-bold btn-grad">
+              <button onClick={createRoom} disabled={busy} className="px-4 py-2 rounded-lg text-sm font-bold" style={{ background: "var(--accent)", color: "#1a1428" }}>
                 Stwórz pokój
               </button>
             </section>
 
-            <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+            <section className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
               <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>🎯 TRENING (SOLO)</h2>
               <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 10 }}>
                 Ćwicz sam — tylko układanie kart na osi, bez zgadywania i bez zapisywania statystyk.
@@ -2157,7 +2100,7 @@ export default function App() {
               </div>
             </section>
 
-            <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+            <section className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
               <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>DOŁĄCZ DO GRY</h2>
               <div className="flex gap-2 mt-2">
                 <input
@@ -2168,7 +2111,7 @@ export default function App() {
                   maxLength={4}
                   style={{ width: 100, textAlign: "center", fontSize: 18, letterSpacing: 2 }}
                 />
-                <button onClick={joinRoom} disabled={busy} className="px-4 py-2 rounded-lg text-sm font-bold btn-grad">
+                <button onClick={joinRoom} disabled={busy} className="px-4 py-2 rounded-lg text-sm font-bold" style={{ background: "var(--good)", color: "#0d1f1a" }}>
                   Dołącz
                 </button>
               </div>
@@ -2186,7 +2129,7 @@ export default function App() {
               ← Wróć
             </button>
 
-            <section className="w-full rounded-2xl p-5 flex flex-col items-center card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+            <section className="w-full rounded-2xl p-5 flex flex-col items-center" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
               <p style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase" }}>Kod pokoju</p>
               <div className="flex items-center gap-2">
                 <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 44, letterSpacing: 4, color: "var(--accent)" }}>{roomId}</span>
@@ -2197,7 +2140,7 @@ export default function App() {
               <p style={{ color: "var(--muted)", fontSize: 11, marginTop: 4 }}>Prześlij ten kod znajomym, żeby dołączyli</p>
             </section>
 
-            <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+            <section className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
               <div className="flex items-center gap-2 mb-3">
                 <Users size={16} color="var(--accent)" />
                 <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>GRACZE ({room.players.length})</h2>
@@ -2214,7 +2157,7 @@ export default function App() {
             </section>
 
             {isHost ? (
-              <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+              <section className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
                 <div className="flex items-center gap-2 mb-4">
                   <label className="text-xs uppercase" style={{ color: "var(--muted)" }}>Kart do wygrania:</label>
                   <input
@@ -2261,8 +2204,8 @@ export default function App() {
                 <button
                   onClick={beginGame}
                   disabled={busy || !target || room.players.length < 2}
-                  className="w-full mt-4 py-3 rounded-xl text-lg font-bold flex items-center justify-center gap-2 btn-grad"
-                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+                  className="w-full mt-4 py-3 rounded-xl text-lg font-bold flex items-center justify-center gap-2"
+                  style={{ background: "var(--good)", color: "#0d1f1a", fontFamily: "'Bebas Neue', sans-serif" }}
                 >
                   ROZPOCZNIJ GRĘ <ChevronRight size={20} />
                 </button>
@@ -2304,7 +2247,7 @@ export default function App() {
             ) : (
               <>
                 <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, textAlign: "center" }}>KTO ZACZYNA?</p>
-                <div className="w-full rounded-2xl p-5 flex flex-col items-center card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+                <div className="w-full rounded-2xl p-5 flex flex-col items-center" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
                   <Vinyl spinning={isPlaying} revealed={!!room.openerWinnerId} progress={playElapsed / PLAY_CAP_SECONDS} />
                   <div style={{ width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }}>
                     <iframe
@@ -2375,7 +2318,7 @@ export default function App() {
 
         {(screen === "playing" || screen === "voting" || screen === "roundResult") && room && room.currentCard && (
           <div className="w-full flex flex-col items-center gap-6">
-            <div className="w-full rounded-2xl p-5 flex flex-col items-center card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+            <div className="w-full rounded-2xl p-5 flex flex-col items-center" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
               <p style={{ color: "var(--accent)", fontSize: 12, textTransform: "uppercase", letterSpacing: 2 }}>Tura gracza</p>
               <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30 }}>
                 {isMyTurn ? "Twoja kolej!" : turnPlayerName}
@@ -2465,10 +2408,10 @@ export default function App() {
                 <button
                   onClick={confirmPlacement}
                   disabled={chosenSlot === null || busy}
-                  className={`w-full mt-5 py-3 rounded-xl text-lg font-bold ${chosenSlot !== null ? "btn-grad" : ""}`}
+                  className="w-full mt-5 py-3 rounded-xl text-lg font-bold"
                   style={{
-                    background: chosenSlot === null ? "#232f4d" : undefined,
-                    color: chosenSlot === null ? "var(--muted)" : undefined,
+                    background: chosenSlot === null ? "#33294f" : "var(--good)",
+                    color: chosenSlot === null ? "var(--muted)" : "#0d1f1a",
                     fontFamily: "'Bebas Neue', sans-serif",
                   }}
                 >
@@ -2491,7 +2434,7 @@ export default function App() {
             )}
 
             {screen === "voting" && room.pendingGuess && (
-              <div className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+              <div className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
                 <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, textAlign: "center", marginBottom: 10 }}>
                   {isMyTurn ? "Czekasz na głosy…" : `Czy ${turnPlayerName} zgadł(a) poprawnie?`}
                 </p>
@@ -2764,21 +2707,14 @@ export default function App() {
                       className="rounded-lg px-3 py-2"
                       style={{
                         background: m.playerId === playerId ? "var(--accent)" : "var(--surface2)",
-                        color: m.playerId === playerId ? "#061018" : "var(--text)",
+                        color: m.playerId === playerId ? "#1a1428" : "var(--text)",
                         alignSelf: m.playerId === playerId ? "flex-end" : "flex-start",
                         maxWidth: "85%",
                       }}
                     >
-                      <p
-                        style={{
-                          fontSize: 10,
-                          color: m.playerId === playerId ? "#0a2420" : "var(--accent)",
-                          fontWeight: "bold",
-                          marginBottom: 2,
-                        }}
-                      >
-                        {m.name}
-                      </p>
+                      {m.playerId !== playerId && (
+                        <p style={{ fontSize: 10, color: "var(--accent)", fontWeight: "bold", marginBottom: 2 }}>{m.name}</p>
+                      )}
                       <p style={{ fontSize: 13, wordBreak: "break-word" }}>{m.text}</p>
                     </div>
                   ))}
