@@ -1510,7 +1510,7 @@ export default function App() {
       className="min-h-screen w-full flex flex-col items-center"
       style={{
         background:
-          "radial-gradient(ellipse 850px 600px at 8% -5%, rgba(155,124,255,0.18), transparent 60%), radial-gradient(ellipse 800px 650px at 100% 0%, rgba(255,79,195,0.12), transparent 55%), radial-gradient(ellipse 750px 550px at 50% 115%, rgba(34,211,238,0.12), transparent 55%), var(--bg)",
+          "radial-gradient(ellipse 850px 600px at 8% -5%, rgba(0,230,195,0.20), transparent 60%), radial-gradient(ellipse 800px 650px at 100% 0%, rgba(139,92,246,0.18), transparent 55%), radial-gradient(ellipse 750px 550px at 50% 115%, rgba(255,95,201,0.10), transparent 55%), var(--bg)",
         color: "var(--text)",
         fontFamily: "'Space Mono', monospace",
         padding: "32px 16px 64px",
@@ -1519,8 +1519,8 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap');
         :root {
-          --bg: #060309; --surface: rgba(24,12,38,0.55); --surface2: rgba(38,18,58,0.7);
-          --accent: #9b7cff; --accent2: #ff4fc3; --accent3: #22d3ee; --gold: #ffb020;
+          --bg: #050810; --surface: rgba(14,26,38,0.78); --surface2: rgba(20,36,50,0.9);
+          --accent: #00e6c3; --accent2: #8b5cf6; --accent3: #ff5fc9; --gold: #ffb020;
           --good: #2af598; --bad: #ff3868;
           --text: #f4eefc; --muted: #9c8fc2;
         }
@@ -1549,7 +1549,7 @@ export default function App() {
           background: var(--surface);
           backdrop-filter: blur(14px);
           -webkit-backdrop-filter: blur(14px);
-          box-shadow: 0 0 0 1px rgba(155,124,255,0.20), 0 0 30px -14px var(--accent2), 0 16px 34px -20px rgba(0,0,0,0.75);
+          box-shadow: 0 0 0 1px rgba(0,230,195,0.25), 0 0 30px -14px var(--accent2), 0 16px 34px -20px rgba(0,0,0,0.75);
           transition: box-shadow 0.2s ease, transform 0.2s ease;
         }
         .card-glow::before {
@@ -1567,7 +1567,7 @@ export default function App() {
           border-radius: 8px; padding: 8px 10px; font-family: 'Space Mono', monospace;
           transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
-        input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(155,124,255,0.22); }
+        input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,230,195,0.25); }
       `}</style>
 
       <div className="w-full flex flex-col items-center" style={{ maxWidth: 720 }}>
@@ -1577,7 +1577,7 @@ export default function App() {
           style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
           title="Strona główna"
         >
-          <img src={logoImg} alt="Hitsteriada" style={{ height: 100, filter: "drop-shadow(0 0 16px rgba(155,124,255,0.5)) drop-shadow(0 0 26px rgba(255,79,195,0.3))" }} />
+          <img src={logoImg} alt="Hitsteriada" style={{ height: 100, filter: "drop-shadow(0 0 18px rgba(0,230,195,0.55)) drop-shadow(0 0 28px rgba(139,92,246,0.3))" }} />
         </button>
         <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 24 }}>online • każdy gra u siebie, w swoim miejscu</p>
 
@@ -2124,7 +2124,7 @@ export default function App() {
             )}
 
             <button
-              onClick={openLeaderboard}
+              onClick={() => openLeaderboard()}
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold"
               style={{ background: "var(--surface2)", border: "1px solid #33294f", color: "var(--accent)" }}
             >
@@ -2764,7 +2764,7 @@ export default function App() {
         </div>
       )}
 
-      {room && screen !== "home" && (
+      {roomId && room && screen !== "home" && (
         <>
           <button
             onClick={() => setShowChat((v) => !v)}
