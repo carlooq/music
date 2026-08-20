@@ -588,7 +588,6 @@ export default function App() {
 
   async function openStats() {
     if (!user) return;
-    ensureLibraryLoaded();
     const s = await getStats(user.uid);
     setStats(s);
     setShowStats(true);
