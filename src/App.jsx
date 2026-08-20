@@ -307,8 +307,8 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (screen === "lobby") ensureLibraryLoaded();
-  }, [screen]);
+    if (screen === "lobby" && room?.hostId === playerId) ensureLibraryLoaded();
+  }, [screen, room?.hostId, playerId]);
 
   useEffect(() => {
     setAdminPage(1);
