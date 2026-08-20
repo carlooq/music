@@ -18,7 +18,7 @@ import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSucc
 import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, applyCategoryPatchToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal } from "./songsDb.js";
 import { playCorrectSound, playWrongSound, playApplause, unlockAudio } from "./sounds.js";
 import { Play, Music4, Trophy, RotateCcw, Users, ChevronRight, Copy, Check, LogIn, LogOut, BarChart3, Flame, Crown, Shield, Search, Trash2, Pencil, Save, X, MessageCircle, Send } from "lucide-react";
-import logoImg from "./assets/logo-v2.png";
+import logoImg from "./assets/logo.png";
 
 // 👉 PODMIEŃ TO NA SWOJE WŁASNE HASŁO trybu admina
 const ADMIN_PASSWORD = "zmien-to-haslo-123";
@@ -1502,7 +1502,7 @@ export default function App() {
       className="min-h-screen w-full flex flex-col items-center"
       style={{
         background:
-          "radial-gradient(ellipse 850px 600px at 8% -5%, rgba(255,46,196,0.16), transparent 60%), radial-gradient(ellipse 800px 650px at 100% 0%, rgba(139,92,246,0.20), transparent 55%), radial-gradient(ellipse 750px 550px at 50% 115%, rgba(0,229,255,0.12), transparent 55%), var(--bg)",
+          "radial-gradient(ellipse 900px 650px at 10% -8%, rgba(34,211,197,0.16), transparent 60%), radial-gradient(ellipse 800px 650px at 100% 0%, rgba(124,92,255,0.14), transparent 55%), radial-gradient(ellipse 700px 500px at 50% 115%, rgba(34,211,197,0.10), transparent 55%), var(--bg)",
         color: "var(--text)",
         fontFamily: "'Space Mono', monospace",
         padding: "32px 16px 64px",
@@ -1511,55 +1511,46 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap');
         :root {
-          --bg: #060309; --surface: rgba(24,12,38,0.55); --surface2: rgba(38,18,58,0.7);
-          --accent: #ff2ec4; --accent2: #8b5cf6; --accent3: #00e5ff; --gold: #ffb020;
-          --good: #2af598; --bad: #ff3868;
-          --text: #f4eefc; --muted: #9c8fc2;
+          --bg: #0a0f1c; --surface: #121a2c; --surface2: #1b2540;
+          --accent: #22d3c5; --accent2: #7c5cff; --gold: #ffb020;
+          --good: #34d399; --bad: #f43f5e;
+          --text: #edf1f7; --muted: #8391ab;
         }
         @keyframes spin-record { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes bg-drift {
           0%, 100% { background-position: 0% 50%; }
           50% { background-position: 100% 50%; }
         }
-        @keyframes pulse-glow {
-          0%, 100% { box-shadow: 0 0 18px -4px var(--accent), 0 0 34px -12px var(--accent2); }
-          50% { box-shadow: 0 0 28px -2px var(--accent), 0 0 48px -8px var(--accent2); }
-        }
         button { transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease; }
         .btn-grad {
-          background: linear-gradient(115deg, var(--accent), var(--accent2) 55%, var(--accent3));
-          background-size: 220% 220%;
-          color: #0a0410;
-          box-shadow: 0 0 20px -4px var(--accent), 0 0 34px -10px var(--accent2), 0 6px 18px -8px rgba(0,0,0,0.6);
-          animation: bg-drift 5s ease infinite;
-          border: 1px solid rgba(255,255,255,0.15);
+          background: linear-gradient(135deg, var(--accent), var(--accent2));
+          background-size: 160% 160%;
+          color: #061018;
+          box-shadow: 0 6px 20px -6px rgba(34,211,197,0.5);
+          animation: bg-drift 6s ease infinite;
         }
-        .btn-grad:hover { filter: brightness(1.12); transform: translateY(-2px); box-shadow: 0 0 30px -2px var(--accent), 0 0 50px -6px var(--accent3), 0 10px 24px -8px rgba(0,0,0,0.6); }
+        .btn-grad:hover { filter: brightness(1.08); transform: translateY(-2px); box-shadow: 0 10px 26px -6px rgba(34,211,197,0.65); }
         .btn-grad:active { transform: translateY(0); }
         .card-glow {
           position: relative;
-          background: var(--surface);
-          backdrop-filter: blur(14px);
-          -webkit-backdrop-filter: blur(14px);
-          box-shadow: 0 0 0 1px rgba(255,46,196,0.18), 0 0 30px -14px var(--accent2), 0 16px 34px -20px rgba(0,0,0,0.75);
+          box-shadow: 0 0 0 1px rgba(34,211,197,0.12), 0 12px 30px -18px rgba(0,0,0,0.6);
           transition: box-shadow 0.2s ease, transform 0.2s ease;
         }
         .card-glow::before {
-          content: ""; position: absolute; top: 0; left: 16px; right: 16px; height: 2px; border-radius: 2px;
-          background: linear-gradient(90deg, transparent, var(--accent), var(--accent3), var(--accent2), transparent);
-          opacity: 0.9;
+          content: ""; position: absolute; top: 0; left: 16px; right: 16px; height: 2px;
+          background: linear-gradient(90deg, transparent, var(--accent), var(--accent2), transparent);
+          opacity: 0.7;
         }
         .row-hover { transition: transform 0.15s ease, background 0.15s ease; }
         .row-hover:hover { transform: translateX(2px); background: var(--surface2) !important; }
         .slot-btn { transition: all 0.15s ease; }
-        .slot-btn:hover { background: linear-gradient(115deg, var(--accent), var(--accent2), var(--accent3)) !important; color: #0a0410 !important; box-shadow: 0 0 16px -2px var(--accent); }
-        .pulse-cta { animation: pulse-glow 2.4s ease-in-out infinite; }
+        .slot-btn:hover { background: linear-gradient(135deg, var(--accent), var(--accent2)) !important; color: #061018 !important; box-shadow: 0 0 14px -2px var(--accent); }
         input[type="text"], input[type="number"], input[type="password"], textarea {
-          background: var(--surface2); border: 1px solid rgba(139,92,246,0.35); color: var(--text);
+          background: var(--surface2); border: 1px solid #2a3555; color: var(--text);
           border-radius: 8px; padding: 8px 10px; font-family: 'Space Mono', monospace;
           transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
-        input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255,46,196,0.2); }
+        input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34,211,197,0.18); }
       `}</style>
 
       <div className="w-full flex flex-col items-center" style={{ maxWidth: 720 }}>
@@ -1569,7 +1560,7 @@ export default function App() {
           style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
           title="Strona główna"
         >
-          <img src={logoImg} alt="Hitsteriada" style={{ height: 100, filter: "drop-shadow(0 0 16px rgba(255,46,196,0.45)) drop-shadow(0 0 28px rgba(139,92,246,0.35))" }} />
+          <img src={logoImg} alt="Hitsteriada" style={{ height: 92, filter: "drop-shadow(0 0 18px rgba(34,211,197,0.35))" }} />
         </button>
         <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 24 }}>online • każdy gra u siebie, w swoim miejscu</p>
 
@@ -2335,7 +2326,7 @@ export default function App() {
                 <button
                   onClick={beginGame}
                   disabled={busy || !target || room.players.length < 2}
-                  className="w-full mt-4 py-3 rounded-xl text-lg font-bold flex items-center justify-center gap-2 btn-grad pulse-cta"
+                  className="w-full mt-4 py-3 rounded-xl text-lg font-bold flex items-center justify-center gap-2 btn-grad"
                   style={{ fontFamily: "'Bebas Neue', sans-serif" }}
                 >
                   ROZPOCZNIJ GRĘ <ChevronRight size={20} />
