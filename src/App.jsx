@@ -15,7 +15,7 @@ import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId } from "./
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
 import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard } from "./stats.js";
-import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, applyCategoryPatchToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal } from "./songsDb.js";
+import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, applyCategoryPatchToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv } from "./songsDb.js";
 import { playCorrectSound, playWrongSound, playApplause, unlockAudio } from "./sounds.js";
 import { Play, Music4, Trophy, RotateCcw, Users, ChevronRight, Copy, Check, LogIn, LogOut, BarChart3, Flame, Crown, Shield, Search, Trash2, Pencil, Save, X, MessageCircle, Send } from "lucide-react";
 import logoImg from "./assets/logo-v2.png";
@@ -237,6 +237,9 @@ export default function App() {
   const [adminEditDraft, setAdminEditDraft] = useState({});
   const [adminNewSong, setAdminNewSong] = useState({ artist: "", title: "", url: "", year: "", categories: "" });
   const [migrateProgress, setMigrateProgress] = useState(null);
+  const [importCsvText, setImportCsvText] = useState("");
+  const [importBusy, setImportBusy] = useState(false);
+  const [importResult, setImportResult] = useState(null);
 
   const [showProposeForm, setShowProposeForm] = useState(false);
   const [proposeDraft, setProposeDraft] = useState({ artist: "", title: "", url: "", year: "", categories: [] });
@@ -546,6 +549,39 @@ export default function App() {
       setAdminBusy(false);
       setMigrateProgress(null);
     }
+  }
+
+  async function handleImportCsv() {
+    if (!importCsvText.trim()) return;
+    setImportBusy(true);
+    setImportResult(null);
+    setError("");
+    try {
+      // upewniamy się, że deduplikujemy względem NAJŚWIEŻSZEJ biblioteki
+      const fresh = await fetchAllSongsFromDb();
+      const existingVideoIds = fresh.map((s) => s.videoId);
+      const result = await importSongsFromCsv(importCsvText, existingVideoIds, (done, total) =>
+        setMigrateProgress({ done, total })
+      );
+      setImportResult(result);
+      const merged = [...fresh, ...result.addedSongs];
+      setLibrarySongs(merged);
+      saveLibraryCache(merged);
+      setImportCsvText("");
+    } catch (e) {
+      setError("Błąd importu: " + e.message);
+    } finally {
+      setImportBusy(false);
+      setMigrateProgress(null);
+    }
+  }
+
+  function handleImportFilePick(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setImportCsvText(ev.target.result);
+    reader.readAsText(file, "utf-8");
   }
 
 
@@ -1923,6 +1959,38 @@ export default function App() {
                 </button>
               </section>
             )}
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>📥 Import z CSV (masowo)</p>
+              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
+                Format wierszy: <code>url;wykonawca;tytuł;rok;kategorie;po;średniku</code>. Duplikaty (po linku YouTube) są pomijane automatycznie.
+              </p>
+              <input type="file" accept=".csv,text/csv" onChange={handleImportFilePick} style={{ fontSize: 12, marginBottom: 8 }} />
+              <textarea
+                rows={5}
+                value={importCsvText}
+                onChange={(e) => setImportCsvText(e.target.value)}
+                placeholder="Wklej tu zawartość pliku CSV, albo wybierz plik powyżej…"
+                className="w-full"
+              />
+              <button
+                onClick={handleImportCsv}
+                disabled={importBusy || !importCsvText.trim()}
+                className="mt-2 px-4 py-2 rounded-lg text-sm font-bold"
+                style={{ background: "var(--good)", color: "#0d1f1a" }}
+              >
+                {importBusy
+                  ? migrateProgress
+                    ? `Importowanie… ${migrateProgress.done}/${migrateProgress.total}`
+                    : "Sprawdzam duplikaty…"
+                  : "Importuj do bazy"}
+              </button>
+              {importResult && (
+                <p style={{ fontSize: 12, marginTop: 8, color: "var(--good)" }}>
+                  ✓ Dodano {importResult.added} nowych utworów. Pominięto: {importResult.skippedDup} duplikatów, {importResult.skippedBad} błędnych wierszy (z {importResult.totalRows} w pliku).
+                </p>
+              )}
+            </section>
 
             <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
               <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>Dodaj nowy utwór</p>

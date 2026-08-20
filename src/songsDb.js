@@ -125,3 +125,81 @@ export async function acceptProposal(proposal) {
 export async function rejectProposal(id) {
   await deleteDoc(doc(db, PROPOSALS_COLLECTION, id));
 }
+
+// --- import CSV wklejonego prosto w panelu admina (bez terminala) ---
+
+function getYouTubeIdFromUrl(url) {
+  const m = (url || "").match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([\w-]{11})/);
+  return m ? m[1] : null;
+}
+
+// Parser CSV z ";" jako separatorem (obsługuje cudzysłowy wokół kategorii).
+function parseImportCsv(text) {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  const rows = lines.map((line) => {
+    const out = [];
+    let cur = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') inQuotes = !inQuotes;
+      else if (ch === ";" && !inQuotes) {
+        out.push(cur);
+        cur = "";
+      } else cur += ch;
+    }
+    out.push(cur);
+    return out;
+  });
+  const start = /^\d{4}$/.test((rows[0]?.[3] || "").trim()) ? 0 : 1;
+  return rows.slice(start).map((r) => ({
+    url: (r[0] || "").trim(),
+    artist: (r[1] || "").trim(),
+    title: (r[2] || "").trim(),
+    year: parseInt((r[3] || "").trim(), 10),
+    categories: (r[4] || "").trim().split(";").map((c) => c.trim()).filter(Boolean),
+  }));
+}
+
+// Dedupuje po videoId względem przekazanego zbioru (np. aktualnie wczytanej
+// biblioteki) i zapisuje nowe utwory w Firestore, partiami.
+export async function importSongsFromCsv(csvText, existingVideoIds, onProgress) {
+  const rows = parseImportCsv(csvText);
+  const seen = new Set(existingVideoIds);
+  const toAdd = [];
+  let skippedDup = 0;
+  let skippedBad = 0;
+
+  for (const r of rows) {
+    const videoId = getYouTubeIdFromUrl(r.url);
+    if (!videoId || !r.artist || !r.title || isNaN(r.year)) {
+      skippedBad++;
+      continue;
+    }
+    if (seen.has(videoId)) {
+      skippedDup++;
+      continue;
+    }
+    seen.add(videoId);
+    toAdd.push({ videoId, artist: r.artist, title: r.title, year: r.year, categories: r.categories });
+  }
+
+  const chunkSize = 450;
+  let written = 0;
+  const addedSongs = [];
+  for (let i = 0; i < toAdd.length; i += chunkSize) {
+    const chunk = toAdd.slice(i, i + chunkSize);
+    const batch = writeBatch(db);
+    const refs = chunk.map((song) => {
+      const ref = doc(collection(db, COLLECTION));
+      batch.set(ref, song);
+      return { id: ref.id, ...song };
+    });
+    await batch.commit();
+    addedSongs.push(...refs);
+    written += chunk.length;
+    if (onProgress) onProgress(written, toAdd.length);
+  }
+
+  return { totalRows: rows.length, added: written, addedSongs, skippedDup, skippedBad };
+}
