@@ -9,7 +9,7 @@ export function decadeLabel(year) {
 // Firestore treats "." as a nested-path separator, so artist names that
 // contain one (e.g. "N.E.R.D") need a safe field-key form.
 function artistKey(artist) {
-  return artist.replace(/[.$/[\]#]/g, "_");
+  return (artist || "").toLowerCase().replace(/[.$/[\]#]/g, "_");
 }
 
 export async function ensureStatsDoc(uid, username) {
@@ -25,6 +25,7 @@ export async function ensureStatsDoc(uid, username) {
       guessesCorrect: 0,
       heardSongs: [],
       guessedSongs: [],
+      songsAdded: 0,
       decades: {},
       artists: {},
       currentStreak: 0,
@@ -77,6 +78,13 @@ export async function recordGameResult(uid, won) {
     gamesPlayed: increment(1),
     gamesWon: increment(won ? 1 : 0),
   });
+}
+
+// Called gdy admin zaakceptuje propozycję utworu od gracza — motywuje do
+// rozbudowywania bazy.
+export async function recordSongAdded(uid) {
+  const ref = doc(db, "userStats", uid);
+  await updateDoc(ref, { songsAdded: increment(1) });
 }
 
 // Called whenever a player's artist+title guess gets approved (bezpośrednio

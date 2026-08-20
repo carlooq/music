@@ -89,6 +89,7 @@ export async function submitSongProposal(proposal) {
     year: proposal.year,
     categories: proposal.categories || [],
     submittedBy: proposal.submittedBy || "nieznany",
+    submittedByUid: proposal.submittedByUid || null,
     status: "pending",
     createdAt: Date.now(),
   };
@@ -110,7 +111,7 @@ export async function updateProposal(id, fields) {
 
 // Akceptacja: kopiuje propozycję do głównej biblioteki i usuwa ją z listy oczekujących.
 export async function acceptProposal(proposal) {
-  await addSongToDb({
+  const added = await addSongToDb({
     videoId: proposal.videoId,
     artist: proposal.artist,
     title: proposal.title,
@@ -118,6 +119,7 @@ export async function acceptProposal(proposal) {
     categories: proposal.categories || [],
   });
   await deleteDoc(doc(db, PROPOSALS_COLLECTION, proposal.id));
+  return added;
 }
 
 export async function rejectProposal(id) {

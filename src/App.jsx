@@ -14,7 +14,7 @@ import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
 import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId } from "./utils.js";
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
-import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, topArtists, getLeaderboard } from "./stats.js";
+import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard } from "./stats.js";
 import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, applyCategoryPatchToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal } from "./songsDb.js";
 import { playCorrectSound, playWrongSound, playApplause, unlockAudio } from "./sounds.js";
 import { Play, Music4, Trophy, RotateCcw, Users, ChevronRight, Copy, Check, LogIn, LogOut, BarChart3, Flame, Crown, Shield, Search, Trash2, Pencil, Save, X, MessageCircle, Send } from "lucide-react";
@@ -178,6 +178,7 @@ export default function App() {
 
   const [target, setTarget] = useState(10);
   const [selectedCategories, setSelectedCategories] = useState(["wszystkie"]);
+  const [practiceTarget, setPracticeTarget] = useState(15);
 
   const [chosenSlot, setChosenSlot] = useState(null);
   const [heldCard, setHeldCard] = useState(null);
@@ -306,8 +307,8 @@ export default function App() {
         videoId,
         categories,
       });
+      setLibrarySongs((prev) => prev.map((s) => (s.id === id ? { ...s, artist: adminEditDraft.artist, title: adminEditDraft.title, year: parseInt(adminEditDraft.year, 10), videoId, categories } : s)));
       setAdminEditingId(null);
-      refreshLibrary();
     } catch (e) {
       setError("Błąd zapisu: " + e.message);
     } finally {
@@ -319,7 +320,7 @@ export default function App() {
     setAdminBusy(true);
     try {
       await deleteSongFromDb(id);
-      refreshLibrary();
+      setLibrarySongs((prev) => prev.filter((s) => s.id !== id));
     } catch (e) {
       setError("Błąd usuwania: " + e.message);
     } finally {
@@ -336,7 +337,7 @@ export default function App() {
     }
     setAdminBusy(true);
     try {
-      await addSongToDb({
+      const added = await addSongToDb({
         videoId,
         artist: adminNewSong.artist.trim(),
         title: adminNewSong.title.trim(),
@@ -344,7 +345,7 @@ export default function App() {
         categories: adminNewSong.categories.split(";").map((c) => c.trim()).filter(Boolean),
       });
       setAdminNewSong({ artist: "", title: "", url: "", year: "", categories: "" });
-      refreshLibrary();
+      setLibrarySongs((prev) => [...(prev || []), added]);
     } catch (e) {
       setError("Błąd dodawania: " + e.message);
     } finally {
@@ -380,6 +381,7 @@ export default function App() {
         year,
         categories: proposeDraft.categories,
         submittedBy: name || user?.displayName || "nieznany",
+        submittedByUid: user?.uid || null,
       });
       setProposeDraft({ artist: "", title: "", url: "", year: "", categories: [] });
       setProposeSuccess(true);
@@ -403,9 +405,12 @@ export default function App() {
   async function handleAcceptProposal(p) {
     setAdminBusy(true);
     try {
-      await acceptProposal(p);
+      const added = await acceptProposal(p);
+      if (p.submittedByUid) {
+        recordSongAdded(p.submittedByUid).catch(() => {});
+      }
       setProposals((prev) => prev.filter((x) => x.id !== p.id));
-      refreshLibrary();
+      setLibrarySongs((prev) => [...(prev || []), added]);
     } catch (e) {
       setError("Błąd akceptacji: " + e.message);
     } finally {
@@ -772,6 +777,63 @@ export default function App() {
     }
   }
 
+  async function startPractice() {
+    if (!name.trim() && !user) return setError("Podaj swoje imię.");
+    setBusy(true);
+    setError("");
+    try {
+      const pool = effectivePool;
+      const target = practiceTarget && practiceTarget > 0 ? practiceTarget : 15;
+      const needed = target + 7;
+      if (pool.length < needed) {
+        setError(`Za mało utworów w bibliotece (masz ${pool.length}, potrzeba ${needed}).`);
+        setBusy(false);
+        return;
+      }
+      const code = generateRoomCode();
+      const ref = doc(db, "rooms", code);
+      const deck = shuffle(pool).slice(0, needed);
+      const me = { id: playerId, name: name.trim() || user?.displayName || "Gracz", authed: !!user };
+      await setDoc(ref, {
+        code,
+        hostId: playerId,
+        target,
+        status: "playing",
+        players: [me],
+        deck,
+        deckIndex: 2,
+        currentPlayerId: playerId,
+        startingPlayerId: playerId,
+        currentCard: deck[1],
+        startSeconds: randomStartSeconds(),
+        turnDeadline: Date.now() + DECISION_SECONDS * 1000,
+        turnStartedAt: Date.now(),
+        timelines: { [playerId]: [deck[0]] },
+        tokens: { [playerId]: 0 },
+        lastResult: null,
+        pendingGuess: null,
+        votes: {},
+        requiredApprovals: 0,
+        resultAt: null,
+        winnerIds: [],
+        finishingRound: false,
+        decisionTimes: {},
+        gameStreaks: {},
+        gameGuesses: {},
+        gameBestStreaks: {},
+        playedCards: [],
+        messages: [],
+        practiceMode: true,
+        createdAt: serverTimestamp(),
+      });
+      setRoomId(code);
+    } catch (e) {
+      setError("Nie udało się rozpocząć treningu: " + e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function joinRoom() {
     if (!name.trim()) return setError("Podaj swoje imię.");
     const code = joinCode.trim().toUpperCase();
@@ -818,6 +880,10 @@ export default function App() {
     if (!room) return;
     if (!target || target < 1) {
       setError("Podaj liczbę kart do wygrania.");
+      return;
+    }
+    if (room.players.length < 2) {
+      setError("Potrzeba minimum 2 graczy. Do gry solo użyj trybu Trening na ekranie głównym.");
       return;
     }
     const basePool = effectivePool;
@@ -984,7 +1050,7 @@ export default function App() {
         const correct = (!before || before.year <= card.year) && (!after || card.year <= after.year);
         const newTimelines = { ...data.timelines };
         if (correct) newTimelines[data.currentPlayerId] = [...timeline, card];
-        capturedResult = { correct, card };
+        capturedResult = { correct, card, practiceMode: !!data.practiceMode };
 
         // podsumowanie gry: czas decyzji, seria trafień, playlista wieczoru
         const elapsed = Date.now() - (data.turnStartedAt || Date.now());
@@ -1030,10 +1096,10 @@ export default function App() {
           });
         }
       });
-      if (user && capturedResult) {
+      if (user && capturedResult && !capturedResult.practiceMode) {
         recordCardGuess(user.uid, capturedResult.card.year, capturedResult.correct, capturedResult.card.artist, capturedResult.card.videoId).catch(() => {});
       }
-      if (user && instantGuessAwardedTo === user.uid) {
+      if (user && instantGuessAwardedTo === user.uid && !capturedResult?.practiceMode) {
         recordSuccessfulGuess(user.uid, capturedResult?.card?.videoId).catch(() => {});
       }
     } catch (e) {
@@ -1171,12 +1237,14 @@ export default function App() {
     try {
       const ref = doc(db, "rooms", roomId);
       let capturedCard = null;
+      let capturedPracticeMode = false;
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
         if (data.status !== "playing") return; // ktoś już zdążył zatwierdzić/kupić
         const card = data.currentCard;
         capturedCard = card;
+        capturedPracticeMode = !!data.practiceMode;
         const elapsed = Date.now() - (data.turnStartedAt || Date.now());
         const newDecisionTimes = { ...(data.decisionTimes || {}) };
         newDecisionTimes[data.currentPlayerId] = [...(newDecisionTimes[data.currentPlayerId] || []), elapsed];
@@ -1191,7 +1259,7 @@ export default function App() {
           playedCards: newPlayedCards,
         });
       });
-      if (user && capturedCard) {
+      if (user && capturedCard && !capturedPracticeMode) {
         recordCardGuess(user.uid, capturedCard.year, false, capturedCard.artist, capturedCard.videoId).catch(() => {});
       }
     } catch (e) {
@@ -1248,7 +1316,7 @@ export default function App() {
 
           const winnerIds = contenders.map((p) => p.id);
           tx.update(ref, { status: "gameover", winnerIds });
-          gameOverInfo = { winnerIds, players };
+          gameOverInfo = { winnerIds, players, practiceMode: !!data.practiceMode };
           return;
         }
 
@@ -1267,7 +1335,7 @@ export default function App() {
           finishingRound,
         });
       });
-      if (gameOverInfo) {
+      if (gameOverInfo && !gameOverInfo.practiceMode) {
         gameOverInfo.players
           .filter((p) => p.authed)
           .forEach((p) => {
@@ -1403,6 +1471,7 @@ export default function App() {
                     <StatBox label="🎧 Odgadnięte wykonawcy/tytuły" value={stats.guessesCorrect || 0} />
                     <StatBox label="🎵 Przesłuchane piosenki" value={`${(stats.heardSongs || []).length}/${effectivePool.length}`} />
                     <StatBox label="🔎 Odgadnięte piosenki" value={`${(stats.guessedSongs || []).length}/${effectivePool.length}`} />
+                    <StatBox label="📀 Dodane do bazy" value={stats.songsAdded || 0} />
                   </div>
 
                   {stats.decades && Object.keys(stats.decades).length > 0 && (
@@ -1557,6 +1626,7 @@ export default function App() {
                     />
                     <StatBox label="Rekordowy streak" value={(viewingPlayer.stats.longestStreak || 0) + " 🔥"} />
                     <StatBox label="🎧 Odgadnięte wykonawcy/tytuły" value={viewingPlayer.stats.guessesCorrect || 0} />
+                    <StatBox label="📀 Dodane do bazy" value={viewingPlayer.stats.songsAdded || 0} />
                   </div>
                   {viewingPlayer.stats.decades && Object.keys(viewingPlayer.stats.decades).length > 0 && (
                     <div>
@@ -2017,6 +2087,20 @@ export default function App() {
             </section>
 
             <section className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>🎯 TRENING (SOLO)</h2>
+              <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 10 }}>
+                Ćwicz sam — tylko układanie kart na osi, bez zgadywania i bez zapisywania statystyk.
+              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <label className="text-xs uppercase" style={{ color: "var(--muted)" }}>Kart do zebrania:</label>
+                <input type="number" min={1} value={practiceTarget} onChange={(e) => setPracticeTarget(parseInt(e.target.value, 10) || "")} style={{ width: 60 }} />
+                <button onClick={startPractice} disabled={busy} className="px-4 py-2 rounded-lg text-sm font-bold" style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}>
+                  Zacznij trening
+                </button>
+              </div>
+            </section>
+
+            <section className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
               <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>DOŁĄCZ DO GRY</h2>
               <div className="flex gap-2 mt-2">
                 <input
@@ -2119,13 +2203,18 @@ export default function App() {
                 </p>
                 <button
                   onClick={beginGame}
-                  disabled={busy || !target}
+                  disabled={busy || !target || room.players.length < 2}
                   className="w-full mt-4 py-3 rounded-xl text-lg font-bold flex items-center justify-center gap-2"
                   style={{ background: "var(--good)", color: "#0d1f1a", fontFamily: "'Bebas Neue', sans-serif" }}
                 >
                   ROZPOCZNIJ GRĘ <ChevronRight size={20} />
                 </button>
                 {!target && <p style={{ color: "var(--muted)", fontSize: 11, marginTop: 6, textAlign: "center" }}>Podaj liczbę kart do wygrania</p>}
+                {target && room.players.length < 2 && (
+                  <p style={{ color: "var(--muted)", fontSize: 11, marginTop: 6, textAlign: "center" }}>
+                    Potrzeba minimum 2 graczy — do gry solo użyj Treningu na ekranie głównym.
+                  </p>
+                )}
               </section>
             ) : (
               <p style={{ color: "var(--muted)", fontSize: 13, textAlign: "center" }}>Czekasz, aż {room.players.find((p) => p.id === room.hostId)?.name} rozpocznie grę…</p>
@@ -2262,7 +2351,7 @@ export default function App() {
               </button>
             </div>
 
-            {screen === "playing" && isMyTurn && (
+            {screen === "playing" && isMyTurn && !room.practiceMode && (
               <div className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
                 <div className="flex items-center justify-between mb-2">
                   <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase" }}>Zgadnij wykonawcę i tytuł (opcjonalnie, +1 token)</p>
