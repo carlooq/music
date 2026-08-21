@@ -538,6 +538,24 @@ export default function App() {
     }
   }
 
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    if (!showDailySong || !dailySong || dailyAlreadyPlayed) return;
+    const applyGenericMetadata = () => {
+      try {
+        navigator.mediaSession.metadata = new window.MediaMetadata({
+          title: "Hitsteriada",
+          artist: "📅 Piosenka dnia — zgadnij zanim zobaczysz odpowiedź!",
+          album: "",
+          artwork: [{ src: logoImg, sizes: "512x512", type: "image/png" }],
+        });
+      } catch (e) {}
+    };
+    applyGenericMetadata();
+    const id = setInterval(applyGenericMetadata, 700);
+    return () => clearInterval(id);
+  }, [showDailySong, dailySong?.videoId, dailyAlreadyPlayed]);
+
   async function submitDailyGuess() {
     if (!user || !dailySong) return;
     setDailyBusy(true);
@@ -1947,6 +1965,31 @@ export default function App() {
       cancelled = true;
     };
   }, [screen, room?.currentCard?.id]);
+
+  // KRYTYCZNE zabezpieczenie przed spoilerem: samo załadowanie oficjalnego
+  // odtwarzacza YouTube (potrzebne do wykrywania zepsutych linków) sprawia,
+  // że telefon pokazuje w powiadomieniu multimedialnym prawdziwy tytuł i
+  // wykonawcę utworu — psując grę. Nadpisujemy to na okrągło neutralną
+  // informacją, dopóki karta nie została jeszcze ujawniona.
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    if (screen !== "playing" && screen !== "opener") return;
+    const applyGenericMetadata = () => {
+      try {
+        navigator.mediaSession.metadata = new window.MediaMetadata({
+          title: "Hitsteriada",
+          artist: "🎵 zgadnij zanim zobaczysz odpowiedź!",
+          album: "",
+          artwork: [{ src: logoImg, sizes: "512x512", type: "image/png" }],
+        });
+      } catch (e) {
+        // ciche niepowodzenie — w najgorszym razie powiadomienie pokaże coś nieidealnego
+      }
+    };
+    applyGenericMetadata();
+    const id = setInterval(applyGenericMetadata, 700);
+    return () => clearInterval(id);
+  }, [screen, room?.currentCard?.id, room?.openerCard?.id]);
 
   async function swapSong() {
     if (!room || (room.tokens?.[playerId] || 0) < SWAP_SONG_TOKENS) return;
