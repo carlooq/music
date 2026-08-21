@@ -690,16 +690,12 @@ export default function App() {
     setViewingPlayer({ uid: p.uid, username: p.username, stats: s });
   }
 
-  const lastSnapshotAtRef = useRef(Date.now());
-  const [connectionStale, setConnectionStale] = useState(false);
   useEffect(() => {
     if (!roomId) return;
     const ref = doc(db, "rooms", roomId);
     const unsub = onSnapshot(
       ref,
       (snap) => {
-        lastSnapshotAtRef.current = Date.now();
-        setConnectionStale(false);
         if (!snap.exists()) {
           setError("Ten pokój przestał istnieć.");
           setRoom(null);
@@ -712,16 +708,6 @@ export default function App() {
       (err) => setError("Błąd połączenia: " + err.message)
     );
     return () => unsub();
-  }, [roomId]);
-
-  // wskaźnik słabego połączenia — jeśli od dawna nie przyszła żadna aktualizacja
-  // z Firestore, pokazujemy to graczowi zamiast ciszy wyglądającej jak awaria
-  useEffect(() => {
-    if (!roomId) return;
-    const id = setInterval(() => {
-      setConnectionStale(Date.now() - lastSnapshotAtRef.current > 6000);
-    }, 1500);
-    return () => clearInterval(id);
   }, [roomId]);
 
   // reset local per-round UI whenever the shared card changes
@@ -3019,26 +3005,6 @@ export default function App() {
             <p style={{ fontSize: 14, color: "var(--muted)", marginTop: 2 }}>„{heldCard.title}"</p>
             <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 10 }}>(kliknij poza kartą, żeby zamknąć)</p>
           </div>
-        </div>
-      )}
-
-      {connectionStale && roomId && screen !== "home" && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            zIndex: 95,
-            textAlign: "center",
-            padding: "8px 12px",
-            background: "var(--bad)",
-            color: "#2a0a12",
-            fontSize: 12,
-            fontWeight: "bold",
-          }}
-        >
-          ⚠ Słabe połączenie — czekam na aktualizację stanu gry…
         </div>
       )}
 
