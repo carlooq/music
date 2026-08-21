@@ -200,6 +200,9 @@ export default function App() {
 
   const [chosenSlot, setChosenSlot] = useState(null);
   const [heldCard, setHeldCard] = useState(null);
+  const [boughtCardReveal, setBoughtCardReveal] = useState(null);
+  const [viewedPlayerId, setViewedPlayerId] = useState(null);
+  const [showOnlyMyPlaylist, setShowOnlyMyPlaylist] = useState(false);
   const clearHeldCard = useCallback(() => setHeldCard(null), []);
   const [showChat, setShowChat] = useState(false);
   const [chatSeenCount, setChatSeenCount] = useState(0);
@@ -733,6 +736,12 @@ export default function App() {
     if (playIntervalRef.current) clearInterval(playIntervalRef.current);
   }, [room?.currentCard?.id, toMillis(room?.openerCreatedAt), room?.openerWinnerId]);
 
+  // domyślnie podążamy za aktywnym graczem, ale reset następuje dopiero
+  // na początku nowej tury — w trakcie tej samej tury wybór widza się utrzymuje
+  useEffect(() => {
+    setViewedPlayerId(null);
+  }, [room?.currentPlayerId]);
+
   // 60s total decision timer, liczony od serwerowego znacznika turnStartedAt
   // (nie zegara żadnego konkretnego telefonu — eliminuje rozjazdy między urządzeniami).
   // Mechanizm awaryjny: jeśli aktywny gracz nie zdąży (zablokowany ekran,
@@ -1240,7 +1249,7 @@ export default function App() {
         const newGameStreaks = { ...(data.gameStreaks || {}), [data.currentPlayerId]: newStreak };
         const prevBest = data.gameBestStreaks?.[data.currentPlayerId] || 0;
         const newGameBestStreaks = { ...(data.gameBestStreaks || {}), [data.currentPlayerId]: Math.max(prevBest, newStreak) };
-        const newPlayedCards = [...(data.playedCards || []), { ...card, correct, playerId: data.currentPlayerId }];
+        const newPlayedCards = [...(data.playedCards || []), { ...card, correct, playerId: data.currentPlayerId, guessedCorrect: null }];
         const summaryFields = {
           decisionTimes: newDecisionTimes,
           gameStreaks: newGameStreaks,
@@ -1264,6 +1273,9 @@ export default function App() {
         } else {
           // brak zgadywania, albo gra solo — bez głosowania (a w solo od razu przyznajemy token)
           if (hasGuess) instantGuessAwardedTo = data.currentPlayerId;
+          const playedCardsWithGuess = hasGuess
+            ? newPlayedCards.map((pc, i) => (i === newPlayedCards.length - 1 ? { ...pc, guessedCorrect: true } : pc))
+            : newPlayedCards;
           tx.update(ref, {
             status: "roundResult",
             lastResult: { correct, card, tokenAwarded: hasGuess },
@@ -1271,6 +1283,7 @@ export default function App() {
             pendingGuess: null,
             resultAt: serverTimestamp(),
             ...summaryFields,
+            playedCards: playedCardsWithGuess,
             ...(hasGuess ? { [`tokens.${data.currentPlayerId}`]: increment(1) } : {}),
           });
         }
@@ -1293,6 +1306,7 @@ export default function App() {
     setBusy(true);
     try {
       const ref = doc(db, "rooms", roomId);
+      let capturedBought = null;
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
@@ -1301,13 +1315,14 @@ export default function App() {
         if (data.deckIndex >= data.deck.length) return; // brak kart w talii do kupienia
 
         const boughtCard = data.deck[data.deckIndex];
+        capturedBought = boughtCard;
         const timeline = data.timelines[data.currentPlayerId] || [];
         const newTimelines = { ...data.timelines, [data.currentPlayerId]: [...timeline, boughtCard] };
 
         const prevStreak = data.gameStreaks?.[data.currentPlayerId] || 0;
         const newStreak = prevStreak + 1; // kupiona karta zawsze trafiona
         const prevBest = data.gameBestStreaks?.[data.currentPlayerId] || 0;
-        const newPlayedCards = [...(data.playedCards || []), { ...boughtCard, correct: true, playerId: data.currentPlayerId, bought: true }];
+        const newPlayedCards = [...(data.playedCards || []), { ...boughtCard, correct: true, playerId: data.currentPlayerId, bought: true, guessedCorrect: null }];
 
         const update = {
           timelines: newTimelines,
@@ -1326,6 +1341,10 @@ export default function App() {
 
         tx.update(ref, update);
       });
+      if (capturedBought) {
+        setBoughtCardReveal(capturedBought);
+        setTimeout(() => setBoughtCardReveal(null), 3000);
+      }
     } catch (e) {
       setError("Błąd kupowania karty: " + e.message);
     } finally {
@@ -1360,19 +1379,25 @@ export default function App() {
             awardedGuessTo = data.currentPlayerId;
             awardedGuessVideoId = data.lastResult?.card?.videoId;
           }
+          const playedCards = data.playedCards || [];
+          const updatedPlayedCards = playedCards.map((pc, i) => (i === playedCards.length - 1 ? { ...pc, guessedCorrect: true } : pc));
           tx.update(ref, {
             status: "roundResult",
             votes: newVotes,
             lastResult: { ...data.lastResult, tokenAwarded: true },
             resultAt: serverTimestamp(),
             [`tokens.${data.currentPlayerId}`]: increment(1),
+            playedCards: updatedPlayedCards,
           });
         } else if (approvals + remaining < required) {
+          const playedCards = data.playedCards || [];
+          const updatedPlayedCards = playedCards.map((pc, i) => (i === playedCards.length - 1 ? { ...pc, guessedCorrect: false } : pc));
           tx.update(ref, {
             status: "roundResult",
             votes: newVotes,
             lastResult: { ...data.lastResult, tokenAwarded: false },
             resultAt: serverTimestamp(),
+            playedCards: updatedPlayedCards,
           });
         } else {
           tx.update(ref, { votes: newVotes });
@@ -1428,7 +1453,7 @@ export default function App() {
         const elapsed = Date.now() - (toMillis(data.turnStartedAt) || Date.now());
         const newDecisionTimes = { ...(data.decisionTimes || {}) };
         newDecisionTimes[data.currentPlayerId] = [...(newDecisionTimes[data.currentPlayerId] || []), elapsed];
-        const newPlayedCards = [...(data.playedCards || []), { ...card, correct: false, playerId: data.currentPlayerId, timedOut: true }];
+        const newPlayedCards = [...(data.playedCards || []), { ...card, correct: false, playerId: data.currentPlayerId, timedOut: true, guessedCorrect: null }];
         tx.update(ref, {
           status: "roundResult",
           lastResult: { correct: false, card, timedOut: true },
@@ -1610,6 +1635,13 @@ export default function App() {
   const turnTimeline =
     room && room.currentPlayerId && room.timelines[room.currentPlayerId]
       ? [...room.timelines[room.currentPlayerId]].sort((a, b) => a.year - b.year)
+      : [];
+
+  const displayedPlayerId = viewedPlayerId || room?.currentPlayerId;
+  const displayedPlayerName = room && room.players.find((p) => p.id === displayedPlayerId)?.name;
+  const viewedTimeline =
+    room && displayedPlayerId && room.timelines[displayedPlayerId]
+      ? [...room.timelines[displayedPlayerId]].sort((a, b) => a.year - b.year)
       : [];
 
   return (
@@ -2724,11 +2756,27 @@ export default function App() {
 
             {screen === "playing" && !isMyTurn && (
               <div className="w-full">
+                <div className="flex flex-wrap items-center justify-center gap-2 mb-3">
+                  {room.players.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => setViewedPlayerId(p.id)}
+                      className="px-3 py-1 rounded-full text-xs font-bold"
+                      style={{
+                        background: displayedPlayerId === p.id ? "var(--accent)" : "var(--surface2)",
+                        color: displayedPlayerId === p.id ? "#0a0410" : "var(--muted)",
+                        border: p.id === room.currentPlayerId ? "1px solid var(--accent)" : "1px solid transparent",
+                      }}
+                    >
+                      {p.id === playerId ? "Ty" : p.name}
+                    </button>
+                  ))}
+                </div>
                 <p style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase", marginBottom: 10, textAlign: "center" }}>
-                  Oś czasu gracza {turnPlayerName}
+                  Oś czasu gracza {displayedPlayerName}
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-2">
-                  {turnTimeline.map((c) => (
+                  {viewedTimeline.map((c) => (
                     <TimelineCard key={c.id} year={c.year} title={c.title} artist={c.artist} onHold={setHeldCard} onRelease={clearHeldCard} />
                   ))}
                 </div>
@@ -2868,26 +2916,50 @@ export default function App() {
 
             {room.playedCards && room.playedCards.length > 0 && (
               <div className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
-                <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>
-                  🎵 Playlista wieczoru ({room.playedCards.length})
-                </p>
-                <div className="flex flex-col gap-1 text-left" style={{ maxHeight: 240, overflowY: "auto" }}>
-                  {room.playedCards.map((c, i) => (
-                    <a
-                      key={i}
-                      href={`https://www.youtube.com/watch?v=${c.videoId}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center justify-between px-2 py-1.5 rounded"
-                      style={{ background: "var(--surface2)", textDecoration: "none", color: "var(--text)" }}
-                    >
-                      <span style={{ fontSize: 12 }}>
-                        {c.correct ? "✓" : "✗"} {c.artist} — {c.title}
-                      </span>
-                      <span style={{ fontSize: 11, color: "var(--accent)" }}>{c.year}</span>
-                    </a>
-                  ))}
+                <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                  <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)" }}>
+                    🎵 {showOnlyMyPlaylist ? "Twoja playlista" : "Playlista wieczoru"} (
+                    {showOnlyMyPlaylist ? room.playedCards.filter((c) => c.playerId === playerId).length : room.playedCards.length})
+                  </p>
+                  <button
+                    onClick={() => setShowOnlyMyPlaylist((v) => !v)}
+                    className="px-3 py-1 rounded-full text-xs font-bold"
+                    style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
+                  >
+                    {showOnlyMyPlaylist ? "Pokaż wszystkich" : "Pokaż tylko moje"}
+                  </button>
                 </div>
+                <div className="flex flex-col gap-1 text-left" style={{ maxHeight: 240, overflowY: "auto" }}>
+                  {(showOnlyMyPlaylist ? room.playedCards.filter((c) => c.playerId === playerId) : room.playedCards).map((c, i) => {
+                    const guessColor = showOnlyMyPlaylist
+                      ? c.guessedCorrect === true
+                        ? "rgba(42,245,152,0.18)"
+                        : c.guessedCorrect === false
+                        ? "rgba(255,56,104,0.18)"
+                        : "var(--surface2)"
+                      : "var(--surface2)";
+                    return (
+                      <a
+                        key={i}
+                        href={`https://www.youtube.com/watch?v=${c.videoId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center justify-between px-2 py-1.5 rounded"
+                        style={{ background: guessColor, textDecoration: "none", color: "var(--text)" }}
+                      >
+                        <span style={{ fontSize: 12 }}>
+                          {c.correct ? "✓" : "✗"} {c.artist} — {c.title}
+                        </span>
+                        <span style={{ fontSize: 11, color: "var(--accent)" }}>{c.year}</span>
+                      </a>
+                    );
+                  })}
+                </div>
+                {showOnlyMyPlaylist && (
+                  <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 8 }}>
+                    🟢 odgadnięty wykonawca/tytuł · 🔴 nieodgadnięty · szare = nie próbowano zgadywać
+                  </p>
+                )}
               </div>
             )}
 
@@ -2899,6 +2971,29 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {boughtCardReveal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100,
+            padding: 24,
+          }}
+        >
+          <div className="rounded-2xl p-5 text-center card-glow" style={{ background: "var(--surface)", maxWidth: 320 }}>
+            <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--good)", marginBottom: 6 }}>🎁 Kupiona karta</p>
+            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 40, color: "var(--accent)" }}>{boughtCardReveal.year}</p>
+            <p style={{ fontSize: 15, fontWeight: "bold", marginTop: 4 }}>{boughtCardReveal.artist}</p>
+            <p style={{ fontSize: 14, color: "var(--muted)", marginTop: 2 }}>„{boughtCardReveal.title}"</p>
+            <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 10 }}>trafiła na Twoją oś czasu</p>
+          </div>
+        </div>
+      )}
 
       {heldCard && (
         <div

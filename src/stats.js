@@ -104,7 +104,11 @@ export function topArtists(stats, count = 5, minAttempts = 2) {
     .filter((a) => a.total >= minAttempts)
     .map((a) => ({ ...a, pct: a.correct / a.total }));
   const best = [...entries].sort((a, b) => b.pct - a.pct || b.total - a.total).slice(0, count);
-  const worst = [...entries].sort((a, b) => a.pct - b.pct || b.total - a.total).slice(0, count);
+  const bestNames = new Set(best.map((a) => a.name));
+  const worst = [...entries]
+    .filter((a) => !bestNames.has(a.name)) // przy mało zróżnicowanych danych nie duplikujemy tych samych pozycji w obu listach
+    .sort((a, b) => a.pct - b.pct || b.total - a.total)
+    .slice(0, count);
   return { best, worst };
 }
 
