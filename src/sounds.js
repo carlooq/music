@@ -78,3 +78,11 @@ export function playApplause() {
     // cicho pomijamy
   }
 }
+
+// Krótka fanfara — koniec gry.
+export function playVictorySound() {
+  tone(523.25, 0, 0.15, "sine", 0.22); // C5
+  tone(659.25, 0.12, 0.15, "sine", 0.22); // E5
+  tone(783.99, 0.24, 0.15, "sine", 0.22); // G5
+  tone(1046.5, 0.38, 0.4, "sine", 0.25); // C6
+}

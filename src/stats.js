@@ -6,6 +6,22 @@ export function decadeLabel(year) {
   return `${start}s`; // e.g. "1980s", "2020s"
 }
 
+// Zwraca klucz tygodnia w formacie "2026-W34" (ISO-ish, wystarczająco dobry
+// do naszych celów — nie musi być idealnie zgodny z prawdziwym ISO 8601).
+export function currentWeekKey(date = new Date()) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+  return `${d.getUTCFullYear()}-W${weekNo}`;
+}
+
+// Zwraca klucz dnia w formacie "2026-08-21" (lokalny czas gracza).
+export function currentDayKey(date = new Date()) {
+  return date.toISOString().slice(0, 10);
+}
+
 // Firestore treats "." as a nested-path separator, so artist names that
 // contain one (e.g. "N.E.R.D") need a safe field-key form.
 function artistKey(artist) {
@@ -30,6 +46,10 @@ export async function ensureStatsDoc(uid, username) {
       artists: {},
       currentStreak: 0,
       longestStreak: 0,
+      xp: 0,
+      weeklyChallenge: { weekKey: "", gamesThisWeek: 0, claimed: false },
+      dailyStreak: 0,
+      dailyLastPlayedDate: "",
     });
   } else if (username && snap.data().username !== username) {
     // odświeżamy nazwę przy każdym logowaniu — naprawia stare konta, którym
@@ -104,8 +124,74 @@ export function topArtists(stats, count = 5, minAttempts = 2) {
     .filter((a) => a.total >= minAttempts)
     .map((a) => ({ ...a, pct: a.correct / a.total }));
   const best = [...entries].sort((a, b) => b.pct - a.pct || b.total - a.total).slice(0, count);
-  const worst = [...entries].sort((a, b) => a.pct - b.pct || b.total - a.total).slice(0, count);
+  const bestNames = new Set(best.map((a) => a.name));
+  const worst = [...entries]
+    .filter((a) => !bestNames.has(a.name)) // przy mało zróżnicowanych danych nie duplikujemy tych samych pozycji w obu listach
+    .sort((a, b) => a.pct - b.pct || b.total - a.total)
+    .slice(0, count);
   return { best, worst };
+}
+
+// --- system poziomów (XP) ---
+
+// XP potrzebne, żeby przejść z poziomu (level-1) na level. Rośnie liniowo —
+// wczesne poziomy przychodzą szybko (satysfakcja na start), później dłużej.
+export function xpForLevel(level) {
+  return 100 + (level - 2) * 50; // poziom 2: 100 XP, poziom 3: 150 XP, poziom 4: 200 XP...
+}
+
+// Zamienia sumę XP na { level, currentLevelXp, xpForNextLevel } do wyświetlenia paska postępu.
+export function levelFromXp(totalXp) {
+  const xp = Math.max(0, totalXp || 0);
+  let level = 1;
+  let remaining = xp;
+  while (remaining >= xpForLevel(level + 1)) {
+    remaining -= xpForLevel(level + 1);
+    level++;
+  }
+  return { level, currentLevelXp: remaining, xpForNextLevel: xpForLevel(level + 1) };
+}
+
+// amount może być ujemny (np. kara za niewykorzystane tokeny).
+export async function awardXp(uid, amount) {
+  if (!amount) return;
+  const ref = doc(db, "userStats", uid);
+  await updateDoc(ref, { xp: increment(amount) });
+}
+
+// Wywoływane raz na koniec każdej (nie-treningowej) gry — odlicza postęp
+// wyzwania tygodniowego "zagraj 3 gry" i zwraca, czy właśnie zostało ukończone.
+export async function progressWeeklyChallenge(uid) {
+  const ref = doc(db, "userStats", uid);
+  const snap = await getDoc(ref);
+  const data = snap.exists() ? snap.data() : {};
+  const wk = currentWeekKey();
+  const prev = data.weeklyChallenge || { weekKey: "", gamesThisWeek: 0, claimed: false };
+  const sameWeek = prev.weekKey === wk;
+  const gamesThisWeek = (sameWeek ? prev.gamesThisWeek : 0) + 1;
+  const alreadyClaimed = sameWeek && prev.claimed;
+  const justCompleted = gamesThisWeek >= 3 && !alreadyClaimed;
+  await updateDoc(ref, {
+    weeklyChallenge: { weekKey: wk, gamesThisWeek, claimed: alreadyClaimed || justCompleted },
+  });
+  return { gamesThisWeek, justCompleted };
+}
+
+// Zapisuje wynik "Piosenki dnia" i aktualizuje serię dni z rzędu.
+export async function recordDailyResult(uid, dayKey, result) {
+  const ref = doc(db, "userStats", uid);
+  const snap = await getDoc(ref);
+  const data = snap.exists() ? snap.data() : {};
+  const yesterday = new Date(Date.now() - 86400000);
+  const yesterdayKey = currentDayKey(yesterday);
+  const prevStreak = data.dailyStreak || 0;
+  const newStreak = data.dailyLastPlayedDate === yesterdayKey ? prevStreak + 1 : 1;
+  await updateDoc(ref, {
+    dailyStreak: newStreak,
+    dailyLastPlayedDate: dayKey,
+    dailyLastResult: { dayKey, ...result },
+  });
+  return newStreak;
 }
 
 // Top players globally. sortBy: "gamesWon" (domyślnie) albo "guessesCorrect".

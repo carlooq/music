@@ -11,17 +11,30 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase-config.js";
 import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
-import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId } from "./utils.js";
+import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId, fuzzyMatch } from "./utils.js";
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
-import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard } from "./stats.js";
-import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, applyCategoryPatchToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv } from "./songsDb.js";
-import { playCorrectSound, playWrongSound, playApplause, unlockAudio } from "./sounds.js";
+import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, awardXp, xpForLevel, levelFromXp, progressWeeklyChallenge, currentWeekKey, currentDayKey, recordDailyResult } from "./stats.js";
+import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv } from "./songsDb.js";
+import { cleanupOldRooms } from "./roomsDb.js";
+import { heartbeat, clearPresence, getOnlineCount } from "./presence.js";
+import { getOrCreateDailySong } from "./dailySong.js";
+import { playCorrectSound, playWrongSound, playApplause, playVictorySound, unlockAudio } from "./sounds.js";
 import { Play, Music4, Trophy, RotateCcw, Users, ChevronRight, Copy, Check, LogIn, LogOut, BarChart3, Flame, Crown, Shield, Search, Trash2, Pencil, Save, X, MessageCircle, Send } from "lucide-react";
 import logoImg from "./assets/logo-v2.png";
 
 // 👉 PODMIEŃ TO NA SWOJE WŁASNE HASŁO trybu admina
 const ADMIN_PASSWORD = "zmien-to-haslo-123";
+
+// Bezpieczna konwersja znacznika czasu z serwera Firestore na milisekundy.
+// Zwraca null, jeśli zapis jeszcze nie doszedł do serwera (chwilowy stan
+// tylko u klienta, który właśnie zapisał — reszta graczy tego nie widzi).
+function toMillis(ts) {
+  if (!ts) return null;
+  if (typeof ts === "number") return ts;
+  if (typeof ts.toMillis === "function") return ts.toMillis();
+  return null;
+}
 
 const CATEGORIES = [
   { slug: "najwieksze-hity", label: "Największe Hity" },
@@ -169,6 +182,95 @@ const StatBox = memo(function StatBox({ label, value }) {
   );
 });
 
+const CONFETTI_COLORS = ["#00e6c3", "#8b5cf6", "#ff5fc9", "#ffb020", "#39ff9a"];
+const Confetti = memo(function Confetti() {
+  const pieces = React.useMemo(
+    () =>
+      Array.from({ length: 60 }, (_, i) => ({
+        id: i,
+        left: Math.random() * 100,
+        delay: Math.random() * 0.6,
+        duration: 2.2 + Math.random() * 1.4,
+        color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+        size: 6 + Math.random() * 6,
+      })),
+    []
+  );
+  return (
+    <div style={{ position: "fixed", inset: 0, pointerEvents: "none", overflow: "hidden", zIndex: 99 }}>
+      <style>{`
+        @keyframes confetti-fall {
+          0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+          100% { transform: translateY(110vh) rotate(720deg); opacity: 0.9; }
+        }
+      `}</style>
+      {pieces.map((p) => (
+        <div
+          key={p.id}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: `${p.left}%`,
+            width: p.size,
+            height: p.size * 1.6,
+            background: p.color,
+            animation: `confetti-fall ${p.duration}s ease-in ${p.delay}s forwards`,
+            borderRadius: 2,
+          }}
+        />
+      ))}
+    </div>
+  );
+});
+
+const LevelBar = memo(function LevelBar({ level, currentLevelXp, xpForNextLevel, size = "normal" }) {
+  const pct = Math.min(100, Math.round((currentLevelXp / xpForNextLevel) * 100));
+  const big = size === "big";
+  return (
+    <div
+      className="w-full rounded-xl relative overflow-hidden"
+      style={{
+        padding: big ? "16px 18px" : "10px 12px",
+        background: "linear-gradient(135deg, rgba(0,230,195,0.14), rgba(139,92,246,0.14))",
+        border: "1px solid transparent",
+        backgroundClip: "padding-box",
+        boxShadow: "0 0 0 1px rgba(0,230,195,0.35), 0 0 24px -8px var(--accent), 0 0 40px -14px var(--accent2)",
+      }}
+    >
+      <div className="flex items-center justify-between mb-1">
+        <span
+          style={{
+            fontFamily: "'Bebas Neue', sans-serif",
+            fontSize: big ? 30 : 20,
+            color: "var(--accent)",
+            letterSpacing: 1,
+            textShadow: "0 0 8px var(--accent), 0 0 18px rgba(0,230,195,0.5)",
+          }}
+        >
+          POZIOM {level}
+        </span>
+        <span style={{ fontSize: big ? 12 : 11, color: "var(--muted)" }}>
+          {currentLevelXp} / {xpForNextLevel} XP
+        </span>
+      </div>
+      <div className="w-full rounded-full" style={{ height: big ? 12 : 8, background: "#0d0a17", overflow: "hidden", boxShadow: "inset 0 1px 3px rgba(0,0,0,0.5)" }}>
+        <div
+          style={{
+            height: "100%",
+            width: `${pct}%`,
+            background: "linear-gradient(90deg, var(--accent), var(--accent2), var(--accent3))",
+            backgroundSize: "200% 100%",
+            animation: "bg-drift 3s ease infinite",
+            boxShadow: "0 0 10px var(--accent), 0 0 4px var(--accent3)",
+            borderRadius: 999,
+            transition: "width 0.4s ease",
+          }}
+        />
+      </div>
+    </div>
+  );
+});
+
 // ---------- main app ----------
 
 const guestId = getOrCreatePlayerId();
@@ -189,6 +291,9 @@ export default function App() {
 
   const [chosenSlot, setChosenSlot] = useState(null);
   const [heldCard, setHeldCard] = useState(null);
+  const [boughtCardReveal, setBoughtCardReveal] = useState(null);
+  const [viewedPlayerId, setViewedPlayerId] = useState(null);
+  const [showOnlyMyPlaylist, setShowOnlyMyPlaylist] = useState(false);
   const clearHeldCard = useCallback(() => setHeldCard(null), []);
   const [showChat, setShowChat] = useState(false);
   const [chatSeenCount, setChatSeenCount] = useState(0);
@@ -218,6 +323,7 @@ export default function App() {
   const [authError, setAuthError] = useState("");
   const [showStats, setShowStats] = useState(false);
   const [stats, setStats] = useState(null);
+  const [myXp, setMyXp] = useState(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [leaderboardSort, setLeaderboardSort] = useState("gamesWon"); // "gamesWon" | "guessesCorrect"
   const [viewingPlayer, setViewingPlayer] = useState(null); // { uid, username, stats }
@@ -240,6 +346,9 @@ export default function App() {
   const [importCsvText, setImportCsvText] = useState("");
   const [importBusy, setImportBusy] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  const [cleanupBusy, setCleanupBusy] = useState(false);
+  const [cleanupResult, setCleanupResult] = useState(null);
+  const [cleanupProgress, setCleanupProgress] = useState(null);
 
   const [showProposeForm, setShowProposeForm] = useState(false);
   const [proposeDraft, setProposeDraft] = useState({ artist: "", title: "", url: "", year: "", categories: [] });
@@ -312,6 +421,158 @@ export default function App() {
   useEffect(() => {
     if (screen === "lobby" && room?.hostId === playerId) ensureLibraryLoaded();
   }, [screen, room?.hostId, playerId]);
+
+  const [playerLevels, setPlayerLevels] = useState({});
+  useEffect(() => {
+    if (screen !== "lobby" || !room?.players) return;
+    const authedPlayers = room.players.filter((p) => p.authed);
+    Promise.all(
+      authedPlayers.map((p) =>
+        getStats(p.id)
+          .then((s) => [p.id, s?.xp || 0])
+          .catch(() => [p.id, 0])
+      )
+    ).then((entries) => {
+      setPlayerLevels((prev) => ({ ...prev, ...Object.fromEntries(entries) }));
+    });
+  }, [screen, room?.players?.length]);
+
+  const [onlineCount, setOnlineCount] = useState(null);
+  useEffect(() => {
+    if (!playerId) return;
+    const displayName = name || user?.displayName || "Gracz";
+    heartbeat(playerId, displayName);
+    const id = setInterval(() => heartbeat(playerId, displayName), 25000);
+    const clear = () => clearPresence(playerId);
+    window.addEventListener("beforeunload", clear);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("beforeunload", clear);
+      clear();
+    };
+  }, [playerId]);
+
+  useEffect(() => {
+    getOnlineCount().then(setOnlineCount);
+    const id = setInterval(() => getOnlineCount().then(setOnlineCount), 40000);
+    return () => clearInterval(id);
+  }, []);
+
+  // --- "Piosenka dnia" ---
+  const [showDailySong, setShowDailySong] = useState(false);
+  const [dailySong, setDailySong] = useState(null);
+  const [dailyAlreadyPlayed, setDailyAlreadyPlayed] = useState(false);
+  const [dailyGuessArtist, setDailyGuessArtist] = useState("");
+  const [dailyGuessTitle, setDailyGuessTitle] = useState("");
+  const [dailyGuessYear, setDailyGuessYear] = useState("");
+  const [dailyResult, setDailyResult] = useState(null);
+  const [dailyBusy, setDailyBusy] = useState(false);
+  const [dailyIsPlaying, setDailyIsPlaying] = useState(false);
+  const [dailyPlayElapsed, setDailyPlayElapsed] = useState(0);
+  const dailyIframeRef = useRef(null);
+  const dailyPlayIntervalRef = useRef(null);
+
+  async function openDailySong() {
+    if (!user) return setError("Zaloguj się, żeby zagrać w Piosenkę dnia.");
+    setDailyBusy(true);
+    setError("");
+    try {
+      const dayKey = currentDayKey();
+      const song = await getOrCreateDailySong(dayKey, effectivePool.length > 0 ? effectivePool : REAL_SONGS);
+      setDailySong(song);
+      const s = await getStats(user.uid);
+      const alreadyPlayed = s?.dailyLastResult?.dayKey === dayKey;
+      setDailyAlreadyPlayed(alreadyPlayed);
+      setDailyResult(alreadyPlayed ? s.dailyLastResult : null);
+      setShowDailySong(true);
+    } catch (e) {
+      setError("Nie udało się wczytać Piosenki dnia: " + e.message);
+    } finally {
+      setDailyBusy(false);
+    }
+  }
+
+  function closeDailySong() {
+    setShowDailySong(false);
+    setDailyGuessArtist("");
+    setDailyGuessTitle("");
+    setDailyGuessYear("");
+    setDailyIsPlaying(false);
+    setDailyPlayElapsed(0);
+    if (dailyPlayIntervalRef.current) clearInterval(dailyPlayIntervalRef.current);
+  }
+
+  function toggleDailyPlay() {
+    const win = dailyIframeRef.current && dailyIframeRef.current.contentWindow;
+    const willPlay = !dailyIsPlaying;
+    setDailyIsPlaying(willPlay);
+    if (willPlay) {
+      setDailyPlayElapsed(0);
+      if (win) {
+        win.postMessage(JSON.stringify({ event: "command", func: "seekTo", args: [dailySong.startSeconds, true] }), "*");
+        win.postMessage(JSON.stringify({ event: "command", func: "unMute", args: [] }), "*");
+        win.postMessage(JSON.stringify({ event: "command", func: "setVolume", args: [100] }), "*");
+        win.postMessage(JSON.stringify({ event: "command", func: "playVideo", args: [] }), "*");
+      }
+      const startedAt = Date.now();
+      dailyPlayIntervalRef.current = setInterval(() => {
+        const elapsed = (Date.now() - startedAt) / 1000;
+        if (elapsed >= PLAY_CAP_SECONDS) {
+          setDailyIsPlaying(false);
+          setDailyPlayElapsed(PLAY_CAP_SECONDS);
+          if (win) win.postMessage(JSON.stringify({ event: "command", func: "pauseVideo", args: [] }), "*");
+          clearInterval(dailyPlayIntervalRef.current);
+        } else {
+          setDailyPlayElapsed(elapsed);
+        }
+      }, 200);
+    } else {
+      if (win) win.postMessage(JSON.stringify({ event: "command", func: "pauseVideo", args: [] }), "*");
+      if (dailyPlayIntervalRef.current) clearInterval(dailyPlayIntervalRef.current);
+    }
+  }
+
+  async function submitDailyGuess() {
+    if (!user || !dailySong) return;
+    setDailyBusy(true);
+    try {
+      const correctArtist = fuzzyMatch(dailyGuessArtist, dailySong.artist);
+      const correctTitle = fuzzyMatch(dailyGuessTitle, dailySong.title);
+      const correctYear = parseInt(dailyGuessYear, 10) === dailySong.year;
+      const score = (correctArtist ? 1 : 0) + (correctTitle ? 1 : 0) + (correctYear ? 1 : 0);
+      const result = {
+        guessArtist: dailyGuessArtist,
+        guessTitle: dailyGuessTitle,
+        guessYear: dailyGuessYear,
+        correctArtist,
+        correctTitle,
+        correctYear,
+        score,
+      };
+      const newStreak = await recordDailyResult(user.uid, currentDayKey(), result);
+      const xp = 10 + score * 15; // 10 za sam udział, +15 za każdą trafioną część
+      await awardXp(user.uid, xp);
+      const before = myXp || 0;
+      setMyXp(before + xp);
+      setDailyResult({ ...result, dayKey: currentDayKey(), streak: newStreak, xpEarned: xp });
+      setDailyAlreadyPlayed(true);
+      if (score === 3) {
+        playVictorySound();
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 4000);
+      } else if (score > 0) {
+        playCorrectSound();
+      } else {
+        playWrongSound();
+      }
+    } catch (e) {
+      setError("Błąd zapisu wyniku: " + e.message);
+    } finally {
+      setDailyBusy(false);
+    }
+  }
+
+
 
   useEffect(() => {
     setAdminPage(1);
@@ -471,6 +732,7 @@ export default function App() {
       const added = await acceptProposal(p);
       if (p.submittedByUid) {
         recordSongAdded(p.submittedByUid).catch(() => {});
+        awardXp(p.submittedByUid, 25).catch(() => {}); // zaakceptowana propozycja utworu
       }
       setProposals((prev) => prev.filter((x) => x.id !== p.id));
       setLibrarySongs((prev) => {
@@ -535,22 +797,6 @@ export default function App() {
     }
   }
 
-  async function handleApplyCategoryPatch() {
-    if (!window.confirm("Dograć kategorie do istniejących utworów w bazie (na podstawie zapisanej wcześniej analizy)? Nadpisze kategorie tam, gdzie już są dopasowania.")) return;
-    setAdminBusy(true);
-    setMigrateProgress({ done: 0, total: 1 });
-    try {
-      const written = await applyCategoryPatchToDb((done, total) => setMigrateProgress({ done, total }));
-      refreshLibrary();
-      alert(`Zaktualizowano kategorie dla ${written} utworów.`);
-    } catch (e) {
-      setError("Błąd wgrywania kategorii: " + e.message);
-    } finally {
-      setAdminBusy(false);
-      setMigrateProgress(null);
-    }
-  }
-
   async function handleImportCsv() {
     if (!importCsvText.trim()) return;
     setImportBusy(true);
@@ -584,6 +830,23 @@ export default function App() {
     reader.readAsText(file, "utf-8");
   }
 
+  async function handleCleanupRooms() {
+    if (!window.confirm("Usunąć wszystkie przeterminowane pokoje (zakończone, porzucone lub bardzo stare)? Statystyki graczy zostają nietknięte — to dotyczy tylko tymczasowych danych rozgrywek.")) return;
+    setCleanupBusy(true);
+    setCleanupResult(null);
+    setCleanupProgress(null);
+    setError("");
+    try {
+      const result = await cleanupOldRooms((done, total) => setCleanupProgress({ done, total }));
+      setCleanupResult(result);
+    } catch (e) {
+      setError("Błąd czyszczenia pokojów: " + e.message);
+    } finally {
+      setCleanupBusy(false);
+      setCleanupProgress(null);
+    }
+  }
+
 
   useEffect(() => {
     const unsub = watchAuthState(async (u) => {
@@ -591,6 +854,7 @@ export default function App() {
       setAuthChecked(true);
       if (u) {
         await ensureStatsDoc(u.uid, u.displayName || authUsername);
+        getStats(u.uid).then((s) => setMyXp(s?.xp || 0)).catch(() => {});
       }
     });
     return () => unsub();
@@ -621,6 +885,86 @@ export default function App() {
     await logout();
     setShowStats(false);
   }
+
+  // Wspólna logika liczenia XP na koniec gry — używana zarówno do
+  // faktycznego przyznania punktów, jak i do wyświetlenia rozbicia graczowi.
+  function computeGameEndXp(gameRoom, forPlayerId) {
+    if (!gameRoom || gameRoom.practiceMode) return { items: [], total: 0 };
+    const items = [{ label: "🎮 Udział w grze", amount: 30 }];
+    const won = (gameRoom.winnerIds || []).includes(forPlayerId);
+    if (won) items.push({ label: "🏆 Wygrana", amount: 200 });
+
+    const avgTimes = Object.entries(gameRoom.decisionTimes || {})
+      .filter(([, times]) => times.length > 0)
+      .map(([id, times]) => ({ id, avg: times.reduce((a, b) => a + b, 0) / times.length }));
+    const fastest = avgTimes.length ? avgTimes.reduce((a, b) => (b.avg < a.avg ? b : a)) : null;
+    if (fastest && fastest.id === forPlayerId) items.push({ label: "⚡ Najszybszy gracz", amount: 20 });
+
+    const streakEntries = Object.entries(gameRoom.gameBestStreaks || {}).filter(([, s]) => s > 0);
+    const bestStreak = streakEntries.length ? streakEntries.reduce((a, b) => (b[1] > a[1] ? b : a)) : null;
+    if (bestStreak && bestStreak[0] === forPlayerId) items.push({ label: "🔥 Najdłuższa seria", amount: 20 });
+
+    const unusedTokens = gameRoom.tokens?.[forPlayerId] || 0;
+    if (unusedTokens > 0) items.push({ label: `🪙 Niewykorzystane tokeny (${unusedTokens})`, amount: 5 * unusedTokens });
+
+    const myCards = (gameRoom.playedCards || []).filter((c) => c.playerId === forPlayerId && !c.bought);
+    if ((gameRoom.target || 0) >= 7 && myCards.length > 0 && myCards.every((c) => c.correct)) {
+      items.push({ label: "💎 Perfekcyjna gra", amount: 30 });
+    }
+
+    const total = items.reduce((sum, it) => sum + it.amount, 0);
+    return { items, total };
+  }
+
+  const [showConfetti, setShowConfetti] = useState(false);
+  const confettiFiredRef = useRef(null);
+  useEffect(() => {
+    if (screen !== "gameover" || !room?.winnerIds?.length) return;
+    const marker = toMillis(room?.expireAt);
+    if (!marker || confettiFiredRef.current === marker) return;
+    confettiFiredRef.current = marker;
+    playVictorySound();
+    setShowConfetti(true);
+    setTimeout(() => setShowConfetti(false), 4000);
+  }, [screen, room?.winnerIds, toMillis(room?.expireAt)]);
+
+  const xpAwardedRef = useRef(null);
+  const [levelUpInfo, setLevelUpInfo] = useState(null);
+  const [weeklyBonusInfo, setWeeklyBonusInfo] = useState(null);
+  useEffect(() => {
+    if (screen !== "gameover" || !room?.winnerIds?.length || !user || room.practiceMode) return;
+    const marker = toMillis(room?.expireAt);
+    if (!marker || xpAwardedRef.current === marker) return;
+    xpAwardedRef.current = marker;
+    (async () => {
+      try {
+        const { total } = computeGameEndXp(room, playerId);
+        const before = await getStats(user.uid);
+        const oldXp = before?.xp || 0;
+        const oldLevel = levelFromXp(oldXp).level;
+        let grandTotal = total;
+        if (total) await awardXp(user.uid, total);
+
+        // wyzwanie tygodniowe — liczy się każda (nie-treningowa) rozegrana gra
+        const { gamesThisWeek, justCompleted } = await progressWeeklyChallenge(user.uid);
+        if (justCompleted) {
+          await awardXp(user.uid, 50);
+          grandTotal += 50;
+          setWeeklyBonusInfo({ gamesThisWeek });
+          setTimeout(() => setWeeklyBonusInfo(null), 6000);
+        }
+
+        setMyXp(oldXp + grandTotal);
+        const newLevel = levelFromXp(oldXp + grandTotal).level;
+        if (newLevel > oldLevel) {
+          setLevelUpInfo({ level: newLevel });
+          setTimeout(() => setLevelUpInfo(null), 5000);
+        }
+      } catch (e) {
+        // ciche niepowodzenie — najwyżej XP z tej gry się nie doliczy
+      }
+    })();
+  }, [screen, room?.winnerIds, toMillis(room?.expireAt), user, playerId]);
 
   async function openStats() {
     if (!user) return;
@@ -686,18 +1030,32 @@ export default function App() {
     setGuessTitle("");
     timeoutFiredRef.current = false;
     if (playIntervalRef.current) clearInterval(playIntervalRef.current);
-  }, [room?.currentCard?.id, room?.openerCreatedAt, room?.openerWinnerId]);
+  }, [room?.currentCard?.id, toMillis(room?.openerCreatedAt), room?.openerWinnerId]);
 
-  // 60s total decision timer, driven off the shared turnDeadline so every
-  // client (and especially the active player) sees the same countdown.
+  // domyślnie podążamy za aktywnym graczem, ale reset następuje dopiero
+  // na początku nowej tury — w trakcie tej samej tury wybór widza się utrzymuje
+  useEffect(() => {
+    setViewedPlayerId(null);
+  }, [room?.currentPlayerId]);
+
+  // 60s total decision timer, liczony od serwerowego znacznika turnStartedAt
+  // (nie zegara żadnego konkretnego telefonu — eliminuje rozjazdy między urządzeniami).
+  // Mechanizm awaryjny: jeśli aktywny gracz nie zdąży (zablokowany ekran,
+  // karta w tle), dowolny inny gracz wymusza timeout po dodatkowym czasie.
   useEffect(() => {
     if (decisionIntervalRef.current) clearInterval(decisionIntervalRef.current);
-    if (screen !== "playing" || !room?.turnDeadline) return;
+    const turnStartedAtMs = toMillis(room?.turnStartedAt);
+    if (screen !== "playing" || !turnStartedAtMs) return;
+    const turnDeadlineMs = turnStartedAtMs + DECISION_SECONDS * 1000;
 
+    const FALLBACK_EXTRA_MS = 8000;
+    const isResponsible = room.currentPlayerId === playerId;
     const tick = () => {
-      const left = Math.max(0, Math.ceil((room.turnDeadline - Date.now()) / 1000));
+      const msLeft = turnDeadlineMs - Date.now();
+      const left = Math.max(0, Math.ceil(msLeft / 1000));
       setDecisionLeft(left);
-      if (left <= 0 && room.currentPlayerId === playerId && !timeoutFiredRef.current) {
+      const shouldFire = isResponsible ? msLeft <= 0 : msLeft <= -FALLBACK_EXTRA_MS;
+      if (shouldFire && !timeoutFiredRef.current) {
         timeoutFiredRef.current = true;
         handleTimeout();
       }
@@ -705,70 +1063,80 @@ export default function App() {
     tick();
     decisionIntervalRef.current = setInterval(tick, 500);
     return () => clearInterval(decisionIntervalRef.current);
-  }, [screen, room?.turnDeadline, room?.currentPlayerId]);
+  }, [screen, toMillis(room?.turnStartedAt), room?.currentPlayerId]);
 
   // automatyczne przejście do kolejnej tury po wyniku rundy (licznik 3-2-1);
-  // triggeruje tylko klient gracza, którego tura się właśnie kończy
+  // normalnie robi to klient gracza, którego tura się kończy — ale gdyby jego
+  // urządzenie akurat "zasnęło" (zablokowany ekran, karta w tle), dowolny
+  // inny gracz przejmuje to po dłuższym czasie oczekiwania (mechanizm awaryjny)
   const advanceFiredRef = useRef(null);
   const [advanceCountdown, setAdvanceCountdown] = useState(null);
   useEffect(() => {
-    if (screen !== "roundResult" || !room?.resultAt) {
+    const resultAtMs = toMillis(room?.resultAt);
+    if (screen !== "roundResult" || !resultAtMs) {
       setAdvanceCountdown(null);
       return;
     }
     const ADVANCE_SECONDS = 5;
+    const FALLBACK_EXTRA_MS = 8000; // dodatkowy czas, zanim ktoś inny przejmie
+    const isResponsible = room.currentPlayerId === playerId;
     const tick = () => {
-      const left = Math.max(0, ADVANCE_SECONDS - (Date.now() - room.resultAt) / 1000);
+      const elapsedMs = Date.now() - resultAtMs;
+      const left = Math.max(0, ADVANCE_SECONDS - elapsedMs / 1000);
       setAdvanceCountdown(Math.ceil(left));
-      if (left <= 0 && room.currentPlayerId === playerId && advanceFiredRef.current !== room.resultAt) {
-        advanceFiredRef.current = room.resultAt;
+      const shouldFire = isResponsible ? left <= 0 : elapsedMs >= ADVANCE_SECONDS * 1000 + FALLBACK_EXTRA_MS;
+      if (shouldFire && advanceFiredRef.current !== resultAtMs) {
+        advanceFiredRef.current = resultAtMs;
         nextRound();
       }
     };
     tick();
     const id = setInterval(tick, 200);
     return () => clearInterval(id);
-  }, [screen, room?.resultAt, room?.currentPlayerId, room?.lastResult?.correct]);
+  }, [screen, toMillis(room?.resultAt), room?.currentPlayerId, room?.lastResult?.correct]);
 
   // 20s na głosowanie — kto nie zdąży zagłosować, liczy się jako "TAK";
   // każdy klient odpowiada tylko za swój własny (domyślny) głos
   const votingAutoVoteFiredRef = useRef(null);
   const [votingCountdown, setVotingCountdown] = useState(null);
   useEffect(() => {
-    if (screen !== "voting" || !room?.votingDeadline) {
+    const votingStartedAtMs = toMillis(room?.votingStartedAt);
+    if (screen !== "voting" || !votingStartedAtMs) {
       setVotingCountdown(null);
       return;
     }
+    const votingDeadlineMs = votingStartedAtMs + VOTING_SECONDS * 1000;
     const tick = () => {
-      const left = Math.max(0, Math.ceil((room.votingDeadline - Date.now()) / 1000));
+      const left = Math.max(0, Math.ceil((votingDeadlineMs - Date.now()) / 1000));
       setVotingCountdown(left);
       const alreadyVoted = room.votes?.[playerId] !== undefined;
       if (
         left <= 0 &&
         playerId !== room.currentPlayerId &&
         !alreadyVoted &&
-        votingAutoVoteFiredRef.current !== room.votingDeadline
+        votingAutoVoteFiredRef.current !== votingStartedAtMs
       ) {
-        votingAutoVoteFiredRef.current = room.votingDeadline;
+        votingAutoVoteFiredRef.current = votingStartedAtMs;
         castVote(true);
       }
     };
     tick();
     const id = setInterval(tick, 300);
     return () => clearInterval(id);
-  }, [screen, room?.votingDeadline, room?.currentPlayerId, room?.votes, playerId]);
+  }, [screen, toMillis(room?.votingStartedAt), room?.currentPlayerId, room?.votes, playerId]);
 
   // dźwięk trafienia/pudła (i braw przy zaliczonym zgadywaniu) — leci
   // u każdego gracza w chwili ujawnienia wyniku rundy
   const soundPlayedRef = useRef(null);
   useEffect(() => {
-    if (screen !== "roundResult" || !room?.resultAt) return;
-    if (soundPlayedRef.current === room.resultAt) return;
-    soundPlayedRef.current = room.resultAt;
+    const resultAtMs = toMillis(room?.resultAt);
+    if (screen !== "roundResult" || !resultAtMs) return;
+    if (soundPlayedRef.current === resultAtMs) return;
+    soundPlayedRef.current = resultAtMs;
     if (room.lastResult?.correct) playCorrectSound();
     else playWrongSound();
     if (room.lastResult?.tokenAwarded) setTimeout(() => playApplause(), 250);
-  }, [screen, room?.resultAt]);
+  }, [screen, toMillis(room?.resultAt)]);
 
   // minigra "kto zaczyna": 3s odliczanie na pełnym ekranie, muzyka odtwarza
   // się automatycznie wszystkim, 20s na odpowiedź; jeśli nikt nie trafi,
@@ -785,12 +1153,13 @@ export default function App() {
 
   useEffect(() => {
     setOpenerLockedOut(false);
-  }, [room?.openerCreatedAt]);
+  }, [toMillis(room?.openerCreatedAt)]);
 
   useEffect(() => {
-    if (screen !== "opener" || !room?.openerCreatedAt) return;
+    const openerCreatedAtMs = toMillis(room?.openerCreatedAt);
+    if (screen !== "opener" || !openerCreatedAtMs) return;
     const tick = () => {
-      const elapsed = Date.now() - room.openerCreatedAt;
+      const elapsed = Date.now() - openerCreatedAtMs;
       setOpenerPhase(elapsed < OPENER_COUNTDOWN_MS ? "countdown" : "answering");
       setOpenerCountdownNum(Math.max(1, Math.ceil((OPENER_COUNTDOWN_MS - elapsed) / 1000)));
       const isHostNow = room.hostId === playerId;
@@ -798,9 +1167,9 @@ export default function App() {
         isHostNow &&
         !room.openerWinnerId &&
         elapsed >= OPENER_COUNTDOWN_MS + OPENER_ANSWER_MS &&
-        openerFallbackFiredRef.current !== room.openerCreatedAt
+        openerFallbackFiredRef.current !== openerCreatedAtMs
       ) {
-        openerFallbackFiredRef.current = room.openerCreatedAt;
+        openerFallbackFiredRef.current = openerCreatedAtMs;
         (async () => {
           try {
             const ref = doc(db, "rooms", roomId);
@@ -810,7 +1179,7 @@ export default function App() {
               if (data.status !== "opener" || data.openerWinnerId) return;
               tx.update(ref, {
                 openerWinnerId: data.hostId,
-                openerResolvedAt: Date.now(),
+                openerResolvedAt: serverTimestamp(),
               });
             });
           } catch (e) {
@@ -822,31 +1191,32 @@ export default function App() {
     tick();
     const id = setInterval(tick, 300);
     return () => clearInterval(id);
-  }, [screen, room?.openerCreatedAt, room?.openerWinnerId, room?.hostId, roomId, playerId]);
+  }, [screen, toMillis(room?.openerCreatedAt), room?.openerWinnerId, room?.hostId, roomId, playerId]);
 
   // po wyłonieniu zwycięzcy minigry: pokazujemy wynik przez 5s (5 4 3 2 1),
   // a klient zwycięzcy finalizuje przejście do właściwej gry
   useEffect(() => {
-    if (screen !== "opener" || !room?.openerWinnerId || !room?.openerResolvedAt) {
+    const openerResolvedAtMs = toMillis(room?.openerResolvedAt);
+    if (screen !== "opener" || !room?.openerWinnerId || !openerResolvedAtMs) {
       setOpenerRevealCountdown(null);
       return;
     }
     const tick = () => {
-      const left = Math.max(0, OPENER_REVEAL_MS - (Date.now() - room.openerResolvedAt)) / 1000;
+      const left = Math.max(0, OPENER_REVEAL_MS - (Date.now() - openerResolvedAtMs)) / 1000;
       setOpenerRevealCountdown(Math.ceil(left));
       if (
         left <= 0 &&
         playerId === room.openerWinnerId &&
-        openerFinalizeFiredRef.current !== room.openerResolvedAt
+        openerFinalizeFiredRef.current !== openerResolvedAtMs
       ) {
-        openerFinalizeFiredRef.current = room.openerResolvedAt;
+        openerFinalizeFiredRef.current = openerResolvedAtMs;
         finalizeOpenerStart();
       }
     };
     tick();
     const id = setInterval(tick, 200);
     return () => clearInterval(id);
-  }, [screen, room?.openerWinnerId, room?.openerResolvedAt, playerId]);
+  }, [screen, room?.openerWinnerId, toMillis(room?.openerResolvedAt), playerId]);
 
 
   useEffect(() => {
@@ -880,6 +1250,7 @@ export default function App() {
         lastResult: null,
         winnerIds: [],
         createdAt: serverTimestamp(),
+        expireAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // TTL: porzucone/niedokończone pokoje znikają po 24h
         messages: [],
       });
       setRoomId(code);
@@ -919,8 +1290,7 @@ export default function App() {
         startingPlayerId: playerId,
         currentCard: deck[1],
         startSeconds: randomStartSeconds(),
-        turnDeadline: Date.now() + DECISION_SECONDS * 1000,
-        turnStartedAt: Date.now(),
+        turnStartedAt: serverTimestamp(),
         timelines: { [playerId]: [deck[0]] },
         tokens: { [playerId]: 0 },
         lastResult: null,
@@ -932,12 +1302,14 @@ export default function App() {
         finishingRound: false,
         decisionTimes: {},
         gameStreaks: {},
+        gameGuessStreaks: {},
         gameGuesses: {},
         gameBestStreaks: {},
         playedCards: [],
         messages: [],
         practiceMode: true,
         createdAt: serverTimestamp(),
+        expireAt: new Date(Date.now() + 3 * 60 * 60 * 1000), // TTL: sesje treningowe znikają po 3h
       });
       setRoomId(code);
     } catch (e) {
@@ -1054,10 +1426,11 @@ export default function App() {
         openerOptions,
         openerCorrectIndex,
         openerStartSeconds: randomStartSeconds(),
-        openerCreatedAt: Date.now(),
+        openerCreatedAt: serverTimestamp(),
         openerWinnerId: null,
         decisionTimes: {},
         gameStreaks: {},
+        gameGuessStreaks: {},
         gameBestStreaks: {},
         playedCards: [],
       });
@@ -1079,7 +1452,7 @@ export default function App() {
         if (index !== data.openerCorrectIndex) return; // zła odpowiedź — nikt nie wygrywa
         tx.update(ref, {
           openerWinnerId: playerId,
-          openerResolvedAt: Date.now(),
+          openerResolvedAt: serverTimestamp(),
         });
       });
     } catch (e) {
@@ -1100,10 +1473,10 @@ export default function App() {
           status: "playing",
           currentPlayerId: data.openerWinnerId,
           startingPlayerId: data.openerWinnerId,
-          turnDeadline: Date.now() + DECISION_SECONDS * 1000,
-          turnStartedAt: Date.now(),
+          turnStartedAt: serverTimestamp(),
         });
       });
+      if (user) awardXp(user.uid, 10).catch(() => {}); // wygrana minigra "kto zaczyna"
     } catch (e) {
       // ciche niepowodzenie
     }
@@ -1155,6 +1528,7 @@ export default function App() {
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
+        if (data.status !== "playing") return; // runda już się rozstrzygnęła (np. timeout) — nie dokładamy karty drugi raz
         const timeline = data.timelines[data.currentPlayerId] || [];
         const sorted = [...timeline].sort((a, b) => a.year - b.year);
         const before = sorted[chosenSlot - 1];
@@ -1166,15 +1540,16 @@ export default function App() {
         capturedResult = { correct, card, practiceMode: !!data.practiceMode };
 
         // podsumowanie gry: czas decyzji, seria trafień, playlista wieczoru
-        const elapsed = Date.now() - (data.turnStartedAt || Date.now());
+        const elapsed = Date.now() - (toMillis(data.turnStartedAt) || Date.now());
         const newDecisionTimes = { ...(data.decisionTimes || {}) };
         newDecisionTimes[data.currentPlayerId] = [...(newDecisionTimes[data.currentPlayerId] || []), elapsed];
         const prevStreak = data.gameStreaks?.[data.currentPlayerId] || 0;
         const newStreak = correct ? prevStreak + 1 : 0;
+        capturedResult.newPlacementStreak = newStreak;
         const newGameStreaks = { ...(data.gameStreaks || {}), [data.currentPlayerId]: newStreak };
         const prevBest = data.gameBestStreaks?.[data.currentPlayerId] || 0;
         const newGameBestStreaks = { ...(data.gameBestStreaks || {}), [data.currentPlayerId]: Math.max(prevBest, newStreak) };
-        const newPlayedCards = [...(data.playedCards || []), { ...card, correct, playerId: data.currentPlayerId }];
+        const newPlayedCards = [...(data.playedCards || []), { ...card, correct, playerId: data.currentPlayerId, guessedCorrect: null }];
         const summaryFields = {
           decisionTimes: newDecisionTimes,
           gameStreaks: newGameStreaks,
@@ -1191,29 +1566,44 @@ export default function App() {
             pendingGuess: { artist, title },
             votes: {},
             requiredApprovals: requiredApprovals(players.length),
-            votingDeadline: Date.now() + VOTING_SECONDS * 1000,
+            votingStartedAt: serverTimestamp(),
             resultAt: null,
             ...summaryFields,
           });
         } else {
           // brak zgadywania, albo gra solo — bez głosowania (a w solo od razu przyznajemy token)
           if (hasGuess) instantGuessAwardedTo = data.currentPlayerId;
+          const playedCardsWithGuess = hasGuess
+            ? newPlayedCards.map((pc, i) => (i === newPlayedCards.length - 1 ? { ...pc, guessedCorrect: true } : pc))
+            : newPlayedCards;
+          const newGuessStreak = hasGuess ? (data.gameGuessStreaks?.[data.currentPlayerId] || 0) + 1 : data.gameGuessStreaks?.[data.currentPlayerId];
+          if (hasGuess) capturedResult.newGuessStreak = newGuessStreak;
           tx.update(ref, {
             status: "roundResult",
             lastResult: { correct, card, tokenAwarded: hasGuess },
             timelines: newTimelines,
             pendingGuess: null,
-            resultAt: Date.now(),
+            resultAt: serverTimestamp(),
             ...summaryFields,
+            playedCards: playedCardsWithGuess,
+            ...(hasGuess ? { [`gameGuessStreaks.${data.currentPlayerId}`]: newGuessStreak } : {}),
             ...(hasGuess ? { [`tokens.${data.currentPlayerId}`]: increment(1) } : {}),
           });
         }
       });
       if (user && capturedResult && !capturedResult.practiceMode) {
         recordCardGuess(user.uid, capturedResult.card.year, capturedResult.correct, capturedResult.card.artist, capturedResult.card.videoId).catch(() => {});
+        if (capturedResult.correct) {
+          let xp = 10; // poprawne umieszczenie
+          if (capturedResult.newPlacementStreak === 5) xp += 15; // seria 5 poprawnych z rzędu
+          awardXp(user.uid, xp).catch(() => {});
+        }
       }
       if (user && instantGuessAwardedTo === user.uid && !capturedResult?.practiceMode) {
         recordSuccessfulGuess(user.uid, capturedResult?.card?.videoId).catch(() => {});
+        let xp = 20; // trafione zgadywanie
+        if (capturedResult.newGuessStreak === 5) xp += 30; // seria 5 trafionych zgadywań z rzędu
+        awardXp(user.uid, xp).catch(() => {});
       }
     } catch (e) {
       setError("Błąd zatwierdzania: " + e.message);
@@ -1227,20 +1617,23 @@ export default function App() {
     setBusy(true);
     try {
       const ref = doc(db, "rooms", roomId);
+      let capturedBought = null;
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
+        if (data.status !== "playing") return; // runda już się rozstrzygnęła — bez sensu kupować kartę do minionej tury
         if ((data.tokens?.[data.currentPlayerId] || 0) < BUY_CARD_TOKENS) return;
         if (data.deckIndex >= data.deck.length) return; // brak kart w talii do kupienia
 
         const boughtCard = data.deck[data.deckIndex];
+        capturedBought = boughtCard;
         const timeline = data.timelines[data.currentPlayerId] || [];
         const newTimelines = { ...data.timelines, [data.currentPlayerId]: [...timeline, boughtCard] };
 
         const prevStreak = data.gameStreaks?.[data.currentPlayerId] || 0;
         const newStreak = prevStreak + 1; // kupiona karta zawsze trafiona
         const prevBest = data.gameBestStreaks?.[data.currentPlayerId] || 0;
-        const newPlayedCards = [...(data.playedCards || []), { ...boughtCard, correct: true, playerId: data.currentPlayerId, bought: true }];
+        const newPlayedCards = [...(data.playedCards || []), { ...boughtCard, correct: true, playerId: data.currentPlayerId, bought: true, guessedCorrect: null }];
 
         const update = {
           timelines: newTimelines,
@@ -1259,6 +1652,10 @@ export default function App() {
 
         tx.update(ref, update);
       });
+      if (capturedBought) {
+        setBoughtCardReveal(capturedBought);
+        setTimeout(() => setBoughtCardReveal(null), 3000);
+      }
     } catch (e) {
       setError("Błąd kupowania karty: " + e.message);
     } finally {
@@ -1275,6 +1672,7 @@ export default function App() {
       const ref = doc(db, "rooms", roomId);
       let awardedGuessTo = null;
       let awardedGuessVideoId = null;
+      let newGuessStreakValue = null;
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
@@ -1293,19 +1691,29 @@ export default function App() {
             awardedGuessTo = data.currentPlayerId;
             awardedGuessVideoId = data.lastResult?.card?.videoId;
           }
+          const playedCards = data.playedCards || [];
+          const updatedPlayedCards = playedCards.map((pc, i) => (i === playedCards.length - 1 ? { ...pc, guessedCorrect: true } : pc));
+          const newStreak = (data.gameGuessStreaks?.[data.currentPlayerId] || 0) + 1;
+          newGuessStreakValue = newStreak;
           tx.update(ref, {
             status: "roundResult",
             votes: newVotes,
             lastResult: { ...data.lastResult, tokenAwarded: true },
-            resultAt: Date.now(),
+            resultAt: serverTimestamp(),
             [`tokens.${data.currentPlayerId}`]: increment(1),
+            playedCards: updatedPlayedCards,
+            [`gameGuessStreaks.${data.currentPlayerId}`]: newStreak,
           });
         } else if (approvals + remaining < required) {
+          const playedCards = data.playedCards || [];
+          const updatedPlayedCards = playedCards.map((pc, i) => (i === playedCards.length - 1 ? { ...pc, guessedCorrect: false } : pc));
           tx.update(ref, {
             status: "roundResult",
             votes: newVotes,
             lastResult: { ...data.lastResult, tokenAwarded: false },
-            resultAt: Date.now(),
+            resultAt: serverTimestamp(),
+            playedCards: updatedPlayedCards,
+            [`gameGuessStreaks.${data.currentPlayerId}`]: 0,
           });
         } else {
           tx.update(ref, { votes: newVotes });
@@ -1313,6 +1721,9 @@ export default function App() {
       });
       if (awardedGuessTo) {
         recordSuccessfulGuess(awardedGuessTo, awardedGuessVideoId).catch(() => {});
+        let xp = 20; // trafione zgadywanie
+        if (newGuessStreakValue === 5) xp += 30; // seria 5 trafionych zgadywań z rzędu
+        awardXp(awardedGuessTo, xp).catch(() => {});
       }
     } catch (e) {
       setError("Błąd głosowania: " + e.message);
@@ -1335,7 +1746,7 @@ export default function App() {
           currentCard: data.deck[data.deckIndex],
           deckIndex: data.deckIndex + 1,
           startSeconds: randomStartSeconds(),
-          turnDeadline: Date.now() + DECISION_SECONDS * 1000,
+          turnStartedAt: serverTimestamp(),
           [`tokens.${data.currentPlayerId}`]: increment(-SWAP_SONG_TOKENS),
         });
       });
@@ -1358,17 +1769,18 @@ export default function App() {
         const card = data.currentCard;
         capturedCard = card;
         capturedPracticeMode = !!data.practiceMode;
-        const elapsed = Date.now() - (data.turnStartedAt || Date.now());
+        const elapsed = Date.now() - (toMillis(data.turnStartedAt) || Date.now());
         const newDecisionTimes = { ...(data.decisionTimes || {}) };
         newDecisionTimes[data.currentPlayerId] = [...(newDecisionTimes[data.currentPlayerId] || []), elapsed];
-        const newPlayedCards = [...(data.playedCards || []), { ...card, correct: false, playerId: data.currentPlayerId, timedOut: true }];
+        const newPlayedCards = [...(data.playedCards || []), { ...card, correct: false, playerId: data.currentPlayerId, timedOut: true, guessedCorrect: null }];
         tx.update(ref, {
           status: "roundResult",
           lastResult: { correct: false, card, timedOut: true },
           pendingGuess: null,
-          resultAt: Date.now(),
+          resultAt: serverTimestamp(),
           decisionTimes: newDecisionTimes,
           [`gameStreaks.${data.currentPlayerId}`]: 0,
+          [`gameGuessStreaks.${data.currentPlayerId}`]: 0,
           playedCards: newPlayedCards,
         });
       });
@@ -1388,6 +1800,7 @@ export default function App() {
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
+        if (data.status !== "roundResult") return; // ktoś już zdążył przejść dalej
         const players = data.players;
         const idx = players.findIndex((p) => p.id === data.currentPlayerId);
         const nextIdx = (idx + 1) % players.length;
@@ -1428,7 +1841,11 @@ export default function App() {
           }
 
           const winnerIds = contenders.map((p) => p.id);
-          tx.update(ref, { status: "gameover", winnerIds });
+          tx.update(ref, {
+            status: "gameover",
+            winnerIds,
+            expireAt: new Date(Date.now() + 60 * 60 * 1000), // TTL: zakończone gry znikają po 1h
+          });
           gameOverInfo = { winnerIds, players, practiceMode: !!data.practiceMode };
           return;
         }
@@ -1439,8 +1856,7 @@ export default function App() {
           currentCard: data.deck[data.deckIndex],
           deckIndex: data.deckIndex + 1,
           startSeconds: randomStartSeconds(),
-          turnDeadline: Date.now() + DECISION_SECONDS * 1000,
-          turnStartedAt: Date.now(),
+          turnStartedAt: serverTimestamp(),
           lastResult: null,
           pendingGuess: null,
           votes: {},
@@ -1541,6 +1957,13 @@ export default function App() {
       ? [...room.timelines[room.currentPlayerId]].sort((a, b) => a.year - b.year)
       : [];
 
+  const displayedPlayerId = viewedPlayerId || room?.currentPlayerId;
+  const displayedPlayerName = room && room.players.find((p) => p.id === displayedPlayerId)?.name;
+  const viewedTimeline =
+    room && displayedPlayerId && room.timelines[displayedPlayerId]
+      ? [...room.timelines[displayedPlayerId]].sort((a, b) => a.year - b.year)
+      : [];
+
   return (
     <div
       className="min-h-screen w-full flex flex-col items-center"
@@ -1606,6 +2029,33 @@ export default function App() {
         input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,230,195,0.25); }
       `}</style>
 
+      {user && myXp !== null && (
+        <button
+          onClick={screen === "home" ? openStats : undefined}
+          style={{
+            position: "fixed",
+            top: 14,
+            right: 14,
+            zIndex: 90,
+            background: "linear-gradient(135deg, rgba(0,230,195,0.16), rgba(139,92,246,0.16))",
+            border: "1px solid var(--accent)",
+            borderRadius: 999,
+            padding: "6px 14px",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            boxShadow: "0 0 14px -4px var(--accent)",
+            color: "var(--accent)",
+            fontFamily: "'Bebas Neue', sans-serif",
+            fontSize: 15,
+            letterSpacing: 0.5,
+            cursor: screen === "home" ? "pointer" : "default",
+          }}
+        >
+          ⭐ LVL {levelFromXp(myXp).level}
+        </button>
+      )}
+
       <div className="w-full flex flex-col items-center" style={{ maxWidth: 720 }}>
         <button
           onClick={goHome}
@@ -1615,7 +2065,9 @@ export default function App() {
         >
           <img src={logoImg} alt="Hitsteriada" style={{ height: 100, filter: "drop-shadow(0 0 18px rgba(0,230,195,0.55)) drop-shadow(0 0 28px rgba(139,92,246,0.3))" }} />
         </button>
-        <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 24 }}>online • każdy gra u siebie, w swoim miejscu</p>
+        <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 24 }}>
+          {onlineCount !== null ? `🟢 ${onlineCount} graczy online` : "online"} • każdy gra u siebie, w swoim miejscu
+        </p>
 
         {error && (
           <div className="w-full rounded-lg p-3 mb-4 text-sm" style={{ background: "rgba(232,97,93,0.12)", border: "1px solid var(--bad)", color: "var(--bad)" }}>
@@ -1631,6 +2083,30 @@ export default function App() {
                 <p style={{ color: "var(--muted)", fontSize: 13 }}>Brak jeszcze żadnych rozegranych gier.</p>
               ) : (
                 <div className="flex flex-col gap-4">
+                  {(() => {
+                    const { level, currentLevelXp, xpForNextLevel } = levelFromXp(stats.xp);
+                    return <LevelBar level={level} currentLevelXp={currentLevelXp} xpForNextLevel={xpForNextLevel} size="big" />;
+                  })()}
+                  {(() => {
+                    const wc = stats.weeklyChallenge;
+                    const isCurrentWeek = wc && wc.weekKey === currentWeekKey();
+                    const gamesThisWeek = isCurrentWeek ? wc.gamesThisWeek : 0;
+                    const claimed = isCurrentWeek && wc.claimed;
+                    const pct = Math.min(100, Math.round((gamesThisWeek / 3) * 100));
+                    return (
+                      <div className="w-full rounded-xl p-3" style={{ background: "var(--surface2)" }}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span style={{ fontSize: 12, fontWeight: "bold" }}>🎯 Wyzwanie tygodnia: zagraj 3 gry</span>
+                          <span style={{ fontSize: 11, color: claimed ? "var(--good)" : "var(--muted)" }}>
+                            {claimed ? "✓ Ukończone (+50 XP)" : `${Math.min(gamesThisWeek, 3)} / 3`}
+                          </span>
+                        </div>
+                        <div className="w-full rounded-full" style={{ height: 6, background: "#0d0a17", overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${pct}%`, background: claimed ? "var(--good)" : "var(--accent)" }} />
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <div className="flex gap-4 flex-wrap">
                     <StatBox label="Rozegrane gry" value={stats.gamesPlayed || 0} />
                     <StatBox label="Wygrane" value={stats.gamesWon || 0} />
@@ -1761,6 +2237,9 @@ export default function App() {
                           {i === 0 ? <Crown size={18} /> : `#${i + 1}`}
                         </span>
                         <span>{p.username}</span>
+                        <span style={{ fontSize: 10, color: "var(--accent2)", background: "var(--surface)", padding: "1px 6px", borderRadius: 8 }}>
+                          lvl {levelFromXp(p.xp).level}
+                        </span>
                       </div>
                       <span style={{ color: "var(--accent)", fontFamily: "'Bebas Neue', sans-serif", fontSize: 18 }}>
                         {leaderboardSort === "gamesWon" ? `${p.gamesWon || 0} wygranych` : `${p.guessesCorrect || 0} zgadniętych`}
@@ -1788,6 +2267,10 @@ export default function App() {
                 <p style={{ color: "var(--muted)", fontSize: 13 }}>Brak jeszcze żadnych rozegranych gier.</p>
               ) : (
                 <div className="flex flex-col gap-4">
+                  {(() => {
+                    const { level, currentLevelXp, xpForNextLevel } = levelFromXp(viewingPlayer.stats.xp);
+                    return <LevelBar level={level} currentLevelXp={currentLevelXp} xpForNextLevel={xpForNextLevel} size="big" />;
+                  })()}
                   <div className="flex gap-4 flex-wrap">
                     <StatBox label="Rozegrane gry" value={viewingPlayer.stats.gamesPlayed || 0} />
                     <StatBox label="Wygrane" value={viewingPlayer.stats.gamesWon || 0} />
@@ -1944,21 +2427,30 @@ export default function App() {
               </section>
             )}
 
-            {librarySongs && librarySongs.length > 0 && (
-              <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
-                <p style={{ fontSize: 12, marginBottom: 8, color: "var(--muted)" }}>
-                  Dogrywa kategorie zapisane wcześniej z analizy (dopasowanie po linku YouTube) do utworów już będących w bazie.
+            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🧹 Sprzątanie pokojów</p>
+              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
+                Usuwa zakończone gry (starsze niż 1h od końca), porzucone/nieukończone pokoje (starsze niż 24h) i sesje treningowe (starsze niż 3h). Bardzo stare pokoje sprzed tej funkcji usuwa, jeśli mają ponad 7 dni. Nie rusza statystyk graczy — te żyją osobno.
+              </p>
+              <button
+                onClick={handleCleanupRooms}
+                disabled={cleanupBusy}
+                className="px-4 py-2 rounded-lg text-sm font-bold"
+                style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
+              >
+                {cleanupBusy
+                  ? cleanupProgress
+                    ? `Usuwanie… ${cleanupProgress.done}/${cleanupProgress.total}`
+                    : "Sprawdzam pokoje…"
+                  : "Wyczyść stare pokoje"}
+              </button>
+              {cleanupResult && (
+                <p style={{ fontSize: 12, marginTop: 8, color: "var(--good)" }}>
+                  ✓ Usunięto {cleanupResult.deleted} z {cleanupResult.totalRooms} sprawdzonych pokojów.
                 </p>
-                <button
-                  onClick={handleApplyCategoryPatch}
-                  disabled={adminBusy}
-                  className="px-4 py-2 rounded-lg text-sm font-bold"
-                  style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
-                >
-                  {migrateProgress ? `Wgrywanie… ${migrateProgress.done}/${migrateProgress.total}` : "Zastosuj zapisane kategorie"}
-                </button>
-              </section>
-            )}
+              )}
+            </section>
+
 
             <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
               <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>📥 Import z CSV (masowo)</p>
@@ -2307,6 +2799,18 @@ export default function App() {
               </div>
             </section>
 
+            {user && (
+              <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>📅 PIOSENKA DNIA</h2>
+                <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 10 }}>
+                  Ta sama piosenka dla wszystkich, raz dziennie — zgadnij wykonawcę, tytuł i rok.
+                </p>
+                <button onClick={openDailySong} disabled={dailyBusy} className="px-4 py-2 rounded-lg text-sm font-bold btn-grad">
+                  Zagraj
+                </button>
+              </section>
+            )}
+
             <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
               <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>DOŁĄCZ DO GRY</h2>
               <div className="flex gap-2 mt-2">
@@ -2358,6 +2862,11 @@ export default function App() {
                     <span>{p.name}</span>
                     {p.id === room.hostId && <span style={{ color: "var(--accent)", fontSize: 10 }}>HOST</span>}
                     {p.id === playerId && <span style={{ color: "var(--muted)", fontSize: 10 }}>(Ty)</span>}
+                    {p.authed && playerLevels[p.id] !== undefined && (
+                      <span style={{ fontSize: 10, color: "var(--accent2)", background: "var(--surface2)", padding: "1px 6px", borderRadius: 8 }}>
+                        lvl {levelFromXp(playerLevels[p.id]).level}
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -2629,11 +3138,27 @@ export default function App() {
 
             {screen === "playing" && !isMyTurn && (
               <div className="w-full">
+                <div className="flex flex-wrap items-center justify-center gap-2 mb-3">
+                  {room.players.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => setViewedPlayerId(p.id)}
+                      className="px-3 py-1 rounded-full text-xs font-bold"
+                      style={{
+                        background: displayedPlayerId === p.id ? "var(--accent)" : "var(--surface2)",
+                        color: displayedPlayerId === p.id ? "#0a0410" : "var(--muted)",
+                        border: p.id === room.currentPlayerId ? "1px solid var(--accent)" : "1px solid transparent",
+                      }}
+                    >
+                      {p.id === playerId ? "Ty" : p.name}
+                    </button>
+                  ))}
+                </div>
                 <p style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase", marginBottom: 10, textAlign: "center" }}>
-                  Oś czasu gracza {turnPlayerName}
+                  Oś czasu gracza {displayedPlayerName}
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-2">
-                  {turnTimeline.map((c) => (
+                  {viewedTimeline.map((c) => (
                     <TimelineCard key={c.id} year={c.year} title={c.title} artist={c.artist} onHold={setHeldCard} onRelease={clearHeldCard} />
                   ))}
                 </div>
@@ -2724,6 +3249,7 @@ export default function App() {
 
         {screen === "gameover" && room && room.winnerIds && room.winnerIds.length > 0 && (
           <div className="w-full flex flex-col items-center gap-5 text-center">
+            {showConfetti && <Confetti />}
             <Trophy size={48} color="var(--accent)" />
             <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34 }}>
               {room.winnerIds.length > 1
@@ -2771,28 +3297,80 @@ export default function App() {
               );
             })()}
 
+            {user && !room.practiceMode && (() => {
+              const { items, total } = computeGameEndXp(room, playerId);
+              if (!items.length) return null;
+              return (
+                <div className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+                  <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>⭐ Zdobyte XP</p>
+                  <div className="flex flex-col gap-1 text-left">
+                    {items.map((it, i) => (
+                      <div key={i} className="flex items-center justify-between text-sm">
+                        <span>{it.label}</span>
+                        <span style={{ color: it.amount >= 0 ? "var(--good)" : "var(--bad)" }}>
+                          {it.amount >= 0 ? "+" : ""}
+                          {it.amount} XP
+                        </span>
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between text-sm mt-1 pt-1" style={{ borderTop: "1px solid #33294f", fontWeight: "bold" }}>
+                      <span>Razem</span>
+                      <span style={{ color: "var(--accent)" }}>
+                        {total >= 0 ? "+" : ""}
+                        {total} XP
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             {room.playedCards && room.playedCards.length > 0 && (
               <div className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
-                <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>
-                  🎵 Playlista wieczoru ({room.playedCards.length})
-                </p>
-                <div className="flex flex-col gap-1 text-left" style={{ maxHeight: 240, overflowY: "auto" }}>
-                  {room.playedCards.map((c, i) => (
-                    <a
-                      key={i}
-                      href={`https://www.youtube.com/watch?v=${c.videoId}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center justify-between px-2 py-1.5 rounded"
-                      style={{ background: "var(--surface2)", textDecoration: "none", color: "var(--text)" }}
-                    >
-                      <span style={{ fontSize: 12 }}>
-                        {c.correct ? "✓" : "✗"} {c.artist} — {c.title}
-                      </span>
-                      <span style={{ fontSize: 11, color: "var(--accent)" }}>{c.year}</span>
-                    </a>
-                  ))}
+                <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                  <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)" }}>
+                    🎵 {showOnlyMyPlaylist ? "Twoja playlista" : "Playlista wieczoru"} (
+                    {showOnlyMyPlaylist ? room.playedCards.filter((c) => c.playerId === playerId).length : room.playedCards.length})
+                  </p>
+                  <button
+                    onClick={() => setShowOnlyMyPlaylist((v) => !v)}
+                    className="px-3 py-1 rounded-full text-xs font-bold"
+                    style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
+                  >
+                    {showOnlyMyPlaylist ? "Pokaż wszystkich" : "Pokaż tylko moje"}
+                  </button>
                 </div>
+                <div className="flex flex-col gap-1 text-left" style={{ maxHeight: 240, overflowY: "auto" }}>
+                  {(showOnlyMyPlaylist ? room.playedCards.filter((c) => c.playerId === playerId) : room.playedCards).map((c, i) => {
+                    const guessColor = showOnlyMyPlaylist
+                      ? c.guessedCorrect === true
+                        ? "rgba(42,245,152,0.18)"
+                        : c.guessedCorrect === false
+                        ? "rgba(255,56,104,0.18)"
+                        : "var(--surface2)"
+                      : "var(--surface2)";
+                    return (
+                      <a
+                        key={i}
+                        href={`https://www.youtube.com/watch?v=${c.videoId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center justify-between px-2 py-1.5 rounded"
+                        style={{ background: guessColor, textDecoration: "none", color: "var(--text)" }}
+                      >
+                        <span style={{ fontSize: 12 }}>
+                          {c.correct ? "✓" : "✗"} {c.artist} — {c.title}
+                        </span>
+                        <span style={{ fontSize: 11, color: "var(--accent)" }}>{c.year}</span>
+                      </a>
+                    );
+                  })}
+                </div>
+                {showOnlyMyPlaylist && (
+                  <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 8 }}>
+                    🟢 odgadnięty wykonawca/tytuł · 🔴 nieodgadnięty · szare = nie próbowano zgadywać
+                  </p>
+                )}
               </div>
             )}
 
@@ -2804,6 +3382,163 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {levelUpInfo && (
+        <div
+          onClick={() => setLevelUpInfo(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.65)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100,
+            padding: 24,
+          }}
+        >
+          <div className="rounded-2xl p-6 text-center card-glow pulse-cta" style={{ background: "var(--surface)", maxWidth: 320 }}>
+            <p style={{ fontSize: 40 }}>🎉</p>
+            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: "var(--accent)" }}>AWANS POZIOMU!</p>
+            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48 }}>Poziom {levelUpInfo.level}</p>
+            <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>(kliknij, żeby zamknąć)</p>
+          </div>
+        </div>
+      )}
+
+      {weeklyBonusInfo && (
+        <div
+          style={{
+            position: "fixed",
+            top: 16,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 96,
+            textAlign: "center",
+            padding: "10px 18px",
+            borderRadius: 12,
+            background: "var(--surface)",
+            border: "1px solid var(--good)",
+            color: "var(--text)",
+            fontSize: 12,
+            maxWidth: "90%",
+          }}
+        >
+          🎯 Wyzwanie tygodnia ukończone! +50 XP
+        </div>
+      )}
+
+      {showDailySong && dailySong && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.75)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 98,
+            padding: 16,
+            overflowY: "auto",
+          }}
+        >
+          <div className="rounded-2xl p-5 card-glow w-full" style={{ background: "var(--surface)", maxWidth: 380 }}>
+            <div className="flex items-center justify-between mb-3">
+              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: "var(--accent)" }}>📅 PIOSENKA DNIA</p>
+              <button onClick={closeDailySong} style={{ color: "var(--muted)" }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            {!dailyAlreadyPlayed ? (
+              <div className="flex flex-col items-center gap-4">
+                <Vinyl spinning={dailyIsPlaying} revealed={false} progress={dailyPlayElapsed / PLAY_CAP_SECONDS} />
+                <div style={{ width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }}>
+                  <iframe
+                    key={"daily-" + dailySong.videoId}
+                    ref={dailyIframeRef}
+                    title="daily-player"
+                    width="280"
+                    height="158"
+                    src={`https://www.youtube.com/embed/${dailySong.videoId}?enablejsapi=1&autoplay=1&mute=1&start=${dailySong.startSeconds}&controls=0&modestbranding=1&rel=0`}
+                    allow="autoplay; encrypted-media"
+                    style={{ border: "none" }}
+                  />
+                </div>
+                <button onClick={toggleDailyPlay} className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-bold btn-grad">
+                  <Play size={16} />
+                  {dailyIsPlaying ? `Gra… (${Math.ceil(PLAY_CAP_SECONDS - dailyPlayElapsed)}s)` : "Odtwórz dźwięk"}
+                </button>
+
+                <div className="w-full flex flex-col gap-2">
+                  <input type="text" value={dailyGuessArtist} onChange={(e) => setDailyGuessArtist(e.target.value)} placeholder="Wykonawca" />
+                  <input type="text" value={dailyGuessTitle} onChange={(e) => setDailyGuessTitle(e.target.value)} placeholder="Tytuł" />
+                  <input type="number" value={dailyGuessYear} onChange={(e) => setDailyGuessYear(e.target.value)} placeholder="Rok" />
+                </div>
+                <button onClick={submitDailyGuess} disabled={dailyBusy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+                  ZATWIERDŹ ODPOWIEDŹ
+                </button>
+                <p style={{ fontSize: 10, color: "var(--muted)" }}>Puste pola liczą się jako błędne — możesz zostawić to, czego nie wiesz.</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-3 text-center">
+                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>
+                  {dailyResult?.score === 3 ? "🎉 KOMPLET!" : dailyResult?.score > 0 ? "Nieźle!" : "Może jutro pójdzie lepiej"}
+                </p>
+                <div className="w-full rounded-lg p-3" style={{ background: "var(--surface2)" }}>
+                  <p style={{ fontSize: 13 }}>
+                    <strong>{dailySong.artist}</strong> — {dailySong.title}
+                  </p>
+                  <p style={{ color: "var(--accent)", fontFamily: "'Bebas Neue', sans-serif", fontSize: 22 }}>{dailySong.year}</p>
+                </div>
+                {dailyResult && (
+                  <div className="w-full flex flex-col gap-1 text-left" style={{ fontSize: 12 }}>
+                    <span style={{ color: dailyResult.correctArtist ? "var(--good)" : "var(--bad)" }}>
+                      {dailyResult.correctArtist ? "✓" : "✗"} Wykonawca: {dailyResult.guessArtist || "—"}
+                    </span>
+                    <span style={{ color: dailyResult.correctTitle ? "var(--good)" : "var(--bad)" }}>
+                      {dailyResult.correctTitle ? "✓" : "✗"} Tytuł: {dailyResult.guessTitle || "—"}
+                    </span>
+                    <span style={{ color: dailyResult.correctYear ? "var(--good)" : "var(--bad)" }}>
+                      {dailyResult.correctYear ? "✓" : "✗"} Rok: {dailyResult.guessYear || "—"}
+                    </span>
+                  </div>
+                )}
+                {dailyResult?.streak !== undefined && (
+                  <p style={{ fontSize: 12, color: "var(--accent2)" }}>🔥 Seria dni z rzędu: {dailyResult.streak}</p>
+                )}
+                {dailyResult?.xpEarned !== undefined && (
+                  <p style={{ fontSize: 12, color: "var(--good)" }}>+{dailyResult.xpEarned} XP</p>
+                )}
+                <p style={{ fontSize: 11, color: "var(--muted)" }}>Wróć jutro po kolejną piosenkę!</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {boughtCardReveal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100,
+            padding: 24,
+          }}
+        >
+          <div className="rounded-2xl p-5 text-center card-glow" style={{ background: "var(--surface)", maxWidth: 320 }}>
+            <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--good)", marginBottom: 6 }}>🎁 Kupiona karta</p>
+            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 40, color: "var(--accent)" }}>{boughtCardReveal.year}</p>
+            <p style={{ fontSize: 15, fontWeight: "bold", marginTop: 4 }}>{boughtCardReveal.artist}</p>
+            <p style={{ fontSize: 14, color: "var(--muted)", marginTop: 2 }}>„{boughtCardReveal.title}"</p>
+            <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 10 }}>trafiła na Twoją oś czasu</p>
+          </div>
+        </div>
+      )}
 
       {heldCard && (
         <div
