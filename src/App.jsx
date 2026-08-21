@@ -16,6 +16,7 @@ import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
 import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard } from "./stats.js";
 import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, applyCategoryPatchToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv } from "./songsDb.js";
+import { cleanupOldRooms } from "./roomsDb.js";
 import { playCorrectSound, playWrongSound, playApplause, unlockAudio } from "./sounds.js";
 import { Play, Music4, Trophy, RotateCcw, Users, ChevronRight, Copy, Check, LogIn, LogOut, BarChart3, Flame, Crown, Shield, Search, Trash2, Pencil, Save, X, MessageCircle, Send } from "lucide-react";
 import logoImg from "./assets/logo-v2.png";
@@ -250,6 +251,9 @@ export default function App() {
   const [importCsvText, setImportCsvText] = useState("");
   const [importBusy, setImportBusy] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  const [cleanupBusy, setCleanupBusy] = useState(false);
+  const [cleanupResult, setCleanupResult] = useState(null);
+  const [cleanupProgress, setCleanupProgress] = useState(null);
 
   const [showProposeForm, setShowProposeForm] = useState(false);
   const [proposeDraft, setProposeDraft] = useState({ artist: "", title: "", url: "", year: "", categories: [] });
@@ -594,6 +598,23 @@ export default function App() {
     reader.readAsText(file, "utf-8");
   }
 
+  async function handleCleanupRooms() {
+    if (!window.confirm("Usunąć wszystkie przeterminowane pokoje (zakończone, porzucone lub bardzo stare)? Statystyki graczy zostają nietknięte — to dotyczy tylko tymczasowych danych rozgrywek.")) return;
+    setCleanupBusy(true);
+    setCleanupResult(null);
+    setCleanupProgress(null);
+    setError("");
+    try {
+      const result = await cleanupOldRooms((done, total) => setCleanupProgress({ done, total }));
+      setCleanupResult(result);
+    } catch (e) {
+      setError("Błąd czyszczenia pokojów: " + e.message);
+    } finally {
+      setCleanupBusy(false);
+      setCleanupProgress(null);
+    }
+  }
+
 
   useEffect(() => {
     const unsub = watchAuthState(async (u) => {
@@ -924,6 +945,7 @@ export default function App() {
         lastResult: null,
         winnerIds: [],
         createdAt: serverTimestamp(),
+        expireAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // TTL: porzucone/niedokończone pokoje znikają po 24h
         messages: [],
       });
       setRoomId(code);
@@ -981,6 +1003,7 @@ export default function App() {
         messages: [],
         practiceMode: true,
         createdAt: serverTimestamp(),
+        expireAt: new Date(Date.now() + 3 * 60 * 60 * 1000), // TTL: sesje treningowe znikają po 3h
       });
       setRoomId(code);
     } catch (e) {
@@ -1473,7 +1496,11 @@ export default function App() {
           }
 
           const winnerIds = contenders.map((p) => p.id);
-          tx.update(ref, { status: "gameover", winnerIds });
+          tx.update(ref, {
+            status: "gameover",
+            winnerIds,
+            expireAt: new Date(Date.now() + 60 * 60 * 1000), // TTL: zakończone gry znikają po 1h
+          });
           gameOverInfo = { winnerIds, players, practiceMode: !!data.practiceMode };
           return;
         }
@@ -2003,6 +2030,30 @@ export default function App() {
                 </button>
               </section>
             )}
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🧹 Sprzątanie pokojów</p>
+              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
+                Usuwa zakończone gry (starsze niż 1h od końca), porzucone/nieukończone pokoje (starsze niż 24h) i sesje treningowe (starsze niż 3h). Bardzo stare pokoje sprzed tej funkcji usuwa, jeśli mają ponad 7 dni. Nie rusza statystyk graczy — te żyją osobno.
+              </p>
+              <button
+                onClick={handleCleanupRooms}
+                disabled={cleanupBusy}
+                className="px-4 py-2 rounded-lg text-sm font-bold"
+                style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
+              >
+                {cleanupBusy
+                  ? cleanupProgress
+                    ? `Usuwanie… ${cleanupProgress.done}/${cleanupProgress.total}`
+                    : "Sprawdzam pokoje…"
+                  : "Wyczyść stare pokoje"}
+              </button>
+              {cleanupResult && (
+                <p style={{ fontSize: 12, marginTop: 8, color: "var(--good)" }}>
+                  ✓ Usunięto {cleanupResult.deleted} z {cleanupResult.totalRooms} sprawdzonych pokojów.
+                </p>
+              )}
+            </section>
 
             <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
               <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>📥 Import z CSV (masowo)</p>
