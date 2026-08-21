@@ -3460,64 +3460,83 @@ export default function App() {
               </div>
             )}
 
-            {screen === "roundResult" && room.lastResult && (
-              <div className="w-full flex flex-col items-center gap-4">
+            {screen === "roundResult" && room.lastResult && (() => {
+              const ownerId = room.currentPlayerId;
+              const ownerName = room.players.find((p) => p.id === ownerId)?.name || "Gracz";
+              const r = room.lastResult;
+
+              let headline;
+              if (r.bought) {
+                headline = `${ownerName} kupił(a) kartę!`;
+              } else if (r.timedOut) {
+                headline = `${ownerName} nie zdążył(a) — czas minął!`;
+              } else {
+                const placementText = r.correct ? "poprawnie umieścił(a) kartę" : "nieprawidłowo umieścił(a) kartę";
+                if (r.tokenAwarded === true) headline = `${ownerName} ${placementText} i odgadł(a) wykonawcę oraz tytuł!`;
+                else if (r.tokenAwarded === false) headline = `${ownerName} ${placementText}, ale nie zgadł(a) wykonawcy/tytułu`;
+                else headline = `${ownerName} ${placementText}`;
+              }
+
+              const ownerTimeline = [...(room.timelines[ownerId] || [])].sort((a, b) => a.year - b.year);
+              const hasGhost = !r.timedOut && !r.correct && r.chosenSlot !== undefined && r.chosenSlot !== null;
+              const displayCards = hasGhost
+                ? (() => {
+                    const withGhost = [...ownerTimeline];
+                    withGhost.splice(r.chosenSlot, 0, { ...r.card, __ghost: true });
+                    return withGhost;
+                  })()
+                : ownerTimeline;
+
+              return (
                 <div
-                  className="w-full rounded-2xl p-5 text-center"
                   style={{
-                    background: room.lastResult.correct ? "rgba(79,209,174,0.12)" : "rgba(232,97,93,0.12)",
-                    border: `1px solid ${room.lastResult.correct ? "var(--good)" : "var(--bad)"}`,
+                    position: "fixed",
+                    inset: 0,
+                    background: "rgba(5,8,16,0.92)",
+                    backdropFilter: "blur(4px)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    zIndex: 97,
+                    padding: 16,
+                    overflowY: "auto",
                   }}
                 >
-                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: room.lastResult.correct ? "var(--good)" : "var(--bad)" }}>
-                    {room.lastResult.bought ? "KARTA KUPIONA!" : room.lastResult.timedOut ? "CZAS MINĄŁ!" : room.lastResult.correct ? "TRAFIONE!" : "PUDŁO!"}
-                  </p>
-                  <p style={{ fontSize: 14, marginTop: 4 }}>
-                    {room.lastResult.card.artist} — „{room.lastResult.card.title}"
-                  </p>
-                  <p style={{ color: "var(--accent)", fontFamily: "'Bebas Neue', sans-serif", fontSize: 22 }}>{room.lastResult.card.year}</p>
-                  {room.lastResult.tokenAwarded !== undefined && (
-                    <p style={{ fontSize: 12, marginTop: 6, color: room.lastResult.tokenAwarded ? "var(--accent)" : "var(--muted)" }}>
-                      {room.lastResult.tokenAwarded ? "🪙 Zgadywanie zaliczone! +1 token" : "Zgadywanie nie zaliczone"}
-                    </p>
-                  )}
-                </div>
-
-                {(() => {
-                  if (room.lastResult.timedOut) return null;
-                  const ownerId = room.currentPlayerId;
-                  const ownerTimeline = [...(room.timelines[ownerId] || [])].sort((a, b) => a.year - b.year);
-                  const hasGhost = !room.lastResult.correct && room.lastResult.chosenSlot !== undefined && room.lastResult.chosenSlot !== null;
-                  const displayCards = hasGhost
-                    ? (() => {
-                        const withGhost = [...ownerTimeline];
-                        withGhost.splice(room.lastResult.chosenSlot, 0, { ...room.lastResult.card, __ghost: true });
-                        return withGhost;
-                      })()
-                    : ownerTimeline;
-                  if (!displayCards.length) return null;
-                  const ownerName = room.players.find((p) => p.id === ownerId)?.name;
-                  return (
-                    <div className="w-full">
-                      <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase", marginBottom: 8, textAlign: "center" }}>
-                        Oś czasu gracza {ownerName}
+                  <div className="w-full flex flex-col items-center gap-4" style={{ maxWidth: 420 }}>
+                    <div
+                      className="w-full rounded-2xl p-5 text-center card-glow"
+                      style={{
+                        background: r.correct || r.bought ? "rgba(79,209,174,0.14)" : "rgba(232,97,93,0.14)",
+                        border: `1px solid ${r.correct || r.bought ? "var(--good)" : "var(--bad)"}`,
+                      }}
+                    >
+                      <p style={{ fontSize: 15, fontWeight: "bold", marginBottom: 8 }}>{headline}</p>
+                      <p style={{ fontSize: 14 }}>
+                        {r.card.artist} — „{r.card.title}"
                       </p>
-                      <div className="flex flex-wrap items-center justify-center gap-2">
-                        {displayCards.map((c, i) => {
-                          const isPlacedCard = !c.__ghost && room.lastResult.correct && c.videoId === room.lastResult.card.videoId && c.year === room.lastResult.card.year;
-                          const highlight = c.__ghost ? "var(--bad)" : isPlacedCard ? "var(--good)" : null;
-                          return <TimelineCard key={c.__ghost ? "ghost" : c.id || i} year={c.year} title={c.title} artist={c.artist} highlight={highlight} />;
-                        })}
-                      </div>
+                      <p style={{ color: "var(--accent)", fontFamily: "'Bebas Neue', sans-serif", fontSize: 22 }}>{r.card.year}</p>
                     </div>
-                  );
-                })()}
 
-                <p style={{ color: "var(--muted)", fontSize: 13 }}>
-                  Kolejny gracz za {advanceCountdown ?? 5}…
-                </p>
-              </div>
-            )}
+                    {!r.timedOut && displayCards.length > 0 && (
+                      <div className="w-full">
+                        <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase", marginBottom: 8, textAlign: "center" }}>
+                          Oś czasu gracza {ownerName}
+                        </p>
+                        <div className="flex flex-wrap items-center justify-center gap-2">
+                          {displayCards.map((c, i) => {
+                            const isPlacedCard = !c.__ghost && r.correct && c.videoId === r.card.videoId && c.year === r.card.year;
+                            const highlight = c.__ghost ? "var(--bad)" : isPlacedCard ? "var(--good)" : null;
+                            return <TimelineCard key={c.__ghost ? "ghost" : c.id || i} year={c.year} title={c.title} artist={c.artist} highlight={highlight} />;
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    <p style={{ color: "var(--muted)", fontSize: 13 }}>Kolejny gracz za {advanceCountdown ?? 5}…</p>
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="w-full flex flex-wrap gap-2 justify-center">
               {room.players.map((p) => (
