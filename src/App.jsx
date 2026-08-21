@@ -15,7 +15,7 @@ import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId, fuzzyMatc
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
 import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, awardXp, xpForLevel, levelFromXp, progressWeeklyChallenge, currentWeekKey, currentDayKey, recordDailyResult } from "./stats.js";
-import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss } from "./songsDb.js";
+import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
 import { heartbeat, clearPresence, getOnlineCount } from "./presence.js";
 import { getOrCreateDailySong } from "./dailySong.js";
@@ -292,7 +292,6 @@ export default function App() {
   const [chosenSlot, setChosenSlot] = useState(null);
   const [heldCard, setHeldCard] = useState(null);
   const [boughtCardReveal, setBoughtCardReveal] = useState(null);
-  const [brokenLinkNotice, setBrokenLinkNotice] = useState(null);
   const [viewedPlayerId, setViewedPlayerId] = useState(null);
   const [showOnlyMyPlaylist, setShowOnlyMyPlaylist] = useState(false);
   const clearHeldCard = useCallback(() => setHeldCard(null), []);
@@ -349,11 +348,6 @@ export default function App() {
   const [importResult, setImportResult] = useState(null);
   const [cleanupBusy, setCleanupBusy] = useState(false);
   const [cleanupResult, setCleanupResult] = useState(null);
-  const [brokenLinkReports, setBrokenLinkReports] = useState(null);
-  const [showBrokenLinkReports, setShowBrokenLinkReports] = useState(false);
-  const [brokenLinkBusy, setBrokenLinkBusy] = useState(false);
-  const [brokenLinkEditingId, setBrokenLinkEditingId] = useState(null);
-  const [brokenLinkEditDraft, setBrokenLinkEditDraft] = useState({});
   const [cleanupProgress, setCleanupProgress] = useState(null);
 
   const [showProposeForm, setShowProposeForm] = useState(false);
@@ -537,24 +531,6 @@ export default function App() {
       if (dailyPlayIntervalRef.current) clearInterval(dailyPlayIntervalRef.current);
     }
   }
-
-  useEffect(() => {
-    if (!("mediaSession" in navigator)) return;
-    if (!showDailySong || !dailySong || dailyAlreadyPlayed) return;
-    const applyGenericMetadata = () => {
-      try {
-        navigator.mediaSession.metadata = new window.MediaMetadata({
-          title: "Hitsteriada",
-          artist: "📅 Piosenka dnia — zgadnij zanim zobaczysz odpowiedź!",
-          album: "",
-          artwork: [{ src: logoImg, sizes: "512x512", type: "image/png" }],
-        });
-      } catch (e) {}
-    };
-    applyGenericMetadata();
-    const id = setInterval(applyGenericMetadata, 700);
-    return () => clearInterval(id);
-  }, [showDailySong, dailySong?.videoId, dailyAlreadyPlayed]);
 
   async function submitDailyGuess() {
     if (!user || !dailySong) return;
@@ -868,129 +844,6 @@ export default function App() {
     } finally {
       setCleanupBusy(false);
       setCleanupProgress(null);
-    }
-  }
-
-  function loadBrokenLinkReports() {
-    fetchBrokenLinkReports()
-      .then((list) => setBrokenLinkReports(list))
-      .catch(() => setBrokenLinkReports([]));
-  }
-
-  async function handleDismissBrokenLink(id) {
-    setBrokenLinkBusy(true);
-    try {
-      await dismissBrokenLinkReport(id);
-      setBrokenLinkReports((prev) => prev.filter((r) => r.id !== id));
-    } catch (e) {
-      setError("Błąd odrzucania zgłoszenia: " + e.message);
-    } finally {
-      setBrokenLinkBusy(false);
-    }
-  }
-
-  async function handleDeleteBrokenSong(report) {
-    if (!window.confirm(`Usunąć "${report.artist} — ${report.title}" z bazy utworów i odrzucić zgłoszenie?`)) return;
-    setBrokenLinkBusy(true);
-    try {
-      const found = await deleteBrokenSongAndDismiss(report.id, report.videoId);
-      setBrokenLinkReports((prev) => prev.filter((r) => r.id !== report.id));
-      setLibrarySongs((prev) => (prev ? prev.filter((s) => s.videoId !== report.videoId) : prev));
-      if (!found) alert("Nie znaleziono tego utworu w bazie (mógł już zostać usunięty) — samo zgłoszenie odrzucono.");
-    } catch (e) {
-      setError("Błąd usuwania utworu: " + e.message);
-    } finally {
-      setBrokenLinkBusy(false);
-    }
-  }
-
-  async function handleSaveBrokenLinkEdit(report) {
-    const videoId = getYouTubeId(brokenLinkEditDraft.url);
-    if (!videoId) {
-      setError("Podany link YouTube wygląda na niepoprawny.");
-      return;
-    }
-    setBrokenLinkBusy(true);
-    try {
-      const categories = (brokenLinkEditDraft.categoriesText || "").split(";").map((c) => c.trim()).filter(Boolean);
-      const fields = {
-        artist: brokenLinkEditDraft.artist,
-        title: brokenLinkEditDraft.title,
-        year: parseInt(brokenLinkEditDraft.year, 10),
-        videoId,
-        categories,
-      };
-      const updated = await updateBrokenSongAndDismiss(report.id, report.videoId, fields);
-      setBrokenLinkReports((prev) => prev.filter((r) => r.id !== report.id));
-      if (updated) {
-        setLibrarySongs((prev) => (prev ? prev.map((s) => (s.id === updated.id ? updated : s)) : prev));
-      } else {
-        alert("Nie znaleziono tego utworu w bazie (mógł już zostać usunięty) — samo zgłoszenie odrzucono, nic nie zapisano.");
-      }
-      setBrokenLinkEditingId(null);
-    } catch (e) {
-      setError("Błąd zapisu: " + e.message);
-    } finally {
-      setBrokenLinkBusy(false);
-    }
-  }
-
-  // 🧪 TYMCZASOWA funkcja testowa — startuje sesję Treningu z jedną celowo
-  // zepsutą kartą jako pierwszą, żeby sprawdzić wykrywanie i wymianę na żywo.
-  // Do usunięcia po potwierdzeniu, że mechanizm działa poprawnie.
-  async function testBrokenLinkDetection() {
-    if (!name.trim() && !user) return setError("Podaj swoje imię, żeby przetestować.");
-    setBusy(true);
-    try {
-      const pool = effectivePool.slice(0, 20);
-      if (pool.length < 5) {
-        setError("Za mało utworów w bibliotece do przetestowania.");
-        setBusy(false);
-        return;
-      }
-      const code = generateRoomCode();
-      const ref = doc(db, "rooms", code);
-      const deck = shuffle(pool);
-      const fakeCard = { id: "test-broken-link-0", videoId: "zzzzzzzzzzz", artist: "TEST", title: "Celowo zepsuty link (do testu)", year: 2000, categories: [] };
-      const me = { id: playerId, name: name.trim() || user?.displayName || "Admin", authed: !!user };
-      await setDoc(ref, {
-        code,
-        hostId: playerId,
-        target: 3,
-        status: "playing",
-        players: [me],
-        deck,
-        deckIndex: 0,
-        currentPlayerId: playerId,
-        startingPlayerId: playerId,
-        currentCard: fakeCard,
-        startSeconds: 15,
-        turnStartedAt: serverTimestamp(),
-        timelines: { [playerId]: [] },
-        tokens: { [playerId]: 0 },
-        lastResult: null,
-        pendingGuess: null,
-        votes: {},
-        requiredApprovals: 0,
-        resultAt: null,
-        winnerIds: [],
-        finishingRound: false,
-        decisionTimes: {},
-        gameStreaks: {},
-        gameGuessStreaks: {},
-        gameGuesses: {},
-        gameBestStreaks: {},
-        playedCards: [],
-        messages: [],
-        practiceMode: true,
-        createdAt: serverTimestamp(),
-        expireAt: new Date(Date.now() + 60 * 60 * 1000),
-      });
-      setRoomId(code);
-    } catch (e) {
-      setError("Błąd testu: " + e.message);
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -1879,126 +1732,6 @@ export default function App() {
     }
   }
 
-  const brokenLinkFiredRef = useRef(null);
-  // Wywoływane, gdy YouTube zgłosi błąd wczytania filmu (usunięty/prywatny/
-  // wyłączone osadzanie). Wymiana karty przez transakcję z zabezpieczeniem —
-  // jeśli kilku graczy wykryje to jednocześnie, tylko pierwsza próba coś zrobi.
-  async function handleBrokenLink(card) {
-    if (!room || !roomId || !card) return;
-    if (brokenLinkFiredRef.current === card.id) return;
-    brokenLinkFiredRef.current = card.id;
-    try {
-      const ref = doc(db, "rooms", roomId);
-      let swapped = false;
-      await runTransaction(db, async (tx) => {
-        const snap = await tx.get(ref);
-        const data = snap.data();
-        if (data.status !== "playing") return; // po fazie decyzji już za późno na wymianę
-        if (!data.currentCard || data.currentCard.id !== card.id) return; // ktoś już to obsłużył
-        if (data.deckIndex >= data.deck.length) return; // brak zapasu w talii — zostawiamy jak jest
-        swapped = true;
-        tx.update(ref, {
-          currentCard: data.deck[data.deckIndex],
-          deckIndex: data.deckIndex + 1,
-          startSeconds: randomStartSeconds(),
-          turnStartedAt: serverTimestamp(),
-        });
-      });
-      if (swapped) {
-        logBrokenLink(card).catch(() => {});
-        setBrokenLinkNotice(card);
-        setTimeout(() => setBrokenLinkNotice(null), 4000);
-      }
-    } catch (e) {
-      // ciche niepowodzenie — gracz może ręcznie skorzystać z wymiany za token
-    }
-  }
-
-  // Ładujemy oficjalne IFrame API YouTube RAZ — potrzebne wyłącznie do
-  // formalnego "zarejestrowania się" jako słuchacz zdarzeń (onError).
-  // Sterowanie odtwarzaniem (play/pauza/przewijanie) zostaje bez zmian —
-  // to już działa i go nie ruszamy, dokładamy tylko nasłuch błędów obok.
-  const ytApiReadyRef = useRef(false);
-  useEffect(() => {
-    if (window.YT && window.YT.Player) {
-      ytApiReadyRef.current = true;
-      return;
-    }
-    if (document.getElementById("youtube-iframe-api-script")) return;
-    const tag = document.createElement("script");
-    tag.id = "youtube-iframe-api-script";
-    tag.src = "https://www.youtube.com/iframe_api";
-    document.head.appendChild(tag);
-    window.onYouTubeIframeAPIReady = () => {
-      ytApiReadyRef.current = true;
-    };
-  }, []);
-
-  // Wykrywanie zepsutych linków — CAŁKOWICIE OSOBNY, ukryty i zawsze wyciszony
-  // "testowy" odtwarzacz, niezależny od tego, co faktycznie słychać. Prawdziwy
-  // odtwarzacz (iframeRef) NIE jest już owijany oficjalnym YT.Player — wraca
-  // do starego, sprawdzonego sterowania surowym postMessage, które nie
-  // aktywowało systemowego powiadomienia z prawdziwym tytułem utworu.
-  const ytValidatorRef = useRef(null);
-  useEffect(() => {
-    if (screen !== "playing" || !room?.currentCard) return;
-    let cancelled = false;
-    let attempts = 0;
-    const tryAttach = () => {
-      if (cancelled) return;
-      if (!window.YT || !window.YT.Player || !document.getElementById("broken-link-validator")) {
-        attempts++;
-        if (attempts < 40) setTimeout(tryAttach, 250);
-        return;
-      }
-      try {
-        if (ytValidatorRef.current) {
-          ytValidatorRef.current.destroy?.();
-          ytValidatorRef.current = null;
-        }
-        ytValidatorRef.current = new window.YT.Player("broken-link-validator", {
-          videoId: room.currentCard.videoId,
-          playerVars: { autoplay: 1, mute: 1, controls: 0 },
-          events: {
-            onError: () => handleBrokenLink(room.currentCard),
-          },
-        });
-      } catch (e) {
-        // ciche niepowodzenie — automatyczne wykrywanie po prostu nie zadziała tym razem
-      }
-    };
-    tryAttach();
-    return () => {
-      cancelled = true;
-    };
-  }, [screen, room?.currentCard?.id]);
-
-
-  // KRYTYCZNE zabezpieczenie przed spoilerem: samo załadowanie oficjalnego
-  // odtwarzacza YouTube (potrzebne do wykrywania zepsutych linków) sprawia,
-  // że telefon pokazuje w powiadomieniu multimedialnym prawdziwy tytuł i
-  // wykonawcę utworu — psując grę. Nadpisujemy to na okrągło neutralną
-  // informacją, dopóki karta nie została jeszcze ujawniona.
-  useEffect(() => {
-    if (!("mediaSession" in navigator)) return;
-    if (screen !== "playing" && screen !== "opener") return;
-    const applyGenericMetadata = () => {
-      try {
-        navigator.mediaSession.metadata = new window.MediaMetadata({
-          title: "Hitsteriada",
-          artist: "🎵 zgadnij zanim zobaczysz odpowiedź!",
-          album: "",
-          artwork: [{ src: logoImg, sizes: "512x512", type: "image/png" }],
-        });
-      } catch (e) {
-        // ciche niepowodzenie — w najgorszym razie powiadomienie pokaże coś nieidealnego
-      }
-    };
-    applyGenericMetadata();
-    const id = setInterval(applyGenericMetadata, 700);
-    return () => clearInterval(id);
-  }, [screen, room?.currentCard?.id, room?.openerCard?.id]);
-
   async function swapSong() {
     if (!room || (room.tokens?.[playerId] || 0) < SWAP_SONG_TOKENS) return;
     setBusy(true);
@@ -2242,10 +1975,6 @@ export default function App() {
         padding: "32px 16px 64px",
       }}
     >
-      {/* Osobny, zawsze ukryty i wyciszony odtwarzacz-tester do wykrywania
-          zepsutych linków — nigdy nie jest tym, co gracze faktycznie słyszą. */}
-      <div id="broken-link-validator" style={{ position: "fixed", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none", top: -9999 }} />
-
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap');
         :root {
@@ -2722,116 +2451,6 @@ export default function App() {
               )}
             </section>
 
-            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
-              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>
-                🚨 Zgłoszone uszkodzone linki
-              </p>
-              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
-                Gra sama wykrywa, gdy YouTube nie może wczytać filmu (usunięty/prywatny/wyłączone osadzanie), automatycznie losuje nową kartę i zapisuje to tutaj do przejrzenia.
-              </p>
-              <button
-                onClick={() => {
-                  setShowBrokenLinkReports((v) => !v);
-                  if (!brokenLinkReports) loadBrokenLinkReports();
-                }}
-                className="px-4 py-2 rounded-lg text-sm font-bold"
-                style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
-              >
-                {showBrokenLinkReports ? "Ukryj" : "Pokaż zgłoszenia"} {brokenLinkReports ? `(${brokenLinkReports.length})` : ""}
-              </button>
-              {showBrokenLinkReports && (
-                <div className="flex flex-col gap-2 mt-3">
-                  {!brokenLinkReports ? (
-                    <p style={{ fontSize: 12, color: "var(--muted)" }}>Ładowanie…</p>
-                  ) : brokenLinkReports.length === 0 ? (
-                    <p style={{ fontSize: 12, color: "var(--muted)" }}>Brak zgłoszeń — nic nie zawiodło (jeszcze 🙂).</p>
-                  ) : (
-                    brokenLinkReports.map((r) => (
-                      <div key={r.id} className="rounded-lg p-3" style={{ background: "var(--surface2)" }}>
-                        {brokenLinkEditingId === r.id ? (
-                          <div className="flex flex-col gap-2">
-                            <div className="flex gap-2 flex-wrap">
-                              <input type="text" value={brokenLinkEditDraft.artist} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, artist: e.target.value })} className="flex-1" style={{ minWidth: 100 }} placeholder="Wykonawca" />
-                              <input type="text" value={brokenLinkEditDraft.title} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, title: e.target.value })} className="flex-1" style={{ minWidth: 100 }} placeholder="Tytuł" />
-                            </div>
-                            <input type="text" value={brokenLinkEditDraft.url} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, url: e.target.value })} placeholder="Nowy link YouTube" />
-                            <div className="flex gap-2 flex-wrap">
-                              <input type="number" value={brokenLinkEditDraft.year} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, year: e.target.value })} style={{ width: 90 }} placeholder="Rok" />
-                              <input type="text" value={brokenLinkEditDraft.categoriesText} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, categoriesText: e.target.value })} placeholder="kategorie;po;średniku" className="flex-1" style={{ minWidth: 140 }} />
-                            </div>
-                            <div className="flex gap-2">
-                              <button onClick={() => handleSaveBrokenLinkEdit(r)} disabled={brokenLinkBusy} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: "var(--good)", color: "#0d1f1a" }}>
-                                <Save size={12} /> Zapisz (odrzuci zgłoszenie)
-                              </button>
-                              <button onClick={() => setBrokenLinkEditingId(null)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs" style={{ border: "1px solid #33294f", color: "var(--muted)" }}>
-                                <X size={12} /> Anuluj
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <div>
-                            <p style={{ fontSize: 13 }}>
-                              <strong>{r.artist}</strong> — {r.title} {r.year ? `(${r.year})` : ""}
-                            </p>
-                            <a
-                              href={`https://www.youtube.com/watch?v=${r.videoId}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{ fontSize: 10, color: "var(--accent)" }}
-                            >
-                              sprawdź na YouTube ↗
-                            </a>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => {
-                                setBrokenLinkEditingId(r.id);
-                                setBrokenLinkEditDraft({
-                                  artist: r.artist,
-                                  title: r.title,
-                                  year: r.year || "",
-                                  url: `https://www.youtube.com/watch?v=${r.videoId}`,
-                                  categoriesText: "",
-                                });
-                              }}
-                              style={{ color: "var(--accent)" }}
-                              title="Edytuj link"
-                            >
-                              <Pencil size={16} />
-                            </button>
-                            <button onClick={() => handleDeleteBrokenSong(r)} disabled={brokenLinkBusy} style={{ color: "var(--bad)" }} title="Usuń z bazy">
-                              <Trash2 size={16} />
-                            </button>
-                            <button onClick={() => handleDismissBrokenLink(r.id)} disabled={brokenLinkBusy} style={{ color: "var(--muted)" }} title="Odrzuć zgłoszenie">
-                              <X size={16} />
-                            </button>
-                          </div>
-                        </div>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </section>
-
-            <section className="w-full rounded-2xl p-4" style={{ background: "rgba(255,184,32,0.08)", border: "1px solid var(--gold)" }}>
-              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--gold)", marginBottom: 8 }}>
-                🧪 Test wykrywania zepsutego linku (tymczasowe)
-              </p>
-              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
-                Startuje sesję Treningu z jedną celowo zepsutą kartą jako pierwszą — sprawdź, czy pojawia się komunikat i czy karta wymienia się automatycznie.
-              </p>
-              <button
-                onClick={testBrokenLinkDetection}
-                disabled={busy}
-                className="px-4 py-2 rounded-lg text-sm font-bold"
-                style={{ background: "var(--gold)", color: "#2a1a00" }}
-              >
-                Uruchom test
-              </button>
-            </section>
 
             <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
               <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>📥 Import z CSV (masowo)</p>
@@ -3895,28 +3514,6 @@ export default function App() {
               </div>
             )}
           </div>
-        </div>
-      )}
-
-      {brokenLinkNotice && (
-        <div
-          style={{
-            position: "fixed",
-            top: 16,
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 96,
-            textAlign: "center",
-            padding: "10px 18px",
-            borderRadius: 12,
-            background: "var(--surface)",
-            border: "1px solid var(--bad)",
-            color: "var(--text)",
-            fontSize: 12,
-            maxWidth: "90%",
-          }}
-        >
-          ⚠ Ten utwór nie mógł się załadować — losujemy nowy.
         </div>
       )}
 
