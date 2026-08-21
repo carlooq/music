@@ -144,7 +144,7 @@ const SlotButton = memo(function SlotButton({ index, chosen, onPick, label }) {
   );
 });
 
-const TimelineCard = memo(function TimelineCard({ year, title, artist, onHold, onRelease }) {
+const TimelineCard = memo(function TimelineCard({ year, title, artist, onHold, onRelease, highlight }) {
   const timerRef = useRef(null);
   const start = () => {
     timerRef.current = setTimeout(() => {
@@ -163,7 +163,15 @@ const TimelineCard = memo(function TimelineCard({ year, title, artist, onHold, o
       onTouchStart={start}
       onTouchEnd={cancel}
       className="rounded-lg flex flex-col items-center justify-center text-center px-3 select-none"
-      style={{ width: 92, height: 60, background: "var(--surface2)", border: "1px solid #33294f", cursor: "pointer", touchAction: "manipulation" }}
+      style={{
+        width: 92,
+        height: 60,
+        background: highlight ? `${highlight}22` : "var(--surface2)",
+        border: `1px solid ${highlight || "#33294f"}`,
+        boxShadow: highlight ? `0 0 12px -2px ${highlight}` : undefined,
+        cursor: "pointer",
+        touchAction: "manipulation",
+      }}
     >
       <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: "var(--accent)" }}>{year}</span>
       <span style={{ fontSize: 9, color: "var(--muted)", lineHeight: 1.1, marginTop: 2 }}>
@@ -1561,7 +1569,7 @@ export default function App() {
         if (hasGuess && players.length > 1) {
           tx.update(ref, {
             status: "voting",
-            lastResult: { correct, card },
+            lastResult: { correct, card, chosenSlot },
             timelines: newTimelines,
             pendingGuess: { artist, title },
             votes: {},
@@ -1580,7 +1588,7 @@ export default function App() {
           if (hasGuess) capturedResult.newGuessStreak = newGuessStreak;
           tx.update(ref, {
             status: "roundResult",
-            lastResult: { correct, card, tokenAwarded: hasGuess },
+            lastResult: { correct, card, tokenAwarded: hasGuess, chosenSlot },
             timelines: newTimelines,
             pendingGuess: null,
             resultAt: serverTimestamp(),
@@ -3224,6 +3232,37 @@ export default function App() {
                     </p>
                   )}
                 </div>
+
+                {(() => {
+                  if (room.lastResult.timedOut) return null;
+                  const ownerId = room.currentPlayerId;
+                  const ownerTimeline = [...(room.timelines[ownerId] || [])].sort((a, b) => a.year - b.year);
+                  const hasGhost = !room.lastResult.correct && room.lastResult.chosenSlot !== undefined && room.lastResult.chosenSlot !== null;
+                  const displayCards = hasGhost
+                    ? (() => {
+                        const withGhost = [...ownerTimeline];
+                        withGhost.splice(room.lastResult.chosenSlot, 0, { ...room.lastResult.card, __ghost: true });
+                        return withGhost;
+                      })()
+                    : ownerTimeline;
+                  if (!displayCards.length) return null;
+                  const ownerName = room.players.find((p) => p.id === ownerId)?.name;
+                  return (
+                    <div className="w-full">
+                      <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase", marginBottom: 8, textAlign: "center" }}>
+                        Oś czasu gracza {ownerName}
+                      </p>
+                      <div className="flex flex-wrap items-center justify-center gap-2">
+                        {displayCards.map((c, i) => {
+                          const isPlacedCard = !c.__ghost && room.lastResult.correct && c.videoId === room.lastResult.card.videoId && c.year === room.lastResult.card.year;
+                          const highlight = c.__ghost ? "var(--bad)" : isPlacedCard ? "var(--good)" : null;
+                          return <TimelineCard key={c.__ghost ? "ghost" : c.id || i} year={c.year} title={c.title} artist={c.artist} highlight={highlight} />;
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <p style={{ color: "var(--muted)", fontSize: 13 }}>
                   Kolejny gracz za {advanceCountdown ?? 5}…
                 </p>
