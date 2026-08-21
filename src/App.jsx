@@ -23,6 +23,16 @@ import logoImg from "./assets/logo-v2.png";
 // 👉 PODMIEŃ TO NA SWOJE WŁASNE HASŁO trybu admina
 const ADMIN_PASSWORD = "zmien-to-haslo-123";
 
+// Bezpieczna konwersja znacznika czasu z serwera Firestore na milisekundy.
+// Zwraca null, jeśli zapis jeszcze nie doszedł do serwera (chwilowy stan
+// tylko u klienta, który właśnie zapisał — reszta graczy tego nie widzi).
+function toMillis(ts) {
+  if (!ts) return null;
+  if (typeof ts === "number") return ts;
+  if (typeof ts.toMillis === "function") return ts.toMillis();
+  return null;
+}
+
 const CATEGORIES = [
   { slug: "najwieksze-hity", label: "Największe Hity" },
   { slug: "polskie", label: "Polskie" },
@@ -656,12 +666,16 @@ export default function App() {
     setViewingPlayer({ uid: p.uid, username: p.username, stats: s });
   }
 
+  const lastSnapshotAtRef = useRef(Date.now());
+  const [connectionStale, setConnectionStale] = useState(false);
   useEffect(() => {
     if (!roomId) return;
     const ref = doc(db, "rooms", roomId);
     const unsub = onSnapshot(
       ref,
       (snap) => {
+        lastSnapshotAtRef.current = Date.now();
+        setConnectionStale(false);
         if (!snap.exists()) {
           setError("Ten pokój przestał istnieć.");
           setRoom(null);
@@ -676,6 +690,16 @@ export default function App() {
     return () => unsub();
   }, [roomId]);
 
+  // wskaźnik słabego połączenia — jeśli od dawna nie przyszła żadna aktualizacja
+  // z Firestore, pokazujemy to graczowi zamiast ciszy wyglądającej jak awaria
+  useEffect(() => {
+    if (!roomId) return;
+    const id = setInterval(() => {
+      setConnectionStale(Date.now() - lastSnapshotAtRef.current > 6000);
+    }, 1500);
+    return () => clearInterval(id);
+  }, [roomId]);
+
   // reset local per-round UI whenever the shared card changes
   const timeoutFiredRef = useRef(false);
   useEffect(() => {
@@ -686,18 +710,26 @@ export default function App() {
     setGuessTitle("");
     timeoutFiredRef.current = false;
     if (playIntervalRef.current) clearInterval(playIntervalRef.current);
-  }, [room?.currentCard?.id, room?.openerCreatedAt, room?.openerWinnerId]);
+  }, [room?.currentCard?.id, toMillis(room?.openerCreatedAt), room?.openerWinnerId]);
 
-  // 60s total decision timer, driven off the shared turnDeadline so every
-  // client (and especially the active player) sees the same countdown.
+  // 60s total decision timer, liczony od serwerowego znacznika turnStartedAt
+  // (nie zegara żadnego konkretnego telefonu — eliminuje rozjazdy między urządzeniami).
+  // Mechanizm awaryjny: jeśli aktywny gracz nie zdąży (zablokowany ekran,
+  // karta w tle), dowolny inny gracz wymusza timeout po dodatkowym czasie.
   useEffect(() => {
     if (decisionIntervalRef.current) clearInterval(decisionIntervalRef.current);
-    if (screen !== "playing" || !room?.turnDeadline) return;
+    const turnStartedAtMs = toMillis(room?.turnStartedAt);
+    if (screen !== "playing" || !turnStartedAtMs) return;
+    const turnDeadlineMs = turnStartedAtMs + DECISION_SECONDS * 1000;
 
+    const FALLBACK_EXTRA_MS = 8000;
+    const isResponsible = room.currentPlayerId === playerId;
     const tick = () => {
-      const left = Math.max(0, Math.ceil((room.turnDeadline - Date.now()) / 1000));
+      const msLeft = turnDeadlineMs - Date.now();
+      const left = Math.max(0, Math.ceil(msLeft / 1000));
       setDecisionLeft(left);
-      if (left <= 0 && room.currentPlayerId === playerId && !timeoutFiredRef.current) {
+      const shouldFire = isResponsible ? msLeft <= 0 : msLeft <= -FALLBACK_EXTRA_MS;
+      if (shouldFire && !timeoutFiredRef.current) {
         timeoutFiredRef.current = true;
         handleTimeout();
       }
@@ -705,70 +737,80 @@ export default function App() {
     tick();
     decisionIntervalRef.current = setInterval(tick, 500);
     return () => clearInterval(decisionIntervalRef.current);
-  }, [screen, room?.turnDeadline, room?.currentPlayerId]);
+  }, [screen, toMillis(room?.turnStartedAt), room?.currentPlayerId]);
 
   // automatyczne przejście do kolejnej tury po wyniku rundy (licznik 3-2-1);
-  // triggeruje tylko klient gracza, którego tura się właśnie kończy
+  // normalnie robi to klient gracza, którego tura się kończy — ale gdyby jego
+  // urządzenie akurat "zasnęło" (zablokowany ekran, karta w tle), dowolny
+  // inny gracz przejmuje to po dłuższym czasie oczekiwania (mechanizm awaryjny)
   const advanceFiredRef = useRef(null);
   const [advanceCountdown, setAdvanceCountdown] = useState(null);
   useEffect(() => {
-    if (screen !== "roundResult" || !room?.resultAt) {
+    const resultAtMs = toMillis(room?.resultAt);
+    if (screen !== "roundResult" || !resultAtMs) {
       setAdvanceCountdown(null);
       return;
     }
     const ADVANCE_SECONDS = 5;
+    const FALLBACK_EXTRA_MS = 8000; // dodatkowy czas, zanim ktoś inny przejmie
+    const isResponsible = room.currentPlayerId === playerId;
     const tick = () => {
-      const left = Math.max(0, ADVANCE_SECONDS - (Date.now() - room.resultAt) / 1000);
+      const elapsedMs = Date.now() - resultAtMs;
+      const left = Math.max(0, ADVANCE_SECONDS - elapsedMs / 1000);
       setAdvanceCountdown(Math.ceil(left));
-      if (left <= 0 && room.currentPlayerId === playerId && advanceFiredRef.current !== room.resultAt) {
-        advanceFiredRef.current = room.resultAt;
+      const shouldFire = isResponsible ? left <= 0 : elapsedMs >= ADVANCE_SECONDS * 1000 + FALLBACK_EXTRA_MS;
+      if (shouldFire && advanceFiredRef.current !== resultAtMs) {
+        advanceFiredRef.current = resultAtMs;
         nextRound();
       }
     };
     tick();
     const id = setInterval(tick, 200);
     return () => clearInterval(id);
-  }, [screen, room?.resultAt, room?.currentPlayerId, room?.lastResult?.correct]);
+  }, [screen, toMillis(room?.resultAt), room?.currentPlayerId, room?.lastResult?.correct]);
 
   // 20s na głosowanie — kto nie zdąży zagłosować, liczy się jako "TAK";
   // każdy klient odpowiada tylko za swój własny (domyślny) głos
   const votingAutoVoteFiredRef = useRef(null);
   const [votingCountdown, setVotingCountdown] = useState(null);
   useEffect(() => {
-    if (screen !== "voting" || !room?.votingDeadline) {
+    const votingStartedAtMs = toMillis(room?.votingStartedAt);
+    if (screen !== "voting" || !votingStartedAtMs) {
       setVotingCountdown(null);
       return;
     }
+    const votingDeadlineMs = votingStartedAtMs + VOTING_SECONDS * 1000;
     const tick = () => {
-      const left = Math.max(0, Math.ceil((room.votingDeadline - Date.now()) / 1000));
+      const left = Math.max(0, Math.ceil((votingDeadlineMs - Date.now()) / 1000));
       setVotingCountdown(left);
       const alreadyVoted = room.votes?.[playerId] !== undefined;
       if (
         left <= 0 &&
         playerId !== room.currentPlayerId &&
         !alreadyVoted &&
-        votingAutoVoteFiredRef.current !== room.votingDeadline
+        votingAutoVoteFiredRef.current !== votingStartedAtMs
       ) {
-        votingAutoVoteFiredRef.current = room.votingDeadline;
+        votingAutoVoteFiredRef.current = votingStartedAtMs;
         castVote(true);
       }
     };
     tick();
     const id = setInterval(tick, 300);
     return () => clearInterval(id);
-  }, [screen, room?.votingDeadline, room?.currentPlayerId, room?.votes, playerId]);
+  }, [screen, toMillis(room?.votingStartedAt), room?.currentPlayerId, room?.votes, playerId]);
 
   // dźwięk trafienia/pudła (i braw przy zaliczonym zgadywaniu) — leci
   // u każdego gracza w chwili ujawnienia wyniku rundy
   const soundPlayedRef = useRef(null);
   useEffect(() => {
-    if (screen !== "roundResult" || !room?.resultAt) return;
-    if (soundPlayedRef.current === room.resultAt) return;
-    soundPlayedRef.current = room.resultAt;
+    const resultAtMs = toMillis(room?.resultAt);
+    if (screen !== "roundResult" || !resultAtMs) return;
+    if (soundPlayedRef.current === resultAtMs) return;
+    soundPlayedRef.current = resultAtMs;
     if (room.lastResult?.correct) playCorrectSound();
     else playWrongSound();
     if (room.lastResult?.tokenAwarded) setTimeout(() => playApplause(), 250);
-  }, [screen, room?.resultAt]);
+  }, [screen, toMillis(room?.resultAt)]);
 
   // minigra "kto zaczyna": 3s odliczanie na pełnym ekranie, muzyka odtwarza
   // się automatycznie wszystkim, 20s na odpowiedź; jeśli nikt nie trafi,
@@ -785,12 +827,13 @@ export default function App() {
 
   useEffect(() => {
     setOpenerLockedOut(false);
-  }, [room?.openerCreatedAt]);
+  }, [toMillis(room?.openerCreatedAt)]);
 
   useEffect(() => {
-    if (screen !== "opener" || !room?.openerCreatedAt) return;
+    const openerCreatedAtMs = toMillis(room?.openerCreatedAt);
+    if (screen !== "opener" || !openerCreatedAtMs) return;
     const tick = () => {
-      const elapsed = Date.now() - room.openerCreatedAt;
+      const elapsed = Date.now() - openerCreatedAtMs;
       setOpenerPhase(elapsed < OPENER_COUNTDOWN_MS ? "countdown" : "answering");
       setOpenerCountdownNum(Math.max(1, Math.ceil((OPENER_COUNTDOWN_MS - elapsed) / 1000)));
       const isHostNow = room.hostId === playerId;
@@ -798,9 +841,9 @@ export default function App() {
         isHostNow &&
         !room.openerWinnerId &&
         elapsed >= OPENER_COUNTDOWN_MS + OPENER_ANSWER_MS &&
-        openerFallbackFiredRef.current !== room.openerCreatedAt
+        openerFallbackFiredRef.current !== openerCreatedAtMs
       ) {
-        openerFallbackFiredRef.current = room.openerCreatedAt;
+        openerFallbackFiredRef.current = openerCreatedAtMs;
         (async () => {
           try {
             const ref = doc(db, "rooms", roomId);
@@ -810,7 +853,7 @@ export default function App() {
               if (data.status !== "opener" || data.openerWinnerId) return;
               tx.update(ref, {
                 openerWinnerId: data.hostId,
-                openerResolvedAt: Date.now(),
+                openerResolvedAt: serverTimestamp(),
               });
             });
           } catch (e) {
@@ -822,31 +865,32 @@ export default function App() {
     tick();
     const id = setInterval(tick, 300);
     return () => clearInterval(id);
-  }, [screen, room?.openerCreatedAt, room?.openerWinnerId, room?.hostId, roomId, playerId]);
+  }, [screen, toMillis(room?.openerCreatedAt), room?.openerWinnerId, room?.hostId, roomId, playerId]);
 
   // po wyłonieniu zwycięzcy minigry: pokazujemy wynik przez 5s (5 4 3 2 1),
   // a klient zwycięzcy finalizuje przejście do właściwej gry
   useEffect(() => {
-    if (screen !== "opener" || !room?.openerWinnerId || !room?.openerResolvedAt) {
+    const openerResolvedAtMs = toMillis(room?.openerResolvedAt);
+    if (screen !== "opener" || !room?.openerWinnerId || !openerResolvedAtMs) {
       setOpenerRevealCountdown(null);
       return;
     }
     const tick = () => {
-      const left = Math.max(0, OPENER_REVEAL_MS - (Date.now() - room.openerResolvedAt)) / 1000;
+      const left = Math.max(0, OPENER_REVEAL_MS - (Date.now() - openerResolvedAtMs)) / 1000;
       setOpenerRevealCountdown(Math.ceil(left));
       if (
         left <= 0 &&
         playerId === room.openerWinnerId &&
-        openerFinalizeFiredRef.current !== room.openerResolvedAt
+        openerFinalizeFiredRef.current !== openerResolvedAtMs
       ) {
-        openerFinalizeFiredRef.current = room.openerResolvedAt;
+        openerFinalizeFiredRef.current = openerResolvedAtMs;
         finalizeOpenerStart();
       }
     };
     tick();
     const id = setInterval(tick, 200);
     return () => clearInterval(id);
-  }, [screen, room?.openerWinnerId, room?.openerResolvedAt, playerId]);
+  }, [screen, room?.openerWinnerId, toMillis(room?.openerResolvedAt), playerId]);
 
 
   useEffect(() => {
@@ -919,8 +963,7 @@ export default function App() {
         startingPlayerId: playerId,
         currentCard: deck[1],
         startSeconds: randomStartSeconds(),
-        turnDeadline: Date.now() + DECISION_SECONDS * 1000,
-        turnStartedAt: Date.now(),
+        turnStartedAt: serverTimestamp(),
         timelines: { [playerId]: [deck[0]] },
         tokens: { [playerId]: 0 },
         lastResult: null,
@@ -1054,7 +1097,7 @@ export default function App() {
         openerOptions,
         openerCorrectIndex,
         openerStartSeconds: randomStartSeconds(),
-        openerCreatedAt: Date.now(),
+        openerCreatedAt: serverTimestamp(),
         openerWinnerId: null,
         decisionTimes: {},
         gameStreaks: {},
@@ -1079,7 +1122,7 @@ export default function App() {
         if (index !== data.openerCorrectIndex) return; // zła odpowiedź — nikt nie wygrywa
         tx.update(ref, {
           openerWinnerId: playerId,
-          openerResolvedAt: Date.now(),
+          openerResolvedAt: serverTimestamp(),
         });
       });
     } catch (e) {
@@ -1100,8 +1143,7 @@ export default function App() {
           status: "playing",
           currentPlayerId: data.openerWinnerId,
           startingPlayerId: data.openerWinnerId,
-          turnDeadline: Date.now() + DECISION_SECONDS * 1000,
-          turnStartedAt: Date.now(),
+          turnStartedAt: serverTimestamp(),
         });
       });
     } catch (e) {
@@ -1155,6 +1197,7 @@ export default function App() {
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
+        if (data.status !== "playing") return; // runda już się rozstrzygnęła (np. timeout) — nie dokładamy karty drugi raz
         const timeline = data.timelines[data.currentPlayerId] || [];
         const sorted = [...timeline].sort((a, b) => a.year - b.year);
         const before = sorted[chosenSlot - 1];
@@ -1166,7 +1209,7 @@ export default function App() {
         capturedResult = { correct, card, practiceMode: !!data.practiceMode };
 
         // podsumowanie gry: czas decyzji, seria trafień, playlista wieczoru
-        const elapsed = Date.now() - (data.turnStartedAt || Date.now());
+        const elapsed = Date.now() - (toMillis(data.turnStartedAt) || Date.now());
         const newDecisionTimes = { ...(data.decisionTimes || {}) };
         newDecisionTimes[data.currentPlayerId] = [...(newDecisionTimes[data.currentPlayerId] || []), elapsed];
         const prevStreak = data.gameStreaks?.[data.currentPlayerId] || 0;
@@ -1191,7 +1234,7 @@ export default function App() {
             pendingGuess: { artist, title },
             votes: {},
             requiredApprovals: requiredApprovals(players.length),
-            votingDeadline: Date.now() + VOTING_SECONDS * 1000,
+            votingStartedAt: serverTimestamp(),
             resultAt: null,
             ...summaryFields,
           });
@@ -1203,7 +1246,7 @@ export default function App() {
             lastResult: { correct, card, tokenAwarded: hasGuess },
             timelines: newTimelines,
             pendingGuess: null,
-            resultAt: Date.now(),
+            resultAt: serverTimestamp(),
             ...summaryFields,
             ...(hasGuess ? { [`tokens.${data.currentPlayerId}`]: increment(1) } : {}),
           });
@@ -1230,6 +1273,7 @@ export default function App() {
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
+        if (data.status !== "playing") return; // runda już się rozstrzygnęła — bez sensu kupować kartę do minionej tury
         if ((data.tokens?.[data.currentPlayerId] || 0) < BUY_CARD_TOKENS) return;
         if (data.deckIndex >= data.deck.length) return; // brak kart w talii do kupienia
 
@@ -1297,7 +1341,7 @@ export default function App() {
             status: "roundResult",
             votes: newVotes,
             lastResult: { ...data.lastResult, tokenAwarded: true },
-            resultAt: Date.now(),
+            resultAt: serverTimestamp(),
             [`tokens.${data.currentPlayerId}`]: increment(1),
           });
         } else if (approvals + remaining < required) {
@@ -1305,7 +1349,7 @@ export default function App() {
             status: "roundResult",
             votes: newVotes,
             lastResult: { ...data.lastResult, tokenAwarded: false },
-            resultAt: Date.now(),
+            resultAt: serverTimestamp(),
           });
         } else {
           tx.update(ref, { votes: newVotes });
@@ -1335,7 +1379,7 @@ export default function App() {
           currentCard: data.deck[data.deckIndex],
           deckIndex: data.deckIndex + 1,
           startSeconds: randomStartSeconds(),
-          turnDeadline: Date.now() + DECISION_SECONDS * 1000,
+          turnStartedAt: serverTimestamp(),
           [`tokens.${data.currentPlayerId}`]: increment(-SWAP_SONG_TOKENS),
         });
       });
@@ -1358,7 +1402,7 @@ export default function App() {
         const card = data.currentCard;
         capturedCard = card;
         capturedPracticeMode = !!data.practiceMode;
-        const elapsed = Date.now() - (data.turnStartedAt || Date.now());
+        const elapsed = Date.now() - (toMillis(data.turnStartedAt) || Date.now());
         const newDecisionTimes = { ...(data.decisionTimes || {}) };
         newDecisionTimes[data.currentPlayerId] = [...(newDecisionTimes[data.currentPlayerId] || []), elapsed];
         const newPlayedCards = [...(data.playedCards || []), { ...card, correct: false, playerId: data.currentPlayerId, timedOut: true }];
@@ -1366,7 +1410,7 @@ export default function App() {
           status: "roundResult",
           lastResult: { correct: false, card, timedOut: true },
           pendingGuess: null,
-          resultAt: Date.now(),
+          resultAt: serverTimestamp(),
           decisionTimes: newDecisionTimes,
           [`gameStreaks.${data.currentPlayerId}`]: 0,
           playedCards: newPlayedCards,
@@ -1388,6 +1432,7 @@ export default function App() {
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
+        if (data.status !== "roundResult") return; // ktoś już zdążył przejść dalej
         const players = data.players;
         const idx = players.findIndex((p) => p.id === data.currentPlayerId);
         const nextIdx = (idx + 1) % players.length;
@@ -1439,8 +1484,7 @@ export default function App() {
           currentCard: data.deck[data.deckIndex],
           deckIndex: data.deckIndex + 1,
           startSeconds: randomStartSeconds(),
-          turnDeadline: Date.now() + DECISION_SECONDS * 1000,
-          turnStartedAt: Date.now(),
+          turnStartedAt: serverTimestamp(),
           lastResult: null,
           pendingGuess: null,
           votes: {},
@@ -2829,6 +2873,26 @@ export default function App() {
             <p style={{ fontSize: 14, color: "var(--muted)", marginTop: 2 }}>„{heldCard.title}"</p>
             <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 10 }}>(kliknij poza kartą, żeby zamknąć)</p>
           </div>
+        </div>
+      )}
+
+      {connectionStale && roomId && screen !== "home" && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 95,
+            textAlign: "center",
+            padding: "8px 12px",
+            background: "var(--bad)",
+            color: "#2a0a12",
+            fontSize: 12,
+            fontWeight: "bold",
+          }}
+        >
+          ⚠ Słabe połączenie — czekam na aktualizację stanu gry…
         </div>
       )}
 
