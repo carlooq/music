@@ -15,7 +15,7 @@ import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId } from "./
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
 import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard } from "./stats.js";
-import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, applyCategoryPatchToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss } from "./songsDb.js";
+import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
 import { playCorrectSound, playWrongSound, playApplause, unlockAudio } from "./sounds.js";
 import { Play, Music4, Trophy, RotateCcw, Users, ChevronRight, Copy, Check, LogIn, LogOut, BarChart3, Flame, Crown, Shield, Search, Trash2, Pencil, Save, X, MessageCircle, Send } from "lucide-react";
@@ -260,6 +260,8 @@ export default function App() {
   const [brokenLinkReports, setBrokenLinkReports] = useState(null);
   const [showBrokenLinkReports, setShowBrokenLinkReports] = useState(false);
   const [brokenLinkBusy, setBrokenLinkBusy] = useState(false);
+  const [brokenLinkEditingId, setBrokenLinkEditingId] = useState(null);
+  const [brokenLinkEditDraft, setBrokenLinkEditDraft] = useState({});
   const [cleanupProgress, setCleanupProgress] = useState(null);
 
   const [showProposeForm, setShowProposeForm] = useState(false);
@@ -556,22 +558,6 @@ export default function App() {
     }
   }
 
-  async function handleApplyCategoryPatch() {
-    if (!window.confirm("Dograć kategorie do istniejących utworów w bazie (na podstawie zapisanej wcześniej analizy)? Nadpisze kategorie tam, gdzie już są dopasowania.")) return;
-    setAdminBusy(true);
-    setMigrateProgress({ done: 0, total: 1 });
-    try {
-      const written = await applyCategoryPatchToDb((done, total) => setMigrateProgress({ done, total }));
-      refreshLibrary();
-      alert(`Zaktualizowano kategorie dla ${written} utworów.`);
-    } catch (e) {
-      setError("Błąd wgrywania kategorii: " + e.message);
-    } finally {
-      setAdminBusy(false);
-      setMigrateProgress(null);
-    }
-  }
-
   async function handleImportCsv() {
     if (!importCsvText.trim()) return;
     setImportBusy(true);
@@ -650,6 +636,37 @@ export default function App() {
       if (!found) alert("Nie znaleziono tego utworu w bazie (mógł już zostać usunięty) — samo zgłoszenie odrzucono.");
     } catch (e) {
       setError("Błąd usuwania utworu: " + e.message);
+    } finally {
+      setBrokenLinkBusy(false);
+    }
+  }
+
+  async function handleSaveBrokenLinkEdit(report) {
+    const videoId = getYouTubeId(brokenLinkEditDraft.url);
+    if (!videoId) {
+      setError("Podany link YouTube wygląda na niepoprawny.");
+      return;
+    }
+    setBrokenLinkBusy(true);
+    try {
+      const categories = (brokenLinkEditDraft.categoriesText || "").split(";").map((c) => c.trim()).filter(Boolean);
+      const fields = {
+        artist: brokenLinkEditDraft.artist,
+        title: brokenLinkEditDraft.title,
+        year: parseInt(brokenLinkEditDraft.year, 10),
+        videoId,
+        categories,
+      };
+      const updated = await updateBrokenSongAndDismiss(report.id, report.videoId, fields);
+      setBrokenLinkReports((prev) => prev.filter((r) => r.id !== report.id));
+      if (updated) {
+        setLibrarySongs((prev) => (prev ? prev.map((s) => (s.id === updated.id ? updated : s)) : prev));
+      } else {
+        alert("Nie znaleziono tego utworu w bazie (mógł już zostać usunięty) — samo zgłoszenie odrzucono, nic nie zapisano.");
+      }
+      setBrokenLinkEditingId(null);
+    } catch (e) {
+      setError("Błąd zapisu: " + e.message);
     } finally {
       setBrokenLinkBusy(false);
     }
@@ -2215,22 +2232,6 @@ export default function App() {
               </section>
             )}
 
-            {librarySongs && librarySongs.length > 0 && (
-              <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
-                <p style={{ fontSize: 12, marginBottom: 8, color: "var(--muted)" }}>
-                  Dogrywa kategorie zapisane wcześniej z analizy (dopasowanie po linku YouTube) do utworów już będących w bazie.
-                </p>
-                <button
-                  onClick={handleApplyCategoryPatch}
-                  disabled={adminBusy}
-                  className="px-4 py-2 rounded-lg text-sm font-bold"
-                  style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
-                >
-                  {migrateProgress ? `Wgrywanie… ${migrateProgress.done}/${migrateProgress.total}` : "Zastosuj zapisane kategorie"}
-                </button>
-              </section>
-            )}
-
             <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
               <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🧹 Sprzątanie pokojów</p>
               <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
@@ -2281,6 +2282,27 @@ export default function App() {
                   ) : (
                     brokenLinkReports.map((r) => (
                       <div key={r.id} className="rounded-lg p-3" style={{ background: "var(--surface2)" }}>
+                        {brokenLinkEditingId === r.id ? (
+                          <div className="flex flex-col gap-2">
+                            <div className="flex gap-2 flex-wrap">
+                              <input type="text" value={brokenLinkEditDraft.artist} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, artist: e.target.value })} className="flex-1" style={{ minWidth: 100 }} placeholder="Wykonawca" />
+                              <input type="text" value={brokenLinkEditDraft.title} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, title: e.target.value })} className="flex-1" style={{ minWidth: 100 }} placeholder="Tytuł" />
+                            </div>
+                            <input type="text" value={brokenLinkEditDraft.url} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, url: e.target.value })} placeholder="Nowy link YouTube" />
+                            <div className="flex gap-2 flex-wrap">
+                              <input type="number" value={brokenLinkEditDraft.year} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, year: e.target.value })} style={{ width: 90 }} placeholder="Rok" />
+                              <input type="text" value={brokenLinkEditDraft.categoriesText} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, categoriesText: e.target.value })} placeholder="kategorie;po;średniku" className="flex-1" style={{ minWidth: 140 }} />
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => handleSaveBrokenLinkEdit(r)} disabled={brokenLinkBusy} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: "var(--good)", color: "#0d1f1a" }}>
+                                <Save size={12} /> Zapisz (odrzuci zgłoszenie)
+                              </button>
+                              <button onClick={() => setBrokenLinkEditingId(null)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs" style={{ border: "1px solid #33294f", color: "var(--muted)" }}>
+                                <X size={12} /> Anuluj
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
                         <div className="flex items-center justify-between gap-2 flex-wrap">
                           <div>
                             <p style={{ fontSize: 13 }}>
@@ -2296,6 +2318,22 @@ export default function App() {
                             </a>
                           </div>
                           <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                setBrokenLinkEditingId(r.id);
+                                setBrokenLinkEditDraft({
+                                  artist: r.artist,
+                                  title: r.title,
+                                  year: r.year || "",
+                                  url: `https://www.youtube.com/watch?v=${r.videoId}`,
+                                  categoriesText: "",
+                                });
+                              }}
+                              style={{ color: "var(--accent)" }}
+                              title="Edytuj link"
+                            >
+                              <Pencil size={16} />
+                            </button>
                             <button onClick={() => handleDeleteBrokenSong(r)} disabled={brokenLinkBusy} style={{ color: "var(--bad)" }} title="Usuń z bazy">
                               <Trash2 size={16} />
                             </button>
@@ -2304,6 +2342,7 @@ export default function App() {
                             </button>
                           </div>
                         </div>
+                        )}
                       </div>
                     ))
                   )}

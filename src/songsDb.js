@@ -230,3 +230,16 @@ export async function deleteBrokenSongAndDismiss(reportId, videoId) {
   await deleteDoc(doc(db, BROKEN_LINKS_COLLECTION, reportId));
   return !!match;
 }
+
+// Aktualizuje piosenkę w bibliotece (znalezioną po starym videoId z zgłoszenia) i odrzuca zgłoszenie.
+export async function updateBrokenSongAndDismiss(reportId, oldVideoId, fields) {
+  const snap = await getDocs(collection(db, COLLECTION));
+  const match = snap.docs.find((d) => d.data().videoId === oldVideoId);
+  let updated = null;
+  if (match) {
+    await updateDoc(doc(db, COLLECTION, match.id), fields);
+    updated = { id: match.id, ...match.data(), ...fields };
+  }
+  await deleteDoc(doc(db, BROKEN_LINKS_COLLECTION, reportId));
+  return updated;
+}
