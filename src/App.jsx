@@ -17,6 +17,7 @@ import { registerWithUsername, loginWithUsername, logout, watchAuthState, friend
 import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, awardXp, xpForLevel, levelFromXp } from "./stats.js";
 import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
+import { heartbeat, clearPresence, getOnlineCount } from "./presence.js";
 import { playCorrectSound, playWrongSound, playApplause, unlockAudio } from "./sounds.js";
 import { Play, Music4, Trophy, RotateCcw, Users, ChevronRight, Copy, Check, LogIn, LogOut, BarChart3, Flame, Crown, Shield, Search, Trash2, Pencil, Save, X, MessageCircle, Send } from "lucide-react";
 import logoImg from "./assets/logo-v2.png";
@@ -180,6 +181,54 @@ const StatBox = memo(function StatBox({ label, value }) {
   );
 });
 
+const LevelBar = memo(function LevelBar({ level, currentLevelXp, xpForNextLevel, size = "normal" }) {
+  const pct = Math.min(100, Math.round((currentLevelXp / xpForNextLevel) * 100));
+  const big = size === "big";
+  return (
+    <div
+      className="w-full rounded-xl relative overflow-hidden"
+      style={{
+        padding: big ? "16px 18px" : "10px 12px",
+        background: "linear-gradient(135deg, rgba(0,230,195,0.14), rgba(139,92,246,0.14))",
+        border: "1px solid transparent",
+        backgroundClip: "padding-box",
+        boxShadow: "0 0 0 1px rgba(0,230,195,0.35), 0 0 24px -8px var(--accent), 0 0 40px -14px var(--accent2)",
+      }}
+    >
+      <div className="flex items-center justify-between mb-1">
+        <span
+          style={{
+            fontFamily: "'Bebas Neue', sans-serif",
+            fontSize: big ? 30 : 20,
+            color: "var(--accent)",
+            letterSpacing: 1,
+            textShadow: "0 0 8px var(--accent), 0 0 18px rgba(0,230,195,0.5)",
+          }}
+        >
+          POZIOM {level}
+        </span>
+        <span style={{ fontSize: big ? 12 : 11, color: "var(--muted)" }}>
+          {currentLevelXp} / {xpForNextLevel} XP
+        </span>
+      </div>
+      <div className="w-full rounded-full" style={{ height: big ? 12 : 8, background: "#0d0a17", overflow: "hidden", boxShadow: "inset 0 1px 3px rgba(0,0,0,0.5)" }}>
+        <div
+          style={{
+            height: "100%",
+            width: `${pct}%`,
+            background: "linear-gradient(90deg, var(--accent), var(--accent2), var(--accent3))",
+            backgroundSize: "200% 100%",
+            animation: "bg-drift 3s ease infinite",
+            boxShadow: "0 0 10px var(--accent), 0 0 4px var(--accent3)",
+            borderRadius: 999,
+            transition: "width 0.4s ease",
+          }}
+        />
+      </div>
+    </div>
+  );
+});
+
 // ---------- main app ----------
 
 const guestId = getOrCreatePlayerId();
@@ -233,6 +282,7 @@ export default function App() {
   const [authError, setAuthError] = useState("");
   const [showStats, setShowStats] = useState(false);
   const [stats, setStats] = useState(null);
+  const [myXp, setMyXp] = useState(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [leaderboardSort, setLeaderboardSort] = useState("gamesWon"); // "gamesWon" | "guessesCorrect"
   const [viewingPlayer, setViewingPlayer] = useState(null); // { uid, username, stats }
@@ -335,6 +385,42 @@ export default function App() {
   useEffect(() => {
     if (screen === "lobby" && room?.hostId === playerId) ensureLibraryLoaded();
   }, [screen, room?.hostId, playerId]);
+
+  const [playerLevels, setPlayerLevels] = useState({});
+  useEffect(() => {
+    if (screen !== "lobby" || !room?.players) return;
+    const authedPlayers = room.players.filter((p) => p.authed);
+    Promise.all(
+      authedPlayers.map((p) =>
+        getStats(p.id)
+          .then((s) => [p.id, s?.xp || 0])
+          .catch(() => [p.id, 0])
+      )
+    ).then((entries) => {
+      setPlayerLevels((prev) => ({ ...prev, ...Object.fromEntries(entries) }));
+    });
+  }, [screen, room?.players?.length]);
+
+  const [onlineCount, setOnlineCount] = useState(null);
+  useEffect(() => {
+    if (!playerId) return;
+    const displayName = name || user?.displayName || "Gracz";
+    heartbeat(playerId, displayName);
+    const id = setInterval(() => heartbeat(playerId, displayName), 25000);
+    const clear = () => clearPresence(playerId);
+    window.addEventListener("beforeunload", clear);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("beforeunload", clear);
+      clear();
+    };
+  }, [playerId]);
+
+  useEffect(() => {
+    getOnlineCount().then(setOnlineCount);
+    const id = setInterval(() => getOnlineCount().then(setOnlineCount), 40000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     setAdminPage(1);
@@ -739,6 +825,7 @@ export default function App() {
       setAuthChecked(true);
       if (u) {
         await ensureStatsDoc(u.uid, u.displayName || authUsername);
+        getStats(u.uid).then((s) => setMyXp(s?.xp || 0)).catch(() => {});
       }
     });
     return () => unsub();
@@ -815,6 +902,7 @@ export default function App() {
         const oldXp = before?.xp || 0;
         const oldLevel = levelFromXp(oldXp).level;
         await awardXp(user.uid, total);
+        setMyXp(oldXp + total);
         const newLevel = levelFromXp(oldXp + total).level;
         if (newLevel > oldLevel) {
           setLevelUpInfo({ level: newLevel });
@@ -1976,6 +2064,33 @@ export default function App() {
         input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,230,195,0.25); }
       `}</style>
 
+      {user && myXp !== null && (
+        <button
+          onClick={screen === "home" ? openStats : undefined}
+          style={{
+            position: "fixed",
+            top: 14,
+            right: 14,
+            zIndex: 90,
+            background: "linear-gradient(135deg, rgba(0,230,195,0.16), rgba(139,92,246,0.16))",
+            border: "1px solid var(--accent)",
+            borderRadius: 999,
+            padding: "6px 14px",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            boxShadow: "0 0 14px -4px var(--accent)",
+            color: "var(--accent)",
+            fontFamily: "'Bebas Neue', sans-serif",
+            fontSize: 15,
+            letterSpacing: 0.5,
+            cursor: screen === "home" ? "pointer" : "default",
+          }}
+        >
+          ⭐ LVL {levelFromXp(myXp).level}
+        </button>
+      )}
+
       <div className="w-full flex flex-col items-center" style={{ maxWidth: 720 }}>
         <button
           onClick={goHome}
@@ -1985,7 +2100,9 @@ export default function App() {
         >
           <img src={logoImg} alt="Hitsteriada" style={{ height: 100, filter: "drop-shadow(0 0 18px rgba(0,230,195,0.55)) drop-shadow(0 0 28px rgba(139,92,246,0.3))" }} />
         </button>
-        <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 24 }}>online • każdy gra u siebie, w swoim miejscu</p>
+        <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 24 }}>
+          {onlineCount !== null ? `🟢 ${onlineCount} graczy online` : "online"} • każdy gra u siebie, w swoim miejscu
+        </p>
 
         {error && (
           <div className="w-full rounded-lg p-3 mb-4 text-sm" style={{ background: "rgba(232,97,93,0.12)", border: "1px solid var(--bad)", color: "var(--bad)" }}>
@@ -2003,20 +2120,7 @@ export default function App() {
                 <div className="flex flex-col gap-4">
                   {(() => {
                     const { level, currentLevelXp, xpForNextLevel } = levelFromXp(stats.xp);
-                    const pct = Math.min(100, Math.round((currentLevelXp / xpForNextLevel) * 100));
-                    return (
-                      <div className="w-full rounded-xl p-3" style={{ background: "var(--surface2)" }}>
-                        <div className="flex items-center justify-between mb-1">
-                          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: "var(--accent)" }}>Poziom {level}</span>
-                          <span style={{ fontSize: 11, color: "var(--muted)" }}>
-                            {currentLevelXp} / {xpForNextLevel} XP
-                          </span>
-                        </div>
-                        <div className="w-full rounded-full" style={{ height: 8, background: "#231d38", overflow: "hidden" }}>
-                          <div style={{ height: "100%", width: `${pct}%`, background: "linear-gradient(90deg, var(--accent), var(--accent2))" }} />
-                        </div>
-                      </div>
-                    );
+                    return <LevelBar level={level} currentLevelXp={currentLevelXp} xpForNextLevel={xpForNextLevel} size="big" />;
                   })()}
                   <div className="flex gap-4 flex-wrap">
                     <StatBox label="Rozegrane gry" value={stats.gamesPlayed || 0} />
@@ -2180,20 +2284,7 @@ export default function App() {
                 <div className="flex flex-col gap-4">
                   {(() => {
                     const { level, currentLevelXp, xpForNextLevel } = levelFromXp(viewingPlayer.stats.xp);
-                    const pct = Math.min(100, Math.round((currentLevelXp / xpForNextLevel) * 100));
-                    return (
-                      <div className="w-full rounded-xl p-3" style={{ background: "var(--surface2)" }}>
-                        <div className="flex items-center justify-between mb-1">
-                          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: "var(--accent)" }}>Poziom {level}</span>
-                          <span style={{ fontSize: 11, color: "var(--muted)" }}>
-                            {currentLevelXp} / {xpForNextLevel} XP
-                          </span>
-                        </div>
-                        <div className="w-full rounded-full" style={{ height: 8, background: "#231d38", overflow: "hidden" }}>
-                          <div style={{ height: "100%", width: `${pct}%`, background: "linear-gradient(90deg, var(--accent), var(--accent2))" }} />
-                        </div>
-                      </div>
-                    );
+                    return <LevelBar level={level} currentLevelXp={currentLevelXp} xpForNextLevel={xpForNextLevel} size="big" />;
                   })()}
                   <div className="flex gap-4 flex-wrap">
                     <StatBox label="Rozegrane gry" value={viewingPlayer.stats.gamesPlayed || 0} />
@@ -2884,6 +2975,11 @@ export default function App() {
                     <span>{p.name}</span>
                     {p.id === room.hostId && <span style={{ color: "var(--accent)", fontSize: 10 }}>HOST</span>}
                     {p.id === playerId && <span style={{ color: "var(--muted)", fontSize: 10 }}>(Ty)</span>}
+                    {p.authed && playerLevels[p.id] !== undefined && (
+                      <span style={{ fontSize: 10, color: "var(--accent2)", background: "var(--surface2)", padding: "1px 6px", borderRadius: 8 }}>
+                        lvl {levelFromXp(playerLevels[p.id]).level}
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
