@@ -1529,20 +1529,56 @@ export default function App() {
     }
   }
 
+  // Ładujemy oficjalne IFrame API YouTube RAZ — potrzebne wyłącznie do
+  // formalnego "zarejestrowania się" jako słuchacz zdarzeń (onError).
+  // Sterowanie odtwarzaniem (play/pauza/przewijanie) zostaje bez zmian —
+  // to już działa i go nie ruszamy, dokładamy tylko nasłuch błędów obok.
+  const ytApiReadyRef = useRef(false);
+  useEffect(() => {
+    if (window.YT && window.YT.Player) {
+      ytApiReadyRef.current = true;
+      return;
+    }
+    if (document.getElementById("youtube-iframe-api-script")) return;
+    const tag = document.createElement("script");
+    tag.id = "youtube-iframe-api-script";
+    tag.src = "https://www.youtube.com/iframe_api";
+    document.head.appendChild(tag);
+    window.onYouTubeIframeAPIReady = () => {
+      ytApiReadyRef.current = true;
+    };
+  }, []);
+
+  const ytErrorPlayerRef = useRef(null);
   useEffect(() => {
     if (screen !== "playing" || !room?.currentCard) return;
-    function handleYTMessage(event) {
-      let data;
-      try {
-        data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
-      } catch (e) {
+    let cancelled = false;
+    let attempts = 0;
+    const tryAttach = () => {
+      if (cancelled) return;
+      if (!window.YT || !window.YT.Player || !iframeRef.current) {
+        attempts++;
+        if (attempts < 40) setTimeout(tryAttach, 250); // API/iframe jeszcze się ładuje — spróbuj ponownie
         return;
       }
-      if (!data || data.event !== "onError") return;
-      handleBrokenLink(room.currentCard);
-    }
-    window.addEventListener("message", handleYTMessage);
-    return () => window.removeEventListener("message", handleYTMessage);
+      try {
+        if (ytErrorPlayerRef.current) {
+          ytErrorPlayerRef.current.destroy?.();
+          ytErrorPlayerRef.current = null;
+        }
+        ytErrorPlayerRef.current = new window.YT.Player(iframeRef.current, {
+          events: {
+            onError: () => handleBrokenLink(room.currentCard),
+          },
+        });
+      } catch (e) {
+        // ciche niepowodzenie — w najgorszym razie automatyczne wykrywanie po prostu nie zadziała tym razem
+      }
+    };
+    tryAttach();
+    return () => {
+      cancelled = true;
+    };
   }, [screen, room?.currentCard?.id]);
 
   async function swapSong() {
