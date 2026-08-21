@@ -30,6 +30,7 @@ export async function ensureStatsDoc(uid, username) {
       artists: {},
       currentStreak: 0,
       longestStreak: 0,
+      xp: 0,
     });
   } else if (username && snap.data().username !== username) {
     // odświeżamy nazwę przy każdym logowaniu — naprawia stare konta, którym
@@ -110,6 +111,33 @@ export function topArtists(stats, count = 5, minAttempts = 2) {
     .sort((a, b) => a.pct - b.pct || b.total - a.total)
     .slice(0, count);
   return { best, worst };
+}
+
+// --- system poziomów (XP) ---
+
+// XP potrzebne, żeby przejść z poziomu (level-1) na level. Rośnie liniowo —
+// wczesne poziomy przychodzą szybko (satysfakcja na start), później dłużej.
+export function xpForLevel(level) {
+  return 100 + (level - 2) * 50; // poziom 2: 100 XP, poziom 3: 150 XP, poziom 4: 200 XP...
+}
+
+// Zamienia sumę XP na { level, currentLevelXp, xpForNextLevel } do wyświetlenia paska postępu.
+export function levelFromXp(totalXp) {
+  const xp = Math.max(0, totalXp || 0);
+  let level = 1;
+  let remaining = xp;
+  while (remaining >= xpForLevel(level + 1)) {
+    remaining -= xpForLevel(level + 1);
+    level++;
+  }
+  return { level, currentLevelXp: remaining, xpForNextLevel: xpForLevel(level + 1) };
+}
+
+// amount może być ujemny (np. kara za niewykorzystane tokeny).
+export async function awardXp(uid, amount) {
+  if (!amount) return;
+  const ref = doc(db, "userStats", uid);
+  await updateDoc(ref, { xp: increment(amount) });
 }
 
 // Top players globally. sortBy: "gamesWon" (domyślnie) albo "guessesCorrect".

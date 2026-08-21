@@ -14,7 +14,7 @@ import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
 import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId } from "./utils.js";
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
-import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard } from "./stats.js";
+import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, awardXp, xpForLevel, levelFromXp } from "./stats.js";
 import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
 import { playCorrectSound, playWrongSound, playApplause, unlockAudio } from "./sounds.js";
@@ -494,6 +494,7 @@ export default function App() {
       const added = await acceptProposal(p);
       if (p.submittedByUid) {
         recordSongAdded(p.submittedByUid).catch(() => {});
+        awardXp(p.submittedByUid, 25).catch(() => {}); // zaakceptowana propozycja utworu
       }
       setProposals((prev) => prev.filter((x) => x.id !== p.id));
       setLibrarySongs((prev) => {
@@ -714,6 +715,7 @@ export default function App() {
         finishingRound: false,
         decisionTimes: {},
         gameStreaks: {},
+        gameGuessStreaks: {},
         gameGuesses: {},
         gameBestStreaks: {},
         playedCards: [],
@@ -767,6 +769,62 @@ export default function App() {
     await logout();
     setShowStats(false);
   }
+
+  // Wspólna logika liczenia XP na koniec gry — używana zarówno do
+  // faktycznego przyznania punktów, jak i do wyświetlenia rozbicia graczowi.
+  function computeGameEndXp(gameRoom, forPlayerId) {
+    if (!gameRoom || gameRoom.practiceMode) return { items: [], total: 0 };
+    const items = [{ label: "🎮 Udział w grze", amount: 30 }];
+    const won = (gameRoom.winnerIds || []).includes(forPlayerId);
+    if (won) items.push({ label: "🏆 Wygrana", amount: 200 });
+
+    const avgTimes = Object.entries(gameRoom.decisionTimes || {})
+      .filter(([, times]) => times.length > 0)
+      .map(([id, times]) => ({ id, avg: times.reduce((a, b) => a + b, 0) / times.length }));
+    const fastest = avgTimes.length ? avgTimes.reduce((a, b) => (b.avg < a.avg ? b : a)) : null;
+    if (fastest && fastest.id === forPlayerId) items.push({ label: "⚡ Najszybszy gracz", amount: 20 });
+
+    const streakEntries = Object.entries(gameRoom.gameBestStreaks || {}).filter(([, s]) => s > 0);
+    const bestStreak = streakEntries.length ? streakEntries.reduce((a, b) => (b[1] > a[1] ? b : a)) : null;
+    if (bestStreak && bestStreak[0] === forPlayerId) items.push({ label: "🔥 Najdłuższa seria", amount: 20 });
+
+    const unusedTokens = gameRoom.tokens?.[forPlayerId] || 0;
+    if (unusedTokens > 0) items.push({ label: `🪙 Niewykorzystane tokeny (${unusedTokens})`, amount: 5 * unusedTokens });
+
+    const myCards = (gameRoom.playedCards || []).filter((c) => c.playerId === forPlayerId && !c.bought);
+    if ((gameRoom.target || 0) >= 7 && myCards.length > 0 && myCards.every((c) => c.correct)) {
+      items.push({ label: "💎 Perfekcyjna gra", amount: 30 });
+    }
+
+    const total = items.reduce((sum, it) => sum + it.amount, 0);
+    return { items, total };
+  }
+
+  const xpAwardedRef = useRef(null);
+  const [levelUpInfo, setLevelUpInfo] = useState(null);
+  useEffect(() => {
+    if (screen !== "gameover" || !room?.winnerIds?.length || !user || room.practiceMode) return;
+    const marker = toMillis(room?.expireAt);
+    if (!marker || xpAwardedRef.current === marker) return;
+    xpAwardedRef.current = marker;
+    (async () => {
+      try {
+        const { total } = computeGameEndXp(room, playerId);
+        if (total === 0) return;
+        const before = await getStats(user.uid);
+        const oldXp = before?.xp || 0;
+        const oldLevel = levelFromXp(oldXp).level;
+        await awardXp(user.uid, total);
+        const newLevel = levelFromXp(oldXp + total).level;
+        if (newLevel > oldLevel) {
+          setLevelUpInfo({ level: newLevel });
+          setTimeout(() => setLevelUpInfo(null), 5000);
+        }
+      } catch (e) {
+        // ciche niepowodzenie — najwyżej XP z tej gry się nie doliczy
+      }
+    })();
+  }, [screen, room?.winnerIds, toMillis(room?.expireAt), user, playerId]);
 
   async function openStats() {
     if (!user) return;
@@ -1104,6 +1162,7 @@ export default function App() {
         finishingRound: false,
         decisionTimes: {},
         gameStreaks: {},
+        gameGuessStreaks: {},
         gameGuesses: {},
         gameBestStreaks: {},
         playedCards: [],
@@ -1231,6 +1290,7 @@ export default function App() {
         openerWinnerId: null,
         decisionTimes: {},
         gameStreaks: {},
+        gameGuessStreaks: {},
         gameBestStreaks: {},
         playedCards: [],
       });
@@ -1276,6 +1336,7 @@ export default function App() {
           turnStartedAt: serverTimestamp(),
         });
       });
+      if (user) awardXp(user.uid, 10).catch(() => {}); // wygrana minigra "kto zaczyna"
     } catch (e) {
       // ciche niepowodzenie
     }
@@ -1344,6 +1405,7 @@ export default function App() {
         newDecisionTimes[data.currentPlayerId] = [...(newDecisionTimes[data.currentPlayerId] || []), elapsed];
         const prevStreak = data.gameStreaks?.[data.currentPlayerId] || 0;
         const newStreak = correct ? prevStreak + 1 : 0;
+        capturedResult.newPlacementStreak = newStreak;
         const newGameStreaks = { ...(data.gameStreaks || {}), [data.currentPlayerId]: newStreak };
         const prevBest = data.gameBestStreaks?.[data.currentPlayerId] || 0;
         const newGameBestStreaks = { ...(data.gameBestStreaks || {}), [data.currentPlayerId]: Math.max(prevBest, newStreak) };
@@ -1374,6 +1436,8 @@ export default function App() {
           const playedCardsWithGuess = hasGuess
             ? newPlayedCards.map((pc, i) => (i === newPlayedCards.length - 1 ? { ...pc, guessedCorrect: true } : pc))
             : newPlayedCards;
+          const newGuessStreak = hasGuess ? (data.gameGuessStreaks?.[data.currentPlayerId] || 0) + 1 : data.gameGuessStreaks?.[data.currentPlayerId];
+          if (hasGuess) capturedResult.newGuessStreak = newGuessStreak;
           tx.update(ref, {
             status: "roundResult",
             lastResult: { correct, card, tokenAwarded: hasGuess },
@@ -1382,15 +1446,24 @@ export default function App() {
             resultAt: serverTimestamp(),
             ...summaryFields,
             playedCards: playedCardsWithGuess,
+            ...(hasGuess ? { [`gameGuessStreaks.${data.currentPlayerId}`]: newGuessStreak } : {}),
             ...(hasGuess ? { [`tokens.${data.currentPlayerId}`]: increment(1) } : {}),
           });
         }
       });
       if (user && capturedResult && !capturedResult.practiceMode) {
         recordCardGuess(user.uid, capturedResult.card.year, capturedResult.correct, capturedResult.card.artist, capturedResult.card.videoId).catch(() => {});
+        if (capturedResult.correct) {
+          let xp = 10; // poprawne umieszczenie
+          if (capturedResult.newPlacementStreak === 5) xp += 15; // seria 5 poprawnych z rzędu
+          awardXp(user.uid, xp).catch(() => {});
+        }
       }
       if (user && instantGuessAwardedTo === user.uid && !capturedResult?.practiceMode) {
         recordSuccessfulGuess(user.uid, capturedResult?.card?.videoId).catch(() => {});
+        let xp = 20; // trafione zgadywanie
+        if (capturedResult.newGuessStreak === 5) xp += 30; // seria 5 trafionych zgadywań z rzędu
+        awardXp(user.uid, xp).catch(() => {});
       }
     } catch (e) {
       setError("Błąd zatwierdzania: " + e.message);
@@ -1459,6 +1532,7 @@ export default function App() {
       const ref = doc(db, "rooms", roomId);
       let awardedGuessTo = null;
       let awardedGuessVideoId = null;
+      let newGuessStreakValue = null;
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
@@ -1479,6 +1553,8 @@ export default function App() {
           }
           const playedCards = data.playedCards || [];
           const updatedPlayedCards = playedCards.map((pc, i) => (i === playedCards.length - 1 ? { ...pc, guessedCorrect: true } : pc));
+          const newStreak = (data.gameGuessStreaks?.[data.currentPlayerId] || 0) + 1;
+          newGuessStreakValue = newStreak;
           tx.update(ref, {
             status: "roundResult",
             votes: newVotes,
@@ -1486,6 +1562,7 @@ export default function App() {
             resultAt: serverTimestamp(),
             [`tokens.${data.currentPlayerId}`]: increment(1),
             playedCards: updatedPlayedCards,
+            [`gameGuessStreaks.${data.currentPlayerId}`]: newStreak,
           });
         } else if (approvals + remaining < required) {
           const playedCards = data.playedCards || [];
@@ -1496,6 +1573,7 @@ export default function App() {
             lastResult: { ...data.lastResult, tokenAwarded: false },
             resultAt: serverTimestamp(),
             playedCards: updatedPlayedCards,
+            [`gameGuessStreaks.${data.currentPlayerId}`]: 0,
           });
         } else {
           tx.update(ref, { votes: newVotes });
@@ -1503,6 +1581,9 @@ export default function App() {
       });
       if (awardedGuessTo) {
         recordSuccessfulGuess(awardedGuessTo, awardedGuessVideoId).catch(() => {});
+        let xp = 20; // trafione zgadywanie
+        if (newGuessStreakValue === 5) xp += 30; // seria 5 trafionych zgadywań z rzędu
+        awardXp(awardedGuessTo, xp).catch(() => {});
       }
     } catch (e) {
       setError("Błąd głosowania: " + e.message);
@@ -1646,6 +1727,7 @@ export default function App() {
           resultAt: serverTimestamp(),
           decisionTimes: newDecisionTimes,
           [`gameStreaks.${data.currentPlayerId}`]: 0,
+          [`gameGuessStreaks.${data.currentPlayerId}`]: 0,
           playedCards: newPlayedCards,
         });
       });
@@ -1919,6 +2001,23 @@ export default function App() {
                 <p style={{ color: "var(--muted)", fontSize: 13 }}>Brak jeszcze żadnych rozegranych gier.</p>
               ) : (
                 <div className="flex flex-col gap-4">
+                  {(() => {
+                    const { level, currentLevelXp, xpForNextLevel } = levelFromXp(stats.xp);
+                    const pct = Math.min(100, Math.round((currentLevelXp / xpForNextLevel) * 100));
+                    return (
+                      <div className="w-full rounded-xl p-3" style={{ background: "var(--surface2)" }}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: "var(--accent)" }}>Poziom {level}</span>
+                          <span style={{ fontSize: 11, color: "var(--muted)" }}>
+                            {currentLevelXp} / {xpForNextLevel} XP
+                          </span>
+                        </div>
+                        <div className="w-full rounded-full" style={{ height: 8, background: "#231d38", overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${pct}%`, background: "linear-gradient(90deg, var(--accent), var(--accent2))" }} />
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <div className="flex gap-4 flex-wrap">
                     <StatBox label="Rozegrane gry" value={stats.gamesPlayed || 0} />
                     <StatBox label="Wygrane" value={stats.gamesWon || 0} />
@@ -2049,6 +2148,9 @@ export default function App() {
                           {i === 0 ? <Crown size={18} /> : `#${i + 1}`}
                         </span>
                         <span>{p.username}</span>
+                        <span style={{ fontSize: 10, color: "var(--accent2)", background: "var(--surface)", padding: "1px 6px", borderRadius: 8 }}>
+                          lvl {levelFromXp(p.xp).level}
+                        </span>
                       </div>
                       <span style={{ color: "var(--accent)", fontFamily: "'Bebas Neue', sans-serif", fontSize: 18 }}>
                         {leaderboardSort === "gamesWon" ? `${p.gamesWon || 0} wygranych` : `${p.guessesCorrect || 0} zgadniętych`}
@@ -2076,6 +2178,23 @@ export default function App() {
                 <p style={{ color: "var(--muted)", fontSize: 13 }}>Brak jeszcze żadnych rozegranych gier.</p>
               ) : (
                 <div className="flex flex-col gap-4">
+                  {(() => {
+                    const { level, currentLevelXp, xpForNextLevel } = levelFromXp(viewingPlayer.stats.xp);
+                    const pct = Math.min(100, Math.round((currentLevelXp / xpForNextLevel) * 100));
+                    return (
+                      <div className="w-full rounded-xl p-3" style={{ background: "var(--surface2)" }}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: "var(--accent)" }}>Poziom {level}</span>
+                          <span style={{ fontSize: 11, color: "var(--muted)" }}>
+                            {currentLevelXp} / {xpForNextLevel} XP
+                          </span>
+                        </div>
+                        <div className="w-full rounded-full" style={{ height: 8, background: "#231d38", overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${pct}%`, background: "linear-gradient(90deg, var(--accent), var(--accent2))" }} />
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <div className="flex gap-4 flex-wrap">
                     <StatBox label="Rozegrane gry" value={viewingPlayer.stats.gamesPlayed || 0} />
                     <StatBox label="Wygrane" value={viewingPlayer.stats.gamesWon || 0} />
@@ -3194,6 +3313,34 @@ export default function App() {
               );
             })()}
 
+            {user && !room.practiceMode && (() => {
+              const { items, total } = computeGameEndXp(room, playerId);
+              if (!items.length) return null;
+              return (
+                <div className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+                  <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>⭐ Zdobyte XP</p>
+                  <div className="flex flex-col gap-1 text-left">
+                    {items.map((it, i) => (
+                      <div key={i} className="flex items-center justify-between text-sm">
+                        <span>{it.label}</span>
+                        <span style={{ color: it.amount >= 0 ? "var(--good)" : "var(--bad)" }}>
+                          {it.amount >= 0 ? "+" : ""}
+                          {it.amount} XP
+                        </span>
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between text-sm mt-1 pt-1" style={{ borderTop: "1px solid #33294f", fontWeight: "bold" }}>
+                      <span>Razem</span>
+                      <span style={{ color: "var(--accent)" }}>
+                        {total >= 0 ? "+" : ""}
+                        {total} XP
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             {room.playedCards && room.playedCards.length > 0 && (
               <div className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
                 <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
@@ -3251,6 +3398,29 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {levelUpInfo && (
+        <div
+          onClick={() => setLevelUpInfo(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.65)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100,
+            padding: 24,
+          }}
+        >
+          <div className="rounded-2xl p-6 text-center card-glow pulse-cta" style={{ background: "var(--surface)", maxWidth: 320 }}>
+            <p style={{ fontSize: 40 }}>🎉</p>
+            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: "var(--accent)" }}>AWANS POZIOMU!</p>
+            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48 }}>Poziom {levelUpInfo.level}</p>
+            <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>(kliknij, żeby zamknąć)</p>
+          </div>
+        </div>
+      )}
 
       {brokenLinkNotice && (
         <div
