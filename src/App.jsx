@@ -2974,7 +2974,6 @@ export default function App() {
                       height="158"
                       src={`https://www.youtube.com/embed/${room.openerCard.videoId}?enablejsapi=1&autoplay=1&mute=1&start=${room.openerStartSeconds}&controls=0&modestbranding=1&rel=0`}
                       allow="autoplay; encrypted-media"
-                      sandbox="allow-scripts allow-same-origin"
                       style={{ border: "none" }}
                     />
                   </div>
@@ -3058,7 +3057,6 @@ export default function App() {
                   height="158"
                   src={`https://www.youtube.com/embed/${room.currentCard.videoId}?enablejsapi=1&autoplay=1&mute=1&start=${room.startSeconds}&controls=0&modestbranding=1&rel=0`}
                   allow="autoplay; encrypted-media"
-                      sandbox="allow-scripts allow-same-origin"
                   style={{ border: "none" }}
                 />
               </div>
@@ -3464,7 +3462,6 @@ export default function App() {
                     height="158"
                     src={`https://www.youtube.com/embed/${dailySong.videoId}?enablejsapi=1&autoplay=1&mute=1&start=${dailySong.startSeconds}&controls=0&modestbranding=1&rel=0`}
                     allow="autoplay; encrypted-media"
-                      sandbox="allow-scripts allow-same-origin"
                     style={{ border: "none" }}
                   />
                 </div>
