@@ -1934,30 +1934,37 @@ export default function App() {
     };
   }, []);
 
-  const ytErrorPlayerRef = useRef(null);
+  // Wykrywanie zepsutych linków — CAŁKOWICIE OSOBNY, ukryty i zawsze wyciszony
+  // "testowy" odtwarzacz, niezależny od tego, co faktycznie słychać. Prawdziwy
+  // odtwarzacz (iframeRef) NIE jest już owijany oficjalnym YT.Player — wraca
+  // do starego, sprawdzonego sterowania surowym postMessage, które nie
+  // aktywowało systemowego powiadomienia z prawdziwym tytułem utworu.
+  const ytValidatorRef = useRef(null);
   useEffect(() => {
     if (screen !== "playing" || !room?.currentCard) return;
     let cancelled = false;
     let attempts = 0;
     const tryAttach = () => {
       if (cancelled) return;
-      if (!window.YT || !window.YT.Player || !iframeRef.current) {
+      if (!window.YT || !window.YT.Player || !document.getElementById("broken-link-validator")) {
         attempts++;
-        if (attempts < 40) setTimeout(tryAttach, 250); // API/iframe jeszcze się ładuje — spróbuj ponownie
+        if (attempts < 40) setTimeout(tryAttach, 250);
         return;
       }
       try {
-        if (ytErrorPlayerRef.current) {
-          ytErrorPlayerRef.current.destroy?.();
-          ytErrorPlayerRef.current = null;
+        if (ytValidatorRef.current) {
+          ytValidatorRef.current.destroy?.();
+          ytValidatorRef.current = null;
         }
-        ytErrorPlayerRef.current = new window.YT.Player(iframeRef.current, {
+        ytValidatorRef.current = new window.YT.Player("broken-link-validator", {
+          videoId: room.currentCard.videoId,
+          playerVars: { autoplay: 1, mute: 1, controls: 0 },
           events: {
             onError: () => handleBrokenLink(room.currentCard),
           },
         });
       } catch (e) {
-        // ciche niepowodzenie — w najgorszym razie automatyczne wykrywanie po prostu nie zadziała tym razem
+        // ciche niepowodzenie — automatyczne wykrywanie po prostu nie zadziała tym razem
       }
     };
     tryAttach();
@@ -1965,6 +1972,7 @@ export default function App() {
       cancelled = true;
     };
   }, [screen, room?.currentCard?.id]);
+
 
   // KRYTYCZNE zabezpieczenie przed spoilerem: samo załadowanie oficjalnego
   // odtwarzacza YouTube (potrzebne do wykrywania zepsutych linków) sprawia,
@@ -2234,6 +2242,10 @@ export default function App() {
         padding: "32px 16px 64px",
       }}
     >
+      {/* Osobny, zawsze ukryty i wyciszony odtwarzacz-tester do wykrywania
+          zepsutych linków — nigdy nie jest tym, co gracze faktycznie słyszą. */}
+      <div id="broken-link-validator" style={{ position: "fixed", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none", top: -9999 }} />
+
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap');
         :root {
