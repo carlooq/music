@@ -11,14 +11,15 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase-config.js";
 import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
-import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId } from "./utils.js";
+import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId, fuzzyMatch } from "./utils.js";
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
-import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, awardXp, xpForLevel, levelFromXp } from "./stats.js";
+import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, awardXp, xpForLevel, levelFromXp, progressWeeklyChallenge, currentWeekKey, currentDayKey, recordDailyResult } from "./stats.js";
 import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
 import { heartbeat, clearPresence, getOnlineCount } from "./presence.js";
-import { playCorrectSound, playWrongSound, playApplause, unlockAudio } from "./sounds.js";
+import { getOrCreateDailySong } from "./dailySong.js";
+import { playCorrectSound, playWrongSound, playApplause, playVictorySound, unlockAudio } from "./sounds.js";
 import { Play, Music4, Trophy, RotateCcw, Users, ChevronRight, Copy, Check, LogIn, LogOut, BarChart3, Flame, Crown, Shield, Search, Trash2, Pencil, Save, X, MessageCircle, Send } from "lucide-react";
 import logoImg from "./assets/logo-v2.png";
 
@@ -177,6 +178,47 @@ const StatBox = memo(function StatBox({ label, value }) {
     <div className="rounded-lg px-4 py-3 flex-1" style={{ background: "var(--surface2)", minWidth: 110 }}>
       <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: "var(--accent)" }}>{value}</p>
       <p style={{ color: "var(--muted)", fontSize: 10, textTransform: "uppercase" }}>{label}</p>
+    </div>
+  );
+});
+
+const CONFETTI_COLORS = ["#00e6c3", "#8b5cf6", "#ff5fc9", "#ffb020", "#39ff9a"];
+const Confetti = memo(function Confetti() {
+  const pieces = React.useMemo(
+    () =>
+      Array.from({ length: 60 }, (_, i) => ({
+        id: i,
+        left: Math.random() * 100,
+        delay: Math.random() * 0.6,
+        duration: 2.2 + Math.random() * 1.4,
+        color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+        size: 6 + Math.random() * 6,
+      })),
+    []
+  );
+  return (
+    <div style={{ position: "fixed", inset: 0, pointerEvents: "none", overflow: "hidden", zIndex: 99 }}>
+      <style>{`
+        @keyframes confetti-fall {
+          0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+          100% { transform: translateY(110vh) rotate(720deg); opacity: 0.9; }
+        }
+      `}</style>
+      {pieces.map((p) => (
+        <div
+          key={p.id}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: `${p.left}%`,
+            width: p.size,
+            height: p.size * 1.6,
+            background: p.color,
+            animation: `confetti-fall ${p.duration}s ease-in ${p.delay}s forwards`,
+            borderRadius: 2,
+          }}
+        />
+      ))}
     </div>
   );
 });
@@ -421,6 +463,122 @@ export default function App() {
     const id = setInterval(() => getOnlineCount().then(setOnlineCount), 40000);
     return () => clearInterval(id);
   }, []);
+
+  // --- "Piosenka dnia" ---
+  const [showDailySong, setShowDailySong] = useState(false);
+  const [dailySong, setDailySong] = useState(null);
+  const [dailyAlreadyPlayed, setDailyAlreadyPlayed] = useState(false);
+  const [dailyGuessArtist, setDailyGuessArtist] = useState("");
+  const [dailyGuessTitle, setDailyGuessTitle] = useState("");
+  const [dailyGuessYear, setDailyGuessYear] = useState("");
+  const [dailyResult, setDailyResult] = useState(null);
+  const [dailyBusy, setDailyBusy] = useState(false);
+  const [dailyIsPlaying, setDailyIsPlaying] = useState(false);
+  const [dailyPlayElapsed, setDailyPlayElapsed] = useState(0);
+  const dailyIframeRef = useRef(null);
+  const dailyPlayIntervalRef = useRef(null);
+
+  async function openDailySong() {
+    if (!user) return setError("Zaloguj się, żeby zagrać w Piosenkę dnia.");
+    setDailyBusy(true);
+    setError("");
+    try {
+      const dayKey = currentDayKey();
+      const song = await getOrCreateDailySong(dayKey, effectivePool.length > 0 ? effectivePool : REAL_SONGS);
+      setDailySong(song);
+      const s = await getStats(user.uid);
+      const alreadyPlayed = s?.dailyLastResult?.dayKey === dayKey;
+      setDailyAlreadyPlayed(alreadyPlayed);
+      setDailyResult(alreadyPlayed ? s.dailyLastResult : null);
+      setShowDailySong(true);
+    } catch (e) {
+      setError("Nie udało się wczytać Piosenki dnia: " + e.message);
+    } finally {
+      setDailyBusy(false);
+    }
+  }
+
+  function closeDailySong() {
+    setShowDailySong(false);
+    setDailyGuessArtist("");
+    setDailyGuessTitle("");
+    setDailyGuessYear("");
+    setDailyIsPlaying(false);
+    setDailyPlayElapsed(0);
+    if (dailyPlayIntervalRef.current) clearInterval(dailyPlayIntervalRef.current);
+  }
+
+  function toggleDailyPlay() {
+    const win = dailyIframeRef.current && dailyIframeRef.current.contentWindow;
+    const willPlay = !dailyIsPlaying;
+    setDailyIsPlaying(willPlay);
+    if (willPlay) {
+      setDailyPlayElapsed(0);
+      if (win) {
+        win.postMessage(JSON.stringify({ event: "command", func: "seekTo", args: [dailySong.startSeconds, true] }), "*");
+        win.postMessage(JSON.stringify({ event: "command", func: "unMute", args: [] }), "*");
+        win.postMessage(JSON.stringify({ event: "command", func: "setVolume", args: [100] }), "*");
+        win.postMessage(JSON.stringify({ event: "command", func: "playVideo", args: [] }), "*");
+      }
+      const startedAt = Date.now();
+      dailyPlayIntervalRef.current = setInterval(() => {
+        const elapsed = (Date.now() - startedAt) / 1000;
+        if (elapsed >= PLAY_CAP_SECONDS) {
+          setDailyIsPlaying(false);
+          setDailyPlayElapsed(PLAY_CAP_SECONDS);
+          if (win) win.postMessage(JSON.stringify({ event: "command", func: "pauseVideo", args: [] }), "*");
+          clearInterval(dailyPlayIntervalRef.current);
+        } else {
+          setDailyPlayElapsed(elapsed);
+        }
+      }, 200);
+    } else {
+      if (win) win.postMessage(JSON.stringify({ event: "command", func: "pauseVideo", args: [] }), "*");
+      if (dailyPlayIntervalRef.current) clearInterval(dailyPlayIntervalRef.current);
+    }
+  }
+
+  async function submitDailyGuess() {
+    if (!user || !dailySong) return;
+    setDailyBusy(true);
+    try {
+      const correctArtist = fuzzyMatch(dailyGuessArtist, dailySong.artist);
+      const correctTitle = fuzzyMatch(dailyGuessTitle, dailySong.title);
+      const correctYear = parseInt(dailyGuessYear, 10) === dailySong.year;
+      const score = (correctArtist ? 1 : 0) + (correctTitle ? 1 : 0) + (correctYear ? 1 : 0);
+      const result = {
+        guessArtist: dailyGuessArtist,
+        guessTitle: dailyGuessTitle,
+        guessYear: dailyGuessYear,
+        correctArtist,
+        correctTitle,
+        correctYear,
+        score,
+      };
+      const newStreak = await recordDailyResult(user.uid, currentDayKey(), result);
+      const xp = 10 + score * 15; // 10 za sam udział, +15 za każdą trafioną część
+      await awardXp(user.uid, xp);
+      const before = myXp || 0;
+      setMyXp(before + xp);
+      setDailyResult({ ...result, dayKey: currentDayKey(), streak: newStreak, xpEarned: xp });
+      setDailyAlreadyPlayed(true);
+      if (score === 3) {
+        playVictorySound();
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 4000);
+      } else if (score > 0) {
+        playCorrectSound();
+      } else {
+        playWrongSound();
+      }
+    } catch (e) {
+      setError("Błąd zapisu wyniku: " + e.message);
+    } finally {
+      setDailyBusy(false);
+    }
+  }
+
+
 
   useEffect(() => {
     setAdminPage(1);
@@ -887,8 +1045,21 @@ export default function App() {
     return { items, total };
   }
 
+  const [showConfetti, setShowConfetti] = useState(false);
+  const confettiFiredRef = useRef(null);
+  useEffect(() => {
+    if (screen !== "gameover" || !room?.winnerIds?.length) return;
+    const marker = toMillis(room?.expireAt);
+    if (!marker || confettiFiredRef.current === marker) return;
+    confettiFiredRef.current = marker;
+    playVictorySound();
+    setShowConfetti(true);
+    setTimeout(() => setShowConfetti(false), 4000);
+  }, [screen, room?.winnerIds, toMillis(room?.expireAt)]);
+
   const xpAwardedRef = useRef(null);
   const [levelUpInfo, setLevelUpInfo] = useState(null);
+  const [weeklyBonusInfo, setWeeklyBonusInfo] = useState(null);
   useEffect(() => {
     if (screen !== "gameover" || !room?.winnerIds?.length || !user || room.practiceMode) return;
     const marker = toMillis(room?.expireAt);
@@ -897,13 +1068,23 @@ export default function App() {
     (async () => {
       try {
         const { total } = computeGameEndXp(room, playerId);
-        if (total === 0) return;
         const before = await getStats(user.uid);
         const oldXp = before?.xp || 0;
         const oldLevel = levelFromXp(oldXp).level;
-        await awardXp(user.uid, total);
-        setMyXp(oldXp + total);
-        const newLevel = levelFromXp(oldXp + total).level;
+        let grandTotal = total;
+        if (total) await awardXp(user.uid, total);
+
+        // wyzwanie tygodniowe — liczy się każda (nie-treningowa) rozegrana gra
+        const { gamesThisWeek, justCompleted } = await progressWeeklyChallenge(user.uid);
+        if (justCompleted) {
+          await awardXp(user.uid, 50);
+          grandTotal += 50;
+          setWeeklyBonusInfo({ gamesThisWeek });
+          setTimeout(() => setWeeklyBonusInfo(null), 6000);
+        }
+
+        setMyXp(oldXp + grandTotal);
+        const newLevel = levelFromXp(oldXp + grandTotal).level;
         if (newLevel > oldLevel) {
           setLevelUpInfo({ level: newLevel });
           setTimeout(() => setLevelUpInfo(null), 5000);
@@ -2122,6 +2303,26 @@ export default function App() {
                     const { level, currentLevelXp, xpForNextLevel } = levelFromXp(stats.xp);
                     return <LevelBar level={level} currentLevelXp={currentLevelXp} xpForNextLevel={xpForNextLevel} size="big" />;
                   })()}
+                  {(() => {
+                    const wc = stats.weeklyChallenge;
+                    const isCurrentWeek = wc && wc.weekKey === currentWeekKey();
+                    const gamesThisWeek = isCurrentWeek ? wc.gamesThisWeek : 0;
+                    const claimed = isCurrentWeek && wc.claimed;
+                    const pct = Math.min(100, Math.round((gamesThisWeek / 3) * 100));
+                    return (
+                      <div className="w-full rounded-xl p-3" style={{ background: "var(--surface2)" }}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span style={{ fontSize: 12, fontWeight: "bold" }}>🎯 Wyzwanie tygodnia: zagraj 3 gry</span>
+                          <span style={{ fontSize: 11, color: claimed ? "var(--good)" : "var(--muted)" }}>
+                            {claimed ? "✓ Ukończone (+50 XP)" : `${Math.min(gamesThisWeek, 3)} / 3`}
+                          </span>
+                        </div>
+                        <div className="w-full rounded-full" style={{ height: 6, background: "#0d0a17", overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${pct}%`, background: claimed ? "var(--good)" : "var(--accent)" }} />
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <div className="flex gap-4 flex-wrap">
                     <StatBox label="Rozegrane gry" value={stats.gamesPlayed || 0} />
                     <StatBox label="Wygrane" value={stats.gamesWon || 0} />
@@ -2924,6 +3125,18 @@ export default function App() {
               </div>
             </section>
 
+            {user && (
+              <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>📅 PIOSENKA DNIA</h2>
+                <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 10 }}>
+                  Ta sama piosenka dla wszystkich, raz dziennie — zgadnij wykonawcę, tytuł i rok.
+                </p>
+                <button onClick={openDailySong} disabled={dailyBusy} className="px-4 py-2 rounded-lg text-sm font-bold btn-grad">
+                  Zagraj
+                </button>
+              </section>
+            )}
+
             <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
               <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>DOŁĄCZ DO GRY</h2>
               <div className="flex gap-2 mt-2">
@@ -3362,6 +3575,7 @@ export default function App() {
 
         {screen === "gameover" && room && room.winnerIds && room.winnerIds.length > 0 && (
           <div className="w-full flex flex-col items-center gap-5 text-center">
+            {showConfetti && <Confetti />}
             <Trophy size={48} color="var(--accent)" />
             <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34 }}>
               {room.winnerIds.length > 1
@@ -3514,6 +3728,117 @@ export default function App() {
             <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: "var(--accent)" }}>AWANS POZIOMU!</p>
             <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48 }}>Poziom {levelUpInfo.level}</p>
             <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>(kliknij, żeby zamknąć)</p>
+          </div>
+        </div>
+      )}
+
+      {weeklyBonusInfo && (
+        <div
+          style={{
+            position: "fixed",
+            top: 16,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 96,
+            textAlign: "center",
+            padding: "10px 18px",
+            borderRadius: 12,
+            background: "var(--surface)",
+            border: "1px solid var(--good)",
+            color: "var(--text)",
+            fontSize: 12,
+            maxWidth: "90%",
+          }}
+        >
+          🎯 Wyzwanie tygodnia ukończone! +50 XP
+        </div>
+      )}
+
+      {showDailySong && dailySong && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.75)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 98,
+            padding: 16,
+            overflowY: "auto",
+          }}
+        >
+          <div className="rounded-2xl p-5 card-glow w-full" style={{ background: "var(--surface)", maxWidth: 380 }}>
+            <div className="flex items-center justify-between mb-3">
+              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: "var(--accent)" }}>📅 PIOSENKA DNIA</p>
+              <button onClick={closeDailySong} style={{ color: "var(--muted)" }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            {!dailyAlreadyPlayed ? (
+              <div className="flex flex-col items-center gap-4">
+                <Vinyl spinning={dailyIsPlaying} revealed={false} progress={dailyPlayElapsed / PLAY_CAP_SECONDS} />
+                <div style={{ width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }}>
+                  <iframe
+                    key={"daily-" + dailySong.videoId}
+                    ref={dailyIframeRef}
+                    title="daily-player"
+                    width="280"
+                    height="158"
+                    src={`https://www.youtube.com/embed/${dailySong.videoId}?enablejsapi=1&autoplay=1&mute=1&start=${dailySong.startSeconds}&controls=0&modestbranding=1&rel=0`}
+                    allow="autoplay; encrypted-media"
+                    style={{ border: "none" }}
+                  />
+                </div>
+                <button onClick={toggleDailyPlay} className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-bold btn-grad">
+                  <Play size={16} />
+                  {dailyIsPlaying ? `Gra… (${Math.ceil(PLAY_CAP_SECONDS - dailyPlayElapsed)}s)` : "Odtwórz dźwięk"}
+                </button>
+
+                <div className="w-full flex flex-col gap-2">
+                  <input type="text" value={dailyGuessArtist} onChange={(e) => setDailyGuessArtist(e.target.value)} placeholder="Wykonawca" />
+                  <input type="text" value={dailyGuessTitle} onChange={(e) => setDailyGuessTitle(e.target.value)} placeholder="Tytuł" />
+                  <input type="number" value={dailyGuessYear} onChange={(e) => setDailyGuessYear(e.target.value)} placeholder="Rok" />
+                </div>
+                <button onClick={submitDailyGuess} disabled={dailyBusy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+                  ZATWIERDŹ ODPOWIEDŹ
+                </button>
+                <p style={{ fontSize: 10, color: "var(--muted)" }}>Puste pola liczą się jako błędne — możesz zostawić to, czego nie wiesz.</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-3 text-center">
+                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>
+                  {dailyResult?.score === 3 ? "🎉 KOMPLET!" : dailyResult?.score > 0 ? "Nieźle!" : "Może jutro pójdzie lepiej"}
+                </p>
+                <div className="w-full rounded-lg p-3" style={{ background: "var(--surface2)" }}>
+                  <p style={{ fontSize: 13 }}>
+                    <strong>{dailySong.artist}</strong> — {dailySong.title}
+                  </p>
+                  <p style={{ color: "var(--accent)", fontFamily: "'Bebas Neue', sans-serif", fontSize: 22 }}>{dailySong.year}</p>
+                </div>
+                {dailyResult && (
+                  <div className="w-full flex flex-col gap-1 text-left" style={{ fontSize: 12 }}>
+                    <span style={{ color: dailyResult.correctArtist ? "var(--good)" : "var(--bad)" }}>
+                      {dailyResult.correctArtist ? "✓" : "✗"} Wykonawca: {dailyResult.guessArtist || "—"}
+                    </span>
+                    <span style={{ color: dailyResult.correctTitle ? "var(--good)" : "var(--bad)" }}>
+                      {dailyResult.correctTitle ? "✓" : "✗"} Tytuł: {dailyResult.guessTitle || "—"}
+                    </span>
+                    <span style={{ color: dailyResult.correctYear ? "var(--good)" : "var(--bad)" }}>
+                      {dailyResult.correctYear ? "✓" : "✗"} Rok: {dailyResult.guessYear || "—"}
+                    </span>
+                  </div>
+                )}
+                {dailyResult?.streak !== undefined && (
+                  <p style={{ fontSize: 12, color: "var(--accent2)" }}>🔥 Seria dni z rzędu: {dailyResult.streak}</p>
+                )}
+                {dailyResult?.xpEarned !== undefined && (
+                  <p style={{ fontSize: 12, color: "var(--good)" }}>+{dailyResult.xpEarned} XP</p>
+                )}
+                <p style={{ fontSize: 11, color: "var(--muted)" }}>Wróć jutro po kolejną piosenkę!</p>
+              </div>
+            )}
           </div>
         </div>
       )}
