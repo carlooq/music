@@ -15,7 +15,7 @@ import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId } from "./
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
 import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard } from "./stats.js";
-import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, applyCategoryPatchToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv } from "./songsDb.js";
+import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, applyCategoryPatchToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
 import { playCorrectSound, playWrongSound, playApplause, unlockAudio } from "./sounds.js";
 import { Play, Music4, Trophy, RotateCcw, Users, ChevronRight, Copy, Check, LogIn, LogOut, BarChart3, Flame, Crown, Shield, Search, Trash2, Pencil, Save, X, MessageCircle, Send } from "lucide-react";
@@ -201,6 +201,7 @@ export default function App() {
   const [chosenSlot, setChosenSlot] = useState(null);
   const [heldCard, setHeldCard] = useState(null);
   const [boughtCardReveal, setBoughtCardReveal] = useState(null);
+  const [brokenLinkNotice, setBrokenLinkNotice] = useState(null);
   const [viewedPlayerId, setViewedPlayerId] = useState(null);
   const [showOnlyMyPlaylist, setShowOnlyMyPlaylist] = useState(false);
   const clearHeldCard = useCallback(() => setHeldCard(null), []);
@@ -256,6 +257,9 @@ export default function App() {
   const [importResult, setImportResult] = useState(null);
   const [cleanupBusy, setCleanupBusy] = useState(false);
   const [cleanupResult, setCleanupResult] = useState(null);
+  const [brokenLinkReports, setBrokenLinkReports] = useState(null);
+  const [showBrokenLinkReports, setShowBrokenLinkReports] = useState(false);
+  const [brokenLinkBusy, setBrokenLinkBusy] = useState(false);
   const [cleanupProgress, setCleanupProgress] = useState(null);
 
   const [showProposeForm, setShowProposeForm] = useState(false);
@@ -615,6 +619,97 @@ export default function App() {
     } finally {
       setCleanupBusy(false);
       setCleanupProgress(null);
+    }
+  }
+
+  function loadBrokenLinkReports() {
+    fetchBrokenLinkReports()
+      .then((list) => setBrokenLinkReports(list))
+      .catch(() => setBrokenLinkReports([]));
+  }
+
+  async function handleDismissBrokenLink(id) {
+    setBrokenLinkBusy(true);
+    try {
+      await dismissBrokenLinkReport(id);
+      setBrokenLinkReports((prev) => prev.filter((r) => r.id !== id));
+    } catch (e) {
+      setError("Błąd odrzucania zgłoszenia: " + e.message);
+    } finally {
+      setBrokenLinkBusy(false);
+    }
+  }
+
+  async function handleDeleteBrokenSong(report) {
+    if (!window.confirm(`Usunąć "${report.artist} — ${report.title}" z bazy utworów i odrzucić zgłoszenie?`)) return;
+    setBrokenLinkBusy(true);
+    try {
+      const found = await deleteBrokenSongAndDismiss(report.id, report.videoId);
+      setBrokenLinkReports((prev) => prev.filter((r) => r.id !== report.id));
+      setLibrarySongs((prev) => (prev ? prev.filter((s) => s.videoId !== report.videoId) : prev));
+      if (!found) alert("Nie znaleziono tego utworu w bazie (mógł już zostać usunięty) — samo zgłoszenie odrzucono.");
+    } catch (e) {
+      setError("Błąd usuwania utworu: " + e.message);
+    } finally {
+      setBrokenLinkBusy(false);
+    }
+  }
+
+  // 🧪 TYMCZASOWA funkcja testowa — startuje sesję Treningu z jedną celowo
+  // zepsutą kartą jako pierwszą, żeby sprawdzić wykrywanie i wymianę na żywo.
+  // Do usunięcia po potwierdzeniu, że mechanizm działa poprawnie.
+  async function testBrokenLinkDetection() {
+    if (!name.trim() && !user) return setError("Podaj swoje imię, żeby przetestować.");
+    setBusy(true);
+    try {
+      const pool = effectivePool.slice(0, 20);
+      if (pool.length < 5) {
+        setError("Za mało utworów w bibliotece do przetestowania.");
+        setBusy(false);
+        return;
+      }
+      const code = generateRoomCode();
+      const ref = doc(db, "rooms", code);
+      const deck = shuffle(pool);
+      const fakeCard = { id: "test-broken-link-0", videoId: "zzzzzzzzzzz", artist: "TEST", title: "Celowo zepsuty link (do testu)", year: 2000, categories: [] };
+      const me = { id: playerId, name: name.trim() || user?.displayName || "Admin", authed: !!user };
+      await setDoc(ref, {
+        code,
+        hostId: playerId,
+        target: 3,
+        status: "playing",
+        players: [me],
+        deck,
+        deckIndex: 0,
+        currentPlayerId: playerId,
+        startingPlayerId: playerId,
+        currentCard: fakeCard,
+        startSeconds: 15,
+        turnStartedAt: serverTimestamp(),
+        timelines: { [playerId]: [] },
+        tokens: { [playerId]: 0 },
+        lastResult: null,
+        pendingGuess: null,
+        votes: {},
+        requiredApprovals: 0,
+        resultAt: null,
+        winnerIds: [],
+        finishingRound: false,
+        decisionTimes: {},
+        gameStreaks: {},
+        gameGuesses: {},
+        gameBestStreaks: {},
+        playedCards: [],
+        messages: [],
+        practiceMode: true,
+        createdAt: serverTimestamp(),
+        expireAt: new Date(Date.now() + 60 * 60 * 1000),
+      });
+      setRoomId(code);
+    } catch (e) {
+      setError("Błąd testu: " + e.message);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -1399,6 +1494,57 @@ export default function App() {
     }
   }
 
+  const brokenLinkFiredRef = useRef(null);
+  // Wywoływane, gdy YouTube zgłosi błąd wczytania filmu (usunięty/prywatny/
+  // wyłączone osadzanie). Wymiana karty przez transakcję z zabezpieczeniem —
+  // jeśli kilku graczy wykryje to jednocześnie, tylko pierwsza próba coś zrobi.
+  async function handleBrokenLink(card) {
+    if (!room || !roomId || !card) return;
+    if (brokenLinkFiredRef.current === card.id) return;
+    brokenLinkFiredRef.current = card.id;
+    try {
+      const ref = doc(db, "rooms", roomId);
+      let swapped = false;
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const data = snap.data();
+        if (data.status !== "playing") return; // po fazie decyzji już za późno na wymianę
+        if (!data.currentCard || data.currentCard.id !== card.id) return; // ktoś już to obsłużył
+        if (data.deckIndex >= data.deck.length) return; // brak zapasu w talii — zostawiamy jak jest
+        swapped = true;
+        tx.update(ref, {
+          currentCard: data.deck[data.deckIndex],
+          deckIndex: data.deckIndex + 1,
+          startSeconds: randomStartSeconds(),
+          turnStartedAt: serverTimestamp(),
+        });
+      });
+      if (swapped) {
+        logBrokenLink(card).catch(() => {});
+        setBrokenLinkNotice(card);
+        setTimeout(() => setBrokenLinkNotice(null), 4000);
+      }
+    } catch (e) {
+      // ciche niepowodzenie — gracz może ręcznie skorzystać z wymiany za token
+    }
+  }
+
+  useEffect(() => {
+    if (screen !== "playing" || !room?.currentCard) return;
+    function handleYTMessage(event) {
+      let data;
+      try {
+        data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+      } catch (e) {
+        return;
+      }
+      if (!data || data.event !== "onError") return;
+      handleBrokenLink(room.currentCard);
+    }
+    window.addEventListener("message", handleYTMessage);
+    return () => window.removeEventListener("message", handleYTMessage);
+  }, [screen, room?.currentCard?.id]);
+
   async function swapSong() {
     if (!room || (room.tokens?.[playerId] || 0) < SWAP_SONG_TOKENS) return;
     setBusy(true);
@@ -2071,6 +2217,79 @@ export default function App() {
                   ✓ Usunięto {cleanupResult.deleted} z {cleanupResult.totalRooms} sprawdzonych pokojów.
                 </p>
               )}
+            </section>
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>
+                🚨 Zgłoszone uszkodzone linki
+              </p>
+              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
+                Gra sama wykrywa, gdy YouTube nie może wczytać filmu (usunięty/prywatny/wyłączone osadzanie), automatycznie losuje nową kartę i zapisuje to tutaj do przejrzenia.
+              </p>
+              <button
+                onClick={() => {
+                  setShowBrokenLinkReports((v) => !v);
+                  if (!brokenLinkReports) loadBrokenLinkReports();
+                }}
+                className="px-4 py-2 rounded-lg text-sm font-bold"
+                style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
+              >
+                {showBrokenLinkReports ? "Ukryj" : "Pokaż zgłoszenia"} {brokenLinkReports ? `(${brokenLinkReports.length})` : ""}
+              </button>
+              {showBrokenLinkReports && (
+                <div className="flex flex-col gap-2 mt-3">
+                  {!brokenLinkReports ? (
+                    <p style={{ fontSize: 12, color: "var(--muted)" }}>Ładowanie…</p>
+                  ) : brokenLinkReports.length === 0 ? (
+                    <p style={{ fontSize: 12, color: "var(--muted)" }}>Brak zgłoszeń — nic nie zawiodło (jeszcze 🙂).</p>
+                  ) : (
+                    brokenLinkReports.map((r) => (
+                      <div key={r.id} className="rounded-lg p-3" style={{ background: "var(--surface2)" }}>
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div>
+                            <p style={{ fontSize: 13 }}>
+                              <strong>{r.artist}</strong> — {r.title} {r.year ? `(${r.year})` : ""}
+                            </p>
+                            <a
+                              href={`https://www.youtube.com/watch?v=${r.videoId}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ fontSize: 10, color: "var(--accent)" }}
+                            >
+                              sprawdź na YouTube ↗
+                            </a>
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => handleDeleteBrokenSong(r)} disabled={brokenLinkBusy} style={{ color: "var(--bad)" }} title="Usuń z bazy">
+                              <Trash2 size={16} />
+                            </button>
+                            <button onClick={() => handleDismissBrokenLink(r.id)} disabled={brokenLinkBusy} style={{ color: "var(--muted)" }} title="Odrzuć zgłoszenie">
+                              <X size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </section>
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "rgba(255,184,32,0.08)", border: "1px solid var(--gold)" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--gold)", marginBottom: 8 }}>
+                🧪 Test wykrywania zepsutego linku (tymczasowe)
+              </p>
+              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
+                Startuje sesję Treningu z jedną celowo zepsutą kartą jako pierwszą — sprawdź, czy pojawia się komunikat i czy karta wymienia się automatycznie.
+              </p>
+              <button
+                onClick={testBrokenLinkDetection}
+                disabled={busy}
+                className="px-4 py-2 rounded-lg text-sm font-bold"
+                style={{ background: "var(--gold)", color: "#2a1a00" }}
+              >
+                Uruchom test
+              </button>
             </section>
 
             <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
@@ -2957,6 +3176,28 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {brokenLinkNotice && (
+        <div
+          style={{
+            position: "fixed",
+            top: 16,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 96,
+            textAlign: "center",
+            padding: "10px 18px",
+            borderRadius: 12,
+            background: "var(--surface)",
+            border: "1px solid var(--bad)",
+            color: "var(--text)",
+            fontSize: 12,
+            maxWidth: "90%",
+          }}
+        >
+          ⚠ Ten utwór nie mógł się załadować — losujemy nowy.
+        </div>
+      )}
 
       {boughtCardReveal && (
         <div

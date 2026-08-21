@@ -1,4 +1,4 @@
-import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, writeBatch } from "firebase/firestore";
+import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp } from "firebase/firestore";
 import { db } from "./firebase-config.js";
 import { REAL_SONGS } from "./songs.js";
 import { CATEGORY_PATCH } from "./categoryPatch.js";
@@ -202,4 +202,31 @@ export async function importSongsFromCsv(csvText, existingVideoIds, onProgress) 
   }
 
   return { totalRows: rows.length, added: written, addedSongs, skippedDup, skippedBad };
+}
+
+// --- zgłoszenia uszkodzonych linków (wykryte automatycznie w grze) ---
+
+const BROKEN_LINKS_COLLECTION = "brokenLinks";
+
+export async function logBrokenLink({ videoId, artist, title, year }) {
+  const ref = doc(collection(db, BROKEN_LINKS_COLLECTION));
+  await setDoc(ref, { videoId, artist, title, year: year || null, reportedAt: serverTimestamp() });
+}
+
+export async function fetchBrokenLinkReports() {
+  const snap = await getDocs(collection(db, BROKEN_LINKS_COLLECTION));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+export async function dismissBrokenLinkReport(id) {
+  await deleteDoc(doc(db, BROKEN_LINKS_COLLECTION, id));
+}
+
+// Usuwa piosenkę z głównej biblioteki po videoId (znajduje pierwsze dopasowanie) i odrzuca zgłoszenie.
+export async function deleteBrokenSongAndDismiss(reportId, videoId) {
+  const snap = await getDocs(collection(db, COLLECTION));
+  const match = snap.docs.find((d) => d.data().videoId === videoId);
+  if (match) await deleteDoc(doc(db, COLLECTION, match.id));
+  await deleteDoc(doc(db, BROKEN_LINKS_COLLECTION, reportId));
+  return !!match;
 }
