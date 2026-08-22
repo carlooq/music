@@ -43,6 +43,7 @@ const CATEGORIES = [
   { slug: "pop", label: "Pop" },
   { slug: "rap", label: "Rap" },
   { slug: "elektroniczna", label: "Elektroniczna" },
+  { slug: "tymek", label: "Tymek" },
 ];
 
 // ---------- vinyl / now-playing widget ----------
@@ -300,6 +301,7 @@ export default function App() {
   const [chosenSlot, setChosenSlot] = useState(null);
   const [heldCard, setHeldCard] = useState(null);
   const [boughtCardReveal, setBoughtCardReveal] = useState(null);
+  const [sharedBoughtNotice, setSharedBoughtNotice] = useState(null);
   const [viewedPlayerId, setViewedPlayerId] = useState(null);
   const [showOnlyMyPlaylist, setShowOnlyMyPlaylist] = useState(false);
   const clearHeldCard = useCallback(() => setHeldCard(null), []);
@@ -365,6 +367,7 @@ export default function App() {
   const [brokenLinkNotice, setBrokenLinkNotice] = useState(null);
 
   const [showProposeForm, setShowProposeForm] = useState(false);
+  const [showAuthForm, setShowAuthForm] = useState(false);
   const [proposeDraft, setProposeDraft] = useState({ artist: "", title: "", url: "", year: "", categories: [] });
   const [proposeBusy, setProposeBusy] = useState(false);
   const [proposeError, setProposeError] = useState("");
@@ -433,7 +436,7 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (screen === "lobby" && room?.hostId === playerId) ensureLibraryLoaded();
+    if ((screen === "lobby" && room?.hostId === playerId) || screen === "practiceSetup") ensureLibraryLoaded();
   }, [screen, room?.hostId, playerId]);
 
   const [playerLevels, setPlayerLevels] = useState({});
@@ -1344,11 +1347,15 @@ export default function App() {
     setBusy(true);
     setError("");
     try {
-      const pool = effectivePool;
+      const filterActive = !selectedCategories.includes("wszystkie") && selectedCategories.length > 0;
+      const pool = filterActive
+        ? effectivePool.filter((s) => s.categories && s.categories.some((c) => selectedCategories.includes(c)))
+        : effectivePool;
       const target = practiceTarget && practiceTarget > 0 ? practiceTarget : 15;
       const needed = target + 7;
       if (pool.length < needed) {
-        setError(`Za mało utworów w bibliotece (masz ${pool.length}, potrzeba ${needed}).`);
+        const catNote = filterActive ? ` w wybranych kategoriach (${selectedCategories.join(", ")})` : "";
+        setError(`Za mało utworów${catNote} (masz ${pool.length}, potrzeba ${needed}).`);
         setBusy(false);
         return;
       }
@@ -1720,6 +1727,7 @@ export default function App() {
           [`gameStreaks.${data.currentPlayerId}`]: newStreak,
           [`gameBestStreaks.${data.currentPlayerId}`]: Math.max(prevBest, newStreak),
           playedCards: newPlayedCards,
+          lastBoughtCard: { playerId: data.currentPlayerId, card: boughtCard, at: serverTimestamp() },
         };
 
         // kupiona karta może dopełnić cel — nie kończymy gry od razu,
@@ -1809,6 +1817,17 @@ export default function App() {
       setBusy(false);
     }
   }
+
+  const boughtNoticeFiredRef = useRef(null);
+  useEffect(() => {
+    const at = toMillis(room?.lastBoughtCard?.at);
+    if (!at || boughtNoticeFiredRef.current === at) return;
+    boughtNoticeFiredRef.current = at;
+    if (room.lastBoughtCard.playerId === playerId) return; // kupujący ma już swój lokalny popup
+    const buyerName = room.players.find((p) => p.id === room.lastBoughtCard.playerId)?.name;
+    setSharedBoughtNotice({ name: buyerName, card: room.lastBoughtCard.card });
+    setTimeout(() => setSharedBoughtNotice(null), 4000);
+  }, [toMillis(room?.lastBoughtCard?.at)]);
 
   const brokenLinkFiredRef = useRef(null);
   // Wywoływane, gdy YouTube zgłosi błąd wczytania filmu (usunięty/prywatny/
@@ -2148,6 +2167,15 @@ export default function App() {
           --text: #f4eefc; --muted: #9c8fc2;
         }
         @keyframes spin-record { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes slide-fade-in {
+          from { opacity: 0; transform: translateY(-24px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes scale-pop-in {
+          0% { opacity: 0; transform: scale(0.7); }
+          70% { transform: scale(1.06); }
+          100% { opacity: 1; transform: scale(1); }
+        }
         @keyframes bg-drift {
           0%, 100% { background-position: 0% 50%; }
           50% { background-position: 100% 50%; }
@@ -2875,79 +2903,151 @@ export default function App() {
 
         {screen === "home" && !showStats && !showLeaderboard && !showAdminPanel && (
           <div className="w-full flex flex-col gap-5">
-            <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+            {/* PASEK TOŻSAMOŚCI — kompaktowy, jedna linia zamiast całej formy */}
+            <section
+              className="w-full rounded-xl p-3 flex items-center justify-between gap-2 flex-wrap"
+              style={{ background: "var(--surface2)", border: user ? "1px solid #22304f" : "1px dashed #33294f" }}
+            >
               {user ? (
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div>
-                    <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>Cześć, {user.displayName}!</p>
-                    <p style={{ color: "var(--muted)", fontSize: 11 }}>Zalogowano — Twoje statystyki są zapisywane.</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={openStats} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: "var(--accent)", color: "#1a1428" }}>
-                      <BarChart3 size={14} /> Statystyki
-                    </button>
-                    <button onClick={handleLogout} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs" style={{ border: "1px solid #33294f", color: "var(--muted)" }}>
-                      <LogOut size={14} /> Wyloguj
-                    </button>
-                  </div>
-                </div>
+                <>
+                  <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 16 }}>Cześć, {user.displayName}!</span>
+                  <button onClick={handleLogout} className="flex items-center gap-1 text-xs" style={{ color: "var(--muted)" }}>
+                    <LogOut size={13} /> Wyloguj
+                  </button>
+                </>
               ) : (
                 <>
-                  <div className="flex gap-2 mb-3">
-                    <button
-                      onClick={() => setAuthMode("login")}
-                      className="px-3 py-1.5 rounded-lg text-xs font-bold"
-                      style={{ background: authMode === "login" ? "var(--accent)" : "var(--surface2)", color: authMode === "login" ? "#1a1428" : "var(--muted)" }}
-                    >
-                      Zaloguj
-                    </button>
-                    <button
-                      onClick={() => setAuthMode("register")}
-                      className="px-3 py-1.5 rounded-lg text-xs font-bold"
-                      style={{ background: authMode === "register" ? "var(--accent)" : "var(--surface2)", color: authMode === "register" ? "#1a1428" : "var(--muted)" }}
-                    >
-                      Zarejestruj
-                    </button>
+                  <div className="flex items-center gap-2">
+                    <span style={{ color: "var(--muted)", fontSize: 12 }}>Imię:</span>
+                    <input type="text" value={name} onChange={(e) => saveName(e.target.value)} placeholder="np. Kasia" style={{ width: 120, fontSize: 12, padding: "4px 8px" }} />
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <input type="text" value={authUsername} onChange={(e) => setAuthUsername(e.target.value)} placeholder="Login" />
-                    <input
-                      type="password"
-                      value={authPassword}
-                      onChange={(e) => setAuthPassword(e.target.value)}
-                      placeholder="Hasło (wymyśl inne niż wszędzie indziej!)"
-                    />
-                    <button
-                      onClick={handleAuthSubmit}
-                      disabled={authBusy}
-                      className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold"
-                      style={{ background: "var(--good)", color: "#0d1f1a" }}
-                    >
-                      <LogIn size={16} /> {authMode === "login" ? "Zaloguj się" : "Zarejestruj się"}
-                    </button>
-                    {authError && <p style={{ color: "var(--bad)", fontSize: 12 }}>{authError}</p>}
-                    <p style={{ color: "var(--muted)", fontSize: 11 }}>
-                      Konto = zbieramy Twoje statystyki gier (wygrane, skuteczność odgadywania). Możesz też zagrać bez konta poniżej.
-                    </p>
-                  </div>
+                  <button onClick={() => setShowAuthForm((v) => !v)} className="text-xs font-bold" style={{ color: "var(--accent)", textDecoration: "underline" }}>
+                    {showAuthForm ? "Zwiń" : "Zaloguj się"}
+                  </button>
                 </>
               )}
             </section>
 
-            {!user && (
+            {!user && showAuthForm && (
               <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
-                <label className="text-xs uppercase" style={{ color: "var(--muted)" }}>Graj bez konta — podaj imię</label>
-                <input type="text" value={name} onChange={(e) => saveName(e.target.value)} className="w-full mt-2" placeholder="np. Kasia" />
+                <div className="flex gap-2 mb-3">
+                  <button
+                    onClick={() => setAuthMode("login")}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold"
+                    style={{ background: authMode === "login" ? "var(--accent)" : "var(--surface2)", color: authMode === "login" ? "#1a1428" : "var(--muted)" }}
+                  >
+                    Zaloguj
+                  </button>
+                  <button
+                    onClick={() => setAuthMode("register")}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold"
+                    style={{ background: authMode === "register" ? "var(--accent)" : "var(--surface2)", color: authMode === "register" ? "#1a1428" : "var(--muted)" }}
+                  >
+                    Zarejestruj
+                  </button>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <input type="text" value={authUsername} onChange={(e) => setAuthUsername(e.target.value)} placeholder="Login" />
+                  <input
+                    type="password"
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                    placeholder="Hasło (wymyśl inne niż wszędzie indziej!)"
+                  />
+                  <button
+                    onClick={handleAuthSubmit}
+                    disabled={authBusy}
+                    className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold"
+                    style={{ background: "var(--good)", color: "#0d1f1a" }}
+                  >
+                    <LogIn size={16} /> {authMode === "login" ? "Zaloguj się" : "Zarejestruj się"}
+                  </button>
+                  {authError && <p style={{ color: "var(--bad)", fontSize: 12 }}>{authError}</p>}
+                  <p style={{ color: "var(--muted)", fontSize: 11 }}>
+                    Konto = zbieramy Twoje statystyki gier (wygrane, skuteczność odgadywania). Bez konta też możesz grać — podaj tylko imię powyżej.
+                  </p>
+                </div>
               </section>
             )}
 
-            <button
-              onClick={() => openLeaderboard()}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold"
-              style={{ background: "var(--surface2)", border: "1px solid #33294f", color: "var(--accent)" }}
-            >
-              <Trophy size={16} /> Ranking graczy
-            </button>
+            {/* WARSTWA 1 — główna akcja */}
+            <div>
+              <p style={{ color: "var(--muted)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Zacznij grać</p>
+              <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, textAlign: "center", marginBottom: 4 }}>Nowa gra</h2>
+                <p style={{ color: "var(--muted)", fontSize: 12, textAlign: "center", marginBottom: 14 }}>Stwórz pokój i wyślij kod znajomym</p>
+                <button onClick={createRoom} disabled={busy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+                  STWÓRZ POKÓJ
+                </button>
+                <div className="flex gap-2 mt-3">
+                  <input
+                    type="text"
+                    value={joinCode}
+                    onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                    placeholder="KOD POKOJU"
+                    maxLength={4}
+                    className="flex-1"
+                    style={{ textAlign: "center", fontSize: 15, letterSpacing: 2 }}
+                  />
+                  <button onClick={joinRoom} disabled={busy} className="px-4 py-2 rounded-lg text-sm font-bold" style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}>
+                    Dołącz
+                  </button>
+                </div>
+              </section>
+            </div>
+
+            {/* WARSTWA 2 — tryby poboczne */}
+            <div>
+              <p style={{ color: "var(--muted)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Inne tryby</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setScreen("practiceSetup")}
+                  className="flex-1 rounded-2xl p-4 text-center card-glow"
+                  style={{ background: "var(--surface)", border: "1px solid #22304f" }}
+                >
+                  <p style={{ fontSize: 22 }}>🎯</p>
+                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15 }}>Trening</p>
+                  <p style={{ color: "var(--muted)", fontSize: 9 }}>solo, wybierz kategorie</p>
+                </button>
+                {user && (
+                  <button
+                    onClick={openDailySong}
+                    disabled={dailyBusy}
+                    className="flex-1 rounded-2xl p-4 text-center card-glow"
+                    style={{ background: "var(--surface)", border: "1px solid #22304f" }}
+                  >
+                    <p style={{ fontSize: 22 }}>📅</p>
+                    <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15 }}>Piosenka dnia</p>
+                    <p style={{ color: "var(--muted)", fontSize: 9 }}>ta sama dla wszystkich</p>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* WARSTWA 3 — statystyki i ranking, wyróżnione podobnie jak tryby powyżej */}
+            <div>
+              <p style={{ color: "var(--muted)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Sprawdź</p>
+              <div className="flex gap-3">
+                {user && (
+                  <button
+                    onClick={openStats}
+                    className="flex-1 rounded-2xl p-4 text-center card-glow"
+                    style={{ background: "var(--surface)", border: "1px solid var(--accent2)" }}
+                  >
+                    <p style={{ fontSize: 22 }}>📊</p>
+                    <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: "var(--accent2)" }}>Statystyki</p>
+                  </button>
+                )}
+                <button
+                  onClick={() => openLeaderboard()}
+                  className="flex-1 rounded-2xl p-4 text-center card-glow"
+                  style={{ background: "var(--surface)", border: "1px solid var(--gold)" }}
+                >
+                  <p style={{ fontSize: 22 }}>🏆</p>
+                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: "var(--gold)" }}>Ranking</p>
+                </button>
+              </div>
+            </div>
 
             {user && (
               <>
@@ -3034,56 +3134,56 @@ export default function App() {
                 🔐 Tryb admina
               </button>
             )}
+          </div>
+        )}
+
+        {screen === "practiceSetup" && (
+          <div className="w-full flex flex-col gap-5">
+            <button onClick={() => setScreen("home")} className="self-start flex items-center gap-1 text-xs" style={{ color: "var(--muted)" }}>
+              ← Wróć
+            </button>
 
             <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
-              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>NOWA GRA</h2>
-              <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 10 }}>Stwórz pokój i wyślij kod znajomym.</p>
-              <button onClick={createRoom} disabled={busy} className="px-4 py-2 rounded-lg text-sm font-bold btn-grad">
-                Stwórz pokój
-              </button>
-            </section>
+              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, marginBottom: 12 }}>🎯 USTAWIENIA TRENINGU</h2>
 
-            <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
-              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>🎯 TRENING (SOLO)</h2>
-              <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 10 }}>
-                Ćwicz sam — tylko układanie kart na osi, bez zgadywania i bez zapisywania statystyk.
-              </p>
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 mb-4">
                 <label className="text-xs uppercase" style={{ color: "var(--muted)" }}>Kart do zebrania:</label>
                 <input type="number" min={1} value={practiceTarget} onChange={(e) => setPracticeTarget(parseInt(e.target.value, 10) || "")} style={{ width: 60 }} />
-                <button onClick={startPractice} disabled={busy} className="px-4 py-2 rounded-lg text-sm font-bold" style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}>
-                  Zacznij trening
-                </button>
               </div>
-            </section>
 
-            {user && (
-              <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
-                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>📅 PIOSENKA DNIA</h2>
-                <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 10 }}>
-                  Ta sama piosenka dla wszystkich, raz dziennie — zgadnij wykonawcę, tytuł i rok.
-                </p>
-                <button onClick={openDailySong} disabled={dailyBusy} className="px-4 py-2 rounded-lg text-sm font-bold btn-grad">
-                  Zagraj
-                </button>
-              </section>
-            )}
-
-            <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
-              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>DOŁĄCZ DO GRY</h2>
-              <div className="flex gap-2 mt-2">
-                <input
-                  type="text"
-                  value={joinCode}
-                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                  placeholder="KOD"
-                  maxLength={4}
-                  style={{ width: 100, textAlign: "center", fontSize: 18, letterSpacing: 2 }}
-                />
-                <button onClick={joinRoom} disabled={busy} className="px-4 py-2 rounded-lg text-sm font-bold btn-grad">
-                  Dołącz
-                </button>
+              <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase", marginBottom: 8 }}>Kategorie</p>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {[{ slug: "wszystkie", label: "Wszystkie" }, ...CATEGORIES].map((c) => {
+                  const active = selectedCategories.includes(c.slug);
+                  return (
+                    <button
+                      key={c.slug}
+                      type="button"
+                      onClick={() => toggleCategory(c.slug)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold"
+                      style={{ background: active ? "var(--accent)" : "var(--surface2)", color: active ? "#1a1428" : "var(--muted)" }}
+                    >
+                      {c.label}
+                    </button>
+                  );
+                })}
               </div>
+
+              <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 14 }}>
+                {(() => {
+                  const filterActive = !selectedCategories.includes("wszystkie") && selectedCategories.length > 0;
+                  const count = filterActive
+                    ? effectivePool.filter((s) => s.categories && s.categories.some((c) => selectedCategories.includes(c))).length
+                    : effectivePool.length;
+                  return filterActive
+                    ? `${count} utworów pasuje do wybranych kategorii (z ${effectivePool.length} w całej bibliotece).`
+                    : `Trenujesz z pełną biblioteką ${effectivePool.length} utworów.`;
+                })()}
+              </p>
+
+              <button onClick={startPractice} disabled={busy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+                ROZPOCZNIJ TRENING
+              </button>
             </section>
           </div>
         )}
@@ -3465,16 +3565,14 @@ export default function App() {
               const ownerName = room.players.find((p) => p.id === ownerId)?.name || "Gracz";
               const r = room.lastResult;
 
-              let headline;
-              if (r.bought) {
-                headline = `${ownerName} kupił(a) kartę!`;
-              } else if (r.timedOut) {
-                headline = `${ownerName} nie zdążył(a) — czas minął!`;
-              } else {
-                const placementText = r.correct ? "poprawnie umieścił(a) kartę" : "nieprawidłowo umieścił(a) kartę";
-                if (r.tokenAwarded === true) headline = `${ownerName} ${placementText} i odgadł(a) wykonawcę oraz tytuł!`;
-                else if (r.tokenAwarded === false) headline = `${ownerName} ${placementText}, ale nie zgadł(a) wykonawcy/tytułu`;
-                else headline = `${ownerName} ${placementText}`;
+              let mainLine;
+              if (r.bought) mainLine = `${ownerName} kupił(a) kartę!`;
+              else if (r.timedOut) mainLine = `${ownerName} nie zdążył(a) — czas minął!`;
+              else mainLine = `${ownerName} ${r.correct ? "poprawnie" : "nieprawidłowo"} umieścił(a) kartę na osi czasu`;
+
+              let guessLine = null;
+              if (!r.bought && !r.timedOut && r.tokenAwarded !== undefined) {
+                guessLine = r.tokenAwarded ? "Odgadł(a) wykonawcę i tytuł! 🎯" : "Nie odgadł(a) wykonawcy i tytułu";
               }
 
               const ownerTimeline = [...(room.timelines[ownerId] || [])].sort((a, b) => a.year - b.year);
@@ -3502,23 +3600,46 @@ export default function App() {
                     overflowY: "auto",
                   }}
                 >
-                  <div className="w-full flex flex-col items-center gap-4" style={{ maxWidth: 420 }}>
-                    <div
-                      className="w-full rounded-2xl p-5 text-center card-glow"
+                  <div className="w-full flex flex-col items-center gap-3" style={{ maxWidth: 420 }}>
+                    <p
                       style={{
-                        background: r.correct || r.bought ? "rgba(79,209,174,0.14)" : "rgba(232,97,93,0.14)",
-                        border: `1px solid ${r.correct || r.bought ? "var(--good)" : "var(--bad)"}`,
+                        fontFamily: "'Bebas Neue', sans-serif",
+                        fontSize: 26,
+                        textAlign: "center",
+                        color: r.timedOut ? "var(--bad)" : r.correct || r.bought ? "var(--good)" : "var(--bad)",
+                        textShadow: `0 0 16px ${r.timedOut || !(r.correct || r.bought) ? "rgba(255,56,104,0.5)" : "rgba(42,245,152,0.5)"}`,
+                        animation: "slide-fade-in 0.45s ease both",
+                        lineHeight: 1.15,
                       }}
                     >
-                      <p style={{ fontSize: 15, fontWeight: "bold", marginBottom: 8 }}>{headline}</p>
-                      <p style={{ fontSize: 14 }}>
-                        {r.card.artist} — „{r.card.title}"
+                      {mainLine}
+                    </p>
+
+                    {guessLine && (
+                      <p
+                        style={{
+                          fontSize: 16,
+                          fontWeight: "bold",
+                          textAlign: "center",
+                          color: r.tokenAwarded ? "var(--accent)" : "var(--muted)",
+                          animation: "slide-fade-in 0.45s ease 0.15s both",
+                        }}
+                      >
+                        {guessLine}
                       </p>
-                      <p style={{ color: "var(--accent)", fontFamily: "'Bebas Neue', sans-serif", fontSize: 22 }}>{r.card.year}</p>
+                    )}
+
+                    <div
+                      className="rounded-2xl p-6 text-center card-glow"
+                      style={{ background: "var(--surface)", minWidth: 220, animation: "scale-pop-in 0.5s ease 0.3s both" }}
+                    >
+                      <p style={{ fontSize: 13, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>{r.card.artist}</p>
+                      <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 56, color: "var(--accent)", lineHeight: 1 }}>{r.card.year}</p>
+                      <p style={{ fontSize: 15, marginTop: 8 }}>„{r.card.title}"</p>
                     </div>
 
                     {!r.timedOut && displayCards.length > 0 && (
-                      <div className="w-full">
+                      <div className="w-full" style={{ animation: "slide-fade-in 0.5s ease 0.5s both" }}>
                         <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase", marginBottom: 8, textAlign: "center" }}>
                           Oś czasu gracza {ownerName}
                         </p>
@@ -3822,6 +3943,28 @@ export default function App() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {sharedBoughtNotice && (
+        <div
+          style={{
+            position: "fixed",
+            top: 16,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 96,
+            textAlign: "center",
+            padding: "10px 18px",
+            borderRadius: 12,
+            background: "var(--surface)",
+            border: "1px solid var(--accent)",
+            color: "var(--text)",
+            fontSize: 12,
+            maxWidth: "90%",
+          }}
+        >
+          🎁 {sharedBoughtNotice.name} kupił(a) kartę za tokeny!
         </div>
       )}
 
