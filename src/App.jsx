@@ -2496,7 +2496,10 @@ export default function App() {
                     const claimedCount = progress.filter((a) => a.claimed).length;
                     return (
                       <button
-                        onClick={() => setShowAchievements(true)}
+                        onClick={() => {
+                          setShowStats(false);
+                          setShowAchievements(true);
+                        }}
                         className="w-full rounded-2xl p-4 flex items-center justify-between card-glow"
                         style={{ background: "var(--surface)", border: "1px solid var(--gold)" }}
                       >
@@ -2734,7 +2737,10 @@ export default function App() {
               );
             })()}
             <button
-              onClick={() => setShowAchievements(false)}
+              onClick={() => {
+                setShowAchievements(false);
+                setShowStats(true);
+              }}
               className="w-full py-3 rounded-xl text-sm font-bold"
               style={{ border: "1px solid #33294f", color: "var(--muted)" }}
             >
