@@ -19,6 +19,7 @@ import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, mig
 import { cleanupOldRooms } from "./roomsDb.js";
 import { heartbeat, clearPresence, getOnlineCount } from "./presence.js";
 import { getOrCreateDailySong } from "./dailySong.js";
+import { getOrCreateDailyPlaylist, hasPlayedPlaylistToday, recordDailyPlaylistScore, fetchDailyPlaylistLeaderboard, fetchWeeklyPlaylistLeaderboard, fetchAllTimePlaylistLeaderboard, processWeeklyPlaylistRewardsIfNeeded } from "./dailyPlaylist.js";
 import { updateHeadToHead, fetchHeadToHeadOpponents } from "./headToHead.js";
 import { getAchievementProgress } from "./achievements.js";
 import { playCorrectSound, playWrongSound, playApplause, playVictorySound, unlockAudio } from "./sounds.js";
@@ -339,6 +340,7 @@ export default function App() {
   const [h2hExpanded, setH2hExpanded] = useState(null);
   const [myXp, setMyXp] = useState(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showAchievements, setShowAchievements] = useState(false);
   const [leaderboardSort, setLeaderboardSort] = useState("gamesWon"); // "gamesWon" | "guessesCorrect"
   const [viewingPlayer, setViewingPlayer] = useState(null); // { uid, username, stats }
   const [leaderboard, setLeaderboard] = useState(null);
@@ -481,6 +483,12 @@ export default function App() {
 
   // --- "Piosenka dnia" ---
   const [showDailySong, setShowDailySong] = useState(false);
+  const [dailyPlaylistSongs, setDailyPlaylistSongs] = useState(null);
+  const [dailyPlaylistAlreadyPlayed, setDailyPlaylistAlreadyPlayed] = useState(null);
+  const [dailyPlaylistDailyBoard, setDailyPlaylistDailyBoard] = useState([]);
+  const [dailyPlaylistWeeklyBoard, setDailyPlaylistWeeklyBoard] = useState([]);
+  const [dailyPlaylistAllTimeBoard, setDailyPlaylistAllTimeBoard] = useState([]);
+  const [dailyPlaylistBusy, setDailyPlaylistBusy] = useState(false);
   const [dailySong, setDailySong] = useState(null);
   const [dailyAlreadyPlayed, setDailyAlreadyPlayed] = useState(false);
   const [dailyGuessArtist, setDailyGuessArtist] = useState("");
@@ -499,7 +507,8 @@ export default function App() {
     setError("");
     try {
       const dayKey = currentDayKey();
-      const song = await getOrCreateDailySong(dayKey, effectivePool.length > 0 ? effectivePool : REAL_SONGS);
+      const pool = (effectivePool.length > 0 ? effectivePool : REAL_SONGS).filter((s) => !(s.categories || []).includes("rap"));
+      const song = await getOrCreateDailySong(dayKey, pool);
       setDailySong(song);
       const s = await getStats(user.uid);
       const alreadyPlayed = s?.dailyLastResult?.dayKey === dayKey;
@@ -510,6 +519,88 @@ export default function App() {
       setError("Nie udało się wczytać Piosenki dnia: " + e.message);
     } finally {
       setDailyBusy(false);
+    }
+  }
+
+  async function openDailyPlaylistHub() {
+    if (!user) return setError("Zaloguj się, żeby zagrać w Playlistę dnia.");
+    setDailyPlaylistBusy(true);
+    setError("");
+    try {
+      processWeeklyPlaylistRewardsIfNeeded().catch(() => {}); // ciche, okazjonalne sprawdzenie nagród za zeszły tydzień
+      const dayKey = currentDayKey();
+      const pool = (effectivePool.length > 0 ? effectivePool : REAL_SONGS).filter((s) => !(s.categories || []).includes("rap"));
+      const songs = await getOrCreateDailyPlaylist(dayKey, pool);
+      setDailyPlaylistSongs(songs);
+      const [already, daily, weekly, allTime] = await Promise.all([
+        hasPlayedPlaylistToday(user.uid, dayKey),
+        fetchDailyPlaylistLeaderboard(dayKey, 10),
+        fetchWeeklyPlaylistLeaderboard(currentWeekKey(), 10),
+        fetchAllTimePlaylistLeaderboard(10),
+      ]);
+      setDailyPlaylistAlreadyPlayed(already);
+      setDailyPlaylistDailyBoard(daily);
+      setDailyPlaylistWeeklyBoard(weekly);
+      setDailyPlaylistAllTimeBoard(allTime);
+      setScreen("dailyPlaylistHub");
+    } catch (e) {
+      setError("Nie udało się wczytać Playlisty dnia: " + e.message);
+    } finally {
+      setDailyPlaylistBusy(false);
+    }
+  }
+
+  async function startDailyPlaylistGame() {
+    if (!user || !dailyPlaylistSongs || dailyPlaylistSongs.length < 2) return;
+    setBusy(true);
+    setError("");
+    try {
+      checkQuickReturn(user.uid).catch(() => {});
+      const dayKey = currentDayKey();
+      const code = generateRoomCode();
+      const ref = doc(db, "rooms", code);
+      const deck = dailyPlaylistSongs;
+      const me = { id: playerId, name: name.trim() || user.displayName || "Gracz", authed: true };
+      await setDoc(ref, {
+        code,
+        hostId: playerId,
+        target: 10,
+        status: "playing",
+        players: [me],
+        deck,
+        deckIndex: 2,
+        currentPlayerId: playerId,
+        startingPlayerId: playerId,
+        currentCard: deck[1],
+        startSeconds: deck[1].startSeconds,
+        turnStartedAt: serverTimestamp(),
+        timelines: { [playerId]: [deck[0]] },
+        tokens: { [playerId]: 0 },
+        lastResult: null,
+        pendingGuess: null,
+        votes: {},
+        requiredApprovals: 0,
+        resultAt: null,
+        winnerIds: [],
+        finishingRound: false,
+        decisionTimes: {},
+        gameStreaks: {},
+        gameGuessStreaks: {},
+        gameGuesses: {},
+        gameBestStreaks: {},
+        playedCards: [],
+        messages: [],
+        practiceMode: true,
+        dailyPlaylistMode: true,
+        dailyPlaylistDayKey: dayKey,
+        createdAt: serverTimestamp(),
+        expireAt: new Date(Date.now() + 60 * 60 * 1000),
+      });
+      setRoomId(code);
+    } catch (e) {
+      setError("Błąd startu Playlisty dnia: " + e.message);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -1011,7 +1102,10 @@ export default function App() {
     if (!gameRoom || gameRoom.practiceMode) return { items: [], total: 0 };
     const items = [{ label: "🎮 Udział w grze", amount: 30 }];
     const won = (gameRoom.winnerIds || []).includes(forPlayerId);
-    if (won) items.push({ label: "🏆 Wygrana", amount: 200 });
+    if (won) {
+      const winXp = Math.max(100, ((gameRoom.players || []).length - 1) * 100);
+      items.push({ label: `🏆 Wygrana (${gameRoom.players.length} graczy)`, amount: winXp });
+    }
 
     const avgTimes = Object.entries(gameRoom.decisionTimes || {})
       .filter(([, times]) => times.length > 0)
@@ -1095,6 +1189,38 @@ export default function App() {
       }
     })();
   }, [screen, room?.winnerIds, toMillis(room?.expireAt), user, playerId]);
+
+  // Koniec gry w trybie "Playlista dnia" — osobny efekt, bo ta gra ma
+  // celowo practiceMode:true (żeby ominąć zwykłe liczenie XP/wygranych),
+  // a jej własna nagroda liczy się tutaj według innych zasad.
+  const dailyPlaylistProcessedRef = useRef(null);
+  useEffect(() => {
+    if (screen !== "gameover" || !room?.dailyPlaylistMode || !user) return;
+    const marker = toMillis(room?.expireAt);
+    if (!marker || dailyPlaylistProcessedRef.current === marker) return;
+    dailyPlaylistProcessedRef.current = marker;
+    (async () => {
+      try {
+        const score = (room.playedCards || []).filter((c) => c.playerId === playerId && c.correct).length;
+        const timeMs = (room.decisionTimes?.[playerId] || []).reduce((a, b) => a + b, 0);
+        await recordDailyPlaylistScore(user.uid, name.trim() || user.displayName || "Gracz", room.dailyPlaylistDayKey, score, timeMs);
+        let xp = 25; // udział
+        if (score === 10) xp += 100; // wszystkie 10 poprawnie
+        const before = await getStats(user.uid);
+        const oldXp = before?.xp || 0;
+        const oldLevel = levelFromXp(oldXp).level;
+        await awardXp(user.uid, xp);
+        setMyXp(oldXp + xp);
+        const newLevel = levelFromXp(oldXp + xp).level;
+        if (newLevel > oldLevel) {
+          setLevelUpInfo({ level: newLevel });
+          setTimeout(() => setLevelUpInfo(null), 5000);
+        }
+      } catch (e) {
+        // ciche niepowodzenie
+      }
+    })();
+  }, [screen, room?.dailyPlaylistMode, toMillis(room?.expireAt), user, playerId]);
 
   async function openStats() {
     if (!user) return;
@@ -2155,6 +2281,7 @@ export default function App() {
       setShowStats(false);
       setShowLeaderboard(false);
       setShowAdminPanel(false);
+      setShowAchievements(false);
       setViewingPlayer(null);
       setShowProposeForm(false);
     }
@@ -2360,6 +2487,31 @@ export default function App() {
                     return <LevelBar level={level} currentLevelXp={currentLevelXp} xpForNextLevel={xpForNextLevel} size="big" />;
                   })()}
                   {(() => {
+                    const { level } = levelFromXp(stats.xp);
+                    const duelWins = (h2hOpponents || []).reduce((sum, h) => sum + (h.wins?.[user.uid] || 0), 0);
+                    const maxDuelsWithSamePerson = (h2hOpponents || []).reduce((max, h) => Math.max(max, h.gamesPlayed || 0), 0);
+                    const achievementStats = { ...stats, duelWins, maxDuelsWithSamePerson };
+                    const progress = getAchievementProgress(achievementStats, level);
+                    const unclaimed = progress.filter((a) => a.qualifies && !a.claimed);
+                    const claimedCount = progress.filter((a) => a.claimed).length;
+                    return (
+                      <button
+                        onClick={() => setShowAchievements(true)}
+                        className="w-full rounded-2xl p-4 flex items-center justify-between card-glow"
+                        style={{ background: "var(--surface)", border: "1px solid var(--gold)" }}
+                      >
+                        <div className="text-left">
+                          <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: "var(--gold)" }}>🏅 Osiągnięcia</p>
+                          <p style={{ fontSize: 11, color: "var(--muted)" }}>
+                            {claimedCount}/{progress.length} odebranych
+                            {unclaimed.length > 0 ? ` · ${unclaimed.length} czeka na odbiór!` : ""}
+                          </p>
+                        </div>
+                        <span style={{ color: "var(--gold)", fontSize: 22 }}>→</span>
+                      </button>
+                    );
+                  })()}
+                  {(() => {
                     const wc = stats.weeklyChallenge;
                     const isCurrentWeek = wc && wc.weekKey === currentWeekKey();
                     const gamesThisWeek = isCurrentWeek ? wc.gamesThisWeek : 0;
@@ -2462,7 +2614,61 @@ export default function App() {
               )}
             </section>
 
-            {stats && (() => {
+            {h2hOpponents && h2hOpponents.length > 0 && (
+              <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, marginBottom: 4 }}>⚔️ POJEDYNKI 1V1</h2>
+                <p style={{ color: "var(--muted)", fontSize: 11, marginBottom: 10 }}>
+                  Liczą się tylko gry, w których graliście dokładnie we dwójkę.
+                </p>
+                <div className="flex flex-col gap-2">
+                  {h2hOpponents.map((h2h) => {
+                    const oppId = h2h.uids.find((id) => id !== user.uid);
+                    const oppName = h2h.names?.[oppId] || "Gracz";
+                    const myWins = h2h.wins?.[user.uid] || 0;
+                    const oppWins = h2h.wins?.[oppId] || 0;
+                    const expanded = h2hExpanded === oppId;
+                    const pct = (correct, total) => (total > 0 ? Math.round((correct / total) * 100) : null);
+                    const myGuessPct = pct(h2h.guessesCorrect?.[user.uid] || 0, h2h.guessesAttempted?.[user.uid] || 0);
+                    const oppGuessPct = pct(h2h.guessesCorrect?.[oppId] || 0, h2h.guessesAttempted?.[oppId] || 0);
+                    const myPlacePct = pct(h2h.placementCorrect?.[user.uid] || 0, h2h.placementTotal?.[user.uid] || 0);
+                    const oppPlacePct = pct(h2h.placementCorrect?.[oppId] || 0, h2h.placementTotal?.[oppId] || 0);
+                    const myAvgSpeed = h2h.decisionCount?.[user.uid] ? Math.round((h2h.decisionTimeSumMs[user.uid] / h2h.decisionCount[user.uid]) / 1000) : null;
+                    const oppAvgSpeed = h2h.decisionCount?.[oppId] ? Math.round((h2h.decisionTimeSumMs[oppId] / h2h.decisionCount[oppId]) / 1000) : null;
+                    return (
+                      <div key={oppId} className="rounded-xl p-3" style={{ background: "var(--surface2)" }}>
+                        <button onClick={() => setH2hExpanded(expanded ? null : oppId)} className="w-full flex items-center justify-between">
+                          <span style={{ fontSize: 13, fontWeight: "bold" }}>vs {oppName}</span>
+                          <span style={{ fontSize: 13, color: "var(--accent)" }}>
+                            {myWins} : {oppWins} <span style={{ color: "var(--muted)", fontSize: 11 }}>({h2h.gamesPlayed} gier)</span>
+                          </span>
+                        </button>
+                        {expanded && (
+                          <div className="flex flex-col gap-1 mt-3 text-left" style={{ fontSize: 12 }}>
+                            <div className="flex justify-between"><span style={{ color: "var(--muted)" }}>Skuteczność zgadywania</span><span>{myGuessPct ?? "—"}% vs {oppGuessPct ?? "—"}%</span></div>
+                            <div className="flex justify-between"><span style={{ color: "var(--muted)" }}>Trafność umieszczania</span><span>{myPlacePct ?? "—"}% vs {oppPlacePct ?? "—"}%</span></div>
+                            <div className="flex justify-between"><span style={{ color: "var(--muted)" }}>Średnia szybkość</span><span>{myAvgSpeed ?? "—"}s vs {oppAvgSpeed ?? "—"}s</span></div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            <button
+              onClick={() => setShowStats(false)}
+              className="w-full py-3 rounded-xl text-sm font-bold"
+              style={{ border: "1px solid #33294f", color: "var(--muted)" }}
+            >
+              Wróć
+            </button>
+          </div>
+        )}
+
+        {screen === "home" && showAchievements && stats && (
+          <div className="w-full flex flex-col gap-5">
+            {(() => {
               const { level } = levelFromXp(stats.xp);
               const duelWins = (h2hOpponents || []).reduce((sum, h) => sum + (h.wins?.[user.uid] || 0), 0);
               const maxDuelsWithSamePerson = (h2hOpponents || []).reduce((max, h) => Math.max(max, h.gamesPlayed || 0), 0);
@@ -2476,7 +2682,7 @@ export default function App() {
               });
               return (
                 <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
-                  <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, marginBottom: 4 }}>
+                  <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 4, color: "var(--gold)" }}>
                     🏅 OSIĄGNIĘCIA ({claimedCount}/{progress.length})
                   </h2>
 
@@ -2527,51 +2733,8 @@ export default function App() {
                 </section>
               );
             })()}
-
-            {h2hOpponents && h2hOpponents.length > 0 && (
-              <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
-                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, marginBottom: 4 }}>⚔️ POJEDYNKI 1V1</h2>
-                <p style={{ color: "var(--muted)", fontSize: 11, marginBottom: 10 }}>
-                  Liczą się tylko gry, w których graliście dokładnie we dwójkę.
-                </p>
-                <div className="flex flex-col gap-2">
-                  {h2hOpponents.map((h2h) => {
-                    const oppId = h2h.uids.find((id) => id !== user.uid);
-                    const oppName = h2h.names?.[oppId] || "Gracz";
-                    const myWins = h2h.wins?.[user.uid] || 0;
-                    const oppWins = h2h.wins?.[oppId] || 0;
-                    const expanded = h2hExpanded === oppId;
-                    const pct = (correct, total) => (total > 0 ? Math.round((correct / total) * 100) : null);
-                    const myGuessPct = pct(h2h.guessesCorrect?.[user.uid] || 0, h2h.guessesAttempted?.[user.uid] || 0);
-                    const oppGuessPct = pct(h2h.guessesCorrect?.[oppId] || 0, h2h.guessesAttempted?.[oppId] || 0);
-                    const myPlacePct = pct(h2h.placementCorrect?.[user.uid] || 0, h2h.placementTotal?.[user.uid] || 0);
-                    const oppPlacePct = pct(h2h.placementCorrect?.[oppId] || 0, h2h.placementTotal?.[oppId] || 0);
-                    const myAvgSpeed = h2h.decisionCount?.[user.uid] ? Math.round((h2h.decisionTimeSumMs[user.uid] / h2h.decisionCount[user.uid]) / 1000) : null;
-                    const oppAvgSpeed = h2h.decisionCount?.[oppId] ? Math.round((h2h.decisionTimeSumMs[oppId] / h2h.decisionCount[oppId]) / 1000) : null;
-                    return (
-                      <div key={oppId} className="rounded-xl p-3" style={{ background: "var(--surface2)" }}>
-                        <button onClick={() => setH2hExpanded(expanded ? null : oppId)} className="w-full flex items-center justify-between">
-                          <span style={{ fontSize: 13, fontWeight: "bold" }}>vs {oppName}</span>
-                          <span style={{ fontSize: 13, color: "var(--accent)" }}>
-                            {myWins} : {oppWins} <span style={{ color: "var(--muted)", fontSize: 11 }}>({h2h.gamesPlayed} gier)</span>
-                          </span>
-                        </button>
-                        {expanded && (
-                          <div className="flex flex-col gap-1 mt-3 text-left" style={{ fontSize: 12 }}>
-                            <div className="flex justify-between"><span style={{ color: "var(--muted)" }}>Skuteczność zgadywania</span><span>{myGuessPct ?? "—"}% vs {oppGuessPct ?? "—"}%</span></div>
-                            <div className="flex justify-between"><span style={{ color: "var(--muted)" }}>Trafność umieszczania</span><span>{myPlacePct ?? "—"}% vs {oppPlacePct ?? "—"}%</span></div>
-                            <div className="flex justify-between"><span style={{ color: "var(--muted)" }}>Średnia szybkość</span><span>{myAvgSpeed ?? "—"}s vs {oppAvgSpeed ?? "—"}s</span></div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            )}
-
             <button
-              onClick={() => setShowStats(false)}
+              onClick={() => setShowAchievements(false)}
               className="w-full py-3 rounded-xl text-sm font-bold"
               style={{ border: "1px solid #33294f", color: "var(--muted)" }}
             >
@@ -3105,7 +3268,7 @@ export default function App() {
           </div>
         )}
 
-        {screen === "home" && !showStats && !showLeaderboard && !showAdminPanel && (
+        {screen === "home" && !showStats && !showLeaderboard && !showAdminPanel && !showAchievements && (
           <div className="w-full flex flex-col gap-5">
             {/* PASEK TOŻSAMOŚCI — kompaktowy, jedna linia zamiast całej formy */}
             <section
@@ -3203,11 +3366,11 @@ export default function App() {
             {/* WARSTWA 2 — tryby poboczne */}
             <div>
               <p style={{ color: "var(--muted)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Inne tryby</p>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 <button
                   onClick={() => setScreen("practiceSetup")}
                   className="flex-1 rounded-2xl p-4 text-center card-glow"
-                  style={{ background: "var(--surface)", border: "1px solid #22304f" }}
+                  style={{ background: "var(--surface)", border: "1px solid #22304f", minWidth: 110 }}
                 >
                   <p style={{ fontSize: 22 }}>🎯</p>
                   <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15 }}>Trening</p>
@@ -3218,11 +3381,23 @@ export default function App() {
                     onClick={openDailySong}
                     disabled={dailyBusy}
                     className="flex-1 rounded-2xl p-4 text-center card-glow"
-                    style={{ background: "var(--surface)", border: "1px solid #22304f" }}
+                    style={{ background: "var(--surface)", border: "1px solid #22304f", minWidth: 110 }}
                   >
                     <p style={{ fontSize: 22 }}>📅</p>
                     <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15 }}>Piosenka dnia</p>
                     <p style={{ color: "var(--muted)", fontSize: 9 }}>ta sama dla wszystkich</p>
+                  </button>
+                )}
+                {user && (
+                  <button
+                    onClick={openDailyPlaylistHub}
+                    disabled={dailyPlaylistBusy}
+                    className="flex-1 rounded-2xl p-4 text-center card-glow"
+                    style={{ background: "var(--surface)", border: "1px solid #22304f", minWidth: 110 }}
+                  >
+                    <p style={{ fontSize: 22 }}>🎶</p>
+                    <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15 }}>Playlista dnia</p>
+                    <p style={{ color: "var(--muted)", fontSize: 9 }}>ułóż 10 piosenek na osi</p>
                   </button>
                 )}
               </div>
@@ -3338,6 +3513,91 @@ export default function App() {
                 🔐 Tryb admina
               </button>
             )}
+          </div>
+        )}
+
+        {screen === "dailyPlaylistHub" && (
+          <div className="w-full flex flex-col gap-5">
+            <button onClick={() => setScreen("home")} className="self-start flex items-center gap-1 text-xs" style={{ color: "var(--muted)" }}>
+              ← Wróć
+            </button>
+
+            <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 8 }}>🎶 PLAYLISTA DNIA</h2>
+              <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 14 }}>
+                10 tych samych piosenek dla wszystkich graczy dzisiaj — ułóż je poprawnie na osi czasu, jedna po drugiej.
+              </p>
+              {dailyPlaylistAlreadyPlayed ? (
+                <div className="rounded-xl p-4 text-center" style={{ background: "var(--surface2)" }}>
+                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: "var(--accent)" }}>
+                    Dzisiejszy wynik: {dailyPlaylistAlreadyPlayed.score} / 10
+                  </p>
+                  <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>Wróć jutro po kolejną playlistę!</p>
+                </div>
+              ) : (
+                <button onClick={startDailyPlaylistGame} disabled={busy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+                  ZAGRAJ
+                </button>
+              )}
+            </section>
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🏆 Ranking dnia</p>
+              {dailyPlaylistDailyBoard.length === 0 ? (
+                <p style={{ color: "var(--muted)", fontSize: 12 }}>Nikt jeszcze dziś nie grał — możesz być pierwszy!</p>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  {dailyPlaylistDailyBoard.map((e, i) => (
+                    <div key={e.uid} className="flex items-center justify-between text-sm">
+                      <span>
+                        #{i + 1} {e.name}
+                      </span>
+                      <span style={{ color: "var(--accent)" }}>{e.score} / 10</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p style={{ color: "var(--muted)", fontSize: 10, marginTop: 8 }}>Przy remisie decyduje czas wykonania — kto szybszy, wyżej.</p>
+            </section>
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>📆 Ranking tygodnia</p>
+              {dailyPlaylistWeeklyBoard.length === 0 ? (
+                <p style={{ color: "var(--muted)", fontSize: 12 }}>Brak jeszcze wyników w tym tygodniu.</p>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  {dailyPlaylistWeeklyBoard.map((e, i) => (
+                    <div key={e.uid} className="flex items-center justify-between text-sm">
+                      <span>
+                        #{i + 1} {e.name} <span style={{ color: "var(--muted)", fontSize: 10 }}>({e.gamesPlayed} gier)</span>
+                      </span>
+                      <span style={{ color: "var(--accent)" }}>{e.score} pkt</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p style={{ color: "var(--muted)", fontSize: 10, marginTop: 8 }}>
+                Nagrody za tydzień (od poniedziałku): 🥇 +500 XP · 🥈 +250 XP · 🥉 +100 XP — przyznawane automatycznie na starcie nowego tygodnia.
+              </p>
+            </section>
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>⭐ Ranking wszech czasów</p>
+              {dailyPlaylistAllTimeBoard.length === 0 ? (
+                <p style={{ color: "var(--muted)", fontSize: 12 }}>Brak jeszcze żadnych wyników.</p>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  {dailyPlaylistAllTimeBoard.map((e, i) => (
+                    <div key={e.uid} className="flex items-center justify-between text-sm">
+                      <span>
+                        #{i + 1} {e.username} <span style={{ color: "var(--muted)", fontSize: 10 }}>({e.playlistGamesPlayed || 0} gier)</span>
+                      </span>
+                      <span style={{ color: "var(--gold)" }}>{e.playlistTotalScore || 0} pkt</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
         )}
 
@@ -3995,9 +4255,21 @@ export default function App() {
               </div>
             )}
 
-            {isHost && (
+            {isHost && !room.dailyPlaylistMode && (
               <button onClick={playAgain} className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold" style={{ background: "var(--accent)", color: "#1a1428" }}>
                 <RotateCcw size={16} /> ZAGRAJ PONOWNIE
+              </button>
+            )}
+            {room.dailyPlaylistMode && (
+              <button
+                onClick={() => {
+                  leaveRoom();
+                  openDailyPlaylistHub();
+                }}
+                className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold"
+                style={{ background: "var(--accent)", color: "#1a1428" }}
+              >
+                🎶 Wróć do rankingów Playlisty dnia
               </button>
             )}
           </div>

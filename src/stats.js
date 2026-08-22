@@ -63,6 +63,8 @@ export async function ensureStatsDoc(uid, username) {
       hadFrugalFinish: false,
       hadQuickReturn: false,
       lastGameEndedAt: 0,
+      playlistTotalScore: 0,
+      playlistGamesPlayed: 0,
     });
   } else if (username && snap.data().username !== username) {
     // odświeżamy nazwę przy każdym logowaniu — naprawia stare konta, którym
