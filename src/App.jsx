@@ -847,6 +847,39 @@ export default function App() {
     reader.readAsText(file, "utf-8");
   }
 
+  async function handleExportCsv() {
+    try {
+      const songs = librarySongs && librarySongs.length > 0 ? librarySongs : await fetchAllSongsFromDb();
+      const escapeCsv = (v) => {
+        const s = String(v ?? "");
+        return s.includes(";") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+      const rows = songs.map((s) =>
+        [
+          `https://www.youtube.com/watch?v=${s.videoId}`,
+          s.artist,
+          s.title,
+          s.year,
+          (s.categories || []).join(";"),
+        ]
+          .map(escapeCsv)
+          .join(";")
+      );
+      const csv = rows.join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `hitsteriada-baza-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError("Błąd eksportu: " + e.message);
+    }
+  }
+
   async function handleCleanupRooms() {
     if (!window.confirm("Usunąć wszystkie przeterminowane pokoje (zakończone, porzucone lub bardzo stare)? Statystyki graczy zostają nietknięte — to dotyczy tylko tymczasowych danych rozgrywek.")) return;
     setCleanupBusy(true);
@@ -2072,6 +2105,7 @@ export default function App() {
     if (roomId) {
       leaveRoom();
     } else {
+      setScreen("home");
       setShowStats(false);
       setShowLeaderboard(false);
       setShowAdminPanel(false);
@@ -2735,6 +2769,21 @@ export default function App() {
                   )}
                 </div>
               )}
+            </section>
+
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>📤 Eksportuj bazę do CSV</p>
+              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
+                Pobiera całą bibliotekę ({effectivePool.length} utworów) w tym samym formacie, co import poniżej — przydatne jako kopia zapasowa.
+              </p>
+              <button
+                onClick={handleExportCsv}
+                className="px-4 py-2 rounded-lg text-sm font-bold"
+                style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
+              >
+                Pobierz CSV
+              </button>
             </section>
 
 
@@ -3496,24 +3545,8 @@ export default function App() {
 
             {screen === "playing" && !isMyTurn && (
               <div className="w-full">
-                <div className="flex flex-wrap items-center justify-center gap-2 mb-3">
-                  {room.players.map((p) => (
-                    <button
-                      key={p.id}
-                      onClick={() => setViewedPlayerId(p.id)}
-                      className="px-3 py-1 rounded-full text-xs font-bold"
-                      style={{
-                        background: displayedPlayerId === p.id ? "var(--accent)" : "var(--surface2)",
-                        color: displayedPlayerId === p.id ? "#0a0410" : "var(--muted)",
-                        border: p.id === room.currentPlayerId ? "1px solid var(--accent)" : "1px solid transparent",
-                      }}
-                    >
-                      {p.id === playerId ? "Ty" : p.name}
-                    </button>
-                  ))}
-                </div>
                 <p style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase", marginBottom: 10, textAlign: "center" }}>
-                  Oś czasu gracza {displayedPlayerName}
+                  Oś czasu gracza {displayedPlayerName} <span style={{ fontSize: 10 }}>(kliknij gracza poniżej, żeby zmienić)</span>
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-2">
                   {viewedTimeline.map((c) => (
@@ -3661,16 +3694,20 @@ export default function App() {
 
             <div className="w-full flex flex-wrap gap-2 justify-center">
               {room.players.map((p) => (
-                <div
+                <button
                   key={p.id}
+                  onClick={() => setViewedPlayerId(p.id)}
                   className="px-3 py-1 rounded-full text-xs"
                   style={{
-                    background: p.id === room.currentPlayerId ? "var(--accent)" : "var(--surface2)",
-                    color: p.id === room.currentPlayerId ? "#1a1428" : "var(--muted)",
+                    background: displayedPlayerId === p.id ? "var(--accent)" : "var(--surface2)",
+                    color: displayedPlayerId === p.id ? "#1a1428" : "var(--muted)",
+                    border: p.id === room.currentPlayerId ? "1px solid var(--accent)" : "1px solid transparent",
+                    cursor: "pointer",
                   }}
                 >
                   {p.name}: {(room.timelines[p.id] || []).length}/{room.target} · 🪙{room.tokens?.[p.id] || 0}
-                </div>
+                  {p.authed && playerLevels[p.id] !== undefined && ` · lvl ${levelFromXp(playerLevels[p.id]).level}`}
+                </button>
               ))}
             </div>
           </div>
