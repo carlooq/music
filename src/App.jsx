@@ -14,11 +14,13 @@ import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
 import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId, fuzzyMatch } from "./utils.js";
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
-import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, awardXp, xpForLevel, levelFromXp, progressWeeklyChallenge, currentWeekKey, currentDayKey, recordDailyResult } from "./stats.js";
+import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, awardXp, xpForLevel, levelFromXp, progressWeeklyChallenge, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak } from "./stats.js";
 import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
 import { heartbeat, clearPresence, getOnlineCount } from "./presence.js";
 import { getOrCreateDailySong } from "./dailySong.js";
+import { updateHeadToHead, fetchHeadToHeadOpponents } from "./headToHead.js";
+import { getAchievementProgress } from "./achievements.js";
 import { playCorrectSound, playWrongSound, playApplause, playVictorySound, unlockAudio } from "./sounds.js";
 import { Play, Music4, Trophy, RotateCcw, Users, ChevronRight, Copy, Check, LogIn, LogOut, BarChart3, Flame, Crown, Shield, Search, Trash2, Pencil, Save, X, MessageCircle, Send } from "lucide-react";
 import logoImg from "./assets/logo-v2.png";
@@ -333,6 +335,8 @@ export default function App() {
   const [authError, setAuthError] = useState("");
   const [showStats, setShowStats] = useState(false);
   const [stats, setStats] = useState(null);
+  const [h2hOpponents, setH2hOpponents] = useState(null);
+  const [h2hExpanded, setH2hExpanded] = useState(null);
   const [myXp, setMyXp] = useState(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [leaderboardSort, setLeaderboardSort] = useState("gamesWon"); // "gamesWon" | "guessesCorrect"
@@ -567,6 +571,7 @@ export default function App() {
         score,
       };
       const newStreak = await recordDailyResult(user.uid, currentDayKey(), result);
+      markPerfectDailyIfNeeded(user.uid, score).catch(() => {});
       const xp = 10 + score * 15; // 10 za sam udział, +15 za każdą trafioną część
       await awardXp(user.uid, xp);
       const before = myXp || 0;
@@ -1050,6 +1055,7 @@ export default function App() {
     const marker = toMillis(room?.expireAt);
     if (!marker || xpAwardedRef.current === marker) return;
     xpAwardedRef.current = marker;
+    updateHeadToHead(room).catch(() => {});
     (async () => {
       try {
         const { total } = computeGameEndXp(room, playerId);
@@ -1074,6 +1080,16 @@ export default function App() {
           setLevelUpInfo({ level: newLevel });
           setTimeout(() => setLevelUpInfo(null), 5000);
         }
+
+        // liczniki potrzebne wyłącznie do osiągnięć
+        const won = (room.winnerIds || []).includes(playerId);
+        const myCards = (room.playedCards || []).filter((c) => c.playerId === playerId && !c.bought);
+        const perfectGame = (room.target || 0) >= 7 && myCards.length > 0 && myCards.every((c) => c.correct);
+        const opponents = room.players.filter((p) => p.authed && p.id !== playerId).map((p) => p.id);
+        const nowHour = new Date().getHours();
+        const nightGame = nowHour >= 0 && nowHour < 5;
+        const frugalFinish = (room.tokens?.[playerId] || 0) >= 5;
+        updateAchievementCounters(user.uid, { won, perfectGame, opponents, playerCount: room.players.length, nightGame, frugalFinish }).catch(() => {});
       } catch (e) {
         // ciche niepowodzenie — najwyżej XP z tej gry się nie doliczy
       }
@@ -1085,6 +1101,28 @@ export default function App() {
     const s = await getStats(user.uid);
     setStats(s);
     setShowStats(true);
+    setH2hExpanded(null);
+    fetchHeadToHeadOpponents(user.uid)
+      .then(setH2hOpponents)
+      .catch(() => setH2hOpponents([]));
+  }
+
+  async function handleClaimAchievement(achievement) {
+    if (!user) return;
+    try {
+      await claimAchievementXp(user.uid, achievement.id, achievement.xp);
+      const newStats = await getStats(user.uid);
+      const oldLevel = levelFromXp(myXp || 0).level;
+      setStats(newStats);
+      setMyXp(newStats.xp);
+      const newLevel = levelFromXp(newStats.xp).level;
+      if (newLevel > oldLevel) {
+        setLevelUpInfo({ level: newLevel });
+        setTimeout(() => setLevelUpInfo(null), 5000);
+      }
+    } catch (e) {
+      setError("Błąd odbierania XP: " + e.message);
+    }
   }
 
   async function openLeaderboard(sortBy = leaderboardSort) {
@@ -1347,6 +1385,7 @@ export default function App() {
     setBusy(true);
     setError("");
     try {
+      if (user) checkQuickReturn(user.uid).catch(() => {});
       const code = generateRoomCode();
       const ref = doc(db, "rooms", code);
       await setDoc(ref, {
@@ -1444,6 +1483,7 @@ export default function App() {
     setBusy(true);
     setError("");
     try {
+      if (user) checkQuickReturn(user.uid).catch(() => {});
       const ref = doc(db, "rooms", code);
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
@@ -1722,6 +1762,7 @@ export default function App() {
         let xp = 20; // trafione zgadywanie
         if (capturedResult.newGuessStreak === 5) xp += 30; // seria 5 trafionych zgadywań z rzędu
         awardXp(user.uid, xp).catch(() => {});
+        if (capturedResult.newGuessStreak) updateLongestGuessStreak(user.uid, capturedResult.newGuessStreak).catch(() => {});
       }
     } catch (e) {
       setError("Błąd zatwierdzania: " + e.message);
@@ -1774,6 +1815,10 @@ export default function App() {
       if (capturedBought) {
         setBoughtCardReveal(capturedBought);
         setTimeout(() => setBoughtCardReveal(null), 3000);
+        if (user && !room?.practiceMode) {
+          const ref2 = doc(db, "userStats", user.uid);
+          updateDoc(ref2, { cardsBought: increment(1) }).catch(() => {});
+        }
       }
     } catch (e) {
       setError("Błąd kupowania karty: " + e.message);
@@ -1843,6 +1888,7 @@ export default function App() {
         let xp = 20; // trafione zgadywanie
         if (newGuessStreakValue === 5) xp += 30; // seria 5 trafionych zgadywań z rzędu
         awardXp(awardedGuessTo, xp).catch(() => {});
+        if (newGuessStreakValue) updateLongestGuessStreak(awardedGuessTo, newGuessStreakValue).catch(() => {});
       }
     } catch (e) {
       setError("Błąd głosowania: " + e.message);
@@ -2415,6 +2461,115 @@ export default function App() {
                 </div>
               )}
             </section>
+
+            {stats && (() => {
+              const { level } = levelFromXp(stats.xp);
+              const duelWins = (h2hOpponents || []).reduce((sum, h) => sum + (h.wins?.[user.uid] || 0), 0);
+              const maxDuelsWithSamePerson = (h2hOpponents || []).reduce((max, h) => Math.max(max, h.gamesPlayed || 0), 0);
+              const achievementStats = { ...stats, duelWins, maxDuelsWithSamePerson };
+              const progress = getAchievementProgress(achievementStats, level);
+              const unclaimed = progress.filter((a) => a.qualifies && !a.claimed);
+              const claimedCount = progress.filter((a) => a.claimed).length;
+              const grouped = {};
+              progress.forEach((a) => {
+                (grouped[a.category] = grouped[a.category] || []).push(a);
+              });
+              return (
+                <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+                  <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, marginBottom: 4 }}>
+                    🏅 OSIĄGNIĘCIA ({claimedCount}/{progress.length})
+                  </h2>
+
+                  {unclaimed.length > 0 && (
+                    <div className="flex flex-col gap-2 mb-4 mt-3">
+                      <p style={{ fontSize: 11, color: "var(--good)", textTransform: "uppercase" }}>Do odebrania!</p>
+                      {unclaimed.map((a) => (
+                        <div key={a.id} className="flex items-center justify-between rounded-lg p-2.5" style={{ background: "rgba(42,245,152,0.1)", border: "1px solid var(--good)" }}>
+                          <div>
+                            <p style={{ fontSize: 13, fontWeight: "bold" }}>{a.name}</p>
+                            <p style={{ fontSize: 11, color: "var(--muted)" }}>{a.desc}</p>
+                          </div>
+                          <button
+                            onClick={() => handleClaimAchievement(a)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap"
+                            style={{ background: "var(--good)", color: "#0d1f1a" }}
+                          >
+                            Odbierz +{a.xp} XP
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-2">
+                    {Object.entries(grouped).map(([cat, items]) => (
+                      <details key={cat} className="rounded-lg" style={{ background: "var(--surface2)" }}>
+                        <summary className="px-3 py-2 text-xs font-bold cursor-pointer" style={{ color: "var(--muted)" }}>
+                          {cat} ({items.filter((a) => a.claimed).length}/{items.length})
+                        </summary>
+                        <div className="flex flex-col gap-1 px-3 pb-3">
+                          {items.map((a) => (
+                            <div
+                              key={a.id}
+                              className="flex items-center justify-between text-xs"
+                              style={{ opacity: a.claimed ? 1 : a.qualifies ? 1 : 0.4 }}
+                            >
+                              <span>
+                                {a.claimed ? "✅" : a.qualifies ? "🔓" : "🔒"} {a.name}
+                              </span>
+                              <span style={{ color: "var(--muted)" }}>{a.desc}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    ))}
+                  </div>
+                </section>
+              );
+            })()}
+
+            {h2hOpponents && h2hOpponents.length > 0 && (
+              <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, marginBottom: 4 }}>⚔️ POJEDYNKI 1V1</h2>
+                <p style={{ color: "var(--muted)", fontSize: 11, marginBottom: 10 }}>
+                  Liczą się tylko gry, w których graliście dokładnie we dwójkę.
+                </p>
+                <div className="flex flex-col gap-2">
+                  {h2hOpponents.map((h2h) => {
+                    const oppId = h2h.uids.find((id) => id !== user.uid);
+                    const oppName = h2h.names?.[oppId] || "Gracz";
+                    const myWins = h2h.wins?.[user.uid] || 0;
+                    const oppWins = h2h.wins?.[oppId] || 0;
+                    const expanded = h2hExpanded === oppId;
+                    const pct = (correct, total) => (total > 0 ? Math.round((correct / total) * 100) : null);
+                    const myGuessPct = pct(h2h.guessesCorrect?.[user.uid] || 0, h2h.guessesAttempted?.[user.uid] || 0);
+                    const oppGuessPct = pct(h2h.guessesCorrect?.[oppId] || 0, h2h.guessesAttempted?.[oppId] || 0);
+                    const myPlacePct = pct(h2h.placementCorrect?.[user.uid] || 0, h2h.placementTotal?.[user.uid] || 0);
+                    const oppPlacePct = pct(h2h.placementCorrect?.[oppId] || 0, h2h.placementTotal?.[oppId] || 0);
+                    const myAvgSpeed = h2h.decisionCount?.[user.uid] ? Math.round((h2h.decisionTimeSumMs[user.uid] / h2h.decisionCount[user.uid]) / 1000) : null;
+                    const oppAvgSpeed = h2h.decisionCount?.[oppId] ? Math.round((h2h.decisionTimeSumMs[oppId] / h2h.decisionCount[oppId]) / 1000) : null;
+                    return (
+                      <div key={oppId} className="rounded-xl p-3" style={{ background: "var(--surface2)" }}>
+                        <button onClick={() => setH2hExpanded(expanded ? null : oppId)} className="w-full flex items-center justify-between">
+                          <span style={{ fontSize: 13, fontWeight: "bold" }}>vs {oppName}</span>
+                          <span style={{ fontSize: 13, color: "var(--accent)" }}>
+                            {myWins} : {oppWins} <span style={{ color: "var(--muted)", fontSize: 11 }}>({h2h.gamesPlayed} gier)</span>
+                          </span>
+                        </button>
+                        {expanded && (
+                          <div className="flex flex-col gap-1 mt-3 text-left" style={{ fontSize: 12 }}>
+                            <div className="flex justify-between"><span style={{ color: "var(--muted)" }}>Skuteczność zgadywania</span><span>{myGuessPct ?? "—"}% vs {oppGuessPct ?? "—"}%</span></div>
+                            <div className="flex justify-between"><span style={{ color: "var(--muted)" }}>Trafność umieszczania</span><span>{myPlacePct ?? "—"}% vs {oppPlacePct ?? "—"}%</span></div>
+                            <div className="flex justify-between"><span style={{ color: "var(--muted)" }}>Średnia szybkość</span><span>{myAvgSpeed ?? "—"}s vs {oppAvgSpeed ?? "—"}s</span></div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
             <button
               onClick={() => setShowStats(false)}
               className="w-full py-3 rounded-xl text-sm font-bold"

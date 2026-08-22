@@ -50,6 +50,19 @@ export async function ensureStatsDoc(uid, username) {
       weeklyChallenge: { weekKey: "", gamesThisWeek: 0, claimed: false },
       dailyStreak: 0,
       dailyLastPlayedDate: "",
+      claimedAchievements: [],
+      perfectGames: 0,
+      longestGuessStreak: 0,
+      uniqueOpponents: [],
+      maxPlayersInGame: 0,
+      cardsBought: 0,
+      currentLossStreak: 0,
+      maxLossStreak: 0,
+      hadPerfectDaily: false,
+      hadNightGame: false,
+      hadFrugalFinish: false,
+      hadQuickReturn: false,
+      lastGameEndedAt: 0,
     });
   } else if (username && snap.data().username !== username) {
     // odświeżamy nazwę przy każdym logowaniu — naprawia stare konta, którym
@@ -192,6 +205,69 @@ export async function recordDailyResult(uid, dayKey, result) {
     dailyLastResult: { dayKey, ...result },
   });
   return newStreak;
+}
+
+// Ręczne odebranie XP za odblokowane osiągnięcie — gracz klika sam, XP nie
+// dolicza się automatycznie.
+export async function claimAchievementXp(uid, achievementId, xpAmount) {
+  const ref = doc(db, "userStats", uid);
+  await updateDoc(ref, {
+    claimedAchievements: arrayUnion(achievementId),
+    xp: increment(xpAmount),
+  });
+}
+
+// Oznacza "Perfekcyjny dzień" (3/3 w Piosence dnia) — wywoływane od razu przy
+// zapisie wyniku, nie wymaga osobnego przebiegu.
+export async function markPerfectDailyIfNeeded(uid, score) {
+  if (score !== 3) return;
+  const ref = doc(db, "userStats", uid);
+  await updateDoc(ref, { hadPerfectDaily: true });
+}
+
+// Aktualizuje liczniki potrzebne do osiągnięć, które nie mają już własnego
+// miejsca w kodzie gry — wywoływane raz na koniec każdej nie-treningowej gry.
+export async function updateAchievementCounters(uid, { won, perfectGame, opponents, playerCount, nightGame, frugalFinish }) {
+  const ref = doc(db, "userStats", uid);
+  const snap = await getDoc(ref);
+  const data = snap.exists() ? snap.data() : {};
+  const newLossStreak = won ? 0 : (data.currentLossStreak || 0) + 1;
+  const updates = {
+    currentLossStreak: newLossStreak,
+    maxLossStreak: Math.max(data.maxLossStreak || 0, newLossStreak),
+    maxPlayersInGame: Math.max(data.maxPlayersInGame || 0, playerCount || 0),
+    lastGameEndedAt: Date.now(),
+  };
+  if (perfectGame) updates.perfectGames = increment(1);
+  if (nightGame) updates.hadNightGame = true;
+  if (frugalFinish) updates.hadFrugalFinish = true;
+  if (opponents && opponents.length) {
+    const existing = new Set(data.uniqueOpponents || []);
+    opponents.forEach((id) => existing.add(id));
+    updates.uniqueOpponents = Array.from(existing);
+  }
+  await updateDoc(ref, updates);
+}
+
+// Sprawdza i ewentualnie ustawia flagę "Powrót" — wywoływane przy tworzeniu
+// lub dołączaniu do nowej gry (nie w trakcie samej rozgrywki).
+export async function checkQuickReturn(uid) {
+  const ref = doc(db, "userStats", uid);
+  const snap = await getDoc(ref);
+  const data = snap.exists() ? snap.data() : {};
+  if (data.lastGameEndedAt && Date.now() - data.lastGameEndedAt < 10 * 60 * 1000) {
+    await updateDoc(ref, { hadQuickReturn: true });
+  }
+}
+
+// Aktualizuje rekordową serię trafionych zgadnięć (jeśli nowa jest dłuższa).
+export async function updateLongestGuessStreak(uid, streakValue) {
+  const ref = doc(db, "userStats", uid);
+  const snap = await getDoc(ref);
+  const data = snap.exists() ? snap.data() : {};
+  if (streakValue > (data.longestGuessStreak || 0)) {
+    await updateDoc(ref, { longestGuessStreak: streakValue });
+  }
 }
 
 // Top players globally. sortBy: "gamesWon" (domyślnie) albo "guessesCorrect".
