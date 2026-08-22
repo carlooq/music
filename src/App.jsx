@@ -2082,11 +2082,49 @@ export default function App() {
 
   // Wykrywanie zepsutych linków — osobny, ukryty i zawsze wyciszony
   // "testowy" odtwarzacz, niezależny od tego, co faktycznie słychać.
+  // Błąd musi potwierdzić się DWA razy z rzędu (z chwilą przerwy między
+  // próbami), zanim appka faktycznie wymieni kartę — pierwszy błąd może
+  // być chwilowym problemem (np. sam mechanizm testera zbyt szybko tworzy
+  // i niszczy odtwarzacze), a nie realnym, trwałym problemem z linkiem.
   const ytValidatorRef = useRef(null);
   useEffect(() => {
     if (screen !== "playing" || !room?.currentCard) return;
     let cancelled = false;
     let attempts = 0;
+    let errorCount = 0;
+    const currentCard = room.currentCard;
+
+    const createValidator = () => {
+      if (cancelled) return;
+      try {
+        if (ytValidatorRef.current) {
+          ytValidatorRef.current.destroy?.();
+          ytValidatorRef.current = null;
+        }
+        ytValidatorRef.current = new window.YT.Player("broken-link-validator", {
+          videoId: currentCard.videoId,
+          playerVars: { autoplay: 1, mute: 1, controls: 0 },
+          events: {
+            onError: () => {
+              if (cancelled) return;
+              errorCount += 1;
+              if (errorCount === 1) {
+                // pierwszy błąd — może być fałszywym alarmem, spróbuj jeszcze raz po chwili
+                setTimeout(() => {
+                  if (!cancelled) createValidator();
+                }, 2500);
+              } else {
+                // błąd potwierdzony drugi raz z rzędu dla tej samej karty — dopiero teraz reagujemy
+                handleBrokenLink(currentCard);
+              }
+            },
+          },
+        });
+      } catch (e) {
+        // ciche niepowodzenie — automatyczne wykrywanie po prostu nie zadziała tym razem
+      }
+    };
+
     const tryAttach = () => {
       if (cancelled) return;
       if (!window.YT || !window.YT.Player || !document.getElementById("broken-link-validator")) {
@@ -2094,21 +2132,7 @@ export default function App() {
         if (attempts < 40) setTimeout(tryAttach, 250);
         return;
       }
-      try {
-        if (ytValidatorRef.current) {
-          ytValidatorRef.current.destroy?.();
-          ytValidatorRef.current = null;
-        }
-        ytValidatorRef.current = new window.YT.Player("broken-link-validator", {
-          videoId: room.currentCard.videoId,
-          playerVars: { autoplay: 1, mute: 1, controls: 0 },
-          events: {
-            onError: () => handleBrokenLink(room.currentCard),
-          },
-        });
-      } catch (e) {
-        // ciche niepowodzenie — automatyczne wykrywanie po prostu nie zadziała tym razem
-      }
+      createValidator();
     };
     tryAttach();
     return () => {
@@ -4019,15 +4043,35 @@ export default function App() {
               const ownerName = room.players.find((p) => p.id === ownerId)?.name || "Gracz";
               const r = room.lastResult;
 
-              let mainLine;
-              if (r.bought) mainLine = `${ownerName} kupił(a) kartę!`;
-              else if (r.timedOut) mainLine = `${ownerName} nie zdążył(a) — czas minął!`;
-              else mainLine = `${ownerName} ${r.correct ? "poprawnie" : "nieprawidłowo"} umieścił(a) kartę na osi czasu`;
+              const resultBox = (isCorrect, delayS) => (
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 14,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    background: isCorrect ? "rgba(42,245,152,0.15)" : "rgba(255,56,104,0.15)",
+                    border: `2px solid ${isCorrect ? "var(--good)" : "var(--bad)"}`,
+                    boxShadow: `0 0 18px -3px ${isCorrect ? "var(--good)" : "var(--bad)"}`,
+                    animation: `scale-pop-in 0.4s ease ${delayS}s both`,
+                  }}
+                >
+                  {isCorrect ? <Check size={28} color="var(--good)" strokeWidth={3.5} /> : <X size={28} color="var(--bad)" strokeWidth={3.5} />}
+                </div>
+              );
 
-              let guessLine = null;
-              if (!r.bought && !r.timedOut && r.tokenAwarded !== undefined) {
-                guessLine = r.tokenAwarded ? "Odgadł(a) wykonawcę i tytuł! 🎯" : "Nie odgadł(a) wykonawcy i tytułu";
-              }
+              const resultRow = (label, isCorrect, delayS) => (
+                <div
+                  className="w-full flex items-center justify-between rounded-xl px-4 py-2.5"
+                  style={{ background: "var(--surface2)", animation: `slide-fade-in 0.4s ease ${delayS - 0.1}s both` }}
+                >
+                  <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, letterSpacing: 0.5 }}>{label}</span>
+                  {resultBox(isCorrect, delayS)}
+                </div>
+              );
 
               const ownerTimeline = [...(room.timelines[ownerId] || [])].sort((a, b) => a.year - b.year);
               const hasGhost = !r.timedOut && !r.correct && r.chosenSlot !== undefined && r.chosenSlot !== null;
@@ -4054,38 +4098,37 @@ export default function App() {
                     overflowY: "auto",
                   }}
                 >
-                  <div className="w-full flex flex-col items-center gap-3" style={{ maxWidth: 420 }}>
+                  <div className="w-full flex flex-col items-center gap-2.5" style={{ maxWidth: 380 }}>
                     <p
                       style={{
                         fontFamily: "'Bebas Neue', sans-serif",
-                        fontSize: 26,
+                        fontSize: 44,
+                        fontWeight: "bold",
                         textAlign: "center",
-                        color: r.timedOut ? "var(--bad)" : r.correct || r.bought ? "var(--good)" : "var(--bad)",
-                        textShadow: `0 0 16px ${r.timedOut || !(r.correct || r.bought) ? "rgba(255,56,104,0.5)" : "rgba(42,245,152,0.5)"}`,
+                        letterSpacing: 1,
+                        color: "var(--text)",
+                        textShadow: "0 0 20px rgba(0,230,195,0.45)",
                         animation: "slide-fade-in 0.45s ease both",
-                        lineHeight: 1.15,
+                        lineHeight: 1,
                       }}
                     >
-                      {mainLine}
+                      {ownerName}
                     </p>
 
-                    {guessLine && (
-                      <p
-                        style={{
-                          fontSize: 16,
-                          fontWeight: "bold",
-                          textAlign: "center",
-                          color: r.tokenAwarded ? "var(--accent)" : "var(--muted)",
-                          animation: "slide-fade-in 0.45s ease 0.15s both",
-                        }}
-                      >
-                        {guessLine}
-                      </p>
+                    {r.bought ? (
+                      resultRow("🎁 KUPIONA KARTA", true, 0.2)
+                    ) : r.timedOut ? (
+                      resultRow("OŚ CZASU", false, 0.2)
+                    ) : (
+                      <>
+                        {resultRow("OŚ CZASU", r.correct, 0.2)}
+                        {r.tokenAwarded !== undefined && resultRow("TYTUŁ I WYKONAWCA", r.tokenAwarded, 0.35)}
+                      </>
                     )}
 
                     <div
                       className="rounded-2xl p-6 text-center card-glow"
-                      style={{ background: "var(--surface)", minWidth: 220, animation: "scale-pop-in 0.5s ease 0.3s both" }}
+                      style={{ background: "var(--surface)", minWidth: 220, marginTop: 8, animation: "scale-pop-in 0.5s ease 0.5s both" }}
                     >
                       <p style={{ fontSize: 13, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>{r.card.artist}</p>
                       <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 56, color: "var(--accent)", lineHeight: 1 }}>{r.card.year}</p>
@@ -4093,7 +4136,7 @@ export default function App() {
                     </div>
 
                     {!r.timedOut && displayCards.length > 0 && (
-                      <div className="w-full" style={{ animation: "slide-fade-in 0.5s ease 0.5s both" }}>
+                      <div className="w-full" style={{ animation: "slide-fade-in 0.5s ease 0.65s both" }}>
                         <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase", marginBottom: 8, textAlign: "center" }}>
                           Oś czasu gracza {ownerName}
                         </p>
