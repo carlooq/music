@@ -3638,7 +3638,7 @@ export default function App() {
                     className="flex-1"
                     style={{ textAlign: "center", fontSize: 15, letterSpacing: 2 }}
                   />
-                  <button onClick={joinRoom} disabled={busy} className="px-4 py-2 rounded-lg text-sm font-bold" style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}>
+                  <button onClick={() => joinRoom()} disabled={busy} className="px-4 py-2 rounded-lg text-sm font-bold" style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}>
                     Dołącz
                   </button>
                 </div>
