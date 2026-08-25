@@ -17,7 +17,8 @@ import { registerWithUsername, loginWithUsername, logout, watchAuthState, friend
 import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, awardXp, xpForLevel, levelFromXp, progressWeeklyChallenge, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak } from "./stats.js";
 import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss, incrementSongPlayCount } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
-import { heartbeat, clearPresence, getOnlineCount } from "./presence.js";
+import { heartbeat, clearPresence, getOnlinePlayers } from "./presence.js";
+import { sendDuelChallenge, listenForIncomingChallenge, listenForSentChallenges, acceptDuelChallenge, declineDuelChallenge, clearDuelChallenge, isChallengeStale } from "./duelInvites.js";
 import { getOrCreateDailySong } from "./dailySong.js";
 import { getOrCreateDailyPlaylist, hasPlayedPlaylistToday, recordDailyPlaylistScore, fetchDailyPlaylistLeaderboard, fetchWeeklyPlaylistLeaderboard, fetchAllTimePlaylistLeaderboard, processWeeklyPlaylistRewardsIfNeeded } from "./dailyPlaylist.js";
 import { updateHeadToHead, fetchHeadToHeadOpponents } from "./headToHead.js";
@@ -488,12 +489,12 @@ export default function App() {
     });
   }, [screen, room?.players?.length]);
 
-  const [onlineCount, setOnlineCount] = useState(null);
+  const [onlinePlayers, setOnlinePlayers] = useState([]);
   useEffect(() => {
     if (!playerId) return;
     const displayName = name || user?.displayName || "Gracz";
-    heartbeat(playerId, displayName);
-    const id = setInterval(() => heartbeat(playerId, displayName), 25000);
+    heartbeat(playerId, displayName, user?.uid);
+    const id = setInterval(() => heartbeat(playerId, displayName, user?.uid), 25000);
     const clear = () => clearPresence(playerId);
     window.addEventListener("beforeunload", clear);
     return () => {
@@ -501,13 +502,91 @@ export default function App() {
       window.removeEventListener("beforeunload", clear);
       clear();
     };
-  }, [playerId]);
+  }, [playerId, user?.uid]);
 
   useEffect(() => {
-    getOnlineCount().then(setOnlineCount);
-    const id = setInterval(() => getOnlineCount().then(setOnlineCount), 40000);
+    getOnlinePlayers().then(setOnlinePlayers);
+    const id = setInterval(() => getOnlinePlayers().then(setOnlinePlayers), 40000);
     return () => clearInterval(id);
   }, []);
+
+  // --- Wyzwania 1v1 (na żywo) ---
+  const [showOnlineList, setShowOnlineList] = useState(false);
+  const [incomingChallenge, setIncomingChallenge] = useState(null);
+  const [challengeSentTo, setChallengeSentTo] = useState(null);
+  const [challengeBusy, setChallengeBusy] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    const unsub = listenForIncomingChallenge(user.uid, (data) => {
+      if (data && !isChallengeStale(data.createdAt)) {
+        setIncomingChallenge(data);
+      } else {
+        setIncomingChallenge(null);
+      }
+    });
+    return () => unsub();
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user) return;
+    const unsub = listenForSentChallenges(user.uid, (data) => {
+      if (isChallengeStale(data.createdAt)) return; // stary, nieposprzątany wpis — ignorujemy
+      if (data.status === "accepted" && data.roomCode) {
+        clearDuelChallenge(data.toUid).catch(() => {});
+        setChallengeSentTo(null);
+        joinRoom(data.roomCode);
+      } else if (data.status === "declined") {
+        setChallengeSentTo(null);
+        setError(`${data.toName} odrzucił(a) wyzwanie.`);
+        clearDuelChallenge(data.toUid).catch(() => {});
+      }
+    });
+    return () => unsub();
+  }, [user?.uid]);
+
+  async function handleSendChallenge(toPlayer) {
+    if (!user) return setError("Zaloguj się, żeby wyzwać kogoś na pojedynek.");
+    setChallengeBusy(true);
+    try {
+      await sendDuelChallenge(user.uid, name.trim() || user.displayName || "Gracz", toPlayer.uid, toPlayer.name);
+      setChallengeSentTo(toPlayer);
+      setTimeout(() => {
+        setChallengeSentTo((current) => {
+          if (current?.uid === toPlayer.uid) {
+            clearDuelChallenge(user.uid).catch(() => {});
+            setError(`${toPlayer.name} nie odpowiedział(a) na wyzwanie.`);
+            return null;
+          }
+          return current;
+        });
+      }, 95000);
+    } catch (e) {
+      setError("Nie udało się wysłać wyzwania: " + e.message);
+    } finally {
+      setChallengeBusy(false);
+    }
+  }
+
+  async function handleAcceptChallenge() {
+    if (!incomingChallenge || !user) return;
+    setChallengeBusy(true);
+    try {
+      const code = await createDuelRoom();
+      await acceptDuelChallenge(user.uid, code);
+      setIncomingChallenge(null);
+    } catch (e) {
+      setError("Nie udało się przyjąć wyzwania: " + e.message);
+    } finally {
+      setChallengeBusy(false);
+    }
+  }
+
+  async function handleDeclineChallenge() {
+    if (!incomingChallenge || !user) return;
+    declineDuelChallenge(user.uid).catch(() => {});
+    setIncomingChallenge(null);
+  }
 
   // --- "Piosenka dnia" ---
   const [showDailySong, setShowDailySong] = useState(false);
@@ -1601,6 +1680,34 @@ export default function App() {
     }
   }
 
+  // Osobna, lekka wersja tworzenia pokoju dla wyzwań 1v1 — zwraca kod, żeby
+  // można było od razu przekazać go osobie wyzywającej (przez zaproszenie),
+  // a przyjmujący wyzwanie od razu wchodzi do lobby jako host.
+  async function createDuelRoom() {
+    const code = generateRoomCode();
+    const ref = doc(db, "rooms", code);
+    await setDoc(ref, {
+      code,
+      hostId: playerId,
+      target: 10,
+      status: "lobby",
+      players: [{ id: playerId, name: name.trim() || user?.displayName || "Gracz", authed: !!user }],
+      deck: [],
+      deckIndex: 0,
+      currentPlayerId: null,
+      currentCard: null,
+      startSeconds: 0,
+      timelines: {},
+      lastResult: null,
+      winnerIds: [],
+      createdAt: serverTimestamp(),
+      expireAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      messages: [],
+    });
+    setRoomId(code);
+    return code;
+  }
+
   async function startPractice() {
     if (!name.trim() && !user) return setError("Podaj swoje imię.");
     setBusy(true);
@@ -1664,9 +1771,9 @@ export default function App() {
     }
   }
 
-  async function joinRoom() {
+  async function joinRoom(explicitCode) {
     if (!name.trim()) return setError("Podaj swoje imię.");
-    const code = joinCode.trim().toUpperCase();
+    const code = (explicitCode || joinCode).trim().toUpperCase();
     if (!code) return setError("Podaj kod pokoju.");
     setBusy(true);
     setError("");
@@ -2560,9 +2667,48 @@ export default function App() {
         >
           <img src={logoImg} alt="Hitsteriada" style={{ height: 100, filter: "drop-shadow(0 0 18px rgba(0,230,195,0.55)) drop-shadow(0 0 28px rgba(139,92,246,0.3))" }} />
         </button>
-        <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 24 }}>
-          {onlineCount !== null ? `🟢 ${onlineCount} graczy online` : "online"} • każdy gra u siebie, w swoim miejscu
-        </p>
+        <button
+          onClick={() => setShowOnlineList((v) => !v)}
+          style={{ color: "var(--muted)", fontSize: 12, marginBottom: showOnlineList ? 8 : 24, background: "none", border: "none", cursor: "pointer" }}
+        >
+          🟢 {onlinePlayers.length} graczy online • każdy gra u siebie, w swoim miejscu {showOnlineList ? "▲" : "▼"}
+        </button>
+
+        {showOnlineList && (
+          <div className="w-full rounded-xl p-3 mb-6" style={{ background: "var(--surface2)", maxWidth: 340 }}>
+            {onlinePlayers.length === 0 ? (
+              <p style={{ color: "var(--muted)", fontSize: 12, textAlign: "center" }}>Nikt inny teraz nie jest online.</p>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {onlinePlayers.map((p) => {
+                  const isMe = p.playerId === playerId;
+                  const canChallenge = user && p.uid && !isMe;
+                  return (
+                    <div key={p.playerId} className="flex items-center justify-between text-sm">
+                      <span>
+                        {p.name} {isMe && <span style={{ color: "var(--muted)", fontSize: 10 }}>(Ty)</span>}
+                        {!p.uid && !isMe && <span style={{ color: "var(--muted)", fontSize: 10 }}> · gość</span>}
+                      </span>
+                      {canChallenge &&
+                        (challengeSentTo?.uid === p.uid ? (
+                          <span style={{ color: "var(--accent)", fontSize: 11 }}>Czekam na odpowiedź…</span>
+                        ) : (
+                          <button
+                            onClick={() => handleSendChallenge(p)}
+                            disabled={challengeBusy || !!challengeSentTo}
+                            className="px-2.5 py-1 rounded-lg text-xs font-bold"
+                            style={{ background: "var(--surface)", border: "1px solid var(--accent)", color: "var(--accent)" }}
+                          >
+                            ⚔️ Wyzwij
+                          </button>
+                        ))}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {error && (
           <div className="w-full rounded-lg p-3 mb-4 text-sm" style={{ background: "rgba(232,97,93,0.12)", border: "1px solid var(--bad)", color: "var(--bad)" }}>
@@ -4452,6 +4598,46 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {incomingChallenge && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.75)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100,
+            padding: 24,
+          }}
+        >
+          <div className="rounded-2xl p-6 text-center card-glow" style={{ background: "var(--surface)", maxWidth: 320 }}>
+            <p style={{ fontSize: 32 }}>⚔️</p>
+            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, marginTop: 4 }}>
+              {incomingChallenge.fromName} wyzywa Cię na pojedynek!
+            </p>
+            <div className="flex gap-3 mt-5">
+              <button
+                onClick={handleAcceptChallenge}
+                disabled={challengeBusy}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold"
+                style={{ background: "var(--good)", color: "#0d1f1a" }}
+              >
+                Przyjmij
+              </button>
+              <button
+                onClick={handleDeclineChallenge}
+                disabled={challengeBusy}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold"
+                style={{ border: "1px solid #33294f", color: "var(--muted)" }}
+              >
+                Odrzuć
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {levelUpInfo && (
         <div
