@@ -967,8 +967,17 @@ export default function App() {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => setImportCsvText(ev.target.result);
-    reader.readAsText(file, "utf-8");
+    reader.onload = (ev) => {
+      const buffer = ev.target.result;
+      let text = new TextDecoder("utf-8").decode(buffer);
+      if (text.includes("\uFFFD")) {
+        // UTF-8 dało nieprawidłowe znaki — to zwykle CSV zapisany przez Excela
+        // w kodowaniu Windows-1250 (domyślne dla polskiego Windowsa), spróbuj tego
+        text = new TextDecoder("windows-1250").decode(buffer);
+      }
+      setImportCsvText(text);
+    };
+    reader.readAsArrayBuffer(file);
   }
 
   async function handleExportCsv() {
@@ -1124,15 +1133,39 @@ export default function App() {
     setShowStats(false);
   }
 
+  // Sortuje wszystkich graczy wg tych samych zasad, co wyłanianie zwycięzcy
+  // przy remisie: długość osi czasu → tokeny → liczba udanych zgadnięć.
+  // Używane do podium (2./3. miejsce) w grach 3+ osobowych.
+  function computeFinalStandings(gameRoom) {
+    return [...(gameRoom.players || [])].sort((a, b) => {
+      const lenA = (gameRoom.timelines?.[a.id] || []).length;
+      const lenB = (gameRoom.timelines?.[b.id] || []).length;
+      if (lenB !== lenA) return lenB - lenA;
+      const tokA = gameRoom.tokens?.[a.id] || 0;
+      const tokB = gameRoom.tokens?.[b.id] || 0;
+      if (tokB !== tokA) return tokB - tokA;
+      const guessA = gameRoom.gameGuesses?.[a.id] || 0;
+      const guessB = gameRoom.gameGuesses?.[b.id] || 0;
+      return guessB - guessA;
+    });
+  }
+
   // Wspólna logika liczenia XP na koniec gry — używana zarówno do
   // faktycznego przyznania punktów, jak i do wyświetlenia rozbicia graczowi.
   function computeGameEndXp(gameRoom, forPlayerId) {
     if (!gameRoom || gameRoom.practiceMode) return { items: [], total: 0 };
     const items = [{ label: "🎮 Udział w grze", amount: 30 }];
     const won = (gameRoom.winnerIds || []).includes(forPlayerId);
+    const winXp = Math.max(100, ((gameRoom.players || []).length - 1) * 100);
     if (won) {
-      const winXp = Math.max(100, ((gameRoom.players || []).length - 1) * 100);
       items.push({ label: `🏆 Wygrana (${gameRoom.players.length} graczy)`, amount: winXp });
+    } else if ((gameRoom.players || []).length >= 3) {
+      // podium — tylko gry 3+ osobowe, tylko dla graczy spoza grona zwycięzców
+      const winnerSet = new Set(gameRoom.winnerIds || []);
+      const rest = computeFinalStandings(gameRoom).filter((p) => !winnerSet.has(p.id));
+      const myRank = rest.findIndex((p) => p.id === forPlayerId);
+      if (myRank === 0) items.push({ label: "🥈 2. miejsce", amount: Math.round(winXp / 2) });
+      else if (myRank === 1) items.push({ label: "🥉 3. miejsce", amount: Math.round(winXp / 4) });
     }
 
     const avgTimes = Object.entries(gameRoom.decisionTimes || {})
@@ -4265,6 +4298,28 @@ export default function App() {
                 Oś czasu: {(room.timelines[id] || []).map((c) => c.year).sort((a, b) => a - b).join(" → ")}
               </p>
             ))}
+
+            {room.players.length >= 3 && (() => {
+              const winnerSet = new Set(room.winnerIds);
+              const rest = computeFinalStandings(room).filter((p) => !winnerSet.has(p.id));
+              if (rest.length === 0) return null;
+              return (
+                <div className="w-full flex flex-col gap-2" style={{ maxWidth: 320 }}>
+                  {rest[0] && (
+                    <div className="flex items-center justify-between rounded-xl px-4 py-2" style={{ background: "var(--surface2)", border: "1px solid #c0c0c0" }}>
+                      <span>🥈 2. miejsce — {rest[0].name}</span>
+                      <span style={{ color: "var(--muted)", fontSize: 12 }}>{(room.timelines[rest[0].id] || []).length} kart</span>
+                    </div>
+                  )}
+                  {rest[1] && (
+                    <div className="flex items-center justify-between rounded-xl px-4 py-2" style={{ background: "var(--surface2)", border: "1px solid var(--gold)" }}>
+                      <span>🥉 3. miejsce — {rest[1].name}</span>
+                      <span style={{ color: "var(--muted)", fontSize: 12 }}>{(room.timelines[rest[1].id] || []).length} kart</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {(() => {
               // najszybszy gracz — najniższy średni czas decyzji
