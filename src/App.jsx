@@ -368,6 +368,7 @@ export default function App() {
   const [cleanupProgress, setCleanupProgress] = useState(null);
   const [brokenLinkReports, setBrokenLinkReports] = useState(null);
   const [mostPlayedSongs, setMostPlayedSongs] = useState(null);
+  const [mostPlayedBusy, setMostPlayedBusy] = useState(false);
   const [showBrokenLinkReports, setShowBrokenLinkReports] = useState(false);
   const [brokenLinkBusy, setBrokenLinkBusy] = useState(false);
   const [brokenLinkEditingId, setBrokenLinkEditingId] = useState(null);
@@ -3344,14 +3345,23 @@ export default function App() {
                 Licznik zlicza tylko karty, które faktycznie padły w prawdziwej rozgrywce (nie Treningu) — losowanie, które zostało zaraz zastąpione (np. zepsuty link), się nie liczy.
               </p>
               <button
-                onClick={() => {
-                  const sorted = [...effectivePool].filter((s) => s.timesPlayed > 0).sort((a, b) => (b.timesPlayed || 0) - (a.timesPlayed || 0));
-                  setMostPlayedSongs(sorted.slice(0, 20));
+                onClick={async () => {
+                  setMostPlayedBusy(true);
+                  try {
+                    const fresh = await fetchAllSongsFromDb();
+                    const sorted = fresh.filter((s) => s.timesPlayed > 0).sort((a, b) => (b.timesPlayed || 0) - (a.timesPlayed || 0));
+                    setMostPlayedSongs(sorted.slice(0, 20));
+                  } catch (e) {
+                    setError("Błąd pobierania rankingu: " + e.message);
+                  } finally {
+                    setMostPlayedBusy(false);
+                  }
                 }}
+                disabled={mostPlayedBusy}
                 className="px-4 py-2 rounded-lg text-sm font-bold"
                 style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
               >
-                Pokaż ranking
+                {mostPlayedBusy ? "Wczytuję…" : "Pokaż ranking"}
               </button>
               {mostPlayedSongs && (
                 <div className="flex flex-col gap-1 mt-3">
