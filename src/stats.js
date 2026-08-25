@@ -6,6 +6,18 @@ export function decadeLabel(year) {
   return `${start}s`; // e.g. "1980s", "2020s"
 }
 
+// Grupuje rok utworu w jedną z 7 "kubełków" do osiągnięć za dekady —
+// lata do 1969 połączone w jedną grupę (mniej utworów, mniej znane).
+export function decadeGroupKey(year) {
+  if (year < 1970) return "60s_earlier";
+  if (year < 1980) return "70s";
+  if (year < 1990) return "80s";
+  if (year < 2000) return "90s";
+  if (year < 2010) return "00s";
+  if (year < 2020) return "10s";
+  return "20s";
+}
+
 // Zwraca klucz tygodnia w formacie "2026-W34" (ISO-ish, wystarczająco dobry
 // do naszych celów — nie musi być idealnie zgodny z prawdziwym ISO 8601).
 export function currentWeekKey(date = new Date()) {
@@ -65,6 +77,7 @@ export async function ensureStatsDoc(uid, username) {
       lastGameEndedAt: 0,
       playlistTotalScore: 0,
       playlistGamesPlayed: 0,
+      guessesByDecadeGroup: {},
     });
   } else if (username && snap.data().username !== username) {
     // odświeżamy nazwę przy każdym logowaniu — naprawia stare konta, którym
@@ -124,10 +137,11 @@ export async function recordSongAdded(uid) {
 
 // Called whenever a player's artist+title guess gets approved (bezpośrednio
 // lub przez głosowanie) — licznik + zbiór unikalnych trafionych utworów.
-export async function recordSuccessfulGuess(uid, videoId) {
+export async function recordSuccessfulGuess(uid, videoId, year) {
   const ref = doc(db, "userStats", uid);
   const update = { guessesCorrect: increment(1) };
   if (videoId) update.guessedSongs = arrayUnion(videoId);
+  if (year) update[`guessesByDecadeGroup.${decadeGroupKey(year)}`] = increment(1);
   await updateDoc(ref, update);
 }
 

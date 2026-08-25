@@ -1,4 +1,4 @@
-import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, increment } from "firebase/firestore";
 import { db } from "./firebase-config.js";
 import { REAL_SONGS } from "./songs.js";
 import { CATEGORY_PATCH } from "./categoryPatch.js";
@@ -9,6 +9,20 @@ const PROPOSALS_COLLECTION = "songProposals";
 export async function fetchAllSongsFromDb() {
   const snap = await getDocs(collection(db, COLLECTION));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+// Zwiększa licznik "ile razy ta karta faktycznie padła w grze" — wywoływane
+// tylko wtedy, gdy karta rzeczywiście trafiła do rozgrywki (nie przy samym
+// wylosowaniu, które mogło zostać zaraz zastąpione np. przy zepsutym linku).
+// Ciche niepowodzenie — to tylko statystyka poglądowa, nie coś krytycznego.
+export async function incrementSongPlayCount(songId) {
+  if (!songId) return;
+  try {
+    const ref = doc(db, COLLECTION, songId);
+    await updateDoc(ref, { timesPlayed: increment(1) });
+  } catch (e) {
+    // ciche niepowodzenie
+  }
 }
 
 export async function addSongToDb(song) {

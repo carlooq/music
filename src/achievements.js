@@ -70,6 +70,33 @@ export const ACHIEVEMENTS = [
   { id: "fun_comeback", name: "Powrót", category: "Zabawne", desc: "Zagraj ponownie w ciągu 10 minut od poprzedniej gry", xp: 35, check: (s) => !!s.hadQuickReturn },
 ];
 
+// --- Dekady: zgadywanie wykonawcy+tytułu podzielone latami utworu ---
+// Lata 30-60 połączone w jedną grupę (mniej utworów, mniej znane), potem
+// osobno każda kolejna dekada. 5 progów × 7 grup = 35 osiągnięć.
+const DECADE_GROUPS = [
+  { key: "60s_earlier", label: "utworów do lat 60." },
+  { key: "70s", label: "utworów z lat 70." },
+  { key: "80s", label: "utworów z lat 80." },
+  { key: "90s", label: "utworów z lat 90." },
+  { key: "00s", label: "utworów z lat 2000." },
+  { key: "10s", label: "utworów z lat 2010." },
+  { key: "20s", label: "utworów z lat 2020." },
+];
+const DECADE_TIERS = [5, 10, 20, 50, 100];
+
+DECADE_GROUPS.forEach((g) => {
+  DECADE_TIERS.forEach((tier, i) => {
+    ACHIEVEMENTS.push({
+      id: `decade_${g.key}_${tier}`,
+      name: `Znawca — ${g.label} (${tier})`,
+      category: "Dekady",
+      desc: `Odgadnij poprawnie ${tier} ${g.label}`,
+      xp: tierXp(i),
+      check: (s) => (s.guessesByDecadeGroup?.[g.key] || 0) >= tier,
+    });
+  });
+});
+
 export function getAchievementProgress(stats, level) {
   const claimed = new Set(stats?.claimedAchievements || []);
   return ACHIEVEMENTS.map((a) => ({

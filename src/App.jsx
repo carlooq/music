@@ -15,7 +15,7 @@ import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId, fuzzyMatc
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
 import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, awardXp, xpForLevel, levelFromXp, progressWeeklyChallenge, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak } from "./stats.js";
-import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss } from "./songsDb.js";
+import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss, incrementSongPlayCount } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
 import { heartbeat, clearPresence, getOnlineCount } from "./presence.js";
 import { getOrCreateDailySong } from "./dailySong.js";
@@ -366,6 +366,7 @@ export default function App() {
   const [cleanupResult, setCleanupResult] = useState(null);
   const [cleanupProgress, setCleanupProgress] = useState(null);
   const [brokenLinkReports, setBrokenLinkReports] = useState(null);
+  const [mostPlayedSongs, setMostPlayedSongs] = useState(null);
   const [showBrokenLinkReports, setShowBrokenLinkReports] = useState(false);
   const [brokenLinkBusy, setBrokenLinkBusy] = useState(false);
   const [brokenLinkEditingId, setBrokenLinkEditingId] = useState(null);
@@ -441,6 +442,33 @@ export default function App() {
       .catch(() => setLibrarySongs([])); // brak kolekcji / błąd → cicho wracamy do wbudowanej listy
   }
 
+  // Piosenka/Playlista dnia MUSZĄ mieć prawdziwe kategorie do filtrowania
+  // (np. wykluczenie rapu) — nie mogą polegać na effectivePool, bo ten
+  // przy pierwszej wizycie w appce cicho spada do starej, wbudowanej listy
+  // 746 utworów BEZ zapisanych kategorii (filtr wtedy nic by nie wykluczał).
+  // Ten sam mechanizm gwarantuje żywą bibliotekę też przy starcie zwykłej
+  // gry i Treningu (tam ryzyko jest dużo mniejsze — host zwykle czeka
+  // chwilę w lobby, co daje appce czas na doładowanie — ale wolę mieć to
+  // pewne wszędzie, nie tylko "zwykle wystarczająco dużo czasu").
+  async function getLiveLibraryPool() {
+    let pool = librarySongs;
+    if (!pool || pool.length === 0) {
+      try {
+        pool = await fetchAllSongsFromDb();
+        setLibrarySongs(pool);
+        saveLibraryCache(pool);
+      } catch (e) {
+        pool = REAL_SONGS; // ostateczny fallback, gdyby Firestore było niedostępne
+      }
+    }
+    return pool;
+  }
+
+  async function getDailyFeaturesPool() {
+    const pool = await getLiveLibraryPool();
+    return pool.filter((s) => !(s.categories || []).includes("rap"));
+  }
+
   useEffect(() => {
     if ((screen === "lobby" && room?.hostId === playerId) || screen === "practiceSetup") ensureLibraryLoaded();
   }, [screen, room?.hostId, playerId]);
@@ -507,7 +535,7 @@ export default function App() {
     setError("");
     try {
       const dayKey = currentDayKey();
-      const pool = (effectivePool.length > 0 ? effectivePool : REAL_SONGS).filter((s) => !(s.categories || []).includes("rap"));
+      const pool = await getDailyFeaturesPool();
       const song = await getOrCreateDailySong(dayKey, pool);
       setDailySong(song);
       const s = await getStats(user.uid);
@@ -529,7 +557,7 @@ export default function App() {
     try {
       processWeeklyPlaylistRewardsIfNeeded().catch(() => {}); // ciche, okazjonalne sprawdzenie nagród za zeszły tydzień
       const dayKey = currentDayKey();
-      const pool = (effectivePool.length > 0 ? effectivePool : REAL_SONGS).filter((s) => !(s.categories || []).includes("rap"));
+      const pool = await getDailyFeaturesPool();
       const songs = await getOrCreateDailyPlaylist(dayKey, pool);
       setDailyPlaylistSongs(songs);
       const [already, daily, weekly, allTime] = await Promise.all([
@@ -1545,10 +1573,11 @@ export default function App() {
     setBusy(true);
     setError("");
     try {
+      const basePool = await getLiveLibraryPool();
       const filterActive = !selectedCategories.includes("wszystkie") && selectedCategories.length > 0;
       const pool = filterActive
-        ? effectivePool.filter((s) => s.categories && s.categories.some((c) => selectedCategories.includes(c)))
-        : effectivePool;
+        ? basePool.filter((s) => s.categories && s.categories.some((c) => selectedCategories.includes(c)))
+        : basePool;
       const target = practiceTarget && practiceTarget > 0 ? practiceTarget : 15;
       const needed = target + 7;
       if (pool.length < needed) {
@@ -1655,21 +1684,22 @@ export default function App() {
       setError("Potrzeba minimum 2 graczy. Do gry solo użyj trybu Trening na ekranie głównym.");
       return;
     }
-    const basePool = effectivePool;
-    const filterActive = !selectedCategories.includes("wszystkie") && selectedCategories.length > 0;
-    const pool = filterActive
-      ? basePool.filter((s) => s.categories && s.categories.some((c) => selectedCategories.includes(c)))
-      : basePool;
-    const EXTRA_CARDS_PER_PLAYER = 7;
-    const needed = room.players.length * (target + EXTRA_CARDS_PER_PLAYER);
-    if (pool.length < needed + 1) {
-      const catNote = filterActive ? ` w wybranych kategoriach (${selectedCategories.join(", ")})` : "";
-      setError(`Za mało utworów${catNote} (masz ${pool.length}, potrzeba ${needed + 1}: (${target}+${EXTRA_CARDS_PER_PLAYER}) × ${room.players.length} graczy + 1 na rundę otwierającą).`);
-      return;
-    }
     setBusy(true);
     setError("");
     try {
+      const basePool = await getLiveLibraryPool();
+      const filterActive = !selectedCategories.includes("wszystkie") && selectedCategories.length > 0;
+      const pool = filterActive
+        ? basePool.filter((s) => s.categories && s.categories.some((c) => selectedCategories.includes(c)))
+        : basePool;
+      const EXTRA_CARDS_PER_PLAYER = 7;
+      const needed = room.players.length * (target + EXTRA_CARDS_PER_PLAYER);
+      if (pool.length < needed + 1) {
+        const catNote = filterActive ? ` w wybranych kategoriach (${selectedCategories.join(", ")})` : "";
+        setError(`Za mało utworów${catNote} (masz ${pool.length}, potrzeba ${needed + 1}: (${target}+${EXTRA_CARDS_PER_PLAYER}) × ${room.players.length} graczy + 1 na rundę otwierającą).`);
+        setBusy(false);
+        return;
+      }
       // +1 karta na minigrę "kto zaczyna" — osobna, nie wchodzi do talii rozgrywki
       const extended = shuffle(pool).slice(0, needed + 1);
       const openerCard = extended[0];
@@ -1875,6 +1905,9 @@ export default function App() {
           });
         }
       });
+      if (capturedResult && !capturedResult.practiceMode && capturedResult.card?.id) {
+        incrementSongPlayCount(capturedResult.card.id).catch(() => {});
+      }
       if (user && capturedResult && !capturedResult.practiceMode) {
         recordCardGuess(user.uid, capturedResult.card.year, capturedResult.correct, capturedResult.card.artist, capturedResult.card.videoId).catch(() => {});
         if (capturedResult.correct) {
@@ -1884,7 +1917,7 @@ export default function App() {
         }
       }
       if (user && instantGuessAwardedTo === user.uid && !capturedResult?.practiceMode) {
-        recordSuccessfulGuess(user.uid, capturedResult?.card?.videoId).catch(() => {});
+        recordSuccessfulGuess(user.uid, capturedResult?.card?.videoId, capturedResult?.card?.year).catch(() => {});
         let xp = 20; // trafione zgadywanie
         if (capturedResult.newGuessStreak === 5) xp += 30; // seria 5 trafionych zgadywań z rzędu
         awardXp(user.uid, xp).catch(() => {});
@@ -1941,6 +1974,7 @@ export default function App() {
       if (capturedBought) {
         setBoughtCardReveal(capturedBought);
         setTimeout(() => setBoughtCardReveal(null), 3000);
+        if (!room?.practiceMode && capturedBought.id) incrementSongPlayCount(capturedBought.id).catch(() => {});
         if (user && !room?.practiceMode) {
           const ref2 = doc(db, "userStats", user.uid);
           updateDoc(ref2, { cardsBought: increment(1) }).catch(() => {});
@@ -1962,6 +1996,7 @@ export default function App() {
       const ref = doc(db, "rooms", roomId);
       let awardedGuessTo = null;
       let awardedGuessVideoId = null;
+      let awardedGuessYear = null;
       let newGuessStreakValue = null;
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
@@ -1980,6 +2015,7 @@ export default function App() {
           if (guesser?.authed) {
             awardedGuessTo = data.currentPlayerId;
             awardedGuessVideoId = data.lastResult?.card?.videoId;
+            awardedGuessYear = data.lastResult?.card?.year;
           }
           const playedCards = data.playedCards || [];
           const updatedPlayedCards = playedCards.map((pc, i) => (i === playedCards.length - 1 ? { ...pc, guessedCorrect: true } : pc));
@@ -2010,7 +2046,7 @@ export default function App() {
         }
       });
       if (awardedGuessTo) {
-        recordSuccessfulGuess(awardedGuessTo, awardedGuessVideoId).catch(() => {});
+        recordSuccessfulGuess(awardedGuessTo, awardedGuessVideoId, awardedGuessYear).catch(() => {});
         let xp = 20; // trafione zgadywanie
         if (newGuessStreakValue === 5) xp += 30; // seria 5 trafionych zgadywań z rzędu
         awardXp(awardedGuessTo, xp).catch(() => {});
@@ -2192,6 +2228,9 @@ export default function App() {
           playedCards: newPlayedCards,
         });
       });
+      if (capturedCard && !capturedPracticeMode && capturedCard.id) {
+        incrementSongPlayCount(capturedCard.id).catch(() => {});
+      }
       if (user && capturedCard && !capturedPracticeMode) {
         recordCardGuess(user.uid, capturedCard.year, false, capturedCard.artist, capturedCard.videoId).catch(() => {});
       }
@@ -3112,6 +3151,40 @@ export default function App() {
                           </div>
                         </div>
                         )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </section>
+
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🔥 Najczęściej grane utwory</p>
+              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
+                Licznik zlicza tylko karty, które faktycznie padły w prawdziwej rozgrywce (nie Treningu) — losowanie, które zostało zaraz zastąpione (np. zepsuty link), się nie liczy.
+              </p>
+              <button
+                onClick={() => {
+                  const sorted = [...effectivePool].filter((s) => s.timesPlayed > 0).sort((a, b) => (b.timesPlayed || 0) - (a.timesPlayed || 0));
+                  setMostPlayedSongs(sorted.slice(0, 20));
+                }}
+                className="px-4 py-2 rounded-lg text-sm font-bold"
+                style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
+              >
+                Pokaż ranking
+              </button>
+              {mostPlayedSongs && (
+                <div className="flex flex-col gap-1 mt-3">
+                  {mostPlayedSongs.length === 0 ? (
+                    <p style={{ color: "var(--muted)", fontSize: 12 }}>Brak jeszcze danych — licznik zacznie się zapełniać od teraz.</p>
+                  ) : (
+                    mostPlayedSongs.map((s) => (
+                      <div key={s.id} className="flex items-center justify-between text-sm">
+                        <span>
+                          {s.artist} — {s.title}
+                        </span>
+                        <span style={{ color: "var(--accent)" }}>{s.timesPlayed}×</span>
                       </div>
                     ))
                   )}
