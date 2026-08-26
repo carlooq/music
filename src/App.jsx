@@ -432,7 +432,7 @@ export default function App() {
 
   const effectivePool = librarySongs && librarySongs.length > 0 ? librarySongs : REAL_SONGS;
 
-  const LIBRARY_CACHE_KEY = "hitster-library-cache-v2"; // v2: unieważnia stary cache, który mógł zostać "zatruty" niepełną listą (patrz naprawiony bug z panelem admina)
+  const LIBRARY_CACHE_KEY = "hitster-library-cache-v3"; // v3: unieważnia stary cache sprzed dodania systemu rzadkości kart (mógł nie mieć pola `rarity`)
   const LIBRARY_CACHE_TTL_MS = 60 * 60 * 1000; // 1h — świeża baza wystarczająco często, a nie za każdym odświeżeniem
 
   function saveLibraryCache(songs) {
