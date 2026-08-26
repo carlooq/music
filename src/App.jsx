@@ -21,6 +21,7 @@ import { heartbeat, clearPresence, getOnlinePlayers } from "./presence.js";
 import { sendDuelChallenge, listenForIncomingChallenge, listenForSentChallenges, acceptDuelChallenge, declineDuelChallenge, clearDuelChallenge, isChallengeStale } from "./duelInvites.js";
 import { getOrCreateDailySong } from "./dailySong.js";
 import { getOrCreateDailyPlaylist, hasPlayedPlaylistToday, recordDailyPlaylistScore, fetchDailyPlaylistLeaderboard, fetchWeeklyPlaylistLeaderboard, fetchAllTimePlaylistLeaderboard, processWeeklyPlaylistRewardsIfNeeded } from "./dailyPlaylist.js";
+import { createTournament, cancelTournament, fetchActiveTournament, fetchTournament, signUpForTournament, recordTournamentMatchResult, checkAndAdvanceTournament, settleTournamentXpIfNeeded, pickMatchPlaylist } from "./tournaments.js";
 import { updateHeadToHead, fetchHeadToHeadOpponents } from "./headToHead.js";
 import { getAchievementProgress } from "./achievements.js";
 import { playCorrectSound, playWrongSound, playApplause, playVictorySound, unlockAudio } from "./sounds.js";
@@ -512,6 +513,12 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    fetchActiveTournament().then(setActiveTournament).catch(() => {});
+    const id = setInterval(() => fetchActiveTournament().then(setActiveTournament).catch(() => {}), 60000);
+    return () => clearInterval(id);
+  }, []);
+
   // --- Wyzwania 1v1 (na żywo) ---
   const [showOnlineList, setShowOnlineList] = useState(false);
   const [incomingChallenge, setIncomingChallenge] = useState(null);
@@ -598,6 +605,9 @@ export default function App() {
   const [dailyPlaylistWeeklyBoard, setDailyPlaylistWeeklyBoard] = useState([]);
   const [dailyPlaylistAllTimeBoard, setDailyPlaylistAllTimeBoard] = useState([]);
   const [dailyPlaylistBusy, setDailyPlaylistBusy] = useState(false);
+  const [activeTournament, setActiveTournament] = useState(null);
+  const [tournamentBusy, setTournamentBusy] = useState(false);
+  const [adminNewTournament, setAdminNewTournament] = useState({ maxPlayers: "4", entryFee: "200" });
   const [dailySong, setDailySong] = useState(null);
   const [dailyAlreadyPlayed, setDailyAlreadyPlayed] = useState(false);
   const [dailyGuessArtist, setDailyGuessArtist] = useState("");
@@ -708,6 +718,100 @@ export default function App() {
       setRoomId(code);
     } catch (e) {
       setError("Błąd startu Playlisty dnia: " + e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openTournamentHub() {
+    if (!user) return setError("Zaloguj się, żeby wziąć udział w turnieju.");
+    setTournamentBusy(true);
+    setError("");
+    try {
+      let t = activeTournament;
+      if (!t) {
+        t = await fetchActiveTournament();
+        setActiveTournament(t);
+      }
+      if (t && t.status === "active") {
+        const pool = await getDailyFeaturesPool();
+        await checkAndAdvanceTournament(t.id, pool);
+        t = await fetchTournament(t.id);
+        setActiveTournament(t);
+        if (t?.status === "completed") await settleTournamentXpIfNeeded(t.id);
+      }
+      setScreen("tournamentHub");
+    } catch (e) {
+      setError("Nie udało się wczytać turnieju: " + e.message);
+    } finally {
+      setTournamentBusy(false);
+    }
+  }
+
+  async function handleTournamentSignUp() {
+    if (!user || !activeTournament) return;
+    setTournamentBusy(true);
+    try {
+      const pool = await getDailyFeaturesPool();
+      await signUpForTournament(activeTournament.id, user.uid, name.trim() || user.displayName || "Gracz", pool);
+      const fresh = await fetchTournament(activeTournament.id);
+      setActiveTournament(fresh);
+    } catch (e) {
+      setError("Nie udało się zapisać: " + e.message);
+    } finally {
+      setTournamentBusy(false);
+    }
+  }
+
+  async function startTournamentMatch(match, roundNumber) {
+    if (!user || !activeTournament) return;
+    setBusy(true);
+    setError("");
+    try {
+      const code = generateRoomCode();
+      const ref = doc(db, "rooms", code);
+      const deck = match.playlist;
+      const me = { id: playerId, name: name.trim() || user.displayName || "Gracz", authed: true };
+      await setDoc(ref, {
+        code,
+        hostId: playerId,
+        target: 10,
+        status: "playing",
+        players: [me],
+        deck,
+        deckIndex: 2,
+        currentPlayerId: playerId,
+        startingPlayerId: playerId,
+        currentCard: deck[1],
+        startSeconds: deck[1].startSeconds,
+        turnStartedAt: serverTimestamp(),
+        timelines: { [playerId]: [deck[0]] },
+        tokens: { [playerId]: 0 },
+        lastResult: null,
+        pendingGuess: null,
+        votes: {},
+        requiredApprovals: 0,
+        resultAt: null,
+        winnerIds: [],
+        finishingRound: false,
+        decisionTimes: {},
+        gameStreaks: {},
+        gameGuessStreaks: {},
+        gameGuesses: {},
+        gameBestStreaks: {},
+        playedCards: [],
+        messages: [],
+        practiceMode: true,
+        tournamentMode: true,
+        tournamentId: activeTournament.id,
+        tournamentRoundNumber: roundNumber,
+        tournamentMatchId: match.matchId,
+        createdAt: serverTimestamp(),
+        expireAt: new Date(Date.now() + 60 * 60 * 1000),
+      });
+      setRoomId(code);
+    } catch (e) {
+      setError("Błąd startu meczu: " + e.message);
     } finally {
       setBusy(false);
     }
@@ -1359,6 +1463,26 @@ export default function App() {
       }
     })();
   }, [screen, room?.dailyPlaylistMode, toMillis(room?.expireAt), user, playerId]);
+
+  // Koniec meczu turniejowego — zapisuje wynik do drabinki. Żadnego XP tutaj
+  // nie przyznajemy — rozliczenie (zwycięzca zgarnia pulę, przegrani tracą
+  // wpisowe) dzieje się dopiero po zakończeniu CAŁEGO turnieju.
+  const tournamentMatchProcessedRef = useRef(null);
+  useEffect(() => {
+    if (screen !== "gameover" || !room?.tournamentMode || !user) return;
+    const marker = toMillis(room?.expireAt);
+    if (!marker || tournamentMatchProcessedRef.current === marker) return;
+    tournamentMatchProcessedRef.current = marker;
+    (async () => {
+      try {
+        const score = (room.playedCards || []).filter((c) => c.playerId === playerId && c.correct).length;
+        const timeMs = (room.decisionTimes?.[playerId] || []).reduce((a, b) => a + b, 0);
+        await recordTournamentMatchResult(room.tournamentId, room.tournamentRoundNumber, room.tournamentMatchId, user.uid, score, timeMs);
+      } catch (e) {
+        // ciche niepowodzenie
+      }
+    })();
+  }, [screen, room?.tournamentMode, toMillis(room?.expireAt), user, playerId]);
 
   async function openStats() {
     if (!user) return;
@@ -3338,6 +3462,59 @@ export default function App() {
 
 
             <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🏆 Turniej</p>
+              {activeTournament ? (
+                <div className="flex flex-col gap-2">
+                  <p style={{ fontSize: 13 }}>
+                    Aktywny turniej: {activeTournament.status === "signup" ? `zapisy (${activeTournament.signups.length}/${activeTournament.maxPlayers})` : activeTournament.status === "active" ? "w trakcie" : "zakończony"}
+                  </p>
+                  {activeTournament.status === "signup" && (
+                    <button
+                      onClick={async () => {
+                        if (!window.confirm("Anulować turniej? Nikt nie zapłacił jeszcze wpisowego, więc nic nie trzeba zwracać.")) return;
+                        await cancelTournament(activeTournament.id);
+                        setActiveTournament(null);
+                      }}
+                      className="px-4 py-2 rounded-lg text-sm font-bold self-start"
+                      style={{ background: "var(--surface2)", border: "1px solid var(--bad)", color: "var(--bad)" }}
+                    >
+                      Anuluj turniej
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs uppercase" style={{ color: "var(--muted)" }}>Liczba graczy</label>
+                  <select value={adminNewTournament.maxPlayers} onChange={(e) => setAdminNewTournament({ ...adminNewTournament, maxPlayers: e.target.value })}>
+                    <option value="4">4 graczy</option>
+                    <option value="8">8 graczy</option>
+                  </select>
+                  <label className="text-xs uppercase" style={{ color: "var(--muted)", marginTop: 4 }}>Wpisowe (XP)</label>
+                  <input
+                    type="number"
+                    value={adminNewTournament.entryFee}
+                    onChange={(e) => setAdminNewTournament({ ...adminNewTournament, entryFee: e.target.value })}
+                  />
+                  <button
+                    onClick={async () => {
+                      try {
+                        const id = await createTournament("playlist_duel", parseInt(adminNewTournament.maxPlayers, 10), parseInt(adminNewTournament.entryFee, 10), user.uid);
+                        setActiveTournament(await fetchTournament(id));
+                      } catch (e) {
+                        setError("Błąd tworzenia turnieju: " + e.message);
+                      }
+                    }}
+                    className="px-4 py-2 rounded-lg text-sm font-bold mt-2"
+                    style={{ background: "var(--gold)", color: "#1a1428" }}
+                  >
+                    Stwórz turniej
+                  </button>
+                </div>
+              )}
+            </section>
+
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
               <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🔥 Najczęściej grane utwory</p>
               <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
                 Licznik zlicza tylko karty, które faktycznie padły w prawdziwej rozgrywce (nie Treningu) — losowanie, które zostało zaraz zastąpione (np. zepsuty link), się nie liczy.
@@ -3690,6 +3867,18 @@ export default function App() {
                     <p style={{ color: "var(--muted)", fontSize: 9 }}>ułóż 10 piosenek na osi</p>
                   </button>
                 )}
+                {user && activeTournament && (
+                  <button
+                    onClick={openTournamentHub}
+                    disabled={tournamentBusy}
+                    className="flex-1 rounded-2xl p-4 text-center card-glow"
+                    style={{ background: "var(--surface)", border: "1px solid var(--gold)", minWidth: 110 }}
+                  >
+                    <p style={{ fontSize: 22 }}>🏆</p>
+                    <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: "var(--gold)" }}>Turniej</p>
+                    <p style={{ color: "var(--muted)", fontSize: 9 }}>{activeTournament.status === "signup" ? `${activeTournament.signups.length}/${activeTournament.maxPlayers} zapisanych` : "trwa!"}</p>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -3885,6 +4074,102 @@ export default function App() {
                       <span style={{ color: "var(--gold)" }}>{e.playlistTotalScore || 0} pkt</span>
                     </div>
                   ))}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+        {screen === "tournamentHub" && activeTournament && (
+          <div className="w-full flex flex-col gap-5">
+            <button onClick={() => setScreen("home")} className="self-start flex items-center gap-1 text-xs" style={{ color: "var(--muted)" }}>
+              ← Wróć
+            </button>
+
+            <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid var(--gold)" }}>
+              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 8, color: "var(--gold)" }}>🏆 TURNIEJ</h2>
+              <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 14 }}>
+                Wpisowe: {activeTournament.entryFee} XP — przegrani tracą je na koniec turnieju, zwycięzca zgarnia całą pulę.
+              </p>
+
+              {activeTournament.status === "signup" && (() => {
+                const alreadyIn = activeTournament.signups.some((p) => p.uid === user?.uid);
+                return (
+                  <>
+                    <p style={{ fontSize: 13, marginBottom: 10 }}>
+                      Zapisanych: <strong>{activeTournament.signups.length}/{activeTournament.maxPlayers}</strong>
+                    </p>
+                    <div className="flex flex-col gap-1 mb-4">
+                      {activeTournament.signups.map((p) => (
+                        <p key={p.uid} style={{ fontSize: 13, color: "var(--muted)" }}>
+                          • {p.name} {p.uid === user?.uid && <span style={{ color: "var(--accent)" }}>(Ty)</span>}
+                        </p>
+                      ))}
+                    </div>
+                    {alreadyIn ? (
+                      <p style={{ color: "var(--good)", fontSize: 13 }}>✓ Jesteś zapisany — czekamy na resztę.</p>
+                    ) : (
+                      <button onClick={handleTournamentSignUp} disabled={tournamentBusy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+                        ZAPISZ SIĘ ({activeTournament.entryFee} XP wpisowego)
+                      </button>
+                    )}
+                  </>
+                );
+              })()}
+
+              {activeTournament.status === "active" &&
+                activeTournament.rounds.map((round) => (
+                  <div key={round.roundNumber} className="mb-4">
+                    <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>
+                      {round.matches.length === 1 ? "Finał" : `Runda ${round.roundNumber}`}
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      {round.matches.map((m) => {
+                        const isMine = user && (m.player1.uid === user.uid || m.player2?.uid === user.uid);
+                        const myResult = m.player1.uid === user?.uid ? m.player1Result : m.player2Result;
+                        const canPlay = isMine && !m.winnerUid && !myResult;
+                        return (
+                          <div key={m.matchId} className="rounded-xl p-3" style={{ background: "var(--surface2)" }}>
+                            <div className="flex items-center justify-between text-sm">
+                              <span style={{ fontWeight: m.winnerUid === m.player1.uid ? "bold" : "normal", color: m.winnerUid === m.player1.uid ? "var(--good)" : "var(--text)" }}>
+                                {m.player1.name} {m.player1Result && `(${m.player1Result.score}/10)`}
+                              </span>
+                              <span style={{ color: "var(--muted)", fontSize: 11 }}>vs</span>
+                              <span style={{ fontWeight: m.winnerUid === m.player2?.uid ? "bold" : "normal", color: m.winnerUid === m.player2?.uid ? "var(--good)" : "var(--text)" }}>
+                                {m.player2 ? `${m.player2.name} ${m.player2Result ? `(${m.player2Result.score}/10)` : ""}` : "wolny los"}
+                              </span>
+                            </div>
+                            {canPlay && (
+                              <button
+                                onClick={() => startTournamentMatch(m, round.roundNumber)}
+                                disabled={busy}
+                                className="w-full mt-2 py-2 rounded-lg text-xs font-bold"
+                                style={{ background: "var(--good)", color: "#0d1f1a" }}
+                              >
+                                Zagraj swój mecz
+                              </button>
+                            )}
+                            {isMine && myResult && !m.winnerUid && (
+                              <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>Zagrałeś — czekamy na przeciwnika.</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+
+              {activeTournament.status === "completed" && (
+                <div className="text-center">
+                  <p style={{ fontSize: 32 }}>🏆</p>
+                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "var(--gold)" }}>
+                    {activeTournament.signups.find((p) => p.uid === activeTournament.winnerUid)?.name} wygrywa turniej!
+                  </p>
+                  {activeTournament.winnerUid === user?.uid ? (
+                    <p style={{ color: "var(--good)", fontSize: 13, marginTop: 6 }}>Zgarniasz {(activeTournament.signups.length - 1) * activeTournament.entryFee} XP!</p>
+                  ) : (
+                    <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 6 }}>Tracisz {activeTournament.entryFee} XP wpisowego.</p>
+                  )}
                 </div>
               )}
             </section>
@@ -4586,7 +4871,7 @@ export default function App() {
               </div>
             )}
 
-            {isHost && !room.dailyPlaylistMode && (
+            {isHost && !room.dailyPlaylistMode && !room.tournamentMode && (
               <button onClick={playAgain} className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold" style={{ background: "var(--accent)", color: "#1a1428" }}>
                 <RotateCcw size={16} /> ZAGRAJ PONOWNIE
               </button>
@@ -4601,6 +4886,18 @@ export default function App() {
                 style={{ background: "var(--accent)", color: "#1a1428" }}
               >
                 🎶 Wróć do rankingów Playlisty dnia
+              </button>
+            )}
+            {room.tournamentMode && (
+              <button
+                onClick={() => {
+                  leaveRoom();
+                  openTournamentHub();
+                }}
+                className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold"
+                style={{ background: "var(--accent)", color: "#1a1428" }}
+              >
+                🏆 Wróć do turnieju
               </button>
             )}
           </div>
