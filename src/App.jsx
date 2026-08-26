@@ -27,6 +27,14 @@ import { getAchievementProgress } from "./achievements.js";
 import { playCorrectSound, playWrongSound, playApplause, playVictorySound, unlockAudio } from "./sounds.js";
 import { Play, Music4, Trophy, RotateCcw, Users, ChevronRight, Copy, Check, LogIn, LogOut, BarChart3, Flame, Crown, Shield, Search, Trash2, Pencil, Save, X, MessageCircle, Send } from "lucide-react";
 import logoImg from "./assets/logo-v2.png";
+import iconTrening from "./assets/icons/trening.png";
+import iconPiosenkaDnia from "./assets/icons/piosenka_dnia.png";
+import iconPlaylistaDnia from "./assets/icons/playlista_dnia.png";
+import iconTurniej from "./assets/icons/turniej.png";
+import iconStatystyki from "./assets/icons/statystyki.png";
+import iconRanking from "./assets/icons/ranking.png";
+import iconZaproponuj from "./assets/icons/zaproponuj.png";
+import iconAdmin from "./assets/icons/admin.png";
 
 // 👉 PODMIEŃ TO NA SWOJE WŁASNE HASŁO trybu admina
 const ADMIN_PASSWORD = "zmien-to-haslo-123";
@@ -3839,7 +3847,7 @@ export default function App() {
                   className="flex-1 rounded-2xl p-4 text-center card-glow"
                   style={{ background: "var(--surface)", border: "1px solid #22304f", minWidth: 110 }}
                 >
-                  <p style={{ fontSize: 22 }}>🎯</p>
+                  <img src={iconTrening} alt="" style={{ height: 40, margin: "0 auto" }} />
                   <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15 }}>Trening</p>
                   <p style={{ color: "var(--muted)", fontSize: 9 }}>solo, wybierz kategorie</p>
                 </button>
@@ -3850,7 +3858,7 @@ export default function App() {
                     className="flex-1 rounded-2xl p-4 text-center card-glow"
                     style={{ background: "var(--surface)", border: "1px solid #22304f", minWidth: 110 }}
                   >
-                    <p style={{ fontSize: 22 }}>📅</p>
+                    <img src={iconPiosenkaDnia} alt="" style={{ height: 40, margin: "0 auto" }} />
                     <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15 }}>Piosenka dnia</p>
                     <p style={{ color: "var(--muted)", fontSize: 9 }}>ta sama dla wszystkich</p>
                   </button>
@@ -3862,7 +3870,7 @@ export default function App() {
                     className="flex-1 rounded-2xl p-4 text-center card-glow"
                     style={{ background: "var(--surface)", border: "1px solid #22304f", minWidth: 110 }}
                   >
-                    <p style={{ fontSize: 22 }}>🎶</p>
+                    <img src={iconPlaylistaDnia} alt="" style={{ height: 40, margin: "0 auto" }} />
                     <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15 }}>Playlista dnia</p>
                     <p style={{ color: "var(--muted)", fontSize: 9 }}>ułóż 10 piosenek na osi</p>
                   </button>
@@ -3874,7 +3882,7 @@ export default function App() {
                     className="flex-1 rounded-2xl p-4 text-center card-glow"
                     style={{ background: "var(--surface)", border: "1px solid var(--gold)", minWidth: 110 }}
                   >
-                    <p style={{ fontSize: 22 }}>🏆</p>
+                    <img src={iconTurniej} alt="" style={{ height: 40, margin: "0 auto" }} />
                     <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: "var(--gold)" }}>Turniej</p>
                     <p style={{ color: "var(--muted)", fontSize: 9 }}>{activeTournament.status === "signup" ? `${activeTournament.signups.length}/${activeTournament.maxPlayers} zapisanych` : "trwa!"}</p>
                   </button>
@@ -3892,7 +3900,7 @@ export default function App() {
                     className="flex-1 rounded-2xl p-4 text-center card-glow"
                     style={{ background: "var(--surface)", border: "1px solid var(--accent2)" }}
                   >
-                    <p style={{ fontSize: 22 }}>📊</p>
+                    <img src={iconStatystyki} alt="" style={{ height: 40, margin: "0 auto" }} />
                     <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: "var(--accent2)" }}>Statystyki</p>
                   </button>
                 )}
@@ -3901,7 +3909,7 @@ export default function App() {
                   className="flex-1 rounded-2xl p-4 text-center card-glow"
                   style={{ background: "var(--surface)", border: "1px solid var(--gold)" }}
                 >
-                  <p style={{ fontSize: 22 }}>🏆</p>
+                  <img src={iconRanking} alt="" style={{ height: 40, margin: "0 auto" }} />
                   <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: "var(--gold)" }}>Ranking</p>
                 </button>
               </div>
@@ -3914,7 +3922,7 @@ export default function App() {
                   className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold"
                   style={{ background: "var(--surface2)", border: "1px solid #33294f", color: "var(--good)" }}
                 >
-                  💡 Zaproponuj nowy utwór
+                  <img src={iconZaproponuj} alt="" style={{ height: 20 }} /> Zaproponuj nowy utwór
                 </button>
 
                 {showProposeForm && (
@@ -3965,7 +3973,7 @@ export default function App() {
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold"
                 style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
               >
-                <Shield size={16} /> Panel admina ({effectivePool.length} utworów)
+                <img src={iconAdmin} alt="" style={{ height: 20 }} /> Panel admina ({effectivePool.length} utworów)
               </button>
             ) : showAdminLogin ? (
               <div className="w-full rounded-xl p-3 flex gap-2 items-center flex-wrap" style={{ background: "var(--surface2)", border: "1px solid #33294f" }}>
@@ -4002,7 +4010,9 @@ export default function App() {
             </button>
 
             <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
-              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 8 }}>🎶 PLAYLISTA DNIA</h2>
+              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+                <img src={iconPlaylistaDnia} alt="" style={{ height: 28 }} /> PLAYLISTA DNIA
+              </h2>
               <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 14 }}>
                 10 tych samych piosenek dla wszystkich graczy dzisiaj — ułóż je poprawnie na osi czasu, jedna po drugiej.
               </p>
@@ -4087,7 +4097,9 @@ export default function App() {
             </button>
 
             <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid var(--gold)" }}>
-              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 8, color: "var(--gold)" }}>🏆 TURNIEJ</h2>
+              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 8, color: "var(--gold)", display: "flex", alignItems: "center", gap: 8 }}>
+                <img src={iconTurniej} alt="" style={{ height: 28 }} /> TURNIEJ
+              </h2>
               <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 14 }}>
                 Wpisowe: {activeTournament.entryFee} XP — przegrani tracą je na koniec turnieju, zwycięzca zgarnia całą pulę.
               </p>
@@ -5005,7 +5017,9 @@ export default function App() {
         >
           <div className="rounded-2xl p-5 card-glow w-full" style={{ background: "var(--surface)", maxWidth: 380 }}>
             <div className="flex items-center justify-between mb-3">
-              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: "var(--accent)" }}>📅 PIOSENKA DNIA</p>
+              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                <img src={iconPiosenkaDnia} alt="" style={{ height: 26 }} /> PIOSENKA DNIA
+              </p>
               <button onClick={closeDailySong} style={{ color: "var(--muted)" }}>
                 <X size={20} />
               </button>
