@@ -1498,6 +1498,20 @@ export default function App() {
     updateHeadToHead(room).catch(() => {});
     (async () => {
       try {
+        // Zabezpieczenie GLOBALNE (nie tylko lokalne w tej karcie przeglądarki) —
+        // gdyby to samo konto było zalogowane naraz na dwóch urządzeniach,
+        // każde z nich niezależnie próbowałoby przyznać nagrody za tę samą
+        // grę. Transakcja w Firestore gwarantuje, że wygra dokładnie jedno.
+        const rewardMarkerRef = doc(db, "gameRewardsProcessed", `${roomId}_${user.uid}`);
+        let shouldProcess = false;
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(rewardMarkerRef);
+          if (snap.exists()) return;
+          shouldProcess = true;
+          tx.set(rewardMarkerRef, { processedAt: Date.now() });
+        });
+        if (!shouldProcess) return;
+
         const { total } = computeGameEndXp(room, playerId);
         const before = await getStats(user.uid);
         const oldXp = before?.xp || 0;
@@ -1532,14 +1546,14 @@ export default function App() {
         updateAchievementCounters(user.uid, { won, perfectGame, opponents, playerCount: room.players.length, nightGame, frugalFinish }).catch(() => {});
 
         // HITCOIN + losowanie karty
-        const { total: hcTotal } = computeGameEndHitcoin(room, playerId);
-        if (hcTotal) {
-          await awardHitcoin(user.uid, hcTotal);
-          setMyHitcoin((prev) => (prev || 0) + hcTotal);
+        const hcResult = computeGameEndHitcoin(room, playerId);
+        if (hcResult.total) {
+          await awardHitcoin(user.uid, hcResult.total);
+          setMyHitcoin((prev) => (prev || 0) + hcResult.total);
         }
         const pool = await getLiveLibraryPool();
         const drawResult = await drawCardAfterGame(user.uid, pool);
-        setGameEndReward({ hitcoin: hcTotal, card: drawResult });
+        setGameEndReward({ hitcoinItems: hcResult.items, hitcoinTotal: hcResult.total, card: drawResult });
       } catch (e) {
         // ciche niepowodzenie — najwyżej XP z tej gry się nie doliczy
       }
@@ -1557,6 +1571,16 @@ export default function App() {
     dailyPlaylistProcessedRef.current = marker;
     (async () => {
       try {
+        const rewardMarkerRef = doc(db, "gameRewardsProcessed", `${roomId}_${user.uid}`);
+        let shouldProcess = false;
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(rewardMarkerRef);
+          if (snap.exists()) return;
+          shouldProcess = true;
+          tx.set(rewardMarkerRef, { processedAt: Date.now() });
+        });
+        if (!shouldProcess) return;
+
         const score = (room.playedCards || []).filter((c) => c.playerId === playerId && c.correct).length;
         const timeMs = (room.decisionTimes?.[playerId] || []).reduce((a, b) => a + b, 0);
         await recordDailyPlaylistScore(user.uid, name.trim() || user.displayName || "Gracz", room.dailyPlaylistDayKey, score, timeMs);
@@ -5355,9 +5379,19 @@ export default function App() {
             {user && !room.practiceMode && gameEndReward && (
               <div className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
                 <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🪙 Zdobyty HITCOIN</p>
-                <div className="flex items-center justify-between text-sm mb-3">
-                  <span>🎮 Za rozgrywkę</span>
-                  <span style={{ color: "var(--gold)" }}>+{gameEndReward.hitcoin} 🪙</span>
+                <div className="flex flex-col gap-1 text-left mb-3">
+                  {gameEndReward.hitcoinItems.map((it, i) => (
+                    <div key={i} className="flex items-center justify-between text-sm">
+                      <span>{it.label}</span>
+                      <span style={{ color: "var(--gold)" }}>+{it.amount} 🪙</span>
+                    </div>
+                  ))}
+                  {gameEndReward.hitcoinItems.length > 1 && (
+                    <div className="flex items-center justify-between text-sm mt-1 pt-1" style={{ borderTop: "1px solid #33294f", fontWeight: "bold" }}>
+                      <span>Razem</span>
+                      <span style={{ color: "var(--gold)" }}>+{gameEndReward.hitcoinTotal} 🪙</span>
+                    </div>
+                  )}
                 </div>
                 {gameEndReward.card && (
                   <div
