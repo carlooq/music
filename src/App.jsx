@@ -3652,7 +3652,9 @@ export default function App() {
                     const pool = await fetchAllSongsFromDb();
                     const result = await migrateRarityForExistingSongs(pool, (done, total) => setRarityMigrateProgress({ done, total }));
                     setRarityMigrateProgress({ done: result.updated, total: result.total, finished: true });
-                    setLibrarySongs(null); // wymuś świeże pobranie przy następnym użyciu
+                    const fresh = await fetchAllSongsFromDb();
+                    setLibrarySongs(fresh);
+                    saveLibraryCache(fresh);
                   } catch (e) {
                     setError("Błąd migracji rzadkości: " + e.message);
                   } finally {
