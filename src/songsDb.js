@@ -1,4 +1,4 @@
-import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, increment } from "firebase/firestore";
+import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, increment, getCountFromServer } from "firebase/firestore";
 import { db } from "./firebase-config.js";
 import { REAL_SONGS } from "./songs.js";
 import { CATEGORY_PATCH } from "./categoryPatch.js";
@@ -9,6 +9,20 @@ const PROPOSALS_COLLECTION = "songProposals";
 export async function fetchAllSongsFromDb() {
   const snap = await getDocs(collection(db, COLLECTION));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+// Tanie zapytanie liczące — Firestore rozlicza to jako ok. 1 odczyt na każde
+// 1000 dokumentów, nie 1 na każdy utwór, więc jest praktycznie darmowe nawet
+// dla dużej biblioteki. Do miejsc, gdzie potrzebny jest tylko CAŁKOWITY
+// rozmiar bazy (np. "X/Y przesłuchanych piosenek" w statystykach), bez
+// pobierania treści wszystkich dokumentów.
+export async function getSongCount() {
+  try {
+    const snap = await getCountFromServer(collection(db, COLLECTION));
+    return snap.data().count;
+  } catch (e) {
+    return null;
+  }
 }
 
 // Zwiększa licznik "ile razy ta karta faktycznie padła w grze" — wywoływane

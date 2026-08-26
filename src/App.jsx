@@ -15,7 +15,7 @@ import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId, fuzzyMatc
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
 import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, awardXp, xpForLevel, levelFromXp, progressWeeklyChallenge, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak } from "./stats.js";
-import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss, incrementSongPlayCount } from "./songsDb.js";
+import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss, incrementSongPlayCount, getSongCount } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
 import { heartbeat, clearPresence, getOnlinePlayers } from "./presence.js";
 import { sendDuelChallenge, listenForIncomingChallenge, listenForSentChallenges, acceptDuelChallenge, declineDuelChallenge, clearDuelChallenge, isChallengeStale } from "./duelInvites.js";
@@ -337,6 +337,7 @@ export default function App() {
   const [authError, setAuthError] = useState("");
   const [showStats, setShowStats] = useState(false);
   const [stats, setStats] = useState(null);
+  const [totalSongCount, setTotalSongCount] = useState(null);
   const [h2hOpponents, setH2hOpponents] = useState(null);
   const [h2hExpanded, setH2hExpanded] = useState(null);
   const [myXp, setMyXp] = useState(null);
@@ -1368,6 +1369,7 @@ export default function App() {
     fetchHeadToHeadOpponents(user.uid)
       .then(setH2hOpponents)
       .catch(() => setH2hOpponents([]));
+    getSongCount().then((c) => c !== null && setTotalSongCount(c));
   }
 
   async function handleClaimAchievement(achievement) {
@@ -2786,8 +2788,8 @@ export default function App() {
                     />
                     <StatBox label="Rekordowy streak" value={(stats.longestStreak || 0) + " 🔥"} />
                     <StatBox label="🎧 Odgadnięte wykonawcy/tytuły" value={stats.guessesCorrect || 0} />
-                    <StatBox label="🎵 Przesłuchane piosenki" value={`${(stats.heardSongs || []).length}/${effectivePool.length}`} />
-                    <StatBox label="🔎 Odgadnięte piosenki" value={`${(stats.guessedSongs || []).length}/${effectivePool.length}`} />
+                    <StatBox label="🎵 Przesłuchane piosenki" value={`${(stats.heardSongs || []).length}/${totalSongCount ?? effectivePool.length}`} />
+                    <StatBox label="🔎 Odgadnięte piosenki" value={`${(stats.guessedSongs || []).length}/${totalSongCount ?? effectivePool.length}`} />
                     <StatBox label="📀 Dodane do bazy" value={stats.songsAdded || 0} />
                   </div>
 
