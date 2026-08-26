@@ -36,6 +36,7 @@ import iconStatystyki from "./assets/icons/statystyki.png";
 import iconRanking from "./assets/icons/ranking.png";
 import iconZaproponuj from "./assets/icons/zaproponuj.png";
 import iconAdmin from "./assets/icons/admin.png";
+import packPodstawowa from "./assets/icons/pack-podstawowa.webp";
 
 // 👉 PODMIEŃ TO NA SWOJE WŁASNE HASŁO trybu admina
 const ADMIN_PASSWORD = "zmien-to-haslo-123";
@@ -4580,28 +4581,70 @@ export default function App() {
 
             {!packOpenResult ? (
               <>
-                <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #7dffef" }}>
-                  <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 4, color: "#7dffef" }}>🎴 SKLEP</h2>
-                  <p style={{ color: "var(--muted)", fontSize: 12 }}>Twoje saldo: {myHitcoin ?? 0} 🪙</p>
+                <section className="w-full rounded-2xl p-5 text-center" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+                  <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 2, letterSpacing: 2 }}>
+                    <span style={{ color: "#7dffef" }}>PACZKI</span> <span style={{ color: "var(--accent2)" }}>KART</span>
+                  </h2>
+                  <p style={{ color: "var(--muted)", fontSize: 11, marginBottom: 10 }}>
+                    3 warianty — im wyższa, tym bardziej „żywa" wizualnie
+                  </p>
+                  <p style={{ color: "var(--gold)", fontSize: 13, fontFamily: "'Bebas Neue', sans-serif" }}>Twoje saldo: {myHitcoin ?? 0} 🪙</p>
                 </section>
 
-                <div className="flex flex-col gap-3">
-                  {Object.entries(PACKS).map(([key, config]) => (
-                    <div key={key} className="rounded-2xl p-4 flex items-center justify-between card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
-                      <div>
-                        <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18 }}>{config.cards} kart</p>
-                        <p style={{ fontSize: 11, color: "var(--muted)" }}>{(config.diamondChance * 100).toFixed(1)}% szans na Diament</p>
-                      </div>
-                      <button
-                        onClick={() => buyPack(key)}
-                        disabled={packShopBusy || (myHitcoin ?? 0) < config.price}
-                        className="px-4 py-2 rounded-lg text-sm font-bold"
-                        style={{ background: "var(--surface2)", border: "1px solid var(--gold)", color: "var(--gold)", opacity: (myHitcoin ?? 0) < config.price ? 0.5 : 1 }}
+                <div
+                  className="w-full flex gap-4"
+                  style={{ overflowX: "auto", scrollSnapType: "x mandatory", paddingBottom: 8, paddingLeft: 4, paddingRight: 4 }}
+                >
+                  {[
+                    { key: "50", name: "PODSTAWOWA", img: packPodstawowa, ready: true },
+                    { key: "75", name: "ROZSZERZONA", img: null, ready: false },
+                    { key: "100", name: "PREMIUM", img: null, ready: false },
+                  ].map(({ key, name, img, ready }) => {
+                    const config = PACKS[key];
+                    return (
+                      <div
+                        key={key}
+                        style={{ flex: "0 0 auto", width: 170, scrollSnapAlign: "center", display: "flex", flexDirection: "column", alignItems: "center" }}
                       >
-                        {config.price} 🪙
-                      </button>
-                    </div>
-                  ))}
+                        {ready ? (
+                          <img src={img} alt={name} style={{ width: "100%", filter: "drop-shadow(0 8px 20px rgba(0,0,0,0.5))" }} />
+                        ) : (
+                          <div
+                            style={{
+                              width: "100%",
+                              aspectRatio: "0.62",
+                              borderRadius: 16,
+                              border: "1px dashed #33294f",
+                              background: "var(--surface2)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              textAlign: "center",
+                              padding: 12,
+                            }}
+                          >
+                            <p style={{ fontSize: 11, color: "var(--muted)" }}>🎴 Wkrótce się pojawi</p>
+                          </div>
+                        )}
+                        <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, marginTop: 10 }}>{name}</p>
+                        <p style={{ fontSize: 11, color: "var(--muted)" }}>{config.cards} kart</p>
+                        <button
+                          onClick={() => buyPack(key)}
+                          disabled={packShopBusy || (myHitcoin ?? 0) < config.price}
+                          className="mt-2 px-4 py-1.5 rounded-full text-sm font-bold"
+                          style={{
+                            background: "var(--surface2)",
+                            border: "1px solid var(--gold)",
+                            color: "var(--gold)",
+                            opacity: (myHitcoin ?? 0) < config.price ? 0.5 : 1,
+                          }}
+                        >
+                          🪙 {config.price}
+                        </button>
+                        <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 6 }}>{(config.diamondChance * 100).toFixed(1)}% szans na Diament</p>
+                      </div>
+                    );
+                  })}
                 </div>
               </>
             ) : (
