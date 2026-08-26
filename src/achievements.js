@@ -9,6 +9,8 @@ function tierXp(index) {
   return 25 + index * 15; // 25, 40, 55, 70, 85...
 }
 
+const RARITY_ORDER_ACH = ["winyl", "srebrna", "zlota", "platynowa", "diamentowa"];
+
 export const ACHIEVEMENTS = [
   // --- Kamienie milowe: gry rozegrane ---
   { id: "games_1", name: "Pierwszy krok", category: "Kamienie milowe", desc: "Rozegraj 1 grę", xp: tierXp(0), check: (s) => (s.gamesPlayed || 0) >= 1 },
@@ -96,6 +98,64 @@ DECADE_GROUPS.forEach((g) => {
     });
   });
 });
+
+// --- Kolekcja kart ---
+function totalCardsOwned(s) {
+  return Object.keys(s.cardCollection || {}).length;
+}
+
+const CARD_TOTAL_TIERS = [50, 100, 250, 500, 1000];
+CARD_TOTAL_TIERS.forEach((tier, i) => {
+  ACHIEVEMENTS.push({
+    id: `cards_total_${tier}`,
+    name: `Kolekcjoner (${tier})`,
+    category: "Kolekcja",
+    desc: `Zbierz ${tier} różnych kart`,
+    xp: tierXp(i),
+    check: (s) => totalCardsOwned(s) >= tier,
+  });
+});
+
+const RARITY_CARD_TIERS = {
+  winyl: [25, 50, 100],
+  srebrna: [15, 30, 60],
+  zlota: [10, 20, 40],
+  platynowa: [5, 10, 20],
+};
+Object.entries(RARITY_CARD_TIERS).forEach(([rarity, tiers]) => {
+  const rarityLabels = { winyl: "Winyli", srebrna: "Srebrnych Płyt", zlota: "Złotych Płyt", platynowa: "Platynowych Płyt" };
+  tiers.forEach((tier, i) => {
+    ACHIEVEMENTS.push({
+      id: `cards_${rarity}_${tier}`,
+      name: `${tier} ${rarityLabels[rarity]}`,
+      category: "Kolekcja",
+      desc: `Zbierz ${tier} kart poziomu ${rarityLabels[rarity]}`,
+      xp: tierXp(i),
+      check: (s) => (s.cardsByRarity?.[rarity] || 0) >= tier,
+    });
+  });
+});
+
+ACHIEVEMENTS.push(
+  { id: "cards_first", name: "Pierwszy krążek", category: "Kolekcja", desc: "Zdobądź swoją pierwszą kartę", xp: 25, check: (s) => totalCardsOwned(s) >= 1 },
+  {
+    id: "cards_first_diamond",
+    name: "Szczęściarz",
+    category: "Kolekcja",
+    desc: "Zdobądź swoją pierwszą Diamentową Płytę",
+    xp: 85,
+    check: (s) => (s.cardsByRarity?.diamentowa || 0) >= 1,
+  },
+  {
+    id: "cards_full_spread",
+    name: "Pełny przekrój",
+    category: "Kolekcja",
+    desc: "Miej co najmniej 1 kartę z każdego z 5 poziomów rzadkości",
+    xp: 55,
+    check: (s) => RARITY_ORDER_ACH.every((r) => (s.cardsByRarity?.[r] || 0) >= 1),
+  },
+  { id: "cards_trader", name: "Handlarz", category: "Kolekcja", desc: "Sprzedaj łącznie 50 duplikatów", xp: 55, check: (s) => (s.duplicatesSold || 0) >= 50 }
+);
 
 export function getAchievementProgress(stats, level) {
   const claimed = new Set(stats?.claimedAchievements || []);

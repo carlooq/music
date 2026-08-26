@@ -15,13 +15,14 @@ import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId, fuzzyMatc
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
 import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, awardXp, xpForLevel, levelFromXp, progressWeeklyChallenge, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak } from "./stats.js";
-import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss, incrementSongPlayCount, getSongCount } from "./songsDb.js";
+import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss, incrementSongPlayCount, getSongCount, migrateRarityForExistingSongs } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
 import { heartbeat, clearPresence, getOnlinePlayers } from "./presence.js";
 import { sendDuelChallenge, listenForIncomingChallenge, listenForSentChallenges, acceptDuelChallenge, declineDuelChallenge, clearDuelChallenge, isChallengeStale } from "./duelInvites.js";
 import { getOrCreateDailySong } from "./dailySong.js";
 import { getOrCreateDailyPlaylist, hasPlayedPlaylistToday, recordDailyPlaylistScore, fetchDailyPlaylistLeaderboard, fetchWeeklyPlaylistLeaderboard, fetchAllTimePlaylistLeaderboard, processWeeklyPlaylistRewardsIfNeeded } from "./dailyPlaylist.js";
 import { createTournament, cancelTournament, fetchActiveTournament, fetchTournament, signUpForTournament, recordTournamentMatchResult, checkAndAdvanceTournament, settleTournamentXpIfNeeded, pickMatchPlaylist } from "./tournaments.js";
+import { awardHitcoin, computeWinHitcoin, computeSecondPlaceHitcoin, computeThirdPlaceHitcoin, claimDailyHitcoin, drawCardAfterGame, effectiveRarity, PACKS, openPack, SELL_PRICES, sellDuplicateCard, sellAllDuplicates } from "./cards.js";
 import { updateHeadToHead, fetchHeadToHeadOpponents } from "./headToHead.js";
 import { getAchievementProgress } from "./achievements.js";
 import { playCorrectSound, playWrongSound, playApplause, playVictorySound, unlockAudio } from "./sounds.js";
@@ -58,6 +59,19 @@ const CATEGORIES = [
   { slug: "elektroniczna", label: "Elektroniczna" },
   { slug: "tymek", label: "Tymek" },
 ];
+
+// Wspólne metadane 5 poziomów rzadkości kart — używane wszędzie, gdzie
+// pokazujemy kartę (koniec gry, album, paczki), żeby kolory/etykiety były
+// spójne w całej appce. Ikony to tymczasowy placeholder — do podmiany na
+// prawdziwe grafiki, gdy będą gotowe.
+const RARITY_INFO = {
+  winyl: { label: "Winyl", color: "#aab8c4", icon: "⚪" },
+  srebrna: { label: "Srebrna Płyta", color: "#dbe6ee", icon: "⚪" },
+  zlota: { label: "Złota Płyta", color: "#ffd66b", icon: "🟡" },
+  platynowa: { label: "Platynowa Płyta", color: "#c4b5fd", icon: "🟣" },
+  diamentowa: { label: "Diamentowa Płyta", color: "#7dffef", icon: "💎" },
+};
+const RARITY_ORDER = ["winyl", "srebrna", "zlota", "platynowa", "diamentowa"];
 
 // ---------- vinyl / now-playing widget ----------
 
@@ -350,6 +364,7 @@ export default function App() {
   const [h2hOpponents, setH2hOpponents] = useState(null);
   const [h2hExpanded, setH2hExpanded] = useState(null);
   const [myXp, setMyXp] = useState(null);
+  const [myHitcoin, setMyHitcoin] = useState(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showAchievements, setShowAchievements] = useState(false);
   const [leaderboardSort, setLeaderboardSort] = useState("gamesWon"); // "gamesWon" | "guessesCorrect"
@@ -616,6 +631,16 @@ export default function App() {
   const [activeTournament, setActiveTournament] = useState(null);
   const [tournamentBusy, setTournamentBusy] = useState(false);
   const [adminNewTournament, setAdminNewTournament] = useState({ maxPlayers: "4", entryFee: "200" });
+  const [rarityMigrateBusy, setRarityMigrateBusy] = useState(false);
+  const [rarityMigrateProgress, setRarityMigrateProgress] = useState(null);
+  const [packShopBusy, setPackShopBusy] = useState(false);
+  const [packOpenResult, setPackOpenResult] = useState(null);
+  const [packRevealedIndices, setPackRevealedIndices] = useState(new Set());
+  const [albumSongs, setAlbumSongs] = useState(null);
+  const [albumSelectedRarity, setAlbumSelectedRarity] = useState("winyl");
+  const [albumOnlyOwned, setAlbumOnlyOwned] = useState(false);
+  const [albumVisibleCount, setAlbumVisibleCount] = useState(60);
+  const [albumSellBusy, setAlbumSellBusy] = useState(false);
   const [dailySong, setDailySong] = useState(null);
   const [dailyAlreadyPlayed, setDailyAlreadyPlayed] = useState(false);
   const [dailyGuessArtist, setDailyGuessArtist] = useState("");
@@ -728,6 +753,52 @@ export default function App() {
       setError("Błąd startu Playlisty dnia: " + e.message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function openAlbum() {
+    if (!user) return;
+    setScreen("album");
+    setAlbumVisibleCount(60);
+    if (!albumSongs) {
+      const pool = await getLiveLibraryPool();
+      setAlbumSongs(pool);
+    }
+  }
+
+  async function handleSellAllDuplicates() {
+    if (!user || !albumSongs) return;
+    setAlbumSellBusy(true);
+    try {
+      const byId = new Map(albumSongs.map((s) => [s.id, s]));
+      const result = await sellAllDuplicates(user.uid, byId);
+      if (result.totalSold > 0) {
+        setMyHitcoin((prev) => (prev || 0) + result.totalEarned);
+        const s = await getStats(user.uid);
+        setStats(s);
+        setError("");
+      }
+    } catch (e) {
+      setError("Błąd sprzedaży: " + e.message);
+    } finally {
+      setAlbumSellBusy(false);
+    }
+  }
+
+  async function buyPack(packKey) {
+    if (!user) return;
+    setPackShopBusy(true);
+    setError("");
+    try {
+      const pool = await getLiveLibraryPool();
+      const drawn = await openPack(user.uid, packKey, pool);
+      setMyHitcoin((prev) => (prev || 0) - PACKS[packKey].price);
+      setPackOpenResult(drawn);
+      setPackRevealedIndices(new Set());
+    } catch (e) {
+      setError(e.message || "Nie udało się otworzyć paczki.");
+    } finally {
+      setPackShopBusy(false);
     }
   }
 
@@ -1290,7 +1361,10 @@ export default function App() {
       setAuthChecked(true);
       if (u) {
         await ensureStatsDoc(u.uid, u.displayName || authUsername);
-        getStats(u.uid).then((s) => setMyXp(s?.xp || 0)).catch(() => {});
+        getStats(u.uid).then((s) => {
+          setMyXp(s?.xp || 0);
+          setMyHitcoin(s?.hitcoin || 0);
+        }).catch(() => {});
       }
     });
     return () => unsub();
@@ -1379,6 +1453,26 @@ export default function App() {
     return { items, total };
   }
 
+  // HITCOIN — ten sam wzorzec co XP (skalowane liczbą graczy), ale prostsze:
+  // tylko udział + wygrana/podium, bez bonusów za szybkość/serie/perfekcję.
+  function computeGameEndHitcoin(gameRoom, forPlayerId) {
+    if (!gameRoom || gameRoom.practiceMode) return { items: [], total: 0 };
+    const items = [{ label: "🎮 Udział w grze", amount: 25 }];
+    const won = (gameRoom.winnerIds || []).includes(forPlayerId);
+    const winHc = computeWinHitcoin((gameRoom.players || []).length);
+    if (won) {
+      items.push({ label: `🏆 Wygrana`, amount: winHc });
+    } else if ((gameRoom.players || []).length >= 3) {
+      const winnerSet = new Set(gameRoom.winnerIds || []);
+      const rest = computeFinalStandings(gameRoom).filter((p) => !winnerSet.has(p.id));
+      const myRank = rest.findIndex((p) => p.id === forPlayerId);
+      if (myRank === 0) items.push({ label: "🥈 2. miejsce", amount: computeSecondPlaceHitcoin(gameRoom.players.length) });
+      else if (myRank === 1) items.push({ label: "🥉 3. miejsce", amount: computeThirdPlaceHitcoin(gameRoom.players.length) });
+    }
+    const total = items.reduce((sum, it) => sum + it.amount, 0);
+    return { items, total };
+  }
+
   const [showConfetti, setShowConfetti] = useState(false);
   const confettiFiredRef = useRef(null);
   useEffect(() => {
@@ -1394,6 +1488,7 @@ export default function App() {
   const xpAwardedRef = useRef(null);
   const [levelUpInfo, setLevelUpInfo] = useState(null);
   const [weeklyBonusInfo, setWeeklyBonusInfo] = useState(null);
+  const [gameEndReward, setGameEndReward] = useState(null);
   useEffect(() => {
     if (screen !== "gameover" || !room?.winnerIds?.length || !user || room.practiceMode) return;
     const marker = toMillis(room?.expireAt);
@@ -1434,6 +1529,16 @@ export default function App() {
         const nightGame = nowHour >= 0 && nowHour < 5;
         const frugalFinish = (room.tokens?.[playerId] || 0) >= 5;
         updateAchievementCounters(user.uid, { won, perfectGame, opponents, playerCount: room.players.length, nightGame, frugalFinish }).catch(() => {});
+
+        // HITCOIN + losowanie karty
+        const { total: hcTotal } = computeGameEndHitcoin(room, playerId);
+        if (hcTotal) {
+          await awardHitcoin(user.uid, hcTotal);
+          setMyHitcoin((prev) => (prev || 0) + hcTotal);
+        }
+        const pool = await getLiveLibraryPool();
+        const drawResult = await drawCardAfterGame(user.uid, pool);
+        setGameEndReward({ hitcoin: hcTotal, card: drawResult });
       } catch (e) {
         // ciche niepowodzenie — najwyżej XP z tej gry się nie doliczy
       }
@@ -2605,6 +2710,7 @@ export default function App() {
     setError("");
     setShowChat(false);
     setChatInput("");
+    setGameEndReward(null);
   }
 
   function goHome() {
@@ -2725,6 +2831,11 @@ export default function App() {
           0%, 100% { box-shadow: 0 0 18px -4px var(--accent), 0 0 34px -12px var(--accent2); }
           50% { box-shadow: 0 0 28px -2px var(--accent), 0 0 48px -8px var(--accent2); }
         }
+        @keyframes card-reveal-flash {
+          0% { opacity: 0; transform: scale(0.85) rotateY(90deg); }
+          60% { opacity: 1; transform: scale(1.08) rotateY(0deg); }
+          100% { opacity: 1; transform: scale(1) rotateY(0deg); }
+        }
         button { transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease; }
         .btn-grad {
           background: linear-gradient(115deg, var(--accent), var(--accent2) 55%, var(--accent3));
@@ -2763,30 +2874,43 @@ export default function App() {
       `}</style>
 
       {user && myXp !== null && (
-        <button
-          onClick={screen === "home" ? openStats : undefined}
-          style={{
-            position: "fixed",
-            top: 14,
-            right: 14,
-            zIndex: 90,
-            background: "linear-gradient(135deg, rgba(0,230,195,0.16), rgba(139,92,246,0.16))",
-            border: "1px solid var(--accent)",
-            borderRadius: 999,
-            padding: "6px 14px",
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            boxShadow: "0 0 14px -4px var(--accent)",
-            color: "var(--accent)",
-            fontFamily: "'Bebas Neue', sans-serif",
-            fontSize: 15,
-            letterSpacing: 0.5,
-            cursor: screen === "home" ? "pointer" : "default",
-          }}
-        >
-          ⭐ LVL {levelFromXp(myXp).level}
-        </button>
+        <div style={{ position: "fixed", top: 14, right: 14, zIndex: 90, display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+          <button
+            onClick={screen === "home" ? openStats : undefined}
+            style={{
+              background: "linear-gradient(135deg, rgba(0,230,195,0.16), rgba(139,92,246,0.16))",
+              border: "1px solid var(--accent)",
+              borderRadius: 999,
+              padding: "6px 14px",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              boxShadow: "0 0 14px -4px var(--accent)",
+              color: "var(--accent)",
+              fontFamily: "'Bebas Neue', sans-serif",
+              fontSize: 15,
+              letterSpacing: 0.5,
+              cursor: screen === "home" ? "pointer" : "default",
+            }}
+          >
+            ⭐ LVL {levelFromXp(myXp).level}
+          </button>
+          {myHitcoin !== null && (
+            <div
+              style={{
+                background: "rgba(255,214,107,0.12)",
+                border: "1px solid var(--gold)",
+                borderRadius: 999,
+                padding: "4px 12px",
+                color: "var(--gold)",
+                fontFamily: "'Bebas Neue', sans-serif",
+                fontSize: 13,
+              }}
+            >
+              🪙 {myHitcoin}
+            </div>
+          )}
+        </div>
       )}
 
       <div className="w-full flex flex-col items-center" style={{ maxWidth: 720 }}>
@@ -2860,6 +2984,31 @@ export default function App() {
                     return <LevelBar level={level} currentLevelXp={currentLevelXp} xpForNextLevel={xpForNextLevel} size="big" />;
                   })()}
                   {(() => {
+                    const today = currentDayKey();
+                    const alreadyClaimed = stats.lastDailyHitcoinDate === today;
+                    return (
+                      <button
+                        onClick={async () => {
+                          if (alreadyClaimed) return;
+                          const amount = await claimDailyHitcoin(user.uid, today);
+                          if (amount > 0) {
+                            setMyHitcoin((prev) => (prev || 0) + amount);
+                            setStats({ ...stats, lastDailyHitcoinDate: today, hitcoin: (stats.hitcoin || 0) + amount });
+                          }
+                        }}
+                        disabled={alreadyClaimed}
+                        className="w-full rounded-2xl p-4 flex items-center justify-between card-glow"
+                        style={{ background: "var(--surface)", border: `1px solid ${alreadyClaimed ? "#33294f" : "var(--gold)"}`, opacity: alreadyClaimed ? 0.6 : 1 }}
+                      >
+                        <div className="text-left">
+                          <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: alreadyClaimed ? "var(--muted)" : "var(--gold)" }}>🪙 Codzienna nagroda</p>
+                          <p style={{ fontSize: 11, color: "var(--muted)" }}>{alreadyClaimed ? "Odebrane — wróć jutro" : "Kliknij, żeby odebrać +25 HITCOIN"}</p>
+                        </div>
+                        {!alreadyClaimed && <span style={{ color: "var(--gold)", fontSize: 22 }}>→</span>}
+                      </button>
+                    );
+                  })()}
+                  {(() => {
                     const { level } = levelFromXp(stats.xp);
                     const duelWins = (h2hOpponents || []).reduce((sum, h) => sum + (h.wins?.[user.uid] || 0), 0);
                     const maxDuelsWithSamePerson = (h2hOpponents || []).reduce((max, h) => Math.max(max, h.gamesPlayed || 0), 0);
@@ -2887,6 +3036,20 @@ export default function App() {
                       </button>
                     );
                   })()}
+                  <button
+                    onClick={() => {
+                      setShowStats(false);
+                      openAlbum();
+                    }}
+                    className="w-full rounded-2xl p-4 flex items-center justify-between card-glow"
+                    style={{ background: "var(--surface)", border: "1px solid #7dffef" }}
+                  >
+                    <div className="text-left">
+                      <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: "#7dffef" }}>🃏 Album</p>
+                      <p style={{ fontSize: 11, color: "var(--muted)" }}>{Object.keys(stats.cardCollection || {}).length} unikalnych kart</p>
+                    </div>
+                    <span style={{ color: "#7dffef", fontSize: 22 }}>→</span>
+                  </button>
                   {(() => {
                     const wc = stats.weeklyChallenge;
                     const isCurrentWeek = wc && wc.weekKey === currentWeekKey();
@@ -3452,7 +3615,14 @@ export default function App() {
                             >
                               <Pencil size={16} />
                             </button>
-                            <button onClick={() => handleDeleteBrokenSong(r)} disabled={brokenLinkBusy} style={{ color: "var(--bad)" }} title="Usuń z bazy">
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`Na pewno usunąć "${r.artist} — ${r.title}" z bazy? Tego nie da się cofnąć.`)) handleDeleteBrokenSong(r);
+                              }}
+                              disabled={brokenLinkBusy}
+                              style={{ color: "var(--bad)" }}
+                              title="Usuń z bazy"
+                            >
                               <Trash2 size={16} />
                             </button>
                             <button onClick={() => handleDismissBrokenLink(r.id)} disabled={brokenLinkBusy} style={{ color: "var(--muted)" }} title="Odrzuć zgłoszenie">
@@ -3465,6 +3635,42 @@ export default function App() {
                     ))
                   )}
                 </div>
+              )}
+            </section>
+
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🃏 Rzadkość kart</p>
+              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
+                Utwory dodane od teraz dostają rzadkość automatycznie. Ten przycisk jednorazowo uzupełnia ją utworom, które trafiły do bazy ZANIM istniał system kart.
+              </p>
+              <button
+                onClick={async () => {
+                  setRarityMigrateBusy(true);
+                  setRarityMigrateProgress(null);
+                  try {
+                    const pool = await fetchAllSongsFromDb();
+                    const result = await migrateRarityForExistingSongs(pool, (done, total) => setRarityMigrateProgress({ done, total }));
+                    setRarityMigrateProgress({ done: result.updated, total: result.total, finished: true });
+                    setLibrarySongs(null); // wymuś świeże pobranie przy następnym użyciu
+                  } catch (e) {
+                    setError("Błąd migracji rzadkości: " + e.message);
+                  } finally {
+                    setRarityMigrateBusy(false);
+                  }
+                }}
+                disabled={rarityMigrateBusy}
+                className="px-4 py-2 rounded-lg text-sm font-bold"
+                style={{ background: "var(--surface2)", border: "1px solid var(--gold)", color: "var(--gold)" }}
+              >
+                {rarityMigrateBusy ? "Uzupełniam…" : "Uzupełnij brakującą rzadkość"}
+              </button>
+              {rarityMigrateProgress && (
+                <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>
+                  {rarityMigrateProgress.finished
+                    ? `Gotowe — uzupełniono ${rarityMigrateProgress.total} utworów.`
+                    : `${rarityMigrateProgress.done}/${rarityMigrateProgress.total}...`}
+                </p>
               )}
             </section>
 
@@ -3686,9 +3892,27 @@ export default function App() {
                               <p style={{ fontSize: 13 }}>
                                 <strong>{s.artist}</strong> — {s.title} ({s.year})
                               </p>
-                              <p style={{ fontSize: 10, color: "var(--muted)" }}>{(s.categories || []).join(", ") || "brak kategorii"}</p>
+                              <p style={{ fontSize: 10, color: "var(--muted)" }}>
+                                {(s.categories || []).join(", ") || "brak kategorii"}
+                                {" · "}
+                                <span style={{ color: RARITY_INFO[effectiveRarity(s)].color }}>{RARITY_INFO[effectiveRarity(s)].label}</span>
+                              </p>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 items-center">
+                              <button
+                                onClick={async () => {
+                                  const newVal = !s.isDiamond;
+                                  await updateSongInDb(s.id, { isDiamond: newVal });
+                                  const base = librarySongs && librarySongs.length > 0 ? librarySongs : await fetchAllSongsFromDb();
+                                  const next = base.map((x) => (x.id === s.id ? { ...x, isDiamond: newVal } : x));
+                                  setLibrarySongs(next);
+                                  saveLibraryCache(next);
+                                }}
+                                title={s.isDiamond ? "Cofnij Diament" : "Ustaw jako Diament"}
+                                style={{ color: s.isDiamond ? "#7dffef" : "var(--muted)", fontSize: 16 }}
+                              >
+                                💎
+                              </button>
                               <button
                                 onClick={() => {
                                   setAdminEditingId(s.id);
@@ -3704,7 +3928,13 @@ export default function App() {
                               >
                                 <Pencil size={16} />
                               </button>
-                              <button onClick={() => handleAdminDelete(s.id)} disabled={adminBusy} style={{ color: "var(--bad)" }}>
+                              <button
+                                onClick={() => {
+                                  if (window.confirm(`Na pewno usunąć "${s.artist} — ${s.title}"? Tego nie da się cofnąć.`)) handleAdminDelete(s.id);
+                                }}
+                                disabled={adminBusy}
+                                style={{ color: "var(--bad)" }}
+                              >
                                 <Trash2 size={16} />
                               </button>
                             </div>
@@ -3912,6 +4142,16 @@ export default function App() {
                   <img src={iconRanking} alt="" style={{ height: 40, margin: "0 auto" }} />
                   <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: "var(--gold)" }}>Ranking</p>
                 </button>
+                {user && (
+                  <button
+                    onClick={() => setScreen("packShop")}
+                    className="flex-1 rounded-2xl p-4 text-center card-glow"
+                    style={{ background: "var(--surface)", border: "1px solid #7dffef" }}
+                  >
+                    <p style={{ fontSize: 32 }}>🎴</p>
+                    <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: "#7dffef" }}>Sklep</p>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -4185,6 +4425,239 @@ export default function App() {
                 </div>
               )}
             </section>
+          </div>
+        )}
+
+        {screen === "album" && (
+          <div className="w-full flex flex-col gap-5">
+            <button onClick={() => setScreen("home")} className="self-start flex items-center gap-1 text-xs" style={{ color: "var(--muted)" }}>
+              ← Wróć
+            </button>
+
+            {!albumSongs ? (
+              <p style={{ color: "var(--muted)", fontSize: 13, textAlign: "center" }}>Wczytuję kolekcję…</p>
+            ) : (
+              (() => {
+                const myCollection = stats?.cardCollection || {};
+                const bySongId = new Map(albumSongs.map((s) => [s.id, s]));
+                const counts = {};
+                RARITY_ORDER.forEach((r) => (counts[r] = { owned: 0, total: 0 }));
+                albumSongs.forEach((s) => {
+                  const r = effectiveRarity(s);
+                  counts[r].total++;
+                  if (myCollection[s.id]) counts[r].owned++;
+                });
+                const totalOwned = Object.keys(myCollection).length;
+                const totalDuplicates = Object.values(myCollection).reduce((sum, c) => sum + Math.max(0, c - 1), 0);
+
+                const tabSongs = albumSongs.filter((s) => effectiveRarity(s) === albumSelectedRarity);
+                const visibleSongs = albumOnlyOwned ? tabSongs.filter((s) => myCollection[s.id]) : tabSongs;
+                const shown = visibleSongs.slice(0, albumVisibleCount);
+
+                return (
+                  <>
+                    <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #7dffef" }}>
+                      <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 4, color: "#7dffef" }}>🃏 ALBUM</h2>
+                      <p style={{ fontSize: 13, marginBottom: 10 }}>
+                        Kolekcja: {totalOwned}/{albumSongs.length}
+                      </p>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {RARITY_ORDER.map((r) => (
+                          <span key={r} style={{ fontSize: 10, color: RARITY_INFO[r].color }}>
+                            {RARITY_INFO[r].icon} {counts[r].owned}/{counts[r].total}
+                          </span>
+                        ))}
+                      </div>
+                      {totalDuplicates > 0 && (
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Sprzedać wszystkie duplikaty (${totalDuplicates} kart)? Zostanie po 1 sztuce każdej.`)) handleSellAllDuplicates();
+                          }}
+                          disabled={albumSellBusy}
+                          className="px-4 py-2 rounded-lg text-xs font-bold"
+                          style={{ background: "var(--surface2)", border: "1px solid var(--gold)", color: "var(--gold)" }}
+                        >
+                          Sprzedaj wszystkie duplikaty ({totalDuplicates})
+                        </button>
+                      )}
+                    </section>
+
+                    <div className="flex flex-wrap gap-2">
+                      {RARITY_ORDER.map((r) => (
+                        <button
+                          key={r}
+                          onClick={() => {
+                            setAlbumSelectedRarity(r);
+                            setAlbumVisibleCount(60);
+                          }}
+                          className="px-3 py-1.5 rounded-full text-xs font-bold"
+                          style={{
+                            background: albumSelectedRarity === r ? RARITY_INFO[r].color : "var(--surface2)",
+                            color: albumSelectedRarity === r ? "#0a0410" : RARITY_INFO[r].color,
+                          }}
+                        >
+                          {RARITY_INFO[r].icon} {RARITY_INFO[r].label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <label className="flex items-center gap-2 text-xs" style={{ color: "var(--muted)" }}>
+                      <input type="checkbox" checked={albumOnlyOwned} onChange={(e) => setAlbumOnlyOwned(e.target.checked)} />
+                      Pokaż tylko zdobyte
+                    </label>
+
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {shown.map((s) => {
+                        const owned = myCollection[s.id] || 0;
+                        const info = RARITY_INFO[effectiveRarity(s)];
+                        return (
+                          <div
+                            key={s.id}
+                            style={{
+                              width: 100,
+                              height: 130,
+                              borderRadius: 10,
+                              position: "relative",
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              textAlign: "center",
+                              padding: 6,
+                              background: owned ? "var(--surface2)" : "rgba(20,26,38,0.5)",
+                              border: owned ? `1px solid ${info.color}` : "1px dashed #33294f",
+                            }}
+                          >
+                            {owned ? (
+                              <>
+                                <span style={{ fontSize: 16 }}>{info.icon}</span>
+                                <p style={{ fontSize: 9, fontWeight: "bold", marginTop: 4 }}>{s.artist}</p>
+                                <p style={{ fontSize: 8, color: "var(--muted)" }}>{s.title}</p>
+                                {owned > 1 && (
+                                  <span style={{ position: "absolute", top: 4, right: 4, fontSize: 9, background: "var(--surface)", borderRadius: 999, padding: "1px 5px" }}>
+                                    ×{owned}
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <span style={{ fontSize: 18, color: "var(--muted)" }}>🔒 ?</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {visibleSongs.length > albumVisibleCount && (
+                      <button
+                        onClick={() => setAlbumVisibleCount((v) => v + 60)}
+                        className="self-center px-4 py-2 rounded-lg text-xs font-bold"
+                        style={{ background: "var(--surface2)", border: "1px solid #33294f", color: "var(--muted)" }}
+                      >
+                        Pokaż więcej ({visibleSongs.length - albumVisibleCount} pozostało)
+                      </button>
+                    )}
+                  </>
+                );
+              })()
+            )}
+          </div>
+        )}
+
+        {screen === "packShop" && (
+          <div className="w-full flex flex-col gap-5">
+            <button
+              onClick={() => {
+                setScreen("home");
+                setPackOpenResult(null);
+              }}
+              className="self-start flex items-center gap-1 text-xs"
+              style={{ color: "var(--muted)" }}
+            >
+              ← Wróć
+            </button>
+
+            {!packOpenResult ? (
+              <>
+                <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #7dffef" }}>
+                  <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 4, color: "#7dffef" }}>🎴 SKLEP</h2>
+                  <p style={{ color: "var(--muted)", fontSize: 12 }}>Twoje saldo: {myHitcoin ?? 0} 🪙</p>
+                </section>
+
+                <div className="flex flex-col gap-3">
+                  {Object.entries(PACKS).map(([key, config]) => (
+                    <div key={key} className="rounded-2xl p-4 flex items-center justify-between card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+                      <div>
+                        <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18 }}>{config.cards} kart</p>
+                        <p style={{ fontSize: 11, color: "var(--muted)" }}>{(config.diamondChance * 100).toFixed(1)}% szans na Diament</p>
+                      </div>
+                      <button
+                        onClick={() => buyPack(key)}
+                        disabled={packShopBusy || (myHitcoin ?? 0) < config.price}
+                        className="px-4 py-2 rounded-lg text-sm font-bold"
+                        style={{ background: "var(--surface2)", border: "1px solid var(--gold)", color: "var(--gold)", opacity: (myHitcoin ?? 0) < config.price ? 0.5 : 1 }}
+                      >
+                        {config.price} 🪙
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <section className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, marginBottom: 4, textAlign: "center" }}>Kliknij, żeby odkryć kartę</h2>
+                <div className="flex flex-wrap justify-center gap-3 mt-4">
+                  {packOpenResult.map((item, i) => {
+                    const revealed = packRevealedIndices.has(i);
+                    const info = RARITY_INFO[effectiveRarity(item.song)];
+                    return (
+                      <div
+                        key={i}
+                        onClick={() => {
+                          if (revealed) return;
+                          setPackRevealedIndices((prev) => new Set(prev).add(i));
+                        }}
+                        style={{
+                          width: 130,
+                          height: 180,
+                          borderRadius: 14,
+                          cursor: revealed ? "default" : "pointer",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          textAlign: "center",
+                          padding: 10,
+                          background: revealed ? "var(--surface2)" : "linear-gradient(160deg, var(--accent2), #2a1a4a)",
+                          border: revealed ? `2px solid ${info.color}` : "2px solid #4c1d95",
+                          boxShadow: revealed ? `0 0 ${info.color === "#7dffef" ? 40 : info.color === "#c4b5fd" ? 26 : 14}px -4px ${info.color}` : "none",
+                          animation: revealed ? "card-reveal-flash 0.5s ease" : "none",
+                        }}
+                      >
+                        {revealed ? (
+                          <>
+                            <span style={{ fontSize: 22 }}>{info.icon}</span>
+                            <p style={{ fontSize: 11, fontWeight: "bold", marginTop: 6 }}>{item.song.artist}</p>
+                            <p style={{ fontSize: 10, color: "var(--muted)" }}>{item.song.title}</p>
+                            <p style={{ fontSize: 10, color: info.color, marginTop: 4 }}>{info.label}</p>
+                            {item.isDuplicate && <p style={{ fontSize: 9, color: "var(--muted)" }}>masz już tę kartę</p>}
+                          </>
+                        ) : (
+                          <span style={{ fontSize: 28 }}>🎴</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {packRevealedIndices.size === packOpenResult.length && (
+                  <button
+                    onClick={() => setPackOpenResult(null)}
+                    className="w-full mt-5 py-3 rounded-xl text-sm font-bold btn-grad"
+                  >
+                    Gotowe
+                  </button>
+                )}
+              </section>
+            )}
           </div>
         )}
 
@@ -4833,6 +5306,31 @@ export default function App() {
                 </div>
               );
             })()}
+
+            {user && !room.practiceMode && gameEndReward && (
+              <div className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+                <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🪙 Zdobyty HITCOIN</p>
+                <div className="flex items-center justify-between text-sm mb-3">
+                  <span>🎮 Za rozgrywkę</span>
+                  <span style={{ color: "var(--gold)" }}>+{gameEndReward.hitcoin} 🪙</span>
+                </div>
+                {gameEndReward.card && (
+                  <div
+                    className="rounded-xl p-3 flex items-center gap-3"
+                    style={{ background: "var(--surface2)", border: `1px solid ${RARITY_INFO[effectiveRarity(gameEndReward.card.song)].color}` }}
+                  >
+                    <span style={{ fontSize: 22 }}>{RARITY_INFO[effectiveRarity(gameEndReward.card.song)].icon}</span>
+                    <div className="text-left flex-1">
+                      <p style={{ fontSize: 13, fontWeight: "bold" }}>{gameEndReward.card.song.artist} — {gameEndReward.card.song.title}</p>
+                      <p style={{ fontSize: 11, color: RARITY_INFO[effectiveRarity(gameEndReward.card.song)].color }}>
+                        {RARITY_INFO[effectiveRarity(gameEndReward.card.song)].label}
+                        {gameEndReward.card.isDuplicate && <span style={{ color: "var(--muted)" }}> · masz już tę kartę</span>}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {room.playedCards && room.playedCards.length > 0 && (
               <div className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>

@@ -6,6 +6,28 @@ import { CATEGORY_PATCH } from "./categoryPatch.js";
 const COLLECTION = "songs";
 const PROPOSALS_COLLECTION = "songProposals";
 
+// 4 poziomy losowane automatycznie przy dodaniu utworu (Diamentowa Płyta to
+// piąty poziom, ustawiany WYŁĄCZNIE ręcznie przez admina — flaga isDiamond).
+// Rzadkość jest przypisywana RAZ, NA STAŁE, w momencie dodania utworu do
+// bazy — nie przy każdym losowaniu karty — żeby ta sama piosenka miała
+// zawsze ten sam poziom dla wszystkich graczy.
+const RARITY_WEIGHTS = [
+  ["winyl", 56],
+  ["srebrna", 26],
+  ["zlota", 12],
+  ["platynowa", 6],
+];
+
+export function rollRarity() {
+  const total = RARITY_WEIGHTS.reduce((sum, [, w]) => sum + w, 0);
+  let r = Math.random() * total;
+  for (const [key, w] of RARITY_WEIGHTS) {
+    if (r < w) return key;
+    r -= w;
+  }
+  return RARITY_WEIGHTS[0][0];
+}
+
 export async function fetchAllSongsFromDb() {
   const snap = await getDocs(collection(db, COLLECTION));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -47,6 +69,8 @@ export async function addSongToDb(song) {
     title: song.title,
     year: song.year,
     categories: song.categories || [],
+    rarity: rollRarity(),
+    isDiamond: false,
   };
   await setDoc(ref, data);
   return { id: ref.id, ...data };
@@ -58,6 +82,24 @@ export async function updateSongInDb(id, fields) {
 
 export async function deleteSongFromDb(id) {
   await deleteDoc(doc(db, COLLECTION, id));
+}
+
+// Jednorazowe uzupełnienie rzadkości dla utworów, które trafiły do bazy
+// ZANIM istniał system kart (nie mają jeszcze pola `rarity`). Wywoływane
+// ręcznie z panelu admina — dla nowych utworów dzieje się to już automatycznie.
+export async function migrateRarityForExistingSongs(songs, onProgress) {
+  const missing = songs.filter((s) => !s.rarity);
+  const chunkSize = 450;
+  let written = 0;
+  for (let i = 0; i < missing.length; i += chunkSize) {
+    const chunk = missing.slice(i, i + chunkSize);
+    const batch = writeBatch(db);
+    chunk.forEach((s) => batch.update(doc(db, COLLECTION, s.id), { rarity: rollRarity(), isDiamond: s.isDiamond ?? false }));
+    await batch.commit();
+    written += chunk.length;
+    if (onProgress) onProgress(written, missing.length);
+  }
+  return { updated: written, total: missing.length };
 }
 
 // Jednorazowa migracja: wgrywa obecną, wbudowaną bibliotekę (songs.js) do
@@ -209,7 +251,7 @@ export async function importSongsFromCsv(csvText, existingVideoIds, onProgress) 
       continue;
     }
     seen.add(videoId);
-    toAdd.push({ videoId, artist: r.artist, title: r.title, year: r.year, categories: r.categories });
+    toAdd.push({ videoId, artist: r.artist, title: r.title, year: r.year, categories: r.categories, rarity: rollRarity(), isDiamond: false });
   }
 
   const chunkSize = 450;

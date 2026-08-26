@@ -78,6 +78,11 @@ export async function ensureStatsDoc(uid, username) {
       playlistTotalScore: 0,
       playlistGamesPlayed: 0,
       guessesByDecadeGroup: {},
+      hitcoin: 0,
+      cardCollection: {},
+      cardsByRarity: {},
+      duplicatesSold: 0,
+      lastDailyHitcoinDate: "",
     });
   } else if (username && snap.data().username !== username) {
     // odświeżamy nazwę przy każdym logowaniu — naprawia stare konta, którym
