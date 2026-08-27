@@ -61,10 +61,6 @@ import cardPlatynaImg from "./assets/icons/card-platynowa.webp";
 import cardDiamentImg from "./assets/icons/card-diamentowa.webp";
 import decoHeroVinyl from "./assets/deco/deco-hero-vinyl-1.webp";
 import decoLightStreaks from "./assets/deco/deco-light-streaks.webp";
-import decoVinylCorner from "./assets/deco/deco-vinyl-corner-1.webp";
-import decoParticles from "./assets/deco/deco-particles-1.webp";
-import decoWaveform from "./assets/deco/deco-waveform-1.webp";
-import decoNebula from "./assets/deco/deco-nebula.webp";
 
 // 👉 PODMIEŃ TO NA SWOJE WŁASNE HASŁO trybu admina
 const ADMIN_PASSWORD = "zmien-to-haslo-123";
@@ -489,11 +485,6 @@ const SectionHeader = memo(function SectionHeader({ icon, children, action }) {
 const GameModeCard = memo(function GameModeCard({ icon, title, subtitle, onClick, disabled, premium, badge }) {
   return (
     <NeonCard color={premium ? "gold" : "cyan"} onClick={disabled ? undefined : onClick} disabled={disabled} className="flex-1 text-center" style={{ padding: "18px 12px", minWidth: 130 }}>
-      <img
-        src={decoWaveform}
-        alt=""
-        style={{ position: "absolute", left: 0, right: 0, bottom: 0, width: "100%", height: 16, objectFit: "cover", opacity: 0.14, pointerEvents: "none" }}
-      />
       {premium && (
         <span
           style={{
@@ -1691,7 +1682,6 @@ export default function App() {
         getStats(u.uid).then((s) => {
           setMyXp(s?.xp || 0);
           setMyHitcoin(s?.hitcoin || 0);
-          setStats(s);
         }).catch(() => {});
       }
     });
@@ -3149,7 +3139,7 @@ export default function App() {
         background:
           "radial-gradient(ellipse 850px 600px at 8% -5%, rgba(0,230,195,0.20), transparent 60%), radial-gradient(ellipse 800px 650px at 100% 0%, rgba(139,92,246,0.18), transparent 55%), radial-gradient(ellipse 750px 550px at 50% 115%, rgba(255,95,201,0.10), transparent 55%), var(--bg)",
         color: "var(--text)",
-        fontFamily: "'Inter', sans-serif",
+        fontFamily: "'Space Mono', monospace",
         padding: "32px 16px 64px",
       }}
     >
@@ -3157,22 +3147,8 @@ export default function App() {
           zepsutych linków — nigdy nie jest tym, co gracze faktycznie słyszą. */}
       <div id="broken-link-validator" style={{ position: "fixed", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none", top: -9999 }} />
 
-      {screen === "home" && (
-        <div style={{ position: "fixed", inset: 0, overflow: "hidden", zIndex: 0, pointerEvents: "none" }}>
-          <img src={decoNebula} alt="" style={{ position: "absolute", top: "10%", left: "50%", transform: "translateX(-50%)", width: "140%", maxWidth: 1600, opacity: 0.25 }} />
-          <img src={decoVinylCorner} alt="" style={{ position: "absolute", top: -120, left: -160, width: 480, opacity: 0.5, transform: "rotate(-10deg)" }} />
-          <img
-            src={decoVinylCorner}
-            alt=""
-            style={{ position: "absolute", bottom: -160, right: -180, width: 520, opacity: 0.4, transform: "rotate(170deg)" }}
-          />
-          <img src={decoParticles} alt="" style={{ position: "absolute", top: "38%", right: "2%", width: 420, opacity: 0.5 }} />
-          <img src={decoParticles} alt="" style={{ position: "absolute", bottom: "6%", left: "0%", width: 360, opacity: 0.35, transform: "scaleX(-1)" }} />
-        </div>
-      )}
-
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap');
         :root {
           --bg: #050810; --surface: rgba(14,26,38,0.78); --surface2: rgba(20,36,50,0.9);
           --accent: #00e6c3; --accent2: #8b5cf6; --accent3: #ff5fc9; --gold: #ffb020;
@@ -3304,7 +3280,7 @@ export default function App() {
         </div>
       )}
 
-      <div className="w-full flex flex-col items-center" style={{ maxWidth: screen === "home" ? 1120 : 720, position: "relative", zIndex: 1 }}>
+      <div className="w-full flex flex-col items-center" style={{ maxWidth: screen === "home" ? 1120 : 720 }}>
         {screen !== "home" && (
           <>
             <button
@@ -4606,48 +4582,6 @@ export default function App() {
                 {user && <StatTile icon={achAlbum} label="Album" value={Object.keys(stats?.cardCollection || {}).length} sublabel="kart" onClick={openAlbum} color="magenta" />}
               </div>
             </div>
-
-            {user && stats && (
-              <div className="flex flex-wrap gap-3">
-                <NeonCard color="magenta" className="flex-1" style={{ padding: "16px 18px", minWidth: 200 }}>
-                  <div className="flex items-center gap-2 mb-1">
-                    <img src={achSeria} alt="" style={{ height: 20 }} />
-                    <span style={{ fontSize: 10, textTransform: "uppercase", color: "var(--text-secondary)", letterSpacing: 0.5 }}>Rekordowa seria</span>
-                  </div>
-                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: "var(--magenta)" }}>{stats.longestStreak || 0} z rzędu!</p>
-                </NeonCard>
-                {(() => {
-                  const today = currentDayKey();
-                  const alreadyClaimed = stats.lastDailyHitcoinDate === today;
-                  return (
-                    <NeonCard
-                      color="gold"
-                      onClick={alreadyClaimed ? undefined : async () => {
-                        const amount = await claimDailyHitcoin(user.uid, today);
-                        if (amount > 0) {
-                          setMyHitcoin((prev) => (prev || 0) + amount);
-                          setStats({ ...stats, lastDailyHitcoinDate: today, hitcoin: (stats.hitcoin || 0) + amount });
-                        }
-                      }}
-                      disabled={alreadyClaimed}
-                      className="flex-1 flex items-center justify-between"
-                      style={{ padding: "16px 18px", minWidth: 200 }}
-                    >
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <img src={iconHitcoin} alt="" style={{ height: 20 }} />
-                          <span style={{ fontSize: 10, textTransform: "uppercase", color: "var(--text-secondary)", letterSpacing: 0.5 }}>Nagroda dnia</span>
-                        </div>
-                        <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: alreadyClaimed ? "var(--text-secondary)" : "var(--gold)" }}>
-                          {alreadyClaimed ? "Odebrane — wróć jutro" : "+25 gotowe do odbioru"}
-                        </p>
-                      </div>
-                      {!alreadyClaimed && <span style={{ color: "var(--gold)", fontSize: 22 }}>→</span>}
-                    </NeonCard>
-                  );
-                })()}
-              </div>
-            )}
 
             {user && (
               <>
