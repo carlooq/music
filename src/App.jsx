@@ -270,17 +270,54 @@ const CollectibleCard = memo(function CollectibleCard({ song, size = 140, onClic
           alignItems: "center",
           justifyContent: "center",
           textAlign: "center",
+          overflow: "hidden",
         }}
       >
         <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: size * 0.11, lineHeight: 1, color: "#dfe9ff", margin: 0 }}>{song.year}</p>
-        <p style={{ fontSize: Math.max(7, size * 0.035), textTransform: "uppercase", letterSpacing: 1, color: "#9fb0c8", margin: "2px 0 0" }}>{song.artist}</p>
-        <p style={{ fontSize: Math.max(8, size * 0.04), color: "#f4eefc", margin: "1px 0 0" }}>{song.title}</p>
+        <p
+          style={{
+            fontSize: Math.max(6.5, size * 0.032),
+            textTransform: "uppercase",
+            letterSpacing: 0.5,
+            color: "#9fb0c8",
+            margin: "2px 0 0",
+            width: "100%",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {song.artist}
+        </p>
+        <p
+          style={{
+            fontSize: Math.max(7, size * 0.037),
+            color: "#f4eefc",
+            margin: "1px 0 0",
+            width: "100%",
+            lineHeight: 1.15,
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }}
+        >
+          {song.title}
+        </p>
       </div>
     </div>
   );
 });
 
-const CardBack = memo(function CardBack({ size = 140, glow, onClick }) {
+const REVEAL_GLOW_COLORS = {
+  winyl: null,
+  srebrna: "rgba(220,230,240,0.55)",
+  zlota: "rgba(255,214,107,0.65)",
+  platynowa: "rgba(139,92,246,0.7)",
+  diamentowa: "rgba(0,230,195,0.85)",
+};
+
+const CardBack = memo(function CardBack({ size = 140, glowColor, onClick }) {
   return (
     <div
       onClick={onClick}
@@ -290,7 +327,7 @@ const CardBack = memo(function CardBack({ size = 140, glow, onClick }) {
         aspectRatio: "1024 / 1536",
         cursor: onClick ? "pointer" : "default",
         flexShrink: 0,
-        filter: glow ? "drop-shadow(0 0 22px rgba(0,230,195,0.55)) drop-shadow(0 0 38px rgba(139,92,246,0.4))" : "none",
+        filter: glowColor ? `drop-shadow(0 0 20px ${glowColor}) drop-shadow(0 0 36px ${glowColor})` : "none",
       }}
     >
       <img src={cardRewers} alt="" style={{ width: "100%", height: "100%", display: "block" }} />
@@ -2950,6 +2987,11 @@ export default function App() {
           60% { opacity: 1; transform: scale(1.08) rotateY(0deg); }
           100% { opacity: 1; transform: scale(1) rotateY(0deg); }
         }
+        @keyframes reveal-glow-burst {
+          0% { opacity: 0; transform: scale(0.6); }
+          40% { opacity: 1; transform: scale(1.15); }
+          100% { opacity: 0; transform: scale(1.5); }
+        }
         button { transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease; }
         .btn-grad {
           background: linear-gradient(115deg, var(--accent), var(--accent2) 55%, var(--accent3));
@@ -4604,7 +4646,9 @@ export default function App() {
                 return (
                   <>
                     <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #7dffef" }}>
-                      <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 4, color: "#7dffef" }}>🃏 ALBUM</h2>
+                      <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 4, color: "#7dffef", display: "flex", alignItems: "center", gap: 8 }}>
+                        <img src={achAlbum} alt="" style={{ height: 28 }} /> ALBUM
+                      </h2>
                       <p style={{ fontSize: 13, marginBottom: 10 }}>
                         Kolekcja: {totalOwned}/{albumSongs.length}
                       </p>
@@ -4729,27 +4773,15 @@ export default function App() {
 
             {!packOpenResult ? (
               <>
-                <section className="w-full rounded-2xl p-6 text-center card-glow" style={{ background: "var(--surface)", border: "1px solid #7dffef" }}>
-                  <img src={iconSklep} alt="" style={{ height: 56, margin: "0 auto 8px" }} />
-                  <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 40, marginBottom: 4, letterSpacing: 3, color: "#7dffef", textShadow: "0 0 20px rgba(125,255,239,0.5)" }}>
+                <div className="w-full text-center">
+                  <img src={iconSklep} alt="" style={{ height: 48, margin: "0 auto 6px" }} />
+                  <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 36, letterSpacing: 3, color: "#7dffef", textShadow: "0 0 20px rgba(125,255,239,0.5)" }}>
                     SKLEP
                   </h2>
-                  <p style={{ color: "var(--text)", fontSize: 13, marginBottom: 14 }}>
-                    3 dostępne paczki z kartami do Twojego albumu
-                  </p>
-                  <div
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full"
-                    style={{ background: "rgba(255,214,107,0.12)", border: "1px solid var(--gold)" }}
-                  >
-                    <img src={iconHitcoin} alt="" style={{ height: 20 }} />
-                    <span style={{ color: "var(--gold)", fontFamily: "'Bebas Neue', sans-serif", fontSize: 18 }}>{myHitcoin ?? 0}</span>
-                  </div>
-                </section>
+                  <p style={{ color: "var(--muted)", fontSize: 12 }}>3 dostępne paczki z kartami do Twojego albumu</p>
+                </div>
 
-                <div
-                  className="w-full flex gap-6 md:gap-10 md:justify-center"
-                  style={{ overflowX: "auto", scrollSnapType: "x mandatory", paddingBottom: 8, paddingLeft: 4, paddingRight: 4 }}
-                >
+                <div className="w-full flex flex-wrap gap-6 md:gap-10 justify-center" style={{ scrollbarWidth: "none" }}>
                   {[
                     { key: "50", name: "PODSTAWOWA", img: packPodstawowa },
                     { key: "75", name: "ROZSZERZONA", img: packRozszerzona },
@@ -4757,12 +4789,13 @@ export default function App() {
                   ].map(({ key, name, img }) => {
                     const config = PACKS[key];
                     return (
-                      <div
-                        key={key}
-                        className="w-40 md:w-56"
-                        style={{ flex: "0 0 auto", scrollSnapAlign: "center", display: "flex", flexDirection: "column", alignItems: "center" }}
-                      >
-                        <img src={img} alt={name} style={{ width: "100%", filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.55))" }} />
+                      <div key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                        <img
+                          src={img}
+                          alt={name}
+                          className="h-44 md:h-64"
+                          style={{ width: "auto", filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.55))" }}
+                        />
                         <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, marginTop: 12, letterSpacing: 1 }}>{name}</p>
                         <p style={{ fontSize: 12, color: "var(--muted)" }}>{config.cards} kart</p>
                         <button
@@ -4786,26 +4819,47 @@ export default function App() {
               </>
             ) : (
               <section className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+                {showConfetti && <Confetti />}
                 <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, marginBottom: 4, textAlign: "center" }}>Kliknij, żeby odkryć kartę</h2>
                 <div className="flex flex-wrap justify-center gap-4 mt-4">
                   {packOpenResult.map((item, i) => {
                     const revealed = packRevealedIndices.has(i);
                     const rarity = effectiveRarity(item.song);
-                    const isFancy = rarity === "diamentowa" || rarity === "platynowa";
+                    const glowColor = REVEAL_GLOW_COLORS[rarity];
                     return (
-                      <div key={i} style={{ animation: revealed ? "card-reveal-flash 0.5s ease" : "none" }}>
-                        {revealed ? (
-                          <div className="flex flex-col items-center">
-                            <CollectibleCard song={item.song} size={130} onClick={() => setZoomedCard(item.song)} />
-                            {item.isDuplicate && <p style={{ fontSize: 9, color: "var(--muted)", marginTop: 4 }}>masz już tę kartę</p>}
-                          </div>
-                        ) : (
-                          <CardBack
-                            size={130}
-                            glow={isFancy}
-                            onClick={() => setPackRevealedIndices((prev) => new Set(prev).add(i))}
+                      <div key={i} style={{ position: "relative" }}>
+                        {revealed && glowColor && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              inset: -20,
+                              borderRadius: "50%",
+                              background: `radial-gradient(circle, ${glowColor}, transparent 70%)`,
+                              animation: "reveal-glow-burst 0.8s ease-out",
+                              pointerEvents: "none",
+                            }}
                           />
                         )}
+                        <div style={{ position: "relative", animation: revealed ? "card-reveal-flash 0.5s ease" : "none" }}>
+                          {revealed ? (
+                            <div className="flex flex-col items-center">
+                              <CollectibleCard song={item.song} size={130} onClick={() => setZoomedCard(item.song)} />
+                              {item.isDuplicate && <p style={{ fontSize: 9, color: "var(--muted)", marginTop: 4 }}>masz już tę kartę</p>}
+                            </div>
+                          ) : (
+                            <CardBack
+                              size={130}
+                              glowColor={glowColor}
+                              onClick={() => {
+                                setPackRevealedIndices((prev) => new Set(prev).add(i));
+                                if (rarity === "diamentowa") {
+                                  setShowConfetti(true);
+                                  setTimeout(() => setShowConfetti(false), 2500);
+                                }
+                              }}
+                            />
+                          )}
+                        </div>
                       </div>
                     );
                   })}
