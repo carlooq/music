@@ -37,6 +37,28 @@ import iconRanking from "./assets/icons/ranking.png";
 import iconZaproponuj from "./assets/icons/zaproponuj.png";
 import iconAdmin from "./assets/icons/admin.png";
 import packPodstawowa from "./assets/icons/pack-podstawowa.webp";
+import packRozszerzona from "./assets/icons/pack-rozszerzona.webp";
+import packPremium from "./assets/icons/pack-premium.webp";
+import iconSklep from "./assets/icons/icon-sklep.png";
+import iconHitcoin from "./assets/icons/icon-hitcoin.png";
+import iconToken from "./assets/icons/icon-token.png";
+import achOsiagniecia from "./assets/icons/ach-osiagniecia.png";
+import ach1Miejsce from "./assets/icons/ach-1miejsce.png";
+import ach2Miejsce from "./assets/icons/ach-2miejsce.png";
+import ach3Miejsce from "./assets/icons/ach-3miejsce.png";
+import achDoOdebrania from "./assets/icons/ach-doodebrania.png";
+import achZablokowane from "./assets/icons/ach-zablokowane.png";
+import achOdebrane from "./assets/icons/ach-odebrane.png";
+import achKupionaKarta from "./assets/icons/ach-kupionakarta.png";
+import achAlbum from "./assets/icons/ach-album.png";
+import achSeria from "./assets/icons/ach-seria.png";
+import achNajszybszy from "./assets/icons/ach-najszybszy.png";
+import cardRewers from "./assets/icons/card-rewers-v2.webp";
+import cardWinylImg from "./assets/icons/card-winyl.webp";
+import cardSrebroImg from "./assets/icons/card-srebro.webp";
+import cardZlotoImg from "./assets/icons/card-zlota.webp";
+import cardPlatynaImg from "./assets/icons/card-platynowa.webp";
+import cardDiamentImg from "./assets/icons/card-diamentowa.webp";
 
 // 👉 PODMIEŃ TO NA SWOJE WŁASNE HASŁO trybu admina
 const ADMIN_PASSWORD = "zmien-to-haslo-123";
@@ -206,6 +228,72 @@ const TimelineCard = memo(function TimelineCard({ year, title, artist, onHold, o
       <span style={{ fontSize: 9, color: "var(--muted)", lineHeight: 1.1, marginTop: 2 }}>
         {artist.length > 14 ? artist.slice(0, 13) + "…" : artist}
       </span>
+    </div>
+  );
+});
+
+const CARD_FRAMES = {
+  winyl: cardWinylImg,
+  srebrna: cardSrebroImg,
+  zlota: cardZlotoImg,
+  platynowa: cardPlatynaImg,
+  diamentowa: cardDiamentImg,
+};
+
+// Karta kolekcjonerska — jeden komponent używany wszędzie (album, odkrywanie
+// paczki, podgląd na powiększeniu, ekran końca gry), żeby wygląd był spójny.
+// Współrzędne miniaturki/tekstu zmierzone precyzyjnie z siatki na pikselach.
+const CollectibleCard = memo(function CollectibleCard({ song, size = 140, onClick }) {
+  const rarity = effectiveRarity(song);
+  const frame = CARD_FRAMES[rarity] || CARD_FRAMES.winyl;
+  const thumbUrl = song.videoId ? `https://img.youtube.com/vi/${song.videoId}/hqdefault.jpg` : null;
+  return (
+    <div
+      onClick={onClick}
+      style={{ position: "relative", width: size, aspectRatio: "1024 / 1536", cursor: onClick ? "pointer" : "default", flexShrink: 0 }}
+    >
+      <img src={frame} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block" }} />
+      {thumbUrl && (
+        <div style={{ position: "absolute", left: "14%", right: "14%", top: "16.2%", height: "44%", borderRadius: "4%", overflow: "hidden", background: "#0a1420" }}>
+          <img src={thumbUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        </div>
+      )}
+      <div
+        style={{
+          position: "absolute",
+          left: "12%",
+          right: "12%",
+          top: "62.5%",
+          height: "25.5%",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          textAlign: "center",
+        }}
+      >
+        <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: size * 0.11, lineHeight: 1, color: "#dfe9ff", margin: 0 }}>{song.year}</p>
+        <p style={{ fontSize: Math.max(7, size * 0.035), textTransform: "uppercase", letterSpacing: 1, color: "#9fb0c8", margin: "2px 0 0" }}>{song.artist}</p>
+        <p style={{ fontSize: Math.max(8, size * 0.04), color: "#f4eefc", margin: "1px 0 0" }}>{song.title}</p>
+      </div>
+    </div>
+  );
+});
+
+const CardBack = memo(function CardBack({ size = 140, glow, onClick }) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        position: "relative",
+        width: size,
+        aspectRatio: "1024 / 1536",
+        cursor: onClick ? "pointer" : "default",
+        flexShrink: 0,
+        filter: glow ? "drop-shadow(0 0 22px rgba(0,230,195,0.55)) drop-shadow(0 0 38px rgba(139,92,246,0.4))" : "none",
+      }}
+    >
+      <img src={cardRewers} alt="" style={{ width: "100%", height: "100%", display: "block" }} />
     </div>
   );
 });
@@ -642,6 +730,7 @@ export default function App() {
   const [albumOnlyOwned, setAlbumOnlyOwned] = useState(false);
   const [albumVisibleCount, setAlbumVisibleCount] = useState(60);
   const [albumSellBusy, setAlbumSellBusy] = useState(false);
+  const [zoomedCard, setZoomedCard] = useState(null);
   const [dailySong, setDailySong] = useState(null);
   const [dailyAlreadyPlayed, setDailyAlreadyPlayed] = useState(false);
   const [dailyGuessArtist, setDailyGuessArtist] = useState("");
@@ -2930,9 +3019,12 @@ export default function App() {
                 color: "var(--gold)",
                 fontFamily: "'Bebas Neue', sans-serif",
                 fontSize: 13,
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
               }}
             >
-              🪙 {myHitcoin}
+              <img src={iconHitcoin} alt="" style={{ height: 16 }} /> {myHitcoin}
             </div>
           )}
         </div>
@@ -3026,7 +3118,9 @@ export default function App() {
                         style={{ background: "var(--surface)", border: `1px solid ${alreadyClaimed ? "#33294f" : "var(--gold)"}`, opacity: alreadyClaimed ? 0.6 : 1 }}
                       >
                         <div className="text-left">
-                          <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: alreadyClaimed ? "var(--muted)" : "var(--gold)" }}>🪙 Codzienna nagroda</p>
+                          <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: alreadyClaimed ? "var(--muted)" : "var(--gold)", display: "flex", alignItems: "center", gap: 6 }}>
+                            <img src={iconHitcoin} alt="" style={{ height: 20 }} /> Codzienna nagroda
+                          </p>
                           <p style={{ fontSize: 11, color: "var(--muted)" }}>{alreadyClaimed ? "Odebrane — wróć jutro" : "Kliknij, żeby odebrać +25 HITCOIN"}</p>
                         </div>
                         {!alreadyClaimed && <span style={{ color: "var(--gold)", fontSize: 22 }}>→</span>}
@@ -3050,12 +3144,15 @@ export default function App() {
                         className="w-full rounded-2xl p-4 flex items-center justify-between card-glow"
                         style={{ background: "var(--surface)", border: "1px solid var(--gold)" }}
                       >
-                        <div className="text-left">
-                          <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: "var(--gold)" }}>🏅 Osiągnięcia</p>
-                          <p style={{ fontSize: 11, color: "var(--muted)" }}>
-                            {claimedCount}/{progress.length} odebranych
-                            {unclaimed.length > 0 ? ` · ${unclaimed.length} czeka na odbiór!` : ""}
-                          </p>
+                        <div className="text-left flex items-center gap-3">
+                          <img src={achOsiagniecia} alt="" style={{ height: 32 }} />
+                          <div>
+                            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: "var(--gold)" }}>Osiągnięcia</p>
+                            <p style={{ fontSize: 11, color: "var(--muted)" }}>
+                              {claimedCount}/{progress.length} odebranych
+                              {unclaimed.length > 0 ? ` · ${unclaimed.length} czeka na odbiór!` : ""}
+                            </p>
+                          </div>
                         </div>
                         <span style={{ color: "var(--gold)", fontSize: 22 }}>→</span>
                       </button>
@@ -3069,9 +3166,12 @@ export default function App() {
                     className="w-full rounded-2xl p-4 flex items-center justify-between card-glow"
                     style={{ background: "var(--surface)", border: "1px solid #7dffef" }}
                   >
-                    <div className="text-left">
-                      <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: "#7dffef" }}>🃏 Album</p>
-                      <p style={{ fontSize: 11, color: "var(--muted)" }}>{Object.keys(stats.cardCollection || {}).length} unikalnych kart</p>
+                    <div className="text-left flex items-center gap-3">
+                      <img src={achAlbum} alt="" style={{ height: 32 }} />
+                      <div>
+                        <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: "#7dffef" }}>Album</p>
+                        <p style={{ fontSize: 11, color: "var(--muted)" }}>{Object.keys(stats.cardCollection || {}).length} unikalnych kart</p>
+                      </div>
                     </div>
                     <span style={{ color: "#7dffef", fontSize: 22 }}>→</span>
                   </button>
@@ -3106,7 +3206,14 @@ export default function App() {
                       label="Trafność kart"
                       value={stats.cardsTotal ? Math.round(((stats.cardsCorrect || 0) / stats.cardsTotal) * 100) + "%" : "—"}
                     />
-                    <StatBox label="Rekordowy streak" value={(stats.longestStreak || 0) + " 🔥"} />
+                    <StatBox
+                      label="Rekordowy streak"
+                      value={
+                        <span className="flex items-center gap-1.5">
+                          {stats.longestStreak || 0} <img src={achSeria} alt="" style={{ height: 20 }} />
+                        </span>
+                      }
+                    />
                     <StatBox label="🎧 Odgadnięte wykonawcy/tytuły" value={stats.guessesCorrect || 0} />
                     <StatBox label="🎵 Przesłuchane piosenki" value={`${(stats.heardSongs || []).length}/${totalSongCount ?? effectivePool.length}`} />
                     <StatBox label="🔎 Odgadnięte piosenki" value={`${(stats.guessedSongs || []).length}/${totalSongCount ?? effectivePool.length}`} />
@@ -3246,8 +3353,8 @@ export default function App() {
               });
               return (
                 <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
-                  <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 4, color: "var(--gold)" }}>
-                    🏅 OSIĄGNIĘCIA ({claimedCount}/{progress.length})
+                  <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 4, color: "var(--gold)", display: "flex", alignItems: "center", gap: 8 }}>
+                    <img src={achOsiagniecia} alt="" style={{ height: 28 }} /> OSIĄGNIĘCIA ({claimedCount}/{progress.length})
                   </h2>
 
                   {unclaimed.length > 0 && (
@@ -3255,9 +3362,12 @@ export default function App() {
                       <p style={{ fontSize: 11, color: "var(--good)", textTransform: "uppercase" }}>Do odebrania!</p>
                       {unclaimed.map((a) => (
                         <div key={a.id} className="flex items-center justify-between rounded-lg p-2.5" style={{ background: "rgba(42,245,152,0.1)", border: "1px solid var(--good)" }}>
-                          <div>
-                            <p style={{ fontSize: 13, fontWeight: "bold" }}>{a.name}</p>
-                            <p style={{ fontSize: 11, color: "var(--muted)" }}>{a.desc}</p>
+                          <div className="flex items-center gap-2.5">
+                            <img src={achDoOdebrania} alt="" style={{ height: 26 }} />
+                            <div>
+                              <p style={{ fontSize: 13, fontWeight: "bold" }}>{a.name}</p>
+                              <p style={{ fontSize: 11, color: "var(--muted)" }}>{a.desc}</p>
+                            </div>
                           </div>
                           <button
                             onClick={() => handleClaimAchievement(a)}
@@ -3284,8 +3394,8 @@ export default function App() {
                               className="flex items-center justify-between text-xs"
                               style={{ opacity: a.claimed ? 1 : a.qualifies ? 1 : 0.4 }}
                             >
-                              <span>
-                                {a.claimed ? "✅" : a.qualifies ? "🔓" : "🔒"} {a.name}
+                              <span className="flex items-center gap-1.5">
+                                <img src={a.claimed ? achOdebrane : a.qualifies ? achDoOdebrania : achZablokowane} alt="" style={{ height: 16 }} /> {a.name}
                               </span>
                               <span style={{ color: "var(--muted)" }}>{a.desc}</span>
                             </div>
@@ -3393,7 +3503,14 @@ export default function App() {
                       label="Trafność kart"
                       value={viewingPlayer.stats.cardsTotal ? Math.round(((viewingPlayer.stats.cardsCorrect || 0) / viewingPlayer.stats.cardsTotal) * 100) + "%" : "—"}
                     />
-                    <StatBox label="Rekordowy streak" value={(viewingPlayer.stats.longestStreak || 0) + " 🔥"} />
+                    <StatBox
+                      label="Rekordowy streak"
+                      value={
+                        <span className="flex items-center gap-1.5">
+                          {viewingPlayer.stats.longestStreak || 0} <img src={achSeria} alt="" style={{ height: 20 }} />
+                        </span>
+                      }
+                    />
                     <StatBox label="🎧 Odgadnięte wykonawcy/tytuły" value={viewingPlayer.stats.guessesCorrect || 0} />
                     <StatBox label="📀 Dodane do bazy" value={viewingPlayer.stats.songsAdded || 0} />
                   </div>
@@ -4175,7 +4292,7 @@ export default function App() {
                     className="flex-1 rounded-2xl p-4 text-center card-glow"
                     style={{ background: "var(--surface)", border: "1px solid #7dffef" }}
                   >
-                    <p style={{ fontSize: 32 }}>🎴</p>
+                    <img src={iconSklep} alt="" style={{ height: 40, margin: "0 auto" }} />
                     <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: "#7dffef" }}>Sklep</p>
                   </button>
                 )}
@@ -4333,7 +4450,10 @@ export default function App() {
                 </div>
               )}
               <p style={{ color: "var(--muted)", fontSize: 10, marginTop: 8 }}>
-                Nagrody za tydzień (od poniedziałku): 🥇 +500 XP · 🥈 +250 XP · 🥉 +100 XP — przyznawane automatycznie na starcie nowego tygodnia.
+                Nagrody za tydzień (od poniedziałku):{" "}
+                <img src={ach1Miejsce} alt="" style={{ height: 14, display: "inline", verticalAlign: "middle" }} /> +500 XP ·{" "}
+                <img src={ach2Miejsce} alt="" style={{ height: 14, display: "inline", verticalAlign: "middle" }} /> +250 XP ·{" "}
+                <img src={ach3Miejsce} alt="" style={{ height: 14, display: "inline", verticalAlign: "middle" }} /> +100 XP — przyznawane automatycznie na starcie nowego tygodnia.
               </p>
             </section>
 
@@ -4536,39 +4656,43 @@ export default function App() {
                     <div className="flex flex-wrap gap-2 justify-center">
                       {shown.map((s) => {
                         const owned = myCollection[s.id] || 0;
-                        const info = RARITY_INFO[effectiveRarity(s)];
-                        return (
+                        return owned ? (
+                          <div key={s.id} style={{ position: "relative" }}>
+                            <CollectibleCard song={s} size={100} onClick={() => setZoomedCard(s)} />
+                            {owned > 1 && (
+                              <span
+                                style={{
+                                  position: "absolute",
+                                  top: 4,
+                                  right: 4,
+                                  fontSize: 9,
+                                  background: "var(--surface)",
+                                  border: "1px solid var(--gold)",
+                                  color: "var(--gold)",
+                                  borderRadius: 999,
+                                  padding: "1px 6px",
+                                  fontWeight: "bold",
+                                }}
+                              >
+                                ×{owned}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
                           <div
                             key={s.id}
                             style={{
                               width: 100,
                               height: 130,
                               borderRadius: 10,
-                              position: "relative",
                               display: "flex",
-                              flexDirection: "column",
                               alignItems: "center",
                               justifyContent: "center",
-                              textAlign: "center",
-                              padding: 6,
-                              background: owned ? "var(--surface2)" : "rgba(20,26,38,0.5)",
-                              border: owned ? `1px solid ${info.color}` : "1px dashed #33294f",
+                              background: "rgba(20,26,38,0.5)",
+                              border: "1px dashed #33294f",
                             }}
                           >
-                            {owned ? (
-                              <>
-                                <span style={{ fontSize: 16 }}>{info.icon}</span>
-                                <p style={{ fontSize: 9, fontWeight: "bold", marginTop: 4 }}>{s.artist}</p>
-                                <p style={{ fontSize: 8, color: "var(--muted)" }}>{s.title}</p>
-                                {owned > 1 && (
-                                  <span style={{ position: "absolute", top: 4, right: 4, fontSize: 9, background: "var(--surface)", borderRadius: 999, padding: "1px 5px" }}>
-                                    ×{owned}
-                                  </span>
-                                )}
-                              </>
-                            ) : (
-                              <span style={{ fontSize: 18, color: "var(--muted)" }}>🔒 ?</span>
-                            )}
+                            <span style={{ fontSize: 18, color: "var(--muted)" }}>🔒 ?</span>
                           </div>
                         );
                       })}
@@ -4605,57 +4729,46 @@ export default function App() {
 
             {!packOpenResult ? (
               <>
-                <section className="w-full rounded-2xl p-5 text-center" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
-                  <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 2, letterSpacing: 2 }}>
-                    <span style={{ color: "#7dffef" }}>PACZKI</span> <span style={{ color: "var(--accent2)" }}>KART</span>
+                <section className="w-full rounded-2xl p-6 text-center card-glow" style={{ background: "var(--surface)", border: "1px solid #7dffef" }}>
+                  <img src={iconSklep} alt="" style={{ height: 56, margin: "0 auto 8px" }} />
+                  <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 40, marginBottom: 4, letterSpacing: 3, color: "#7dffef", textShadow: "0 0 20px rgba(125,255,239,0.5)" }}>
+                    SKLEP
                   </h2>
-                  <p style={{ color: "var(--muted)", fontSize: 11, marginBottom: 10 }}>
-                    3 warianty — im wyższa, tym bardziej „żywa" wizualnie
+                  <p style={{ color: "var(--text)", fontSize: 13, marginBottom: 14 }}>
+                    3 dostępne paczki z kartami do Twojego albumu
                   </p>
-                  <p style={{ color: "var(--gold)", fontSize: 13, fontFamily: "'Bebas Neue', sans-serif" }}>Twoje saldo: {myHitcoin ?? 0} 🪙</p>
+                  <div
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full"
+                    style={{ background: "rgba(255,214,107,0.12)", border: "1px solid var(--gold)" }}
+                  >
+                    <img src={iconHitcoin} alt="" style={{ height: 20 }} />
+                    <span style={{ color: "var(--gold)", fontFamily: "'Bebas Neue', sans-serif", fontSize: 18 }}>{myHitcoin ?? 0}</span>
+                  </div>
                 </section>
 
                 <div
-                  className="w-full flex gap-4"
+                  className="w-full flex gap-6 md:gap-10 md:justify-center"
                   style={{ overflowX: "auto", scrollSnapType: "x mandatory", paddingBottom: 8, paddingLeft: 4, paddingRight: 4 }}
                 >
                   {[
-                    { key: "50", name: "PODSTAWOWA", img: packPodstawowa, ready: true },
-                    { key: "75", name: "ROZSZERZONA", img: null, ready: false },
-                    { key: "100", name: "PREMIUM", img: null, ready: false },
-                  ].map(({ key, name, img, ready }) => {
+                    { key: "50", name: "PODSTAWOWA", img: packPodstawowa },
+                    { key: "75", name: "ROZSZERZONA", img: packRozszerzona },
+                    { key: "100", name: "PREMIUM", img: packPremium },
+                  ].map(({ key, name, img }) => {
                     const config = PACKS[key];
                     return (
                       <div
                         key={key}
-                        style={{ flex: "0 0 auto", width: 170, scrollSnapAlign: "center", display: "flex", flexDirection: "column", alignItems: "center" }}
+                        className="w-40 md:w-56"
+                        style={{ flex: "0 0 auto", scrollSnapAlign: "center", display: "flex", flexDirection: "column", alignItems: "center" }}
                       >
-                        {ready ? (
-                          <img src={img} alt={name} style={{ width: "100%", filter: "drop-shadow(0 8px 20px rgba(0,0,0,0.5))" }} />
-                        ) : (
-                          <div
-                            style={{
-                              width: "100%",
-                              aspectRatio: "0.62",
-                              borderRadius: 16,
-                              border: "1px dashed #33294f",
-                              background: "var(--surface2)",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              textAlign: "center",
-                              padding: 12,
-                            }}
-                          >
-                            <p style={{ fontSize: 11, color: "var(--muted)" }}>🎴 Wkrótce się pojawi</p>
-                          </div>
-                        )}
-                        <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, marginTop: 10 }}>{name}</p>
-                        <p style={{ fontSize: 11, color: "var(--muted)" }}>{config.cards} kart</p>
+                        <img src={img} alt={name} style={{ width: "100%", filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.55))" }} />
+                        <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, marginTop: 12, letterSpacing: 1 }}>{name}</p>
+                        <p style={{ fontSize: 12, color: "var(--muted)" }}>{config.cards} kart</p>
                         <button
                           onClick={() => buyPack(key)}
                           disabled={packShopBusy || (myHitcoin ?? 0) < config.price}
-                          className="mt-2 px-4 py-1.5 rounded-full text-sm font-bold"
+                          className="mt-3 px-5 py-2 rounded-full text-base font-bold flex items-center gap-2"
                           style={{
                             background: "var(--surface2)",
                             border: "1px solid var(--gold)",
@@ -4663,9 +4776,9 @@ export default function App() {
                             opacity: (myHitcoin ?? 0) < config.price ? 0.5 : 1,
                           }}
                         >
-                          🪙 {config.price}
+                          <img src={iconHitcoin} alt="" style={{ height: 18 }} /> {config.price}
                         </button>
-                        <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 6 }}>{(config.diamondChance * 100).toFixed(1)}% szans na Diament</p>
+                        <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>{(config.diamondChance * 100).toFixed(1)}% szans na Diament</p>
                       </div>
                     );
                   })}
@@ -4674,44 +4787,24 @@ export default function App() {
             ) : (
               <section className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
                 <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, marginBottom: 4, textAlign: "center" }}>Kliknij, żeby odkryć kartę</h2>
-                <div className="flex flex-wrap justify-center gap-3 mt-4">
+                <div className="flex flex-wrap justify-center gap-4 mt-4">
                   {packOpenResult.map((item, i) => {
                     const revealed = packRevealedIndices.has(i);
-                    const info = RARITY_INFO[effectiveRarity(item.song)];
+                    const rarity = effectiveRarity(item.song);
+                    const isFancy = rarity === "diamentowa" || rarity === "platynowa";
                     return (
-                      <div
-                        key={i}
-                        onClick={() => {
-                          if (revealed) return;
-                          setPackRevealedIndices((prev) => new Set(prev).add(i));
-                        }}
-                        style={{
-                          width: 130,
-                          height: 180,
-                          borderRadius: 14,
-                          cursor: revealed ? "default" : "pointer",
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          textAlign: "center",
-                          padding: 10,
-                          background: revealed ? "var(--surface2)" : "linear-gradient(160deg, var(--accent2), #2a1a4a)",
-                          border: revealed ? `2px solid ${info.color}` : "2px solid #4c1d95",
-                          boxShadow: revealed ? `0 0 ${info.color === "#7dffef" ? 40 : info.color === "#c4b5fd" ? 26 : 14}px -4px ${info.color}` : "none",
-                          animation: revealed ? "card-reveal-flash 0.5s ease" : "none",
-                        }}
-                      >
+                      <div key={i} style={{ animation: revealed ? "card-reveal-flash 0.5s ease" : "none" }}>
                         {revealed ? (
-                          <>
-                            <span style={{ fontSize: 22 }}>{info.icon}</span>
-                            <p style={{ fontSize: 11, fontWeight: "bold", marginTop: 6 }}>{item.song.artist}</p>
-                            <p style={{ fontSize: 10, color: "var(--muted)" }}>{item.song.title}</p>
-                            <p style={{ fontSize: 10, color: info.color, marginTop: 4 }}>{info.label}</p>
-                            {item.isDuplicate && <p style={{ fontSize: 9, color: "var(--muted)" }}>masz już tę kartę</p>}
-                          </>
+                          <div className="flex flex-col items-center">
+                            <CollectibleCard song={item.song} size={130} onClick={() => setZoomedCard(item.song)} />
+                            {item.isDuplicate && <p style={{ fontSize: 9, color: "var(--muted)", marginTop: 4 }}>masz już tę kartę</p>}
+                          </div>
                         ) : (
-                          <span style={{ fontSize: 28 }}>🎴</span>
+                          <CardBack
+                            size={130}
+                            glow={isFancy}
+                            onClick={() => setPackRevealedIndices((prev) => new Set(prev).add(i))}
+                          />
                         )}
                       </div>
                     );
@@ -5022,7 +5115,9 @@ export default function App() {
               <div className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
                 <div className="flex items-center justify-between mb-2">
                   <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase" }}>Zgadnij wykonawcę i tytuł (opcjonalnie, +1 token)</p>
-                  <span style={{ color: "var(--accent)", fontSize: 12, fontWeight: "bold" }}>🪙 {room.tokens?.[playerId] || 0}</span>
+                  <span style={{ color: "var(--accent)", fontSize: 12, fontWeight: "bold", display: "inline-flex", alignItems: "center", gap: 3 }}>
+                    <img src={iconToken} alt="" style={{ height: 14 }} /> {room.tokens?.[playerId] || 0}
+                  </span>
                 </div>
                 <div className="flex gap-2 flex-wrap">
                   <input type="text" value={guessArtist} onChange={(e) => setGuessArtist(e.target.value)} placeholder="Wykonawca" className="flex-1" style={{ minWidth: 120 }} />
@@ -5043,7 +5138,7 @@ export default function App() {
                       border: "1px solid #33294f",
                     }}
                   >
-                    🔁 Wymień piosenkę ({SWAP_SONG_TOKENS} 🪙)
+                    🔁 Wymień piosenkę ({SWAP_SONG_TOKENS} <img src={iconToken} alt="" style={{ height: 12, display: "inline", verticalAlign: "middle" }} />)
                   </button>
                   <button
                     onClick={buyCard}
@@ -5054,7 +5149,7 @@ export default function App() {
                       color: (room.tokens?.[playerId] || 0) < BUY_CARD_TOKENS ? "var(--muted)" : "#0d1f1a",
                     }}
                   >
-                    🎁 Kup kartę w ciemno ({BUY_CARD_TOKENS} 🪙)
+                    🎁 Kup kartę w ciemno ({BUY_CARD_TOKENS} <img src={iconToken} alt="" style={{ height: 12, display: "inline", verticalAlign: "middle" }} />)
                   </button>
                 </div>
               </div>
@@ -5268,7 +5363,9 @@ export default function App() {
                     cursor: "pointer",
                   }}
                 >
-                  {p.name}: {(room.timelines[p.id] || []).length}/{room.target} · 🪙{room.tokens?.[p.id] || 0}
+                  {p.name}: {(room.timelines[p.id] || []).length}/{room.target} ·{" "}
+                  <img src={iconToken} alt="" style={{ height: 11, display: "inline", verticalAlign: "middle" }} />
+                  {room.tokens?.[p.id] || 0}
                   {p.authed && playerLevels[p.id] !== undefined && ` · lvl ${levelFromXp(playerLevels[p.id]).level}`}
                 </button>
               ))}
@@ -5300,13 +5397,17 @@ export default function App() {
                 <div className="w-full flex flex-col gap-2" style={{ maxWidth: 320 }}>
                   {rest[0] && (
                     <div className="flex items-center justify-between rounded-xl px-4 py-2" style={{ background: "var(--surface2)", border: "1px solid #c0c0c0" }}>
-                      <span>🥈 2. miejsce — {rest[0].name}</span>
+                      <span className="flex items-center gap-2">
+                        <img src={ach2Miejsce} alt="" style={{ height: 22 }} /> 2. miejsce — {rest[0].name}
+                      </span>
                       <span style={{ color: "var(--muted)", fontSize: 12 }}>{(room.timelines[rest[0].id] || []).length} kart</span>
                     </div>
                   )}
                   {rest[1] && (
                     <div className="flex items-center justify-between rounded-xl px-4 py-2" style={{ background: "var(--surface2)", border: "1px solid var(--gold)" }}>
-                      <span>🥉 3. miejsce — {rest[1].name}</span>
+                      <span className="flex items-center gap-2">
+                        <img src={ach3Miejsce} alt="" style={{ height: 22 }} /> 3. miejsce — {rest[1].name}
+                      </span>
                       <span style={{ color: "var(--muted)", fontSize: 12 }}>{(room.timelines[rest[1].id] || []).length} kart</span>
                     </div>
                   )}
@@ -5333,13 +5434,21 @@ export default function App() {
                   <div className="flex gap-3 flex-wrap justify-center">
                     {fastest && (
                       <StatBox
-                        label="Najszybszy gracz"
+                        label={
+                          <span className="flex items-center gap-1">
+                            <img src={achNajszybszy} alt="" style={{ height: 12 }} /> Najszybszy gracz
+                          </span>
+                        }
                         value={`${room.players.find((p) => p.id === fastest.id)?.name} (${(fastest.avg / 1000).toFixed(1)}s)`}
                       />
                     )}
                     {bestStreak && (
                       <StatBox
-                        label="Najdłuższa seria"
+                        label={
+                          <span className="flex items-center gap-1">
+                            <img src={achSeria} alt="" style={{ height: 12 }} /> Najdłuższa seria
+                          </span>
+                        }
                         value={`${room.players.find((p) => p.id === bestStreak[0])?.name}: ${bestStreak[1]} z rzędu`}
                       />
                     )}
@@ -5378,27 +5487,30 @@ export default function App() {
 
             {user && !room.practiceMode && gameEndReward && (
               <div className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
-                <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🪙 Zdobyty HITCOIN</p>
+                <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8, display: "flex", alignItems: "center", gap: 5 }}>
+                  <img src={iconHitcoin} alt="" style={{ height: 14 }} /> Zdobyty HITCOIN
+                </p>
                 <div className="flex flex-col gap-1 text-left mb-3">
                   {gameEndReward.hitcoinItems.map((it, i) => (
                     <div key={i} className="flex items-center justify-between text-sm">
                       <span>{it.label}</span>
-                      <span style={{ color: "var(--gold)" }}>+{it.amount} 🪙</span>
+                      <span style={{ color: "var(--gold)", display: "flex", alignItems: "center", gap: 4 }}>
+                        +{it.amount} <img src={iconHitcoin} alt="" style={{ height: 13 }} />
+                      </span>
                     </div>
                   ))}
                   {gameEndReward.hitcoinItems.length > 1 && (
                     <div className="flex items-center justify-between text-sm mt-1 pt-1" style={{ borderTop: "1px solid #33294f", fontWeight: "bold" }}>
                       <span>Razem</span>
-                      <span style={{ color: "var(--gold)" }}>+{gameEndReward.hitcoinTotal} 🪙</span>
+                      <span style={{ color: "var(--gold)", display: "flex", alignItems: "center", gap: 4 }}>
+                        +{gameEndReward.hitcoinTotal} <img src={iconHitcoin} alt="" style={{ height: 13 }} />
+                      </span>
                     </div>
                   )}
                 </div>
                 {gameEndReward.card && (
-                  <div
-                    className="rounded-xl p-3 flex items-center gap-3"
-                    style={{ background: "var(--surface2)", border: `1px solid ${RARITY_INFO[effectiveRarity(gameEndReward.card.song)].color}` }}
-                  >
-                    <span style={{ fontSize: 22 }}>{RARITY_INFO[effectiveRarity(gameEndReward.card.song)].icon}</span>
+                  <div className="rounded-xl p-3 flex items-center gap-3" style={{ background: "var(--surface2)" }}>
+                    <CollectibleCard song={gameEndReward.card.song} size={64} onClick={() => setZoomedCard(gameEndReward.card.song)} />
                     <div className="text-left flex-1">
                       <p style={{ fontSize: 13, fontWeight: "bold" }}>{gameEndReward.card.song.artist} — {gameEndReward.card.song.title}</p>
                       <p style={{ fontSize: 11, color: RARITY_INFO[effectiveRarity(gameEndReward.card.song)].color }}>
@@ -5492,6 +5604,26 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {zoomedCard && (
+        <div
+          onClick={() => setZoomedCard(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.85)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 110,
+            padding: 24,
+          }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ animation: "scale-pop-in 0.3s ease" }}>
+            <CollectibleCard song={zoomedCard} size={Math.min(340, window.innerWidth * 0.8)} />
+          </div>
+        </div>
+      )}
 
       {incomingChallenge && (
         <div
@@ -5687,7 +5819,8 @@ export default function App() {
             maxWidth: "90%",
           }}
         >
-          🎁 {sharedBoughtNotice.name} kupił(a) kartę za tokeny!
+          <img src={achKupionaKarta} alt="" style={{ height: 16, display: "inline", verticalAlign: "middle", marginRight: 6 }} />
+          {sharedBoughtNotice.name} kupił(a) kartę za tokeny!
         </div>
       )}
 
@@ -5727,7 +5860,9 @@ export default function App() {
           }}
         >
           <div className="rounded-2xl p-5 text-center card-glow" style={{ background: "var(--surface)", maxWidth: 320 }}>
-            <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--good)", marginBottom: 6 }}>🎁 Kupiona karta</p>
+            <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--good)", marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
+              <img src={achKupionaKarta} alt="" style={{ height: 16 }} /> Kupiona karta
+            </p>
             <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 40, color: "var(--accent)" }}>{boughtCardReveal.year}</p>
             <p style={{ fontSize: 15, fontWeight: "bold", marginTop: 4 }}>{boughtCardReveal.artist}</p>
             <p style={{ fontSize: 14, color: "var(--muted)", marginTop: 2 }}>„{boughtCardReveal.title}"</p>
