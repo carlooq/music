@@ -59,8 +59,6 @@ import cardSrebroImg from "./assets/icons/card-srebro.webp";
 import cardZlotoImg from "./assets/icons/card-zlota.webp";
 import cardPlatynaImg from "./assets/icons/card-platynowa.webp";
 import cardDiamentImg from "./assets/icons/card-diamentowa.webp";
-import decoHeroVinyl from "./assets/deco/deco-hero-vinyl-1.webp";
-import decoLightStreaks from "./assets/deco/deco-light-streaks.webp";
 
 // 👉 PODMIEŃ TO NA SWOJE WŁASNE HASŁO trybu admina
 const ADMIN_PASSWORD = "zmien-to-haslo-123";
@@ -334,195 +332,6 @@ const CardBack = memo(function CardBack({ size = 140, glowColor, onClick }) {
     >
       <img src={cardRewers} alt="" style={{ width: "100%", height: "100%", display: "block" }} />
     </div>
-  );
-});
-
-// ============ Nowy system komponentów UI (redesign) ============
-// Wszystkie poniższe są CZYSTO PREZENTACYJNE — przyjmują dane/funkcje przez
-// propsy, nigdy nie posiadają własnej logiki gry ani nie wołają Firestore.
-// Dzięki temu można je bezpiecznie wpinać w istniejące handlery bez ryzyka
-// naruszenia mechaniki.
-
-const GlassPanel = memo(function GlassPanel({ children, className = "", style, strong, noPad }) {
-  return (
-    <div
-      className={className}
-      style={{
-        background: "var(--panel-bg)",
-        backdropFilter: "blur(14px)",
-        border: `1px solid ${strong ? "var(--panel-border-strong)" : "var(--panel-border)"}`,
-        borderRadius: "var(--radius-lg)",
-        padding: noPad ? 0 : "var(--space-lg)",
-        ...style,
-      }}
-    >
-      {children}
-    </div>
-  );
-});
-
-const NEON_COLOR_MAP = {
-  cyan: "var(--cyan)",
-  blue: "var(--blue)",
-  purple: "var(--purple)",
-  magenta: "var(--magenta)",
-  gold: "var(--gold)",
-};
-
-const NeonCard = memo(function NeonCard({ children, color = "cyan", onClick, className = "", style, disabled }) {
-  const c = NEON_COLOR_MAP[color] || color;
-  return (
-    <div
-      onClick={disabled ? undefined : onClick}
-      className={className}
-      style={{
-        position: "relative",
-        background: "var(--panel-bg)",
-        border: `1px solid ${c}`,
-        borderRadius: "var(--radius-md)",
-        boxShadow: `0 0 18px -6px ${c}`,
-        cursor: onClick && !disabled ? "pointer" : "default",
-        opacity: disabled ? 0.5 : 1,
-        transition: "transform 0.15s ease, box-shadow 0.15s ease",
-        ...style,
-      }}
-      onMouseEnter={(e) => {
-        if (onClick && !disabled) e.currentTarget.style.boxShadow = `0 0 28px -4px ${c}`;
-      }}
-      onMouseLeave={(e) => {
-        if (onClick && !disabled) e.currentTarget.style.boxShadow = `0 0 18px -6px ${c}`;
-      }}
-    >
-      {children}
-    </div>
-  );
-});
-
-const PrimaryCTA = memo(function PrimaryCTA({ children, onClick, disabled, icon, className = "" }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`w-full flex items-center justify-center gap-2 font-bold pulse-cta ${className}`}
-      style={{
-        background: "linear-gradient(115deg, var(--cyan), var(--purple) 55%, var(--magenta))",
-        border: "none",
-        borderRadius: "var(--radius-pill)",
-        padding: "16px 24px",
-        color: "#0a0410",
-        fontSize: 16,
-        letterSpacing: 0.5,
-        opacity: disabled ? 0.5 : 1,
-        cursor: disabled ? "default" : "pointer",
-        boxShadow: "0 0 24px -6px var(--purple), 0 8px 20px -8px rgba(0,0,0,0.6)",
-      }}
-    >
-      {children}
-      {icon}
-    </button>
-  );
-});
-
-const SecondaryButton = memo(function SecondaryButton({ children, onClick, disabled, className = "" }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`font-bold ${className}`}
-      style={{
-        background: "var(--surface2)",
-        border: "1px solid var(--panel-border-strong)",
-        borderRadius: "var(--radius-pill)",
-        padding: "12px 22px",
-        color: "var(--cyan)",
-        fontSize: 14,
-        opacity: disabled ? 0.5 : 1,
-        cursor: disabled ? "default" : "pointer",
-      }}
-    >
-      {children}
-    </button>
-  );
-});
-
-const CurrencyBadge = memo(function CurrencyBadge({ icon, value, color = "gold", onClick }) {
-  const c = NEON_COLOR_MAP[color] || color;
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 6,
-        background: `${c}1f`,
-        border: `1px solid ${c}`,
-        borderRadius: "var(--radius-pill)",
-        padding: "5px 12px",
-        color: c,
-        fontFamily: "'Bebas Neue', sans-serif",
-        fontSize: 14,
-        cursor: onClick ? "pointer" : "default",
-      }}
-    >
-      {typeof icon === "string" ? <img src={icon} alt="" style={{ height: 15 }} /> : icon}
-      {value}
-    </button>
-  );
-});
-
-const SectionHeader = memo(function SectionHeader({ icon, children, action }) {
-  return (
-    <div className="w-full flex items-center justify-between" style={{ marginBottom: "var(--space-sm)" }}>
-      <div className="flex items-center gap-2" style={{ color: "var(--text-secondary)", fontSize: 11, textTransform: "uppercase", letterSpacing: 1.5 }}>
-        {icon && <span>{icon}</span>}
-        <span>{children}</span>
-      </div>
-      {action}
-    </div>
-  );
-});
-
-const GameModeCard = memo(function GameModeCard({ icon, title, subtitle, onClick, disabled, premium, badge }) {
-  return (
-    <NeonCard color={premium ? "gold" : "cyan"} onClick={disabled ? undefined : onClick} disabled={disabled} className="flex-1 text-center" style={{ padding: "18px 12px", minWidth: 130 }}>
-      {premium && (
-        <span
-          style={{
-            position: "absolute",
-            top: -10,
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: "var(--gold)",
-            color: "#241a00",
-            fontSize: 9,
-            fontWeight: "bold",
-            padding: "2px 8px",
-            borderRadius: "var(--radius-pill)",
-            letterSpacing: 0.5,
-          }}
-        >
-          PREMIUM
-        </span>
-      )}
-      {typeof icon === "string" ? <img src={icon} alt="" style={{ height: 42, margin: "0 auto" }} /> : icon}
-      <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, marginTop: 6, color: premium ? "var(--gold)" : "var(--text)" }}>{title}</p>
-      {subtitle && <p style={{ color: "var(--text-secondary)", fontSize: 10, marginTop: 2 }}>{subtitle}</p>}
-      {badge && <p style={{ color: premium ? "var(--gold)" : "var(--cyan)", fontSize: 10, marginTop: 6, fontWeight: "bold" }}>{badge}</p>}
-    </NeonCard>
-  );
-});
-
-const StatTile = memo(function StatTile({ icon, label, value, sublabel, onClick, color = "cyan" }) {
-  const c = NEON_COLOR_MAP[color] || color;
-  return (
-    <NeonCard color={color} onClick={onClick} className="flex-1" style={{ padding: "14px 16px", minWidth: 130 }}>
-      <div className="flex items-center gap-2 mb-1">
-        {typeof icon === "string" ? <img src={icon} alt="" style={{ height: 18 }} /> : icon}
-        <span style={{ fontSize: 10, textTransform: "uppercase", color: "var(--text-secondary)", letterSpacing: 0.5 }}>{label}</span>
-      </div>
-      <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: c }}>{value}</p>
-      {sublabel && <p style={{ fontSize: 10, color: "var(--text-secondary)" }}>{sublabel}</p>}
-    </NeonCard>
   );
 });
 
@@ -3154,20 +2963,6 @@ export default function App() {
           --accent: #00e6c3; --accent2: #8b5cf6; --accent3: #ff5fc9; --gold: #ffb020;
           --good: #2af598; --bad: #ff3868;
           --text: #f4eefc; --muted: #9c8fc2;
-
-          /* --- Rozszerzony system tokenów (redesign UI/UX) — DODANE, stare tokeny
-             wyżej zostają nietknięte, bo używa ich cała reszta jeszcze
-             nieprzebudowanych ekranów. Nowe komponenty korzystają z tych. --- */
-          --cyan: #00e6c3; --blue: #3b82f6; --purple: #8b5cf6; --magenta: #ff5fc9;
-          --panel-bg: rgba(10, 16, 28, 0.72);
-          --panel-border: rgba(139, 92, 246, 0.25);
-          --panel-border-strong: rgba(0, 230, 195, 0.45);
-          --text-secondary: #9c8fc2;
-          --radius-sm: 10px; --radius-md: 16px; --radius-lg: 24px; --radius-pill: 999px;
-          --space-xs: 4px; --space-sm: 8px; --space-md: 16px; --space-lg: 24px; --space-xl: 40px;
-          --glow-cyan: 0 0 20px -4px rgba(0,230,195,0.6);
-          --glow-purple: 0 0 20px -4px rgba(139,92,246,0.6);
-          --glow-gold: 0 0 20px -4px rgba(255,176,32,0.6);
         }
         @keyframes spin-record { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes slide-fade-in {
@@ -3226,9 +3021,6 @@ export default function App() {
         .slot-btn { transition: all 0.15s ease; }
         .slot-btn:hover { background: linear-gradient(115deg, var(--accent), var(--accent2), var(--accent3)) !important; color: #0a0410 !important; box-shadow: 0 0 16px -2px var(--accent); }
         .pulse-cta { animation: pulse-glow 2.4s ease-in-out infinite; }
-        @media (prefers-reduced-motion: reduce) {
-          *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
-        }
         input[type="text"], input[type="number"], input[type="password"], textarea {
           background: var(--surface2); border: 1px solid rgba(139,92,246,0.35); color: var(--text);
           border-radius: 8px; padding: 8px 10px; font-family: 'Space Mono', monospace;
@@ -3237,7 +3029,7 @@ export default function App() {
         input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,230,195,0.25); }
       `}</style>
 
-      {user && myXp !== null && screen !== "home" && (
+      {user && myXp !== null && (
         <div style={{ position: "fixed", top: 14, right: 14, zIndex: 90, display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
           <button
             onClick={screen === "home" ? openStats : undefined}
@@ -3280,25 +3072,21 @@ export default function App() {
         </div>
       )}
 
-      <div className="w-full flex flex-col items-center" style={{ maxWidth: screen === "home" ? 1120 : 720 }}>
-        {screen !== "home" && (
-          <>
-            <button
-              onClick={goHome}
-              className="flex items-center justify-center mb-1"
-              style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
-              title="Strona główna"
-            >
-              <img src={logoImg} alt="Hitsteriada" style={{ height: 100, filter: "drop-shadow(0 0 18px rgba(0,230,195,0.55)) drop-shadow(0 0 28px rgba(139,92,246,0.3))" }} />
-            </button>
-            <button
-              onClick={() => setShowOnlineList((v) => !v)}
-              style={{ color: "var(--muted)", fontSize: 12, marginBottom: showOnlineList ? 8 : 24, background: "none", border: "none", cursor: "pointer" }}
-            >
-              🟢 {onlinePlayers.length} graczy online • każdy gra u siebie, w swoim miejscu {showOnlineList ? "▲" : "▼"}
-            </button>
-          </>
-        )}
+      <div className="w-full flex flex-col items-center" style={{ maxWidth: 720 }}>
+        <button
+          onClick={goHome}
+          className="flex items-center justify-center mb-1"
+          style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
+          title="Strona główna"
+        >
+          <img src={logoImg} alt="Hitsteriada" style={{ height: 100, filter: "drop-shadow(0 0 18px rgba(0,230,195,0.55)) drop-shadow(0 0 28px rgba(139,92,246,0.3))" }} />
+        </button>
+        <button
+          onClick={() => setShowOnlineList((v) => !v)}
+          style={{ color: "var(--muted)", fontSize: 12, marginBottom: showOnlineList ? 8 : 24, background: "none", border: "none", cursor: "pointer" }}
+        >
+          🟢 {onlinePlayers.length} graczy online • każdy gra u siebie, w swoim miejscu {showOnlineList ? "▲" : "▼"}
+        </button>
 
         {showOnlineList && (
           <div className="w-full rounded-xl p-3 mb-6" style={{ background: "var(--surface2)", maxWidth: 340 }}>
@@ -3785,18 +3573,6 @@ export default function App() {
                       </div>
                     </div>
                   )}
-                  <div>
-                    <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase", marginBottom: 8, display: "flex", alignItems: "center", gap: 5 }}>
-                      <img src={achAlbum} alt="" style={{ height: 14 }} /> Kolekcja kart — {Object.keys(viewingPlayer.stats.cardCollection || {}).length} łącznie
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {RARITY_ORDER.map((r) => (
-                        <span key={r} style={{ fontSize: 11, color: RARITY_INFO[r].color }}>
-                          {RARITY_INFO[r].icon} {viewingPlayer.stats.cardsByRarity?.[r] || 0}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
                 </div>
               )}
             </section>
@@ -4385,102 +4161,6 @@ export default function App() {
 
         {screen === "home" && !showStats && !showLeaderboard && !showAdminPanel && !showAchievements && (
           <div className="w-full flex flex-col gap-5">
-            {/* ====== NOWY TOPBAR (tylko strona główna) ====== */}
-            <div className="w-full flex items-center justify-between gap-3 flex-wrap" style={{ marginBottom: 4 }}>
-              <button onClick={goHome} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center" }}>
-                <img src={logoImg} alt="Hitsteriada" style={{ height: 52, filter: "drop-shadow(0 0 14px rgba(0,230,195,0.5))" }} />
-              </button>
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  onClick={() => setShowOnlineList((v) => !v)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    background: "var(--panel-bg)",
-                    border: "1px solid var(--panel-border)",
-                    borderRadius: "var(--radius-pill)",
-                    padding: "6px 12px",
-                    color: "var(--good)",
-                    fontSize: 12,
-                  }}
-                >
-                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--good)", boxShadow: "0 0 6px var(--good)" }} />
-                  {onlinePlayers.length} online
-                </button>
-                {user && myXp !== null && (
-                  <button
-                    onClick={openStats}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      background: "var(--panel-bg)",
-                      border: "1px solid var(--panel-border-strong)",
-                      borderRadius: "var(--radius-pill)",
-                      padding: "6px 14px",
-                      boxShadow: "var(--glow-cyan)",
-                    }}
-                  >
-                    <span style={{ color: "var(--cyan)", fontFamily: "'Bebas Neue', sans-serif", fontSize: 14 }}>⭐ LVL {levelFromXp(myXp).level}</span>
-                    <span
-                      className="hidden sm:block"
-                      style={{ width: 60, height: 5, borderRadius: 3, background: "rgba(255,255,255,0.1)", overflow: "hidden" }}
-                    >
-                      <span
-                        style={{
-                          display: "block",
-                          height: "100%",
-                          width: `${Math.min(100, Math.round((levelFromXp(myXp).currentLevelXp / levelFromXp(myXp).xpForNextLevel) * 100))}%`,
-                          background: "linear-gradient(90deg, var(--cyan), var(--purple))",
-                        }}
-                      />
-                    </span>
-                  </button>
-                )}
-                {myHitcoin !== null && <CurrencyBadge icon={iconHitcoin} value={myHitcoin} color="gold" onClick={openStats} />}
-              </div>
-            </div>
-
-            {/* WARSTWA 1 — główna akcja, hero panel z grafiką winyla */}
-            <GlassPanel strong style={{ position: "relative", overflow: "hidden" }} className="w-full">
-              <img
-                src={decoHeroVinyl}
-                alt=""
-                className="hidden md:block"
-                style={{ position: "absolute", right: -40, top: "50%", transform: "translateY(-50%)", height: 260, opacity: 0.85, pointerEvents: "none" }}
-              />
-              <img
-                src={decoLightStreaks}
-                alt=""
-                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.35, pointerEvents: "none" }}
-              />
-              <div style={{ position: "relative", maxWidth: 420 }}>
-                <p style={{ color: "var(--cyan)", fontSize: 11, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 6 }}>Graj teraz</p>
-                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, lineHeight: 1.1, marginBottom: 6 }}>
-                  Twój utwór. <span style={{ background: "linear-gradient(90deg, var(--cyan), var(--purple))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Twoja zasada.</span>
-                </h2>
-                <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 18 }}>Stwórz pokój lub dołącz do gry i baw się muzyką!</p>
-                <PrimaryCTA onClick={createRoom} disabled={busy}>
-                  STWÓRZ POKÓJ
-                </PrimaryCTA>
-                <div className="flex gap-2 mt-3">
-                  <input
-                    type="text"
-                    value={joinCode}
-                    onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                    placeholder="KOD POKOJU"
-                    maxLength={4}
-                    className="flex-1"
-                    style={{ textAlign: "center", fontSize: 15, letterSpacing: 2 }}
-                  />
-                  <SecondaryButton onClick={() => joinRoom()} disabled={busy}>
-                    Dołącz
-                  </SecondaryButton>
-                </div>
-              </div>
-            </GlassPanel>
-
             {/* PASEK TOŻSAMOŚCI — kompaktowy, jedna linia zamiast całej formy */}
             <section
               className="w-full rounded-xl p-3 flex items-center justify-between gap-2 flex-wrap"
@@ -4548,38 +4228,116 @@ export default function App() {
               </section>
             )}
 
+            {/* WARSTWA 1 — główna akcja */}
+            <div>
+              <p style={{ color: "var(--muted)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Zacznij grać</p>
+              <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, textAlign: "center", marginBottom: 4 }}>Nowa gra</h2>
+                <p style={{ color: "var(--muted)", fontSize: 12, textAlign: "center", marginBottom: 14 }}>Stwórz pokój i wyślij kod znajomym</p>
+                <button onClick={createRoom} disabled={busy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+                  STWÓRZ POKÓJ
+                </button>
+                <div className="flex gap-2 mt-3">
+                  <input
+                    type="text"
+                    value={joinCode}
+                    onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                    placeholder="KOD POKOJU"
+                    maxLength={4}
+                    className="flex-1"
+                    style={{ textAlign: "center", fontSize: 15, letterSpacing: 2 }}
+                  />
+                  <button onClick={() => joinRoom()} disabled={busy} className="px-4 py-2 rounded-lg text-sm font-bold" style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}>
+                    Dołącz
+                  </button>
+                </div>
+              </section>
+            </div>
+
             {/* WARSTWA 2 — tryby poboczne */}
             <div>
-              <SectionHeader icon="🎮">Tryby gry</SectionHeader>
+              <p style={{ color: "var(--muted)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Inne tryby</p>
               <div className="flex flex-wrap gap-3">
-                <GameModeCard icon={iconTrening} title="Trening" subtitle="solo, wybierz kategorie" onClick={() => setScreen("practiceSetup")} />
+                <button
+                  onClick={() => setScreen("practiceSetup")}
+                  className="flex-1 rounded-2xl p-4 text-center card-glow"
+                  style={{ background: "var(--surface)", border: "1px solid #22304f", minWidth: 110 }}
+                >
+                  <img src={iconTrening} alt="" style={{ height: 40, margin: "0 auto" }} />
+                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15 }}>Trening</p>
+                  <p style={{ color: "var(--muted)", fontSize: 9 }}>solo, wybierz kategorie</p>
+                </button>
                 {user && (
-                  <GameModeCard icon={iconPiosenkaDnia} title="Piosenka dnia" subtitle="ta sama dla wszystkich" onClick={openDailySong} disabled={dailyBusy} />
+                  <button
+                    onClick={openDailySong}
+                    disabled={dailyBusy}
+                    className="flex-1 rounded-2xl p-4 text-center card-glow"
+                    style={{ background: "var(--surface)", border: "1px solid #22304f", minWidth: 110 }}
+                  >
+                    <img src={iconPiosenkaDnia} alt="" style={{ height: 40, margin: "0 auto" }} />
+                    <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15 }}>Piosenka dnia</p>
+                    <p style={{ color: "var(--muted)", fontSize: 9 }}>ta sama dla wszystkich</p>
+                  </button>
                 )}
                 {user && (
-                  <GameModeCard icon={iconPlaylistaDnia} title="Playlista dnia" subtitle="ułóż 10 piosenek na osi" onClick={openDailyPlaylistHub} disabled={dailyPlaylistBusy} />
+                  <button
+                    onClick={openDailyPlaylistHub}
+                    disabled={dailyPlaylistBusy}
+                    className="flex-1 rounded-2xl p-4 text-center card-glow"
+                    style={{ background: "var(--surface)", border: "1px solid #22304f", minWidth: 110 }}
+                  >
+                    <img src={iconPlaylistaDnia} alt="" style={{ height: 40, margin: "0 auto" }} />
+                    <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15 }}>Playlista dnia</p>
+                    <p style={{ color: "var(--muted)", fontSize: 9 }}>ułóż 10 piosenek na osi</p>
+                  </button>
                 )}
                 {user && activeTournament && (
-                  <GameModeCard
-                    icon={iconTurniej}
-                    title="Turniej"
-                    premium
-                    badge={activeTournament.status === "signup" ? `${activeTournament.signups.length}/${activeTournament.maxPlayers} zapisanych` : "trwa!"}
+                  <button
                     onClick={openTournamentHub}
                     disabled={tournamentBusy}
-                  />
+                    className="flex-1 rounded-2xl p-4 text-center card-glow"
+                    style={{ background: "var(--surface)", border: "1px solid var(--gold)", minWidth: 110 }}
+                  >
+                    <img src={iconTurniej} alt="" style={{ height: 40, margin: "0 auto" }} />
+                    <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: "var(--gold)" }}>Turniej</p>
+                    <p style={{ color: "var(--muted)", fontSize: 9 }}>{activeTournament.status === "signup" ? `${activeTournament.signups.length}/${activeTournament.maxPlayers} zapisanych` : "trwa!"}</p>
+                  </button>
                 )}
               </div>
             </div>
 
-            {/* WARSTWA 3 — statystyki i ranking */}
+            {/* WARSTWA 3 — statystyki i ranking, wyróżnione podobnie jak tryby powyżej */}
             <div>
-              <SectionHeader icon="📊">Sprawdź</SectionHeader>
-              <div className="flex flex-wrap gap-3">
-                {user && <StatTile icon={iconStatystyki} label="Statystyki" value={`LVL ${levelFromXp(myXp || 0).level}`} onClick={openStats} color="purple" />}
-                <StatTile icon={iconRanking} label="Ranking" value="Zobacz" onClick={() => openLeaderboard()} color="gold" />
-                {user && <StatTile icon={iconSklep} label="Sklep" value="Paczki" onClick={() => setScreen("packShop")} color="cyan" />}
-                {user && <StatTile icon={achAlbum} label="Album" value={Object.keys(stats?.cardCollection || {}).length} sublabel="kart" onClick={openAlbum} color="magenta" />}
+              <p style={{ color: "var(--muted)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Sprawdź</p>
+              <div className="flex gap-3">
+                {user && (
+                  <button
+                    onClick={openStats}
+                    className="flex-1 rounded-2xl p-4 text-center card-glow"
+                    style={{ background: "var(--surface)", border: "1px solid var(--accent2)" }}
+                  >
+                    <img src={iconStatystyki} alt="" style={{ height: 40, margin: "0 auto" }} />
+                    <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: "var(--accent2)" }}>Statystyki</p>
+                  </button>
+                )}
+                <button
+                  onClick={() => openLeaderboard()}
+                  className="flex-1 rounded-2xl p-4 text-center card-glow"
+                  style={{ background: "var(--surface)", border: "1px solid var(--gold)" }}
+                >
+                  <img src={iconRanking} alt="" style={{ height: 40, margin: "0 auto" }} />
+                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: "var(--gold)" }}>Ranking</p>
+                </button>
+                {user && (
+                  <button
+                    onClick={() => setScreen("packShop")}
+                    className="flex-1 rounded-2xl p-4 text-center card-glow"
+                    style={{ background: "var(--surface)", border: "1px solid #7dffef" }}
+                  >
+                    <img src={iconSklep} alt="" style={{ height: 40, margin: "0 auto" }} />
+                    <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: "#7dffef" }}>Sklep</p>
+                  </button>
+                )}
               </div>
             </div>
 
