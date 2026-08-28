@@ -1506,6 +1506,7 @@ export default function App() {
         getStats(u.uid).then((s) => {
           setMyXp(s?.xp || 0);
           setMyHitcoin(s?.hitcoin || 0);
+          setStats(s);
         }).catch(() => {});
       }
     });
@@ -3063,17 +3064,30 @@ export default function App() {
         .hs-sub { color: #b8b8d0; font-size: 12px; margin: 0 0 16px; }
         .hs-btn-wrap { position: relative; height: 52px; max-width: 280px; }
         .hs-cut { clip-path: polygon(15px 0, calc(100% - 15px) 0, 100% 15px, 100% calc(100% - 15px), calc(100% - 15px) 100%, 15px 100%, 0 calc(100% - 15px), 0 15px); }
-        .hs-glow { position: absolute; inset: -4px; background: linear-gradient(90deg,#ee17f8,#7d1de8,#2a68f9); filter: blur(20px); opacity: 0.65; }
+        .hs-glow { position: absolute; inset: -4px; border-radius: 16px; background: linear-gradient(90deg,#ee17f8,#7d1de8,#2a68f9); filter: blur(20px); opacity: 0.65; }
         .hs-rim { position: absolute; inset: 0; background: linear-gradient(90deg,#ff8bf0,#b18bff,#7fd4ff); }
         .hs-fillbtn { position: absolute; inset: 1.5px; background: linear-gradient(90deg,#c60ee0,#5d0dd0,#0e4ce8); transition: filter 0.15s ease; overflow: hidden; }
         .hs-fillbtn::after { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 55%; background: linear-gradient(180deg, rgba(255,255,255,0.4), rgba(255,255,255,0) 100%); }
         .hs-btn-wrap:hover .hs-fillbtn { filter: brightness(1.15); }
         .hs-btnlabel { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px; font-family: 'Bebas Neue', sans-serif; font-size: 17px; letter-spacing: 0.5px; z-index: 3; color: #fff; }
         .hs-join-row { display: flex; gap: 8px; margin-top: 4px; }
-        .hs-tiles-row { display: flex; gap: 12px; flex-wrap: wrap; }
+        .hs-input {
+          height: 38px; border-radius: 0 !important; background: #0e0e22 !important;
+          border: 1.3px solid rgba(79,214,255,0.5) !important; color: #fff; font-size: 12px;
+          clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
+        }
+        .hs-input:focus { border-color: #4fd6ff !important; box-shadow: none !important; }
+        .hs-join-btn {
+          height: 38px; padding: 0 16px; border: 1.3px solid #4fd6ff; cursor: pointer;
+          font-size: 12px; font-weight: 800; letter-spacing: 0.3px; color: #4fd6ff; white-space: nowrap;
+          background: rgba(79,214,255,0.08);
+          clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
+        }
+        .hs-join-btn:hover { background: rgba(79,214,255,0.18); }
+        .hs-tiles-row { display: flex; align-items: stretch; gap: 12px; flex-wrap: wrap; }
         .hs-tile {
-          position: relative; flex: 1; min-width: 140px; border-radius: 4px; padding: 12px 10px;
-          min-height: 110px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+          position: relative; flex: 1; min-width: 140px; height: 104px; border-radius: 4px; padding: 12px 10px;
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
           text-align: center; gap: 4px; background: #0c0c1cdd; border: 1.5px solid;
           clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px), 0 14px);
         }
@@ -3130,7 +3144,7 @@ export default function App() {
           .hs-hero-right { aspect-ratio: auto; min-height: 170px; }
           .hs-stats-grid { grid-template-columns: repeat(2, 1fr); }
           .hs-tiles-row { flex-wrap: wrap; }
-          .hs-tile { min-width: calc(50% - 6px); flex: 0 0 calc(50% - 6px); min-height: 130px; }
+          .hs-tile { min-width: calc(50% - 6px); flex: 0 0 calc(50% - 6px); height: 118px; }
           .hs-tile img.hs-icon { height: 54px; }
           .hs-h1 { font-size: 24px; }
         }
@@ -4412,7 +4426,7 @@ export default function App() {
                         style={{ position: "absolute", inset: 0, background: "none", border: "none", cursor: "pointer", padding: 0, zIndex: 4 }}
                         aria-label="Stwórz pokój"
                       />
-                      <div className="hs-glow hs-cut" />
+                      <div className="hs-glow" />
                       <div className="hs-rim hs-cut" />
                       <div className="hs-fillbtn hs-cut" />
                       <div className="hs-btnlabel">STWÓRZ POKÓJ</div>
@@ -4424,10 +4438,10 @@ export default function App() {
                         onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                         placeholder="KOD POKOJU"
                         maxLength={4}
-                        className="flex-1"
+                        className="hs-input flex-1"
                         style={{ textAlign: "center", fontSize: 13, letterSpacing: 2 }}
                       />
-                      <button onClick={() => joinRoom()} disabled={busy} className="px-4 py-2 rounded-lg text-sm font-bold" style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}>
+                      <button onClick={() => joinRoom()} disabled={busy} className="hs-join-btn">
                         Dołącz
                       </button>
                     </div>
@@ -4447,14 +4461,12 @@ export default function App() {
                     <button onClick={() => setScreen("practiceSetup")} className="hs-tile hs-tile-cyan">
                       <img className="hs-icon" src={glTrening} alt="" />
                       <div className="hs-t">TRENING</div>
-                      <div className="hs-d">Ćwicz i poznawaj kategorie</div>
                       <div className="hs-arrow" style={{ color: "#4fd6ff" }}>›</div>
                     </button>
                     {user && (
                       <button onClick={openDailySong} disabled={dailyBusy} className="hs-tile hs-tile-pink">
                         <img className="hs-icon" src={glPiosenka} alt="" />
                         <div className="hs-t">PIOSENKA DNIA</div>
-                        <div className="hs-d">Jedna piosenka dla wszystkich</div>
                         <div className="hs-arrow" style={{ color: "#ff5fc9" }}>›</div>
                       </button>
                     )}
@@ -4462,12 +4474,11 @@ export default function App() {
                       <button onClick={openDailyPlaylistHub} disabled={dailyPlaylistBusy} className="hs-tile hs-tile-violet">
                         <img className="hs-icon" src={glPlaylista} alt="" />
                         <div className="hs-t">PLAYLISTA DNIA</div>
-                        <div className="hs-d">Codziennie nowa playlista</div>
                         <div className="hs-arrow" style={{ color: "#a56bff" }}>›</div>
                       </button>
                     )}
                     {user && activeTournament && (
-                      <div style={{ position: "relative", flex: 1, minWidth: 140 }}>
+                      <div style={{ position: "relative", flex: 1, minWidth: 140, display: "flex" }}>
                         <div className="hs-badge">★ PREMIUM</div>
                         <button onClick={openTournamentHub} disabled={tournamentBusy} className="hs-tile hs-tile-gold" style={{ width: "100%" }}>
                           <img className="hs-icon" src={glTurniej} alt="" />
@@ -4564,10 +4575,15 @@ export default function App() {
               <>
                 <button
                   onClick={() => setShowProposeForm((v) => !v)}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold"
-                  style={{ background: "var(--surface2)", border: "1px solid #33294f", color: "var(--good)" }}
+                  className="hs-side-card"
+                  style={{ width: "100%", textAlign: "left", borderColor: "#4fe0c0", boxShadow: "0 0 18px rgba(79,224,192,0.35)", cursor: "pointer" }}
                 >
-                  <img src={iconZaproponuj} alt="" style={{ height: 20 }} /> Zaproponuj nowy utwór
+                  <img src={iconZaproponuj} alt="" style={{ height: 30, filter: "drop-shadow(0 0 8px rgba(79,224,192,0.4))" }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--good)" }}>ZAPROPONUJ NOWY UTWÓR</div>
+                    <div style={{ fontSize: 11, color: "var(--muted)" }}>Masz pomysł na hit?</div>
+                  </div>
+                  <span style={{ color: "var(--good)", fontSize: 18 }}>{showProposeForm ? "▲" : "›"}</span>
                 </button>
 
                 {showProposeForm && (
