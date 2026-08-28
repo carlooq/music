@@ -56,6 +56,7 @@ import glKorona from "./assets/icons/gl-korona.png";
 import glPrezent from "./assets/icons/gl-prezent.png";
 import glKoszyk from "./assets/icons/gl-koszyk.png";
 import glOsoba from "./assets/icons/gl-osoba.png";
+import glGraj from "./assets/icons/gl-graj.png";
 import achOsiagniecia from "./assets/icons/ach-osiagniecia.png";
 import ach1Miejsce from "./assets/icons/ach-1miejsce.png";
 import ach2Miejsce from "./assets/icons/ach-2miejsce.png";
@@ -3062,9 +3063,10 @@ export default function App() {
         .hs-sub { color: #b8b8d0; font-size: 12px; margin: 0 0 16px; }
         .hs-btn-wrap { position: relative; height: 52px; max-width: 280px; }
         .hs-cut { clip-path: polygon(15px 0, calc(100% - 15px) 0, 100% 15px, 100% calc(100% - 15px), calc(100% - 15px) 100%, 15px 100%, 0 calc(100% - 15px), 0 15px); }
-        .hs-glow { position: absolute; inset: -6px; background: linear-gradient(90deg,#ee17f8,#7d1de8,#2a68f9); filter: blur(9px); opacity: 0.85; }
+        .hs-glow { position: absolute; inset: -4px; background: linear-gradient(90deg,#ee17f8,#7d1de8,#2a68f9); filter: blur(20px); opacity: 0.65; }
         .hs-rim { position: absolute; inset: 0; background: linear-gradient(90deg,#ff8bf0,#b18bff,#7fd4ff); }
-        .hs-fillbtn { position: absolute; inset: 3px; background: linear-gradient(90deg,#c60ee0,#5d0dd0,#0e4ce8); transition: filter 0.15s ease; }
+        .hs-fillbtn { position: absolute; inset: 1.5px; background: linear-gradient(90deg,#c60ee0,#5d0dd0,#0e4ce8); transition: filter 0.15s ease; overflow: hidden; }
+        .hs-fillbtn::after { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 55%; background: linear-gradient(180deg, rgba(255,255,255,0.4), rgba(255,255,255,0) 100%); }
         .hs-btn-wrap:hover .hs-fillbtn { filter: brightness(1.15); }
         .hs-btnlabel { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px; font-family: 'Bebas Neue', sans-serif; font-size: 17px; letter-spacing: 0.5px; z-index: 3; color: #fff; }
         .hs-join-row { display: flex; gap: 8px; margin-top: 4px; }
@@ -3102,6 +3104,25 @@ export default function App() {
         .hs-stat-tile img { height: 30px; flex-shrink: 0; }
         .hs-stat-tile .hs-lbl { font-size: 10px; color: #9d9db8; text-transform: uppercase; letter-spacing: 0.5px; }
         .hs-stat-tile .hs-val { font-size: 17px; font-weight: 800; font-family: 'Bebas Neue', sans-serif; }
+        .hs-xp-bar { width: 42px; height: 5px; border-radius: 4px; background: rgba(255,255,255,0.15); overflow: hidden; display: inline-block; vertical-align: middle; }
+        .hs-xp-bar > div { height: 100%; background: linear-gradient(90deg,#4f8cff,#8b5cf6); }
+
+        .hs-bottom-nav { display: none; }
+        @media (max-width: 860px) {
+          .hs-bottom-nav {
+            display: flex; justify-content: space-around; align-items: center;
+            position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+            background: rgba(8,8,18,0.94); border-top: 1px solid #26264a;
+            backdrop-filter: blur(6px); padding: 8px 6px calc(8px + env(safe-area-inset-bottom));
+          }
+          .hs-nav-item { display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: none; padding: 0; position: relative; }
+          .hs-nav-item img { height: 22px; filter: grayscale(1) brightness(1.7) opacity(0.5); }
+          .hs-nav-item span { font-size: 9px; color: #7d7d96; font-weight: 700; }
+          .hs-nav-item.active img { filter: none; }
+          .hs-nav-item.active span { color: #ff5fc9; }
+          .hs-nav-item.active::after { content: ""; position: absolute; bottom: -8px; width: 22px; height: 3px; border-radius: 2px; background: linear-gradient(90deg,#ff5fc9,#4f8cff); left: 50%; transform: translateX(-50%); }
+          .hs-content { padding-bottom: 70px; }
+        }
         .hs-footer-full { width: 100%; height: 78px; background: url(${footerStrip}) center / contain no-repeat; margin-top: 4px; }
 
         @media (max-width: 860px) {
@@ -3162,11 +3183,11 @@ export default function App() {
         {screen === "home" ? (
           <div className="w-full" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, flexWrap: "wrap", position: "relative", zIndex: 1 }}>
             <button onClick={goHome} className="flex items-center gap-2" style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }} title="Strona główna">
-              <img src={logoImg} alt="" style={{ height: 38 }} />
+              <img src={logoImg} alt="" style={{ height: 56 }} />
               <span
                 style={{
                   fontFamily: "'Bebas Neue', sans-serif",
-                  fontSize: 20,
+                  fontSize: 24,
                   letterSpacing: 0.5,
                   background: "linear-gradient(90deg, #ff8bec, #7fb8ff)",
                   WebkitBackgroundClip: "text",
@@ -3188,9 +3209,10 @@ export default function App() {
             {user && myXp !== null && (
               <button
                 onClick={openStats}
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid var(--accent)", color: "var(--accent)", fontSize: 12, cursor: "pointer", fontFamily: "'Bebas Neue', sans-serif" }}
+                style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid var(--accent)", color: "var(--accent)", fontSize: 12, cursor: "pointer", fontFamily: "'Bebas Neue', sans-serif" }}
               >
                 ⭐ LVL {levelFromXp(myXp).level}
+                <span className="hs-xp-bar"><div style={{ width: `${Math.round((levelFromXp(myXp).currentLevelXp / levelFromXp(myXp).xpForNextLevel) * 100)}%` }} /></span>
               </button>
             )}
             {user && stats && (
@@ -4512,8 +4534,30 @@ export default function App() {
                   </div>
                 )}
 
-                <div className="hs-footer-full" />
               </div>
+            </div>
+
+            <div className="hs-bottom-nav">
+              <button className="hs-nav-item active" onClick={goHome}>
+                <img src={glGraj} alt="" />
+                <span>GRAJ</span>
+              </button>
+              <button className="hs-nav-item" onClick={openAlbum}>
+                <img src={glKolekcja} alt="" />
+                <span>KOLEKCJA</span>
+              </button>
+              <button className="hs-nav-item" onClick={() => setShowAchievements(true)}>
+                <img src={glPrezent} alt="" />
+                <span>NAGRODY</span>
+              </button>
+              <button className="hs-nav-item" onClick={() => setScreen("packShop")}>
+                <img src={glKoszyk} alt="" />
+                <span>SKLEP</span>
+              </button>
+              <button className="hs-nav-item" onClick={openStats}>
+                <img src={glOsoba} alt="" />
+                <span>PROFIL</span>
+              </button>
             </div>
 
             {user && (
