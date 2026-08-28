@@ -3070,35 +3070,41 @@ export default function App() {
         .hs-fillbtn::after { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 55%; background: linear-gradient(180deg, rgba(255,255,255,0.4), rgba(255,255,255,0) 100%); }
         .hs-btn-wrap:hover .hs-fillbtn { filter: brightness(1.15); }
         .hs-btnlabel { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px; font-family: 'Bebas Neue', sans-serif; font-size: 17px; letter-spacing: 0.5px; z-index: 3; color: #fff; }
-        .hs-join-row { display: flex; gap: 8px; margin-top: 4px; }
+        .hs-join-row { display: flex; gap: 8px; margin-top: 18px; }
         .hs-input {
           height: 38px; border-radius: 0 !important; background: #0e0e22 !important;
-          border: 1.3px solid rgba(79,214,255,0.5) !important; color: #fff; font-size: 12px;
+          border: 1.3px solid rgba(79,214,255,0.6) !important; color: #fff; font-size: 12px;
           clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
         }
-        .hs-input:focus { border-color: #4fd6ff !important; box-shadow: none !important; }
+        .hs-input:focus { border-color: #4fd6ff !important; }
         .hs-join-btn {
           height: 38px; padding: 0 16px; border: 1.3px solid #4fd6ff; cursor: pointer;
           font-size: 12px; font-weight: 800; letter-spacing: 0.3px; color: #4fd6ff; white-space: nowrap;
-          background: rgba(79,214,255,0.08);
+          background: rgba(79,214,255,0.1);
           clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
         }
-        .hs-join-btn:hover { background: rgba(79,214,255,0.18); }
+        .hs-join-btn:hover { background: rgba(79,214,255,0.2); }
         .hs-tiles-row { display: flex; align-items: stretch; gap: 12px; flex-wrap: wrap; }
-        .hs-tile {
-          position: relative; flex: 1; min-width: 140px; height: 104px; border-radius: 4px; padding: 12px 10px;
-          display: flex; flex-direction: column; align-items: center; justify-content: center;
-          text-align: center; gap: 4px; background: #0c0c1cdd; border: 1.5px solid;
+        .hs-tile-slot { position: relative; flex: 1; min-width: 140px; height: 104px; }
+        .hs-tile-glow { position: absolute; inset: -8px; filter: blur(16px); opacity: 0.55; border-radius: 12px; z-index: 0; }
+        .hs-tile-rim {
+          position: absolute; inset: 0; z-index: 1;
           clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px), 0 14px);
         }
-        .hs-tile img.hs-icon { height: 62px; }
-        .hs-tile .hs-t { font-family: 'Bebas Neue', sans-serif; font-size: 15px; letter-spacing: 0.5px; }
+        .hs-tile {
+          position: absolute; inset: 1.5px; z-index: 2; border: none; padding: 10px 8px;
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          text-align: center; gap: 4px; background: #0c0c1c;
+          clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px), 0 14px);
+        }
+        .hs-tile img.hs-icon { height: 58px; }
+        .hs-tile .hs-t { font-family: 'Bebas Neue', sans-serif; font-size: 15px; letter-spacing: 0.5px; color: #fff; }
         .hs-tile .hs-d { font-size: 10px; color: #9d9db8; }
-        .hs-tile-cyan { border-color: #4fd6ff; box-shadow: 0 0 34px rgba(79,214,255,0.7), inset 0 0 20px rgba(79,214,255,0.1); }
-        .hs-tile-pink { border-color: #ff5fc9; box-shadow: 0 0 34px rgba(255,95,201,0.7), inset 0 0 20px rgba(255,95,201,0.1); }
-        .hs-tile-violet { border-color: #a56bff; box-shadow: 0 0 34px rgba(165,107,255,0.7), inset 0 0 20px rgba(165,107,255,0.1); }
-        .hs-tile-gold { border-color: #f5c451; box-shadow: 0 0 34px rgba(245,196,81,0.7), inset 0 0 20px rgba(245,196,81,0.14); }
-        .hs-tile-gold .hs-t { color: #ffcf6b; }
+        .hs-tile-slot.cyan .hs-tile-glow, .hs-tile-slot.cyan .hs-tile-rim { background: #4fd6ff; }
+        .hs-tile-slot.pink .hs-tile-glow, .hs-tile-slot.pink .hs-tile-rim { background: #ff5fc9; }
+        .hs-tile-slot.violet .hs-tile-glow, .hs-tile-slot.violet .hs-tile-rim { background: #a56bff; }
+        .hs-tile-slot.gold .hs-tile-glow, .hs-tile-slot.gold .hs-tile-rim { background: #f5c451; }
+        .hs-tile-slot.gold .hs-t { color: #ffcf6b; }
         .hs-badge {
           position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
           background: linear-gradient(90deg,#f5c451,#ffb020); color: #3a2400; font-size: 8px; font-weight: 900;
@@ -3144,7 +3150,7 @@ export default function App() {
           .hs-hero-right { aspect-ratio: auto; min-height: 170px; }
           .hs-stats-grid { grid-template-columns: repeat(2, 1fr); }
           .hs-tiles-row { flex-wrap: wrap; }
-          .hs-tile { min-width: calc(50% - 6px); flex: 0 0 calc(50% - 6px); height: 118px; }
+          .hs-tile-slot { min-width: calc(50% - 6px); flex: 0 0 calc(50% - 6px); height: 118px; }
           .hs-tile img.hs-icon { height: 54px; }
           .hs-h1 { font-size: 24px; }
         }
@@ -4458,29 +4464,43 @@ export default function App() {
                 <div>
                   <p style={{ color: "var(--muted)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Tryby gry</p>
                   <div className="hs-tiles-row">
-                    <button onClick={() => setScreen("practiceSetup")} className="hs-tile hs-tile-cyan">
-                      <img className="hs-icon" src={glTrening} alt="" />
-                      <div className="hs-t">TRENING</div>
-                      <div className="hs-arrow" style={{ color: "#4fd6ff" }}>›</div>
-                    </button>
-                    {user && (
-                      <button onClick={openDailySong} disabled={dailyBusy} className="hs-tile hs-tile-pink">
-                        <img className="hs-icon" src={glPiosenka} alt="" />
-                        <div className="hs-t">PIOSENKA DNIA</div>
-                        <div className="hs-arrow" style={{ color: "#ff5fc9" }}>›</div>
+                    <div className="hs-tile-slot cyan">
+                      <div className="hs-tile-glow" />
+                      <div className="hs-tile-rim" />
+                      <button onClick={() => setScreen("practiceSetup")} className="hs-tile">
+                        <img className="hs-icon" src={glTrening} alt="" />
+                        <div className="hs-t">TRENING</div>
+                        <div className="hs-arrow" style={{ color: "#4fd6ff" }}>›</div>
                       </button>
+                    </div>
+                    {user && (
+                      <div className="hs-tile-slot pink">
+                        <div className="hs-tile-glow" />
+                        <div className="hs-tile-rim" />
+                        <button onClick={openDailySong} disabled={dailyBusy} className="hs-tile">
+                          <img className="hs-icon" src={glPiosenka} alt="" />
+                          <div className="hs-t">PIOSENKA DNIA</div>
+                          <div className="hs-arrow" style={{ color: "#ff5fc9" }}>›</div>
+                        </button>
+                      </div>
                     )}
                     {user && (
-                      <button onClick={openDailyPlaylistHub} disabled={dailyPlaylistBusy} className="hs-tile hs-tile-violet">
-                        <img className="hs-icon" src={glPlaylista} alt="" />
-                        <div className="hs-t">PLAYLISTA DNIA</div>
-                        <div className="hs-arrow" style={{ color: "#a56bff" }}>›</div>
-                      </button>
+                      <div className="hs-tile-slot violet">
+                        <div className="hs-tile-glow" />
+                        <div className="hs-tile-rim" />
+                        <button onClick={openDailyPlaylistHub} disabled={dailyPlaylistBusy} className="hs-tile">
+                          <img className="hs-icon" src={glPlaylista} alt="" />
+                          <div className="hs-t">PLAYLISTA DNIA</div>
+                          <div className="hs-arrow" style={{ color: "#a56bff" }}>›</div>
+                        </button>
+                      </div>
                     )}
                     {user && activeTournament && (
-                      <div style={{ position: "relative", flex: 1, minWidth: 140, display: "flex" }}>
+                      <div className="hs-tile-slot gold">
+                        <div className="hs-tile-glow" />
+                        <div className="hs-tile-rim" />
                         <div className="hs-badge">★ PREMIUM</div>
-                        <button onClick={openTournamentHub} disabled={tournamentBusy} className="hs-tile hs-tile-gold" style={{ width: "100%" }}>
+                        <button onClick={openTournamentHub} disabled={tournamentBusy} className="hs-tile">
                           <img className="hs-icon" src={glTurniej} alt="" />
                           <div className="hs-t">TURNIEJ</div>
                           <div className="hs-d">{activeTournament.status === "signup" ? `${activeTournament.signups.length}/${activeTournament.maxPlayers} zapisanych` : "trwa!"}</div>
