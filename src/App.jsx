@@ -24,7 +24,7 @@ import { getOrCreateDailyPlaylist, hasPlayedPlaylistToday, recordDailyPlaylistSc
 import { createTournament, cancelTournament, fetchActiveTournament, fetchTournament, signUpForTournament, recordTournamentMatchResult, checkAndAdvanceTournament, settleTournamentXpIfNeeded, pickMatchPlaylist } from "./tournaments.js";
 import { awardHitcoin, computeWinHitcoin, computeSecondPlaceHitcoin, computeThirdPlaceHitcoin, claimDailyHitcoin, drawCardAfterGame, effectiveRarity, PACKS, openPack, SELL_PRICES, sellDuplicateCard, sellAllDuplicates } from "./cards.js";
 import { updateHeadToHead, fetchHeadToHeadOpponents } from "./headToHead.js";
-import { getAchievementProgress } from "./achievements.js";
+import { getAchievementProgress, ACHIEVEMENTS } from "./achievements.js";
 import { playCorrectSound, playWrongSound, playApplause, playVictorySound, unlockAudio } from "./sounds.js";
 import { Play, Music4, Trophy, RotateCcw, Users, ChevronRight, Copy, Check, LogIn, LogOut, BarChart3, Flame, Crown, Shield, Search, Trash2, Pencil, Save, X, MessageCircle, Send } from "lucide-react";
 import logoImg from "./assets/logo-v2.png";
@@ -42,6 +42,20 @@ import packPremium from "./assets/icons/pack-premium.webp";
 import iconSklep from "./assets/icons/icon-sklep.png";
 import iconHitcoin from "./assets/icons/icon-hitcoin.png";
 import iconToken from "./assets/icons/icon-token.png";
+import heroBanner from "./assets/home/hero-banner.webp";
+import homeBg from "./assets/home/bg.jpg";
+import footerStrip from "./assets/home/footer-strip.webp";
+import glTrening from "./assets/icons/gl-trening.png";
+import glPiosenka from "./assets/icons/gl-piosenka.png";
+import glPlaylista from "./assets/icons/gl-playlista.png";
+import glTurniej from "./assets/icons/gl-turniej.png";
+import glStatystyki from "./assets/icons/gl-statystyki.png";
+import glMedal from "./assets/icons/gl-medal.png";
+import glKolekcja from "./assets/icons/gl-kolekcja.png";
+import glKorona from "./assets/icons/gl-korona.png";
+import glPrezent from "./assets/icons/gl-prezent.png";
+import glKoszyk from "./assets/icons/gl-koszyk.png";
+import glOsoba from "./assets/icons/gl-osoba.png";
 import achOsiagniecia from "./assets/icons/ach-osiagniecia.png";
 import ach1Miejsce from "./assets/icons/ach-1miejsce.png";
 import ach2Miejsce from "./assets/icons/ach-2miejsce.png";
@@ -3027,12 +3041,84 @@ export default function App() {
           transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
         input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,230,195,0.25); }
+
+        /* --- redesign strony głównej (hs = home screen) --- */
+        .hs-wrap { position: relative; }
+        .hs-bg { content: ""; position: fixed; inset: 0; height: 100vh; background: url(${homeBg}) center top / cover no-repeat; opacity: 0.5; z-index: 0; pointer-events: none; -webkit-mask-image: linear-gradient(to bottom, black 45%, transparent 85%); mask-image: linear-gradient(to bottom, black 45%, transparent 85%); }
+        .hs-content { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 16px; }
+        .hs-hero-grid { display: grid; grid-template-columns: 1fr 1.1fr; gap: 16px; }
+        .hs-hero-left {
+          border-radius: 18px; background: #100a1cdd; border: 1px solid rgba(180,120,255,0.5);
+          box-shadow: 0 0 40px rgba(139,92,246,0.35); padding: 22px 26px; display: flex; flex-direction: column; justify-content: center;
+        }
+        .hs-hero-right {
+          position: relative; border-radius: 18px; overflow: hidden;
+          background: #100a1c url(${heroBanner}) center / 100% 100% no-repeat;
+          aspect-ratio: 1738 / 905; padding: 26px; display: flex; flex-direction: column; justify-content: center;
+        }
+        .hs-eyebrow { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: #b98bff; margin-bottom: 6px; font-weight: 700; }
+        .hs-h1 { font-family: 'Bebas Neue', sans-serif; font-size: 30px; margin: 0 0 6px; line-height: 1.1; }
+        .hs-h1 span { color: var(--accent3); }
+        .hs-sub { color: #b8b8d0; font-size: 12px; margin: 0 0 16px; }
+        .hs-btn-wrap { position: relative; height: 52px; max-width: 280px; }
+        .hs-cut { clip-path: polygon(15px 0, calc(100% - 15px) 0, 100% 15px, 100% calc(100% - 15px), calc(100% - 15px) 100%, 15px 100%, 0 calc(100% - 15px), 0 15px); }
+        .hs-glow { position: absolute; inset: -6px; background: linear-gradient(90deg,#ee17f8,#7d1de8,#2a68f9); filter: blur(9px); opacity: 0.85; }
+        .hs-rim { position: absolute; inset: 0; background: linear-gradient(90deg,#ff8bf0,#b18bff,#7fd4ff); }
+        .hs-fillbtn { position: absolute; inset: 3px; background: linear-gradient(90deg,#c60ee0,#5d0dd0,#0e4ce8); transition: filter 0.15s ease; }
+        .hs-btn-wrap:hover .hs-fillbtn { filter: brightness(1.15); }
+        .hs-btnlabel { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px; font-family: 'Bebas Neue', sans-serif; font-size: 17px; letter-spacing: 0.5px; z-index: 3; color: #fff; }
+        .hs-join-row { display: flex; gap: 8px; margin-top: 4px; }
+        .hs-tiles-row { display: flex; gap: 12px; flex-wrap: wrap; }
+        .hs-tile {
+          position: relative; flex: 1; min-width: 140px; border-radius: 4px; padding: 12px 10px;
+          min-height: 110px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+          text-align: center; gap: 4px; background: #0c0c1cdd; border: 1.5px solid;
+          clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px), 0 14px);
+        }
+        .hs-tile img.hs-icon { height: 62px; }
+        .hs-tile .hs-t { font-family: 'Bebas Neue', sans-serif; font-size: 15px; letter-spacing: 0.5px; }
+        .hs-tile .hs-d { font-size: 10px; color: #9d9db8; }
+        .hs-tile-cyan { border-color: #4fd6ff; box-shadow: 0 0 34px rgba(79,214,255,0.7), inset 0 0 20px rgba(79,214,255,0.1); }
+        .hs-tile-pink { border-color: #ff5fc9; box-shadow: 0 0 34px rgba(255,95,201,0.7), inset 0 0 20px rgba(255,95,201,0.1); }
+        .hs-tile-violet { border-color: #a56bff; box-shadow: 0 0 34px rgba(165,107,255,0.7), inset 0 0 20px rgba(165,107,255,0.1); }
+        .hs-tile-gold { border-color: #f5c451; box-shadow: 0 0 34px rgba(245,196,81,0.7), inset 0 0 20px rgba(245,196,81,0.14); }
+        .hs-tile-gold .hs-t { color: #ffcf6b; }
+        .hs-badge {
+          position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+          background: linear-gradient(90deg,#f5c451,#ffb020); color: #3a2400; font-size: 8px; font-weight: 900;
+          letter-spacing: 0.4px; padding: 2px 9px; border-radius: 999px; white-space: nowrap; z-index: 2;
+        }
+        .hs-arrow {
+          position: absolute; bottom: 8px; right: 8px; width: 24px; height: 24px; border-radius: 50%;
+          display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900;
+          background: rgba(255,255,255,0.06); border: 1px solid currentColor;
+        }
+        .hs-side-card { border-radius: 12px; background: #0c0c1cdd; border: 1px solid #2a2a4a; padding: 12px 14px; display: flex; align-items: center; gap: 12px; }
+        .hs-stats-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+        .hs-stat-tile {
+          border-radius: 10px; padding: 12px 12px; min-height: 78px; background: #0c0c1cdd;
+          border: 1.5px solid; display: flex; align-items: center; gap: 10px; text-align: left;
+        }
+        .hs-stat-tile img { height: 30px; flex-shrink: 0; }
+        .hs-stat-tile .hs-lbl { font-size: 10px; color: #9d9db8; text-transform: uppercase; letter-spacing: 0.5px; }
+        .hs-stat-tile .hs-val { font-size: 17px; font-weight: 800; font-family: 'Bebas Neue', sans-serif; }
+        .hs-footer-full { width: 100%; height: 78px; background: url(${footerStrip}) center / contain no-repeat; margin-top: 4px; }
+
+        @media (max-width: 860px) {
+          .hs-hero-grid { grid-template-columns: 1fr; }
+          .hs-hero-right { aspect-ratio: auto; min-height: 170px; }
+          .hs-stats-grid { grid-template-columns: repeat(2, 1fr); }
+          .hs-tiles-row { flex-wrap: wrap; }
+          .hs-tile { min-width: calc(50% - 6px); flex: 0 0 calc(50% - 6px); min-height: 130px; }
+          .hs-tile img.hs-icon { height: 54px; }
+          .hs-h1 { font-size: 24px; }
+        }
       `}</style>
 
-      {user && myXp !== null && (
+      {user && myXp !== null && screen !== "home" && (
         <div style={{ position: "fixed", top: 14, right: 14, zIndex: 90, display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
           <button
-            onClick={screen === "home" ? openStats : undefined}
+            onClick={undefined}
             style={{
               background: "linear-gradient(135deg, rgba(0,230,195,0.16), rgba(139,92,246,0.16))",
               border: "1px solid var(--accent)",
@@ -3046,7 +3132,7 @@ export default function App() {
               fontFamily: "'Bebas Neue', sans-serif",
               fontSize: 15,
               letterSpacing: 0.5,
-              cursor: screen === "home" ? "pointer" : "default",
+              cursor: "default",
             }}
           >
             ⭐ LVL {levelFromXp(myXp).level}
@@ -3072,21 +3158,79 @@ export default function App() {
         </div>
       )}
 
-      <div className="w-full flex flex-col items-center" style={{ maxWidth: 720 }}>
-        <button
-          onClick={goHome}
-          className="flex items-center justify-center mb-1"
-          style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
-          title="Strona główna"
-        >
-          <img src={logoImg} alt="Hitsteriada" style={{ height: 100, filter: "drop-shadow(0 0 18px rgba(0,230,195,0.55)) drop-shadow(0 0 28px rgba(139,92,246,0.3))" }} />
-        </button>
-        <button
-          onClick={() => setShowOnlineList((v) => !v)}
-          style={{ color: "var(--muted)", fontSize: 12, marginBottom: showOnlineList ? 8 : 24, background: "none", border: "none", cursor: "pointer" }}
-        >
-          🟢 {onlinePlayers.length} graczy online • każdy gra u siebie, w swoim miejscu {showOnlineList ? "▲" : "▼"}
-        </button>
+      <div className="w-full flex flex-col items-center" style={{ maxWidth: screen === "home" ? 1200 : 720 }}>
+        {screen === "home" ? (
+          <div className="w-full" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, flexWrap: "wrap", position: "relative", zIndex: 1 }}>
+            <button onClick={goHome} className="flex items-center gap-2" style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }} title="Strona główna">
+              <img src={logoImg} alt="" style={{ height: 38 }} />
+              <span
+                style={{
+                  fontFamily: "'Bebas Neue', sans-serif",
+                  fontSize: 20,
+                  letterSpacing: 0.5,
+                  background: "linear-gradient(90deg, #ff8bec, #7fb8ff)",
+                  WebkitBackgroundClip: "text",
+                  backgroundClip: "text",
+                  color: "transparent",
+                  filter: "drop-shadow(0 0 8px rgba(255,95,201,0.5))",
+                }}
+              >
+                HITSTERIADA
+              </span>
+            </button>
+            <div style={{ flex: 1 }} />
+            <button
+              onClick={() => setShowOnlineList((v) => !v)}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid #1fd97a", color: "#7dffb0", fontSize: 12, cursor: "pointer" }}
+            >
+              🟢 {onlinePlayers.length} online
+            </button>
+            {user && myXp !== null && (
+              <button
+                onClick={openStats}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid var(--accent)", color: "var(--accent)", fontSize: 12, cursor: "pointer", fontFamily: "'Bebas Neue', sans-serif" }}
+              >
+                ⭐ LVL {levelFromXp(myXp).level}
+              </button>
+            )}
+            {user && stats && (
+              <button
+                onClick={openStats}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid #a56bff", color: "#c9a8ff", fontSize: 12, cursor: "pointer" }}
+              >
+                ♪ {stats.guessesCorrect || 0}
+              </button>
+            )}
+            {user && myHitcoin !== null && (
+              <button
+                onClick={() => setScreen("packShop")}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid var(--gold)", color: "var(--gold)", fontSize: 12, cursor: "pointer" }}
+              >
+                <img src={iconHitcoin} alt="" style={{ height: 14 }} /> {myHitcoin}
+              </button>
+            )}
+            {user && (
+              <button onClick={openStats} title={user.displayName} style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg,#ff5fc9,#4f8cff)", border: "2px solid rgba(255,255,255,0.4)", cursor: "pointer", flexShrink: 0 }} />
+            )}
+          </div>
+        ) : (
+          <button
+            onClick={goHome}
+            className="flex items-center justify-center mb-1"
+            style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            title="Strona główna"
+          >
+            <img src={logoImg} alt="Hitsteriada" style={{ height: 100, filter: "drop-shadow(0 0 18px rgba(0,230,195,0.55)) drop-shadow(0 0 28px rgba(139,92,246,0.3))" }} />
+          </button>
+        )}
+        {screen !== "home" && (
+          <button
+            onClick={() => setShowOnlineList((v) => !v)}
+            style={{ color: "var(--muted)", fontSize: 12, marginBottom: showOnlineList ? 8 : 24, background: "none", border: "none", cursor: "pointer" }}
+          >
+            🟢 {onlinePlayers.length} graczy online • każdy gra u siebie, w swoim miejscu {showOnlineList ? "▲" : "▼"}
+          </button>
+        )}
 
         {showOnlineList && (
           <div className="w-full rounded-xl p-3 mb-6" style={{ background: "var(--surface2)", maxWidth: 340 }}>
@@ -4228,116 +4372,147 @@ export default function App() {
               </section>
             )}
 
-            {/* WARSTWA 1 — główna akcja */}
-            <div>
-              <p style={{ color: "var(--muted)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Zacznij grać</p>
-              <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
-                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, textAlign: "center", marginBottom: 4 }}>Nowa gra</h2>
-                <p style={{ color: "var(--muted)", fontSize: 12, textAlign: "center", marginBottom: 14 }}>Stwórz pokój i wyślij kod znajomym</p>
-                <button onClick={createRoom} disabled={busy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
-                  STWÓRZ POKÓJ
-                </button>
-                <div className="flex gap-2 mt-3">
-                  <input
-                    type="text"
-                    value={joinCode}
-                    onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                    placeholder="KOD POKOJU"
-                    maxLength={4}
-                    className="flex-1"
-                    style={{ textAlign: "center", fontSize: 15, letterSpacing: 2 }}
-                  />
-                  <button onClick={() => joinRoom()} disabled={busy} className="px-4 py-2 rounded-lg text-sm font-bold" style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}>
-                    Dołącz
-                  </button>
+            {/* REDESIGN — hero + tryby gry + postęp, na realnych assetach i danych */}
+            <div className="hs-wrap">
+              <div className="hs-bg" />
+              <div className="hs-content">
+
+                {/* HERO */}
+                <div className="hs-hero-grid">
+                  <div className="hs-hero-left">
+                    <div className="hs-eyebrow">⟡ Graj teraz</div>
+                    <h1 className="hs-h1">Twój utwór. <span>Twoja zasada.</span></h1>
+                    <p className="hs-sub">Stwórz pokój lub dołącz do gry i baw się muzyką!</p>
+                    <div className="hs-btn-wrap">
+                      <button
+                        onClick={createRoom}
+                        disabled={busy}
+                        style={{ position: "absolute", inset: 0, background: "none", border: "none", cursor: "pointer", padding: 0, zIndex: 4 }}
+                        aria-label="Stwórz pokój"
+                      />
+                      <div className="hs-glow hs-cut" />
+                      <div className="hs-rim hs-cut" />
+                      <div className="hs-fillbtn hs-cut" />
+                      <div className="hs-btnlabel">STWÓRZ POKÓJ</div>
+                    </div>
+                    <div className="hs-join-row">
+                      <input
+                        type="text"
+                        value={joinCode}
+                        onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                        placeholder="KOD POKOJU"
+                        maxLength={4}
+                        className="flex-1"
+                        style={{ textAlign: "center", fontSize: 13, letterSpacing: 2 }}
+                      />
+                      <button onClick={() => joinRoom()} disabled={busy} className="px-4 py-2 rounded-lg text-sm font-bold" style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}>
+                        Dołącz
+                      </button>
+                    </div>
+                  </div>
+                  <div className="hs-hero-right">
+                    <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, margin: "0 0 6px", maxWidth: 220 }}>
+                      Muzyka łączy.<br /><span style={{ color: "#4fd6ff" }}>Hity zostają.</span>
+                    </h2>
+                    <p style={{ fontSize: 12, color: "#d8d8ea", maxWidth: 220, margin: 0 }}>Rywalizuj, odkrywaj, zdobywaj i wspinaj się na szczyt rankingu!</p>
+                  </div>
                 </div>
-              </section>
-            </div>
 
-            {/* WARSTWA 2 — tryby poboczne */}
-            <div>
-              <p style={{ color: "var(--muted)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Inne tryby</p>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  onClick={() => setScreen("practiceSetup")}
-                  className="flex-1 rounded-2xl p-4 text-center card-glow"
-                  style={{ background: "var(--surface)", border: "1px solid #22304f", minWidth: 110 }}
-                >
-                  <img src={iconTrening} alt="" style={{ height: 40, margin: "0 auto" }} />
-                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15 }}>Trening</p>
-                  <p style={{ color: "var(--muted)", fontSize: 9 }}>solo, wybierz kategorie</p>
-                </button>
-                {user && (
-                  <button
-                    onClick={openDailySong}
-                    disabled={dailyBusy}
-                    className="flex-1 rounded-2xl p-4 text-center card-glow"
-                    style={{ background: "var(--surface)", border: "1px solid #22304f", minWidth: 110 }}
-                  >
-                    <img src={iconPiosenkaDnia} alt="" style={{ height: 40, margin: "0 auto" }} />
-                    <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15 }}>Piosenka dnia</p>
-                    <p style={{ color: "var(--muted)", fontSize: 9 }}>ta sama dla wszystkich</p>
-                  </button>
-                )}
-                {user && (
-                  <button
-                    onClick={openDailyPlaylistHub}
-                    disabled={dailyPlaylistBusy}
-                    className="flex-1 rounded-2xl p-4 text-center card-glow"
-                    style={{ background: "var(--surface)", border: "1px solid #22304f", minWidth: 110 }}
-                  >
-                    <img src={iconPlaylistaDnia} alt="" style={{ height: 40, margin: "0 auto" }} />
-                    <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15 }}>Playlista dnia</p>
-                    <p style={{ color: "var(--muted)", fontSize: 9 }}>ułóż 10 piosenek na osi</p>
-                  </button>
-                )}
-                {user && activeTournament && (
-                  <button
-                    onClick={openTournamentHub}
-                    disabled={tournamentBusy}
-                    className="flex-1 rounded-2xl p-4 text-center card-glow"
-                    style={{ background: "var(--surface)", border: "1px solid var(--gold)", minWidth: 110 }}
-                  >
-                    <img src={iconTurniej} alt="" style={{ height: 40, margin: "0 auto" }} />
-                    <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: "var(--gold)" }}>Turniej</p>
-                    <p style={{ color: "var(--muted)", fontSize: 9 }}>{activeTournament.status === "signup" ? `${activeTournament.signups.length}/${activeTournament.maxPlayers} zapisanych` : "trwa!"}</p>
-                  </button>
-                )}
-              </div>
-            </div>
+                {/* TRYBY GRY + karty boczne */}
+                <div>
+                  <p style={{ color: "var(--muted)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Tryby gry</p>
+                  <div className="hs-tiles-row">
+                    <button onClick={() => setScreen("practiceSetup")} className="hs-tile hs-tile-cyan">
+                      <img className="hs-icon" src={glTrening} alt="" />
+                      <div className="hs-t">TRENING</div>
+                      <div className="hs-d">Ćwicz i poznawaj kategorie</div>
+                      <div className="hs-arrow" style={{ color: "#4fd6ff" }}>›</div>
+                    </button>
+                    {user && (
+                      <button onClick={openDailySong} disabled={dailyBusy} className="hs-tile hs-tile-pink">
+                        <img className="hs-icon" src={glPiosenka} alt="" />
+                        <div className="hs-t">PIOSENKA DNIA</div>
+                        <div className="hs-d">Jedna piosenka dla wszystkich</div>
+                        <div className="hs-arrow" style={{ color: "#ff5fc9" }}>›</div>
+                      </button>
+                    )}
+                    {user && (
+                      <button onClick={openDailyPlaylistHub} disabled={dailyPlaylistBusy} className="hs-tile hs-tile-violet">
+                        <img className="hs-icon" src={glPlaylista} alt="" />
+                        <div className="hs-t">PLAYLISTA DNIA</div>
+                        <div className="hs-d">Codziennie nowa playlista</div>
+                        <div className="hs-arrow" style={{ color: "#a56bff" }}>›</div>
+                      </button>
+                    )}
+                    {user && activeTournament && (
+                      <div style={{ position: "relative", flex: 1, minWidth: 140 }}>
+                        <div className="hs-badge">★ PREMIUM</div>
+                        <button onClick={openTournamentHub} disabled={tournamentBusy} className="hs-tile hs-tile-gold" style={{ width: "100%" }}>
+                          <img className="hs-icon" src={glTurniej} alt="" />
+                          <div className="hs-t">TURNIEJ</div>
+                          <div className="hs-d">{activeTournament.status === "signup" ? `${activeTournament.signups.length}/${activeTournament.maxPlayers} zapisanych` : "trwa!"}</div>
+                          <div className="hs-arrow" style={{ color: "#f5c451" }}>›</div>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
 
-            {/* WARSTWA 3 — statystyki i ranking, wyróżnione podobnie jak tryby powyżej */}
-            <div>
-              <p style={{ color: "var(--muted)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Sprawdź</p>
-              <div className="flex gap-3">
-                {user && (
-                  <button
-                    onClick={openStats}
-                    className="flex-1 rounded-2xl p-4 text-center card-glow"
-                    style={{ background: "var(--surface)", border: "1px solid var(--accent2)" }}
-                  >
-                    <img src={iconStatystyki} alt="" style={{ height: 40, margin: "0 auto" }} />
-                    <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: "var(--accent2)" }}>Statystyki</p>
+                {user && stats && (
+                  <button onClick={async () => {
+                    const today = currentDayKey();
+                    if (stats.lastDailyHitcoinDate === today) return;
+                    const amount = await claimDailyHitcoin(user.uid, today);
+                    if (amount > 0) {
+                      setMyHitcoin((prev) => (prev || 0) + amount);
+                      setStats({ ...stats, lastDailyHitcoinDate: today, hitcoin: (stats.hitcoin || 0) + amount });
+                    }
+                  }} className="hs-side-card" style={{ width: "100%", textAlign: "left" }}>
+                    <img src={glPrezent} alt="" style={{ height: 34, filter: "drop-shadow(0 0 8px rgba(79,224,192,0.4))" }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>NAGRODA DNIA</div>
+                      <div style={{ fontSize: 11, color: "var(--muted)" }}>{stats.lastDailyHitcoinDate === currentDayKey() ? "Odebrane — wróć jutro" : "Kliknij, żeby odebrać +25 HITCOIN"}</div>
+                    </div>
+                    {stats.lastDailyHitcoinDate !== currentDayKey() && (
+                      <span style={{ borderRadius: 8, border: "1px solid #4fe0c0", color: "#4fe0c0", fontSize: 11, padding: "6px 12px", fontWeight: 700 }}>ODBIERZ</span>
+                    )}
                   </button>
                 )}
-                <button
-                  onClick={() => openLeaderboard()}
-                  className="flex-1 rounded-2xl p-4 text-center card-glow"
-                  style={{ background: "var(--surface)", border: "1px solid var(--gold)" }}
-                >
-                  <img src={iconRanking} alt="" style={{ height: 40, margin: "0 auto" }} />
-                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: "var(--gold)" }}>Ranking</p>
-                </button>
-                {user && (
-                  <button
-                    onClick={() => setScreen("packShop")}
-                    className="flex-1 rounded-2xl p-4 text-center card-glow"
-                    style={{ background: "var(--surface)", border: "1px solid #7dffef" }}
-                  >
-                    <img src={iconSklep} alt="" style={{ height: 40, margin: "0 auto" }} />
-                    <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: "#7dffef" }}>Sklep</p>
-                  </button>
+
+                {/* TWÓJ POSTĘP */}
+                {user && stats && (
+                  <div>
+                    <p style={{ color: "var(--muted)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Twój postęp</p>
+                    <div className="hs-stats-grid">
+                      <button onClick={openAlbum} className="hs-stat-tile" style={{ borderColor: "#4fd6ff", boxShadow: "0 0 20px rgba(79,214,255,0.5)" }}>
+                        <img src={glKolekcja} alt="" />
+                        <div><div className="hs-lbl">Kolekcja</div><div className="hs-val">{Object.keys(stats.cardCollection || {}).length}/{totalSongCount ?? effectivePool.length}</div></div>
+                      </button>
+                      <button onClick={() => setShowAchievements(true)} className="hs-stat-tile" style={{ borderColor: "#a56bff", boxShadow: "0 0 20px rgba(165,107,255,0.5)" }}>
+                        <img src={glMedal} alt="" />
+                        <div><div className="hs-lbl">Osiągnięcia</div><div className="hs-val">{getAchievementProgress(stats, levelFromXp(stats.xp).level).filter((a) => a.qualifies).length}/{ACHIEVEMENTS.length}</div></div>
+                      </button>
+                      <button onClick={openStats} className="hs-stat-tile" style={{ borderColor: "#4fd6ff", boxShadow: "0 0 20px rgba(79,214,255,0.5)" }}>
+                        <img src={glStatystyki} alt="" />
+                        <div><div className="hs-lbl">Statystyki</div><div className="hs-val">{stats.gamesPlayed ? Math.round(((stats.gamesWon || 0) / stats.gamesPlayed) * 100) + "%" : "—"}</div></div>
+                      </button>
+                      <button onClick={() => openLeaderboard()} className="hs-stat-tile" style={{ borderColor: "#f5c451", boxShadow: "0 0 20px rgba(245,196,81,0.5)" }}>
+                        <img src={glKorona} alt="" />
+                        <div><div className="hs-lbl">Ranking</div><div className="hs-val">TOP 10</div></div>
+                      </button>
+                      <button onClick={() => setScreen("packShop")} className="hs-stat-tile" style={{ borderColor: "#4fe0c0", boxShadow: "0 0 20px rgba(79,224,192,0.5)" }}>
+                        <img src={glKoszyk} alt="" />
+                        <div><div className="hs-lbl">Sklep</div><div className="hs-val">Nowe!</div></div>
+                      </button>
+                      <button onClick={() => setShowOnlineList((v) => !v)} className="hs-stat-tile" style={{ borderColor: "#ff5fc9", boxShadow: "0 0 20px rgba(255,95,201,0.5)" }}>
+                        <img src={glOsoba} alt="" />
+                        <div><div className="hs-lbl">Społeczność</div><div className="hs-val">{onlinePlayers.length}</div></div>
+                      </button>
+                    </div>
+                  </div>
                 )}
+
+                <div className="hs-footer-full" />
               </div>
             </div>
 
