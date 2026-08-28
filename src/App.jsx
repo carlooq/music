@@ -3070,37 +3070,34 @@ export default function App() {
         .hs-fillbtn::after { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 55%; background: linear-gradient(180deg, rgba(255,255,255,0.4), rgba(255,255,255,0) 100%); }
         .hs-btn-wrap:hover .hs-fillbtn { filter: brightness(1.15); }
         .hs-btnlabel { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px; font-family: 'Bebas Neue', sans-serif; font-size: 17px; letter-spacing: 0.5px; z-index: 3; color: #fff; }
-        .hs-join-row { display: flex; gap: 8px; margin-top: 18px; }
+        .hs-join-row { display: flex; gap: 8px; margin-top: 4px; }
         .hs-input {
           height: 38px; border-radius: 0 !important; background: #0e0e22 !important;
-          border: none !important; color: #fff; font-size: 12px;
-          filter: drop-shadow(0 0 1px rgba(79,214,255,0.7)) drop-shadow(0 0 1px rgba(79,214,255,0.7));
+          border: 1.3px solid rgba(79,214,255,0.5) !important; color: #fff; font-size: 12px;
           clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
         }
-        .hs-input:focus { filter: drop-shadow(0 0 1.5px #4fd6ff) drop-shadow(0 0 8px rgba(79,214,255,0.5)) !important; }
+        .hs-input:focus { border-color: #4fd6ff !important; box-shadow: none !important; }
         .hs-join-btn {
-          height: 38px; padding: 0 16px; border: none; cursor: pointer;
+          height: 38px; padding: 0 16px; border: 1.3px solid #4fd6ff; cursor: pointer;
           font-size: 12px; font-weight: 800; letter-spacing: 0.3px; color: #4fd6ff; white-space: nowrap;
-          background: rgba(79,214,255,0.1);
-          filter: drop-shadow(0 0 1px #4fd6ff) drop-shadow(0 0 1px #4fd6ff);
+          background: rgba(79,214,255,0.08);
           clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
         }
-        .hs-join-btn:hover { background: rgba(79,214,255,0.2); }
+        .hs-join-btn:hover { background: rgba(79,214,255,0.18); }
         .hs-tiles-row { display: flex; align-items: stretch; gap: 12px; flex-wrap: wrap; }
-        .hs-tile-slot { position: relative; flex: 1; min-width: 140px; display: flex; }
         .hs-tile {
           position: relative; flex: 1; min-width: 140px; height: 104px; border-radius: 4px; padding: 12px 10px;
           display: flex; flex-direction: column; align-items: center; justify-content: center;
-          text-align: center; gap: 4px; background: #0c0c1c;
+          text-align: center; gap: 4px; background: #0c0c1cdd; border: 1.5px solid;
           clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px), 0 14px);
         }
         .hs-tile img.hs-icon { height: 62px; }
         .hs-tile .hs-t { font-family: 'Bebas Neue', sans-serif; font-size: 15px; letter-spacing: 0.5px; }
         .hs-tile .hs-d { font-size: 10px; color: #9d9db8; }
-        .hs-tile-cyan { filter: drop-shadow(0 0 1.5px #4fd6ff) drop-shadow(0 0 1.5px #4fd6ff) drop-shadow(0 0 22px rgba(79,214,255,0.6)); }
-        .hs-tile-pink { filter: drop-shadow(0 0 1.5px #ff5fc9) drop-shadow(0 0 1.5px #ff5fc9) drop-shadow(0 0 22px rgba(255,95,201,0.6)); }
-        .hs-tile-violet { filter: drop-shadow(0 0 1.5px #a56bff) drop-shadow(0 0 1.5px #a56bff) drop-shadow(0 0 22px rgba(165,107,255,0.6)); }
-        .hs-tile-gold { filter: drop-shadow(0 0 1.5px #f5c451) drop-shadow(0 0 1.5px #f5c451) drop-shadow(0 0 22px rgba(245,196,81,0.6)); }
+        .hs-tile-cyan { border-color: #4fd6ff; box-shadow: 0 0 34px rgba(79,214,255,0.7), inset 0 0 20px rgba(79,214,255,0.1); }
+        .hs-tile-pink { border-color: #ff5fc9; box-shadow: 0 0 34px rgba(255,95,201,0.7), inset 0 0 20px rgba(255,95,201,0.1); }
+        .hs-tile-violet { border-color: #a56bff; box-shadow: 0 0 34px rgba(165,107,255,0.7), inset 0 0 20px rgba(165,107,255,0.1); }
+        .hs-tile-gold { border-color: #f5c451; box-shadow: 0 0 34px rgba(245,196,81,0.7), inset 0 0 20px rgba(245,196,81,0.14); }
         .hs-tile-gold .hs-t { color: #ffcf6b; }
         .hs-badge {
           position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
@@ -3147,8 +3144,7 @@ export default function App() {
           .hs-hero-right { aspect-ratio: auto; min-height: 170px; }
           .hs-stats-grid { grid-template-columns: repeat(2, 1fr); }
           .hs-tiles-row { flex-wrap: wrap; }
-          .hs-tile, .hs-tile-slot { min-width: calc(50% - 6px); flex: 0 0 calc(50% - 6px); }
-          .hs-tile { height: 118px; }
+          .hs-tile { min-width: calc(50% - 6px); flex: 0 0 calc(50% - 6px); height: 118px; }
           .hs-tile img.hs-icon { height: 54px; }
           .hs-h1 { font-size: 24px; }
         }
@@ -4482,7 +4478,7 @@ export default function App() {
                       </button>
                     )}
                     {user && activeTournament && (
-                      <div className="hs-tile-slot">
+                      <div style={{ position: "relative", flex: 1, minWidth: 140, display: "flex" }}>
                         <div className="hs-badge">★ PREMIUM</div>
                         <button onClick={openTournamentHub} disabled={tournamentBusy} className="hs-tile hs-tile-gold" style={{ width: "100%" }}>
                           <img className="hs-icon" src={glTurniej} alt="" />
