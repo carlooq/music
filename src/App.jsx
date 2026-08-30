@@ -352,8 +352,8 @@ const CardBack = memo(function CardBack({ size = 140, glowColor, onClick }) {
 
 const StatBox = memo(function StatBox({ label, value }) {
   return (
-    <div className="rounded-lg px-4 py-3 flex-1" style={{ background: "var(--surface2)", minWidth: 110 }}>
-      <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: "var(--accent)" }}>{value}</p>
+    <div className="rounded-lg px-4 py-3 flex-1" style={{ background: "#0c0c1c", border: "1px solid rgba(79,214,255,0.35)", boxShadow: "0 0 16px rgba(79,214,255,0.15)", minWidth: 110 }}>
+      <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: "#4fd6ff" }}>{value}</p>
       <p style={{ color: "var(--muted)", fontSize: 10, textTransform: "uppercase" }}>{label}</p>
     </div>
   );
@@ -2975,8 +2975,8 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap');
         :root {
-          --bg: #050810; --surface: rgba(14,26,38,0.78); --surface2: rgba(20,36,50,0.9);
-          --accent: #00e6c3; --accent2: #8b5cf6; --accent3: #ff5fc9; --gold: #ffb020;
+          --bg: #05060d; --surface: rgba(12,12,28,0.92); --surface2: rgba(18,18,42,0.95);
+          --accent: #4fd6ff; --accent2: #8b5cf6; --accent3: #ff5fc9; --gold: #f5c451;
           --good: #2af598; --bad: #ff3868;
           --text: #f4eefc; --muted: #9c8fc2;
         }
@@ -3141,7 +3141,7 @@ export default function App() {
           .hs-nav-item.active img { filter: none; }
           .hs-nav-item.active span { color: #ff5fc9; }
           .hs-nav-item.active::after { content: ""; position: absolute; bottom: -8px; width: 22px; height: 3px; border-radius: 2px; background: linear-gradient(90deg,#ff5fc9,#4f8cff); left: 50%; transform: translateX(-50%); }
-          .hs-content { padding-bottom: 70px; }
+          .hs-page { padding-bottom: 70px; }
         }
         .hs-footer-full { width: 100%; height: 78px; background: url(${footerStrip}) center / contain no-repeat; margin-top: 4px; }
 
@@ -3199,80 +3199,61 @@ export default function App() {
         </div>
       )}
 
-      <div className="w-full flex flex-col items-center" style={{ maxWidth: screen === "home" ? 1200 : 720 }}>
-        {screen === "home" ? (
-          <div className="w-full" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, flexWrap: "wrap", position: "relative", zIndex: 1 }}>
-            <button onClick={goHome} className="flex items-center gap-2" style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }} title="Strona główna">
-              <img src={logoImg} alt="" style={{ height: 56 }} />
-              <span
-                style={{
-                  fontFamily: "'Bebas Neue', sans-serif",
-                  fontSize: 24,
-                  letterSpacing: 0.5,
-                  background: "linear-gradient(90deg, #ff8bec, #7fb8ff)",
-                  WebkitBackgroundClip: "text",
-                  backgroundClip: "text",
-                  color: "transparent",
-                  filter: "drop-shadow(0 0 8px rgba(255,95,201,0.5))",
-                }}
-              >
-                HITSTERIADA
-              </span>
-            </button>
-            <div style={{ flex: 1 }} />
-            <button
-              onClick={() => setShowOnlineList((v) => !v)}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid #1fd97a", color: "#7dffb0", fontSize: 12, cursor: "pointer" }}
+      <div className="w-full flex flex-col items-center hs-page" style={{ maxWidth: screen === "home" ? 1200 : 720 }}>
+        <div className="w-full" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, flexWrap: "wrap", position: "relative", zIndex: 1 }}>
+          <button onClick={goHome} className="flex items-center gap-2" style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }} title="Strona główna">
+            <img src={logoImg} alt="" style={{ height: 56 }} />
+            <span
+              style={{
+                fontFamily: "'Bebas Neue', sans-serif",
+                fontSize: 24,
+                letterSpacing: 0.5,
+                background: "linear-gradient(90deg, #ff8bec, #7fb8ff)",
+                WebkitBackgroundClip: "text",
+                backgroundClip: "text",
+                color: "transparent",
+                filter: "drop-shadow(0 0 8px rgba(255,95,201,0.5))",
+              }}
             >
-              🟢 {onlinePlayers.length} online
-            </button>
-            {user && myXp !== null && (
-              <button
-                onClick={openStats}
-                style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid var(--accent)", color: "var(--accent)", fontSize: 12, cursor: "pointer", fontFamily: "'Bebas Neue', sans-serif" }}
-              >
-                ⭐ LVL {levelFromXp(myXp).level}
-                <span className="hs-xp-bar"><div style={{ width: `${Math.round((levelFromXp(myXp).currentLevelXp / levelFromXp(myXp).xpForNextLevel) * 100)}%` }} /></span>
-              </button>
-            )}
-            {user && stats && (
-              <button
-                onClick={openStats}
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid #a56bff", color: "#c9a8ff", fontSize: 12, cursor: "pointer" }}
-              >
-                ♪ {stats.guessesCorrect || 0}
-              </button>
-            )}
-            {user && myHitcoin !== null && (
-              <button
-                onClick={() => setScreen("packShop")}
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid var(--gold)", color: "var(--gold)", fontSize: 12, cursor: "pointer" }}
-              >
-                <img src={iconHitcoin} alt="" style={{ height: 14 }} /> {myHitcoin}
-              </button>
-            )}
-            {user && (
-              <button onClick={openStats} title={user.displayName} style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg,#ff5fc9,#4f8cff)", border: "2px solid rgba(255,255,255,0.4)", cursor: "pointer", flexShrink: 0 }} />
-            )}
-          </div>
-        ) : (
-          <button
-            onClick={goHome}
-            className="flex items-center justify-center mb-1"
-            style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
-            title="Strona główna"
-          >
-            <img src={logoImg} alt="Hitsteriada" style={{ height: 100, filter: "drop-shadow(0 0 18px rgba(0,230,195,0.55)) drop-shadow(0 0 28px rgba(139,92,246,0.3))" }} />
+              HITSTERIADA
+            </span>
           </button>
-        )}
-        {screen !== "home" && (
+          <div style={{ flex: 1 }} />
           <button
             onClick={() => setShowOnlineList((v) => !v)}
-            style={{ color: "var(--muted)", fontSize: 12, marginBottom: showOnlineList ? 8 : 24, background: "none", border: "none", cursor: "pointer" }}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid #1fd97a", color: "#7dffb0", fontSize: 12, cursor: "pointer" }}
           >
-            🟢 {onlinePlayers.length} graczy online • każdy gra u siebie, w swoim miejscu {showOnlineList ? "▲" : "▼"}
+            🟢 {onlinePlayers.length} online
           </button>
-        )}
+          {user && myXp !== null && (
+            <button
+              onClick={screen === "home" ? openStats : undefined}
+              style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid var(--accent)", color: "var(--accent)", fontSize: 12, cursor: screen === "home" ? "pointer" : "default", fontFamily: "'Bebas Neue', sans-serif" }}
+            >
+              ⭐ LVL {levelFromXp(myXp).level}
+              <span className="hs-xp-bar"><div style={{ width: `${Math.round((levelFromXp(myXp).currentLevelXp / levelFromXp(myXp).xpForNextLevel) * 100)}%` }} /></span>
+            </button>
+          )}
+          {user && stats && (
+            <button
+              onClick={screen === "home" ? openStats : undefined}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid #a56bff", color: "#c9a8ff", fontSize: 12, cursor: screen === "home" ? "pointer" : "default" }}
+            >
+              ♪ {stats.guessesCorrect || 0}
+            </button>
+          )}
+          {user && myHitcoin !== null && (
+            <button
+              onClick={screen === "home" ? () => setScreen("packShop") : undefined}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid var(--gold)", color: "var(--gold)", fontSize: 12, cursor: screen === "home" ? "pointer" : "default" }}
+            >
+              <img src={iconHitcoin} alt="" style={{ height: 14 }} /> {myHitcoin}
+            </button>
+          )}
+          {user && (
+            <button onClick={screen === "home" ? openStats : undefined} title={user.displayName} style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg,#ff5fc9,#4f8cff)", border: "2px solid rgba(255,255,255,0.4)", cursor: screen === "home" ? "pointer" : "default", flexShrink: 0 }} />
+          )}
+        </div>
 
         {showOnlineList && (
           <div className="w-full rounded-xl p-3 mb-6" style={{ background: "var(--surface2)", maxWidth: 340 }}>
@@ -3317,8 +3298,8 @@ export default function App() {
         )}
 
         {screen === "home" && showStats && (
-          <div className="w-full flex flex-col gap-5">
-            <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+          <div className="w-full flex flex-col gap-5 hs-subview">
+            <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(79,214,255,0.4)", boxShadow: "0 0 30px rgba(79,214,255,0.18)" }}>
               <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 12 }}>TWOJE STATYSTYKI</h2>
               {!stats ? (
                 <p style={{ color: "var(--muted)", fontSize: 13 }}>Brak jeszcze żadnych rozegranych gier.</p>
@@ -3342,8 +3323,8 @@ export default function App() {
                           }
                         }}
                         disabled={alreadyClaimed}
-                        className="w-full rounded-2xl p-4 flex items-center justify-between card-glow"
-                        style={{ background: "var(--surface)", border: `1px solid ${alreadyClaimed ? "#33294f" : "var(--gold)"}`, opacity: alreadyClaimed ? 0.6 : 1 }}
+                        className="w-full rounded-2xl p-4 flex items-center justify-between"
+                        style={{ background: "#0c0c1c", border: `1.3px solid ${alreadyClaimed ? "#33294f" : "var(--gold)"}`, boxShadow: alreadyClaimed ? "none" : "0 0 22px rgba(245,196,81,0.4)", opacity: alreadyClaimed ? 0.6 : 1 }}
                       >
                         <div className="text-left">
                           <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: alreadyClaimed ? "var(--muted)" : "var(--gold)", display: "flex", alignItems: "center", gap: 6 }}>
@@ -3369,11 +3350,11 @@ export default function App() {
                           setShowStats(false);
                           setShowAchievements(true);
                         }}
-                        className="w-full rounded-2xl p-4 flex items-center justify-between card-glow"
-                        style={{ background: "var(--surface)", border: "1px solid var(--gold)" }}
+                        className="w-full rounded-2xl p-4 flex items-center justify-between"
+                        style={{ background: "#0c0c1c", border: "1.3px solid var(--gold)", boxShadow: "0 0 22px rgba(245,196,81,0.4)" }}
                       >
                         <div className="text-left flex items-center gap-3">
-                          <img src={achOsiagniecia} alt="" style={{ height: 32 }} />
+                          <img src={glMedal} alt="" style={{ height: 32 }} />
                           <div>
                             <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: "var(--gold)" }}>Osiągnięcia</p>
                             <p style={{ fontSize: 11, color: "var(--muted)" }}>
@@ -3391,13 +3372,13 @@ export default function App() {
                       setShowStats(false);
                       openAlbum();
                     }}
-                    className="w-full rounded-2xl p-4 flex items-center justify-between card-glow"
-                    style={{ background: "var(--surface)", border: "1px solid #7dffef" }}
+                    className="w-full rounded-2xl p-4 flex items-center justify-between"
+                    style={{ background: "#0c0c1c", border: "1.3px solid #4fd6ff", boxShadow: "0 0 22px rgba(79,214,255,0.4)" }}
                   >
                     <div className="text-left flex items-center gap-3">
-                      <img src={achAlbum} alt="" style={{ height: 32 }} />
+                      <img src={glKolekcja} alt="" style={{ height: 32 }} />
                       <div>
-                        <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: "#7dffef" }}>Album</p>
+                        <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: "#4fd6ff" }}>Album</p>
                         <p style={{ fontSize: 11, color: "var(--muted)" }}>{Object.keys(stats.cardCollection || {}).length} unikalnych kart</p>
                       </div>
                     </div>
@@ -3410,7 +3391,7 @@ export default function App() {
                     const claimed = isCurrentWeek && wc.claimed;
                     const pct = Math.min(100, Math.round((gamesThisWeek / 3) * 100));
                     return (
-                      <div className="w-full rounded-xl p-3" style={{ background: "var(--surface2)" }}>
+                      <div className="w-full rounded-xl p-3" style={{ background: "#0c0c1c", border: "1px solid rgba(165,107,255,0.35)", boxShadow: "0 0 16px rgba(165,107,255,0.15)" }}>
                         <div className="flex items-center justify-between mb-1">
                           <span style={{ fontSize: 12, fontWeight: "bold" }}>🎯 Wyzwanie tygodnia: zagraj 3 gry</span>
                           <span style={{ fontSize: 11, color: claimed ? "var(--good)" : "var(--muted)" }}>
@@ -3514,7 +3495,7 @@ export default function App() {
             </section>
 
             {h2hOpponents && h2hOpponents.length > 0 && (
-              <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+              <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(255,95,201,0.4)", boxShadow: "0 0 30px rgba(255,95,201,0.15)" }}>
                 <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, marginBottom: 4 }}>⚔️ POJEDYNKI 1V1</h2>
                 <p style={{ color: "var(--muted)", fontSize: 11, marginBottom: 10 }}>
                   Liczą się tylko gry, w których graliście dokładnie we dwójkę.
@@ -3558,9 +3539,9 @@ export default function App() {
             <button
               onClick={() => setShowStats(false)}
               className="w-full py-3 rounded-xl text-sm font-bold"
-              style={{ border: "1px solid #33294f", color: "var(--muted)" }}
+              style={{ background: "#0c0c1c", border: "1px solid rgba(79,214,255,0.35)", color: "#4fd6ff" }}
             >
-              Wróć
+              ← Wróć
             </button>
           </div>
         )}
@@ -3580,7 +3561,7 @@ export default function App() {
                 (grouped[a.category] = grouped[a.category] || []).push(a);
               });
               return (
-                <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+                <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 26px rgba(245,196,81,0.18)" }}>
                   <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 4, color: "var(--gold)", display: "flex", alignItems: "center", gap: 8 }}>
                     <img src={achOsiagniecia} alt="" style={{ height: 28 }} /> OSIĄGNIĘCIA ({claimedCount}/{progress.length})
                   </h2>
@@ -3611,7 +3592,7 @@ export default function App() {
 
                   <div className="flex flex-col gap-2">
                     {Object.entries(grouped).map(([cat, items]) => (
-                      <details key={cat} className="rounded-lg" style={{ background: "var(--surface2)" }}>
+                      <details key={cat} className="rounded-lg" style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.2)" }}>
                         <summary className="px-3 py-2 text-xs font-bold cursor-pointer" style={{ color: "var(--muted)" }}>
                           {cat} ({items.filter((a) => a.claimed).length}/{items.length})
                         </summary>
@@ -3641,17 +3622,17 @@ export default function App() {
                 setShowStats(true);
               }}
               className="w-full py-3 rounded-xl text-sm font-bold"
-              style={{ border: "1px solid #33294f", color: "var(--muted)" }}
+              style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.35)", color: "var(--gold)" }}
             >
-              Wróć
+              ← Wróć
             </button>
           </div>
         )}
 
         {screen === "home" && showLeaderboard && !viewingPlayer && (
           <div className="w-full flex flex-col gap-5">
-            <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
-              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 12 }}>RANKING GRACZY</h2>
+            <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 26px rgba(245,196,81,0.18)" }}>
+              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 12, color: "var(--gold)" }}>RANKING GRACZY</h2>
               <div className="flex gap-2 mb-4">
                 <button
                   onClick={() => openLeaderboard("gamesWon")}
@@ -3679,7 +3660,7 @@ export default function App() {
                       key={p.uid}
                       onClick={() => viewPlayerProfile(p)}
                       className="flex items-center justify-between px-3 py-2 rounded-lg w-full text-left"
-                      style={{ background: "var(--surface2)" }}
+                      style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.2)" }}
                     >
                       <div className="flex items-center gap-3">
                         <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: i === 0 ? "var(--accent)" : "var(--muted)", width: 24 }}>
@@ -3701,17 +3682,17 @@ export default function App() {
             <button
               onClick={() => setShowLeaderboard(false)}
               className="w-full py-3 rounded-xl text-sm font-bold"
-              style={{ border: "1px solid #33294f", color: "var(--muted)" }}
+              style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.35)", color: "var(--gold)" }}
             >
-              Wróć
+              ← Wróć
             </button>
           </div>
         )}
 
         {screen === "home" && showLeaderboard && viewingPlayer && (
           <div className="w-full flex flex-col gap-5">
-            <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
-              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 12 }}>{viewingPlayer.username}</h2>
+            <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 26px rgba(245,196,81,0.18)" }}>
+              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 12, color: "var(--gold)" }}>{viewingPlayer.username}</h2>
               {!viewingPlayer.stats ? (
                 <p style={{ color: "var(--muted)", fontSize: 13 }}>Brak jeszcze żadnych rozegranych gier.</p>
               ) : (
@@ -3765,7 +3746,7 @@ export default function App() {
             <button
               onClick={() => setViewingPlayer(null)}
               className="w-full py-3 rounded-xl text-sm font-bold"
-              style={{ border: "1px solid #33294f", color: "var(--muted)" }}
+              style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.35)", color: "var(--gold)" }}
             >
               ← Wróć do rankingu
             </button>
@@ -4568,29 +4549,6 @@ export default function App() {
               </div>
             </div>
 
-            <div className="hs-bottom-nav">
-              <button className="hs-nav-item active" onClick={goHome}>
-                <img src={glGraj} alt="" />
-                <span>GRAJ</span>
-              </button>
-              <button className="hs-nav-item" onClick={openAlbum}>
-                <img src={glKolekcja} alt="" />
-                <span>KOLEKCJA</span>
-              </button>
-              <button className="hs-nav-item" onClick={() => setShowAchievements(true)}>
-                <img src={glPrezent} alt="" />
-                <span>NAGRODY</span>
-              </button>
-              <button className="hs-nav-item" onClick={() => setScreen("packShop")}>
-                <img src={glKoszyk} alt="" />
-                <span>SKLEP</span>
-              </button>
-              <button className="hs-nav-item" onClick={openStats}>
-                <img src={glOsoba} alt="" />
-                <span>PROFIL</span>
-              </button>
-            </div>
-
             {user && (
               <>
                 <button
@@ -4900,8 +4858,8 @@ export default function App() {
 
                 return (
                   <>
-                    <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #7dffef" }}>
-                      <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 4, color: "#7dffef", display: "flex", alignItems: "center", gap: 8 }}>
+                    <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(79,214,255,0.4)", boxShadow: "0 0 26px rgba(79,214,255,0.18)" }}>
+                      <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 4, color: "#4fd6ff", display: "flex", alignItems: "center", gap: 8 }}>
                         <img src={achAlbum} alt="" style={{ height: 28 }} /> ALBUM
                       </h2>
                       <p style={{ fontSize: 13, marginBottom: 10 }}>
@@ -5030,7 +4988,7 @@ export default function App() {
               <>
                 <div className="w-full text-center">
                   <img src={iconSklep} alt="" style={{ height: 48, margin: "0 auto 6px" }} />
-                  <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 36, letterSpacing: 3, color: "#7dffef", textShadow: "0 0 20px rgba(125,255,239,0.5)" }}>
+                  <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 36, letterSpacing: 3, color: "#4fd6ff", textShadow: "0 0 20px rgba(79,214,255,0.5)" }}>
                     SKLEP
                   </h2>
                   <p style={{ color: "var(--muted)", fontSize: 12 }}>3 dostępne paczki z kartami do Twojego albumu</p>
@@ -5073,7 +5031,7 @@ export default function App() {
                 </div>
               </>
             ) : (
-              <section className="w-full rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+              <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 26px rgba(245,196,81,0.18)" }}>
                 {showConfetti && <Confetti />}
                 <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, marginBottom: 4, textAlign: "center" }}>Kliknij, żeby odkryć kartę</h2>
                 <div className="flex flex-wrap justify-center gap-4 mt-4">
@@ -5188,12 +5146,12 @@ export default function App() {
             <button
               onClick={leaveRoom}
               className="self-start flex items-center gap-1 text-xs"
-              style={{ color: "var(--muted)" }}
+              style={{ color: "var(--accent)" }}
             >
               ← Wróć
             </button>
 
-            <section className="w-full rounded-2xl p-5 flex flex-col items-center card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+            <section className="w-full rounded-2xl p-5 flex flex-col items-center" style={{ background: "#0c0c1c", border: "1px solid rgba(79,214,255,0.4)", boxShadow: "0 0 26px rgba(79,214,255,0.18)" }}>
               <p style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase" }}>Kod pokoju</p>
               <div className="flex items-center gap-2">
                 <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 44, letterSpacing: 4, color: "var(--accent)" }}>{roomId}</span>
@@ -5204,19 +5162,19 @@ export default function App() {
               <p style={{ color: "var(--muted)", fontSize: 11, marginTop: 4 }}>Prześlij ten kod znajomym, żeby dołączyli</p>
             </section>
 
-            <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+            <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(165,107,255,0.4)", boxShadow: "0 0 26px rgba(165,107,255,0.18)" }}>
               <div className="flex items-center gap-2 mb-3">
-                <Users size={16} color="var(--accent)" />
+                <Users size={16} color="#a56bff" />
                 <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>GRACZE ({room.players.length})</h2>
               </div>
               <div className="flex flex-col gap-1">
                 {room.players.map((p) => (
                   <div key={p.id} className="flex items-center gap-2 text-sm">
                     <span>{p.name}</span>
-                    {p.id === room.hostId && <span style={{ color: "var(--accent)", fontSize: 10 }}>HOST</span>}
+                    {p.id === room.hostId && <span style={{ color: "#a56bff", fontSize: 10 }}>HOST</span>}
                     {p.id === playerId && <span style={{ color: "var(--muted)", fontSize: 10 }}>(Ty)</span>}
                     {p.authed && playerLevels[p.id] !== undefined && (
-                      <span style={{ fontSize: 10, color: "var(--accent2)", background: "var(--surface2)", padding: "1px 6px", borderRadius: 8 }}>
+                      <span style={{ fontSize: 10, color: "#a56bff", background: "var(--surface2)", padding: "1px 6px", borderRadius: 8 }}>
                         lvl {levelFromXp(playerLevels[p.id]).level}
                       </span>
                     )}
@@ -5226,7 +5184,7 @@ export default function App() {
             </section>
 
             {isHost ? (
-              <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+              <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 26px rgba(245,196,81,0.18)" }}>
                 <div className="flex items-center gap-2 mb-4">
                   <label className="text-xs uppercase" style={{ color: "var(--muted)" }}>Kart do wygrania:</label>
                   <input
@@ -5303,7 +5261,7 @@ export default function App() {
                   flexDirection: "column",
                   alignItems: "center",
                   justifyContent: "center",
-                  zIndex: 50,
+                  zIndex: 60,
                 }}
               >
                 <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: "var(--muted)", marginBottom: 16, letterSpacing: 2 }}>
@@ -5316,7 +5274,7 @@ export default function App() {
             ) : (
               <>
                 <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, textAlign: "center" }}>KTO ZACZYNA?</p>
-                <div className="w-full rounded-2xl p-5 flex flex-col items-center card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+                <div className="w-full rounded-2xl p-5 flex flex-col items-center" style={{ background: "#0c0c1c", border: "1px solid rgba(79,214,255,0.4)", boxShadow: "0 0 26px rgba(79,214,255,0.18)" }}>
                   <Vinyl spinning={isPlaying} revealed={!!room.openerWinnerId} progress={playElapsed / PLAY_CAP_SECONDS} />
                   <div style={{ width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }}>
                     <iframe
@@ -5368,9 +5326,9 @@ export default function App() {
                           disabled={openerLockedOut}
                           className="w-full py-3 rounded-xl text-sm font-bold text-left px-4"
                           style={{
-                            background: openerLockedOut ? "#33294f" : "var(--surface2)",
+                            background: openerLockedOut ? "#1a1428" : "#0c0c1c",
                             color: openerLockedOut ? "var(--muted)" : "var(--text)",
-                            border: "1px solid #33294f",
+                            border: `1px solid ${openerLockedOut ? "#33294f" : "rgba(79,214,255,0.35)"}`,
                           }}
                         >
                           {opt.artist} — {opt.title}
@@ -5387,7 +5345,7 @@ export default function App() {
 
         {(screen === "playing" || screen === "voting" || screen === "roundResult") && room && room.currentCard && (
           <div className="w-full flex flex-col items-center gap-6">
-            <div className="w-full rounded-2xl p-5 flex flex-col items-center card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+            <div className="w-full rounded-2xl p-5 flex flex-col items-center" style={{ background: "#0c0c1c", border: "1px solid rgba(79,214,255,0.4)", boxShadow: "0 0 26px rgba(79,214,255,0.18)" }}>
               <p style={{ color: "var(--accent)", fontSize: 12, textTransform: "uppercase", letterSpacing: 2 }}>Tura gracza</p>
               <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30 }}>
                 {isMyTurn ? "Twoja kolej!" : turnPlayerName}
@@ -5421,7 +5379,7 @@ export default function App() {
             </div>
 
             {screen === "playing" && isMyTurn && !room.practiceMode && (
-              <div className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <div className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(165,107,255,0.4)", boxShadow: "0 0 22px rgba(165,107,255,0.15)" }}>
                 <div className="flex items-center justify-between mb-2">
                   <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase" }}>Zgadnij wykonawcę i tytuł (opcjonalnie, +1 token)</p>
                   <span style={{ color: "var(--accent)", fontSize: 12, fontWeight: "bold", display: "inline-flex", alignItems: "center", gap: 3 }}>
@@ -5505,7 +5463,7 @@ export default function App() {
             )}
 
             {screen === "voting" && room.pendingGuess && (
-              <div className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
+              <div className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(255,95,201,0.4)", boxShadow: "0 0 26px rgba(255,95,201,0.18)" }}>
                 <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, textAlign: "center", marginBottom: 10 }}>
                   {isMyTurn ? "Czekasz na głosy…" : `Czy ${turnPlayerName} zgadł(a) poprawnie?`}
                 </p>
@@ -5630,8 +5588,8 @@ export default function App() {
                     )}
 
                     <div
-                      className="rounded-2xl p-6 text-center card-glow"
-                      style={{ background: "var(--surface)", minWidth: 220, marginTop: 8, animation: "scale-pop-in 0.5s ease 0.5s both" }}
+                      className="rounded-2xl p-6 text-center"
+                      style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 30px rgba(245,196,81,0.25)", minWidth: 220, marginTop: 8, animation: "scale-pop-in 0.5s ease 0.5s both" }}
                     >
                       <p style={{ fontSize: 13, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>{r.card.artist}</p>
                       <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 56, color: "var(--accent)", lineHeight: 1 }}>{r.card.year}</p>
@@ -5738,7 +5696,7 @@ export default function App() {
               if (!fastest && !bestStreak) return null;
 
               return (
-                <div className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+                <div className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(79,214,255,0.4)", boxShadow: "0 0 22px rgba(79,214,255,0.15)" }}>
                   <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>Podsumowanie gry</p>
                   <div className="flex gap-3 flex-wrap justify-center">
                     {fastest && (
@@ -5770,7 +5728,7 @@ export default function App() {
               const { items, total } = computeGameEndXp(room, playerId);
               if (!items.length) return null;
               return (
-                <div className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+                <div className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(165,107,255,0.4)", boxShadow: "0 0 22px rgba(165,107,255,0.15)" }}>
                   <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>⭐ Zdobyte XP</p>
                   <div className="flex flex-col gap-1 text-left">
                     {items.map((it, i) => (
@@ -5795,7 +5753,7 @@ export default function App() {
             })()}
 
             {user && !room.practiceMode && gameEndReward && (
-              <div className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <div className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 22px rgba(245,196,81,0.18)" }}>
                 <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8, display: "flex", alignItems: "center", gap: 5 }}>
                   <img src={iconHitcoin} alt="" style={{ height: 14 }} /> Zdobyty HITCOIN
                 </p>
@@ -5833,7 +5791,7 @@ export default function App() {
             )}
 
             {room.playedCards && room.playedCards.length > 0 && (
-              <div className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <div className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(255,95,201,0.4)", boxShadow: "0 0 22px rgba(255,95,201,0.15)" }}>
                 <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
                   <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)" }}>
                     🎵 {showOnlyMyPlaylist ? "Twoja playlista" : "Playlista wieczoru"} (
@@ -5910,6 +5868,31 @@ export default function App() {
                 🏆 Wróć do turnieju
               </button>
             )}
+          </div>
+        )}
+
+        {!["playing", "voting", "roundResult"].includes(screen) && (
+          <div className="hs-bottom-nav">
+            <button className={`hs-nav-item${screen === "home" && !showStats && !showAchievements && !showLeaderboard && !showAdminPanel ? " active" : ""}`} onClick={goHome}>
+              <img src={glGraj} alt="" />
+              <span>GRAJ</span>
+            </button>
+            <button className={`hs-nav-item${screen === "album" ? " active" : ""}`} onClick={openAlbum}>
+              <img src={glKolekcja} alt="" />
+              <span>KOLEKCJA</span>
+            </button>
+            <button className={`hs-nav-item${showAchievements ? " active" : ""}`} onClick={() => { setScreen("home"); setShowAchievements(true); }}>
+              <img src={glPrezent} alt="" />
+              <span>NAGRODY</span>
+            </button>
+            <button className={`hs-nav-item${screen === "packShop" ? " active" : ""}`} onClick={() => setScreen("packShop")}>
+              <img src={glKoszyk} alt="" />
+              <span>SKLEP</span>
+            </button>
+            <button className={`hs-nav-item${showStats ? " active" : ""}`} onClick={() => { setScreen("home"); openStats(); }}>
+              <img src={glOsoba} alt="" />
+              <span>PROFIL</span>
+            </button>
           </div>
         )}
       </div>
