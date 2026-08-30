@@ -21,7 +21,7 @@ import { heartbeat, clearPresence, getOnlinePlayers } from "./presence.js";
 import { sendDuelChallenge, listenForIncomingChallenge, listenForSentChallenges, acceptDuelChallenge, declineDuelChallenge, clearDuelChallenge, isChallengeStale } from "./duelInvites.js";
 import { getOrCreateDailySong } from "./dailySong.js";
 import { getOrCreateDailyPlaylist, hasPlayedPlaylistToday, recordDailyPlaylistScore, fetchDailyPlaylistLeaderboard, fetchWeeklyPlaylistLeaderboard, fetchAllTimePlaylistLeaderboard, processWeeklyPlaylistRewardsIfNeeded } from "./dailyPlaylist.js";
-import { createTournament, cancelTournament, fetchActiveTournament, fetchTournament, signUpForTournament, recordTournamentMatchResult, checkAndAdvanceTournament, settleTournamentXpIfNeeded, pickMatchPlaylist } from "./tournaments.js";
+import { createTournament, cancelTournament, fetchActiveTournament, fetchLastCompletedTournament, fetchTournament, signUpForTournament, recordTournamentMatchResult, checkAndAdvanceTournament, settleTournamentXpIfNeeded, pickMatchPlaylist } from "./tournaments.js";
 import { awardHitcoin, computeWinHitcoin, computeSecondPlaceHitcoin, computeThirdPlaceHitcoin, claimDailyHitcoin, drawCardAfterGame, effectiveRarity, PACKS, openPack, SELL_PRICES, sellDuplicateCard, sellAllDuplicates } from "./cards.js";
 import { updateHeadToHead, fetchHeadToHeadOpponents } from "./headToHead.js";
 import { getAchievementProgress, ACHIEVEMENTS } from "./achievements.js";
@@ -96,7 +96,15 @@ const CATEGORIES = [
   { slug: "rap", label: "Rap" },
   { slug: "elektroniczna", label: "Elektroniczna" },
   { slug: "tymek", label: "Tymek" },
+  { slug: "religijne", label: "Religijne" },
 ];
+
+// Kategorie utworu są wpisywane ręcznie (panel admina, import CSV) więc mogą
+// mieć niespójną wielkość liter/spacje (np. "Tymek" zamiast "tymek") — bez
+// tej normalizacji taki utwór milcząco nie pasowałby do żadnego filtra.
+function normCategories(categories) {
+  return (categories || []).map((c) => (c || "").trim().toLowerCase());
+}
 
 // Wspólne metadane 5 poziomów rzadkości kart — używane wszędzie, gdzie
 // pokazujemy kartę (koniec gry, album, paczki), żeby kolory/etykiety były
@@ -634,7 +642,7 @@ export default function App() {
 
   async function getDailyFeaturesPool() {
     const pool = await getLiveLibraryPool();
-    return pool.filter((s) => !(s.categories || []).includes("rap"));
+    return pool.filter((s) => !normCategories(s.categories).includes("rap") && !normCategories(s.categories).includes("religijne"));
   }
 
   useEffect(() => {
@@ -678,8 +686,16 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    fetchActiveTournament().then(setActiveTournament).catch(() => {});
-    const id = setInterval(() => fetchActiveTournament().then(setActiveTournament).catch(() => {}), 60000);
+    function loadTournamentInfo() {
+      fetchActiveTournament()
+        .then((t) => {
+          setActiveTournament(t);
+          if (!t) fetchLastCompletedTournament().then(setLastCompletedTournament).catch(() => {});
+        })
+        .catch(() => {});
+    }
+    loadTournamentInfo();
+    const id = setInterval(loadTournamentInfo, 60000);
     return () => clearInterval(id);
   }, []);
 
@@ -770,6 +786,7 @@ export default function App() {
   const [dailyPlaylistAllTimeBoard, setDailyPlaylistAllTimeBoard] = useState([]);
   const [dailyPlaylistBusy, setDailyPlaylistBusy] = useState(false);
   const [activeTournament, setActiveTournament] = useState(null);
+  const [lastCompletedTournament, setLastCompletedTournament] = useState(null);
   const [tournamentBusy, setTournamentBusy] = useState(false);
   const [adminNewTournament, setAdminNewTournament] = useState({ maxPlayers: "4", entryFee: "200" });
   const [rarityMigrateBusy, setRarityMigrateBusy] = useState(false);
@@ -1157,7 +1174,7 @@ export default function App() {
     try {
       const categories = (adminEditDraft.categoriesText || "")
         .split(";")
-        .map((c) => c.trim())
+        .map((c) => c.trim().toLowerCase())
         .filter(Boolean);
       await updateSongInDb(id, {
         artist: adminEditDraft.artist,
@@ -1207,7 +1224,7 @@ export default function App() {
         artist: adminNewSong.artist.trim(),
         title: adminNewSong.title.trim(),
         year,
-        categories: adminNewSong.categories.split(";").map((c) => c.trim()).filter(Boolean),
+        categories: adminNewSong.categories.split(";").map((c) => c.trim().toLowerCase()).filter(Boolean),
       });
       setAdminNewSong({ artist: "", title: "", url: "", year: "", categories: "" });
       const base = librarySongs && librarySongs.length > 0 ? librarySongs : await fetchAllSongsFromDb();
@@ -1305,7 +1322,7 @@ export default function App() {
   async function handleSaveProposalEdit(id) {
     setAdminBusy(true);
     try {
-      const categories = (proposalEditDraft.categoriesText || "").split(";").map((c) => c.trim()).filter(Boolean);
+      const categories = (proposalEditDraft.categoriesText || "").split(";").map((c) => c.trim().toLowerCase()).filter(Boolean);
       const videoId = getYouTubeId(proposalEditDraft.url) || proposalEditDraft.videoId;
       await updateProposal(id, {
         artist: proposalEditDraft.artist,
@@ -1473,7 +1490,7 @@ export default function App() {
     }
     setBrokenLinkBusy(true);
     try {
-      const categories = (brokenLinkEditDraft.categoriesText || "").split(";").map((c) => c.trim()).filter(Boolean);
+      const categories = (brokenLinkEditDraft.categoriesText || "").split(";").map((c) => c.trim().toLowerCase()).filter(Boolean);
       const fields = {
         artist: brokenLinkEditDraft.artist,
         title: brokenLinkEditDraft.title,
@@ -1644,7 +1661,7 @@ export default function App() {
         // gdyby to samo konto było zalogowane naraz na dwóch urządzeniach,
         // każde z nich niezależnie próbowałoby przyznać nagrody za tę samą
         // grę. Transakcja w Firestore gwarantuje, że wygra dokładnie jedno.
-        const rewardMarkerRef = doc(db, "gameRewardsProcessed", `${roomId}_${user.uid}`);
+        const rewardMarkerRef = doc(db, "gameRewardsProcessed", `${roomId}_${marker}_${user.uid}`);
         let shouldProcess = false;
         await runTransaction(db, async (tx) => {
           const snap = await tx.get(rewardMarkerRef);
@@ -1713,7 +1730,7 @@ export default function App() {
     dailyPlaylistProcessedRef.current = marker;
     (async () => {
       try {
-        const rewardMarkerRef = doc(db, "gameRewardsProcessed", `${roomId}_${user.uid}`);
+        const rewardMarkerRef = doc(db, "gameRewardsProcessed", `${roomId}_${marker}_${user.uid}`);
         let shouldProcess = false;
         await runTransaction(db, async (tx) => {
           const snap = await tx.get(rewardMarkerRef);
@@ -2119,8 +2136,8 @@ export default function App() {
       const basePool = await getLiveLibraryPool();
       const filterActive = !selectedCategories.includes("wszystkie") && selectedCategories.length > 0;
       const pool = filterActive
-        ? basePool.filter((s) => s.categories && s.categories.some((c) => selectedCategories.includes(c)))
-        : basePool;
+        ? basePool.filter((s) => normCategories(s.categories).some((c) => selectedCategories.includes(c)))
+        : basePool.filter((s) => !normCategories(s.categories).includes("religijne"));
       const target = practiceTarget && practiceTarget > 0 ? practiceTarget : 15;
       const needed = target + 7;
       if (pool.length < needed) {
@@ -2233,8 +2250,8 @@ export default function App() {
       const basePool = await getLiveLibraryPool();
       const filterActive = !selectedCategories.includes("wszystkie") && selectedCategories.length > 0;
       const pool = filterActive
-        ? basePool.filter((s) => s.categories && s.categories.some((c) => selectedCategories.includes(c)))
-        : basePool;
+        ? basePool.filter((s) => normCategories(s.categories).some((c) => selectedCategories.includes(c)))
+        : basePool.filter((s) => !normCategories(s.categories).includes("religijne"));
       const EXTRA_CARDS_PER_PLAYER = 7;
       const needed = room.players.length * (target + EXTRA_CARDS_PER_PLAYER);
       if (pool.length < needed + 1) {
@@ -3156,48 +3173,7 @@ export default function App() {
         }
       `}</style>
 
-      {user && myXp !== null && screen !== "home" && (
-        <div style={{ position: "fixed", top: 14, right: 14, zIndex: 90, display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
-          <button
-            onClick={undefined}
-            style={{
-              background: "linear-gradient(135deg, rgba(0,230,195,0.16), rgba(139,92,246,0.16))",
-              border: "1px solid var(--accent)",
-              borderRadius: 999,
-              padding: "6px 14px",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              boxShadow: "0 0 14px -4px var(--accent)",
-              color: "var(--accent)",
-              fontFamily: "'Bebas Neue', sans-serif",
-              fontSize: 15,
-              letterSpacing: 0.5,
-              cursor: "default",
-            }}
-          >
-            ⭐ LVL {levelFromXp(myXp).level}
-          </button>
-          {myHitcoin !== null && (
-            <div
-              style={{
-                background: "rgba(255,214,107,0.12)",
-                border: "1px solid var(--gold)",
-                borderRadius: 999,
-                padding: "4px 12px",
-                color: "var(--gold)",
-                fontFamily: "'Bebas Neue', sans-serif",
-                fontSize: 13,
-                display: "flex",
-                alignItems: "center",
-                gap: 5,
-              }}
-            >
-              <img src={iconHitcoin} alt="" style={{ height: 16 }} /> {myHitcoin}
-            </div>
-          )}
-        </div>
-      )}
+
 
       <div className="w-full flex flex-col items-center hs-page" style={{ maxWidth: screen === "home" ? 1200 : 720 }}>
         <div className="w-full" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, flexWrap: "wrap", position: "relative", zIndex: 1 }}>
@@ -4476,19 +4452,25 @@ export default function App() {
                         </button>
                       </div>
                     )}
-                    {user && activeTournament && (
-                      <div className="hs-tile-slot gold">
-                        <div className="hs-tile-glow" />
-                        <div className="hs-tile-rim" />
-                        <div className="hs-badge">★ PREMIUM</div>
-                        <button onClick={openTournamentHub} disabled={tournamentBusy} className="hs-tile">
-                          <img className="hs-icon" src={glTurniej} alt="" />
-                          <div className="hs-t">TURNIEJ</div>
-                          <div className="hs-d">{activeTournament.status === "signup" ? `${activeTournament.signups.length}/${activeTournament.maxPlayers} zapisanych` : "trwa!"}</div>
-                          <div className="hs-arrow" style={{ color: "#f5c451" }}>›</div>
-                        </button>
-                      </div>
-                    )}
+                    <div className="hs-tile-slot gold">
+                      <div className="hs-tile-glow" />
+                      <div className="hs-tile-rim" />
+                      <div className="hs-badge">★ PREMIUM</div>
+                      <button onClick={activeTournament ? openTournamentHub : undefined} disabled={tournamentBusy} className="hs-tile" style={{ cursor: activeTournament ? "pointer" : "default" }}>
+                        <img className="hs-icon" src={glTurniej} alt="" />
+                        <div className="hs-t">TURNIEJ</div>
+                        <div className="hs-d">
+                          {activeTournament
+                            ? activeTournament.status === "signup"
+                              ? `${activeTournament.signups.length}/${activeTournament.maxPlayers} zapisanych`
+                              : "trwa!"
+                            : lastCompletedTournament
+                            ? `Wygrał: ${lastCompletedTournament.signups?.find((p) => p.uid === lastCompletedTournament.winnerUid)?.name || "?"} · wkrótce kolejny!`
+                            : "Wkrótce pierwszy turniej!"}
+                        </div>
+                        <div className="hs-arrow" style={{ color: "#f5c451" }}>›</div>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -5125,12 +5107,13 @@ export default function App() {
               <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 14 }}>
                 {(() => {
                   const filterActive = !selectedCategories.includes("wszystkie") && selectedCategories.length > 0;
+                  const nonReligijne = effectivePool.filter((s) => !normCategories(s.categories).includes("religijne"));
                   const count = filterActive
-                    ? effectivePool.filter((s) => s.categories && s.categories.some((c) => selectedCategories.includes(c))).length
-                    : effectivePool.length;
+                    ? effectivePool.filter((s) => normCategories(s.categories).some((c) => selectedCategories.includes(c))).length
+                    : nonReligijne.length;
                   return filterActive
                     ? `${count} utworów pasuje do wybranych kategorii (z ${effectivePool.length} w całej bibliotece).`
-                    : `Trenujesz z pełną biblioteką ${effectivePool.length} utworów.`;
+                    : `Trenujesz z biblioteką ${count} utworów (bez kategorii Religijne — dodaj ją ręcznie, jeśli chcesz ją włączyć).`;
                 })()}
               </p>
 
@@ -5220,12 +5203,13 @@ export default function App() {
                 <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 6 }}>
                   {(() => {
                     const filterActive = !selectedCategories.includes("wszystkie") && selectedCategories.length > 0;
+                    const nonReligijne = effectivePool.filter((s) => !normCategories(s.categories).includes("religijne"));
                     const count = filterActive
-                      ? effectivePool.filter((s) => s.categories && s.categories.some((c) => selectedCategories.includes(c))).length
-                      : effectivePool.length;
+                      ? effectivePool.filter((s) => normCategories(s.categories).some((c) => selectedCategories.includes(c))).length
+                      : nonReligijne.length;
                     return filterActive
                       ? `${count} utworów pasuje do wybranych kategorii (z ${effectivePool.length} w całej bibliotece).`
-                      : `Gracie z pełną biblioteką ${effectivePool.length} utworów.`;
+                      : `Gracie z biblioteką ${count} utworów (bez kategorii Religijne — dodaj ją ręcznie, jeśli chcesz ją włączyć).`;
                   })()}
                 </p>
                 <button

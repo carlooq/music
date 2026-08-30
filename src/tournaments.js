@@ -80,6 +80,16 @@ export async function fetchActiveTournament() {
   return snap.docs[0].data();
 }
 
+export async function fetchLastCompletedTournament() {
+  // Celowo bez where("status","==","completed") w połączeniu z orderBy — to wymagałoby
+  // złożonego indeksu w Firestore, którego nie da się utworzyć stąd. Zamiast tego pobieramy
+  // kilka ostatnich turniejów (posortowane po samym createdAt, co nie wymaga indeksu) i filtrujemy lokalnie.
+  const q = query(collection(db, COLLECTION), orderBy("createdAt", "desc"), limit(10));
+  const snap = await getDocs(q);
+  const completed = snap.docs.map((d) => d.data()).find((t) => t.status === "completed");
+  return completed || null;
+}
+
 export async function fetchTournament(tournamentId) {
   const snap = await getDoc(doc(db, COLLECTION, tournamentId));
   return snap.exists() ? snap.data() : null;

@@ -227,7 +227,7 @@ function parseImportCsv(text) {
     artist: (r[1] || "").trim(),
     title: (r[2] || "").trim(),
     year: parseInt((r[3] || "").trim(), 10),
-    categories: (r[4] || "").trim().split(";").map((c) => c.trim()).filter(Boolean),
+    categories: (r[4] || "").trim().split(";").map((c) => c.trim().toLowerCase()).filter(Boolean),
   }));
 }
 
