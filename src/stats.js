@@ -140,6 +140,11 @@ export async function recordSongAdded(uid) {
   await updateDoc(ref, { songsAdded: increment(1) });
 }
 
+export async function setAvatarUrl(uid, url) {
+  const ref = doc(db, "userStats", uid);
+  await updateDoc(ref, { avatarUrl: url });
+}
+
 // Called whenever a player's artist+title guess gets approved (bezpośrednio
 // lub przez głosowanie) — licznik + zbiór unikalnych trafionych utworów.
 export async function recordSuccessfulGuess(uid, videoId, year) {

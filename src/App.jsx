@@ -9,12 +9,13 @@ import {
   increment,
   arrayUnion,
 } from "firebase/firestore";
-import { db } from "./firebase-config.js";
+import { db, storage } from "./firebase-config.js";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
 import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId, fuzzyMatch } from "./utils.js";
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
-import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, awardXp, xpForLevel, levelFromXp, progressWeeklyChallenge, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak } from "./stats.js";
+import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, awardXp, xpForLevel, levelFromXp, progressWeeklyChallenge, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl } from "./stats.js";
 import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss, incrementSongPlayCount, getSongCount, migrateRarityForExistingSongs } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
 import { heartbeat, clearPresence, getOnlinePlayers } from "./presence.js";
@@ -530,6 +531,7 @@ export default function App() {
   const [adminPage, setAdminPage] = useState(1);
   const ADMIN_PAGE_SIZE = 100;
   const [adminBusy, setAdminBusy] = useState(false);
+  const [avatarUploadBusy, setAvatarUploadBusy] = useState(false);
   const [adminEditingId, setAdminEditingId] = useState(null);
   const [adminEditDraft, setAdminEditDraft] = useState({});
   const [adminNewSong, setAdminNewSong] = useState({ artist: "", title: "", url: "", year: "", categories: "" });
@@ -537,6 +539,8 @@ export default function App() {
   const [importCsvText, setImportCsvText] = useState("");
   const [importBusy, setImportBusy] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  const [duplicateSongs, setDuplicateSongs] = useState(null);
+  const [duplicateScanBusy, setDuplicateScanBusy] = useState(false);
   const [cleanupBusy, setCleanupBusy] = useState(false);
   const [cleanupResult, setCleanupResult] = useState(null);
   const [cleanupProgress, setCleanupProgress] = useState(null);
@@ -683,6 +687,13 @@ export default function App() {
     getOnlinePlayers().then(setOnlinePlayers);
     const id = setInterval(() => getOnlinePlayers().then(setOnlinePlayers), 40000);
     return () => clearInterval(id);
+  }, []);
+
+  // Ta sama tania funkcja licząca, co wcześniej wołana tylko przy wejściu w Statystyki -
+  // bez tego kafelek "Kolekcja" na stronie głównej cicho spadał do starej wbudowanej
+  // listy zapasowej (746 utworów) zanim ktoś odwiedził Statystyki/Album.
+  useEffect(() => {
+    getSongCount().then((c) => c !== null && setTotalSongCount(c));
   }, []);
 
   useEffect(() => {
@@ -1219,6 +1230,18 @@ export default function App() {
     }
     setAdminBusy(true);
     try {
+      // Sprawdzamy duplikat względem NAJŚWIEŻSZEJ biblioteki (nie lokalnego cache) —
+      // ten sam link dodany dwa razy dawałby danemu utworowi podwójną szansę na
+      // wylosowanie w każdej talii, bez żadnego widocznego śladu w appce.
+      const fresh = await fetchAllSongsFromDb();
+      const dup = fresh.find((s) => s.videoId === videoId);
+      if (dup) {
+        setError(`Ten utwór już jest w bazie: "${dup.artist} – ${dup.title}" (dodano wcześniej). Duplikat NIE został dodany.`);
+        setLibrarySongs(fresh);
+        saveLibraryCache(fresh);
+        setAdminBusy(false);
+        return;
+      }
       const added = await addSongToDb({
         videoId,
         artist: adminNewSong.artist.trim(),
@@ -1227,8 +1250,7 @@ export default function App() {
         categories: adminNewSong.categories.split(";").map((c) => c.trim().toLowerCase()).filter(Boolean),
       });
       setAdminNewSong({ artist: "", title: "", url: "", year: "", categories: "" });
-      const base = librarySongs && librarySongs.length > 0 ? librarySongs : await fetchAllSongsFromDb();
-      const next = [...base, added];
+      const next = [...fresh, added];
       setLibrarySongs(next);
       saveLibraryCache(next);
     } catch (e) {
@@ -1290,14 +1312,27 @@ export default function App() {
   async function handleAcceptProposal(p) {
     setAdminBusy(true);
     try {
+      // Ta sama zasada co przy ręcznym dodawaniu — sprawdzamy względem najświeższej
+      // biblioteki, żeby nie dodać drugi raz utworu, który już tam jest (np. ktoś
+      // wcześniej dodał go ręcznie, zanim ta propozycja została rozpatrzona).
+      const fresh = await fetchAllSongsFromDb();
+      const dup = fresh.find((s) => s.videoId === p.videoId);
+      if (dup) {
+        await rejectProposal(p.id);
+        setProposals((prev) => prev.filter((x) => x.id !== p.id));
+        setLibrarySongs(fresh);
+        saveLibraryCache(fresh);
+        setError(`Ten utwór już jest w bazie: "${dup.artist} – ${dup.title}". Propozycja usunięta z kolejki, duplikat NIE został dodany.`);
+        setAdminBusy(false);
+        return;
+      }
       const added = await acceptProposal(p);
       if (p.submittedByUid) {
         recordSongAdded(p.submittedByUid).catch(() => {});
         awardXp(p.submittedByUid, 25).catch(() => {}); // zaakceptowana propozycja utworu
       }
       setProposals((prev) => prev.filter((x) => x.id !== p.id));
-      const base = librarySongs && librarySongs.length > 0 ? librarySongs : await fetchAllSongsFromDb();
-      const next = [...base, added];
+      const next = [...fresh, added];
       setLibrarySongs(next);
       saveLibraryCache(next);
     } catch (e) {
@@ -1354,6 +1389,27 @@ export default function App() {
     } finally {
       setAdminBusy(false);
       setMigrateProgress(null);
+    }
+  }
+
+  async function handleFindDuplicates() {
+    setDuplicateScanBusy(true);
+    setError("");
+    try {
+      const fresh = await fetchAllSongsFromDb();
+      setLibrarySongs(fresh);
+      saveLibraryCache(fresh);
+      const byVideoId = {};
+      fresh.forEach((s) => {
+        if (!byVideoId[s.videoId]) byVideoId[s.videoId] = [];
+        byVideoId[s.videoId].push(s);
+      });
+      const dupes = Object.values(byVideoId).filter((group) => group.length > 1);
+      setDuplicateSongs(dupes);
+    } catch (e) {
+      setError("Błąd szukania duplikatów: " + e.message);
+    } finally {
+      setDuplicateScanBusy(false);
     }
   }
 
@@ -1835,7 +1891,38 @@ export default function App() {
 
   async function viewPlayerProfile(p) {
     const s = await getStats(p.uid);
+    // Dociągamy żywą bibliotekę (nie effectivePool, które przy pierwszej wizycie
+    // w appce cicho spada do starej wbudowanej listy bez przypisanej rzadkości) -
+    // potrzebna do policzenia "ile ogółem" utworów jest w każdej rzadkości.
+    getLiveLibraryPool();
     setViewingPlayer({ uid: p.uid, username: p.username, stats: s });
+  }
+
+  async function handleAvatarUpload(file) {
+    if (!user || !file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Wybierz plik obrazu (JPG, PNG itp.).");
+      return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      setError("Zdjęcie jest za duże — maksymalnie 3MB.");
+      return;
+    }
+    setAvatarUploadBusy(true);
+    setError("");
+    try {
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+      const path = `avatars/${user.uid}.${ext}`;
+      const fileRef = storageRef(storage, path);
+      await uploadBytes(fileRef, file);
+      const url = await getDownloadURL(fileRef);
+      await setAvatarUrl(user.uid, url);
+      setStats((prev) => (prev ? { ...prev, avatarUrl: url } : prev));
+    } catch (e) {
+      setError("Błąd wgrywania zdjęcia: " + e.message + " (jeśli to błąd uprawnień, trzeba dopuścić zapis w regułach Firebase Storage)");
+    } finally {
+      setAvatarUploadBusy(false);
+    }
   }
 
   useEffect(() => {
@@ -3227,7 +3314,19 @@ export default function App() {
             </button>
           )}
           {user && (
-            <button onClick={screen === "home" ? openStats : undefined} title={user.displayName} style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg,#ff5fc9,#4f8cff)", border: "2px solid rgba(255,255,255,0.4)", cursor: screen === "home" ? "pointer" : "default", flexShrink: 0 }} />
+            <button
+              onClick={screen === "home" ? openStats : undefined}
+              title={user.displayName}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: "50%",
+                background: stats?.avatarUrl ? `url(${stats.avatarUrl}) center/cover no-repeat` : "linear-gradient(135deg,#ff5fc9,#4f8cff)",
+                border: "2px solid rgba(255,255,255,0.4)",
+                cursor: screen === "home" ? "pointer" : "default",
+                flexShrink: 0,
+              }}
+            />
           )}
         </div>
 
@@ -3276,7 +3375,35 @@ export default function App() {
         {screen === "home" && showStats && (
           <div className="w-full flex flex-col gap-5 hs-subview">
             <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(79,214,255,0.4)", boxShadow: "0 0 30px rgba(79,214,255,0.18)" }}>
-              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 12 }}>TWOJE STATYSTYKI</h2>
+              <div className="flex items-center gap-3 mb-3">
+                <label style={{ position: "relative", cursor: user ? "pointer" : "default", flexShrink: 0 }}>
+                  <div
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: "50%",
+                      background: stats?.avatarUrl ? `url(${stats.avatarUrl}) center/cover no-repeat` : "linear-gradient(135deg,#ff5fc9,#4f8cff)",
+                      border: "2px solid rgba(255,255,255,0.4)",
+                      opacity: avatarUploadBusy ? 0.5 : 1,
+                    }}
+                  />
+                  {user && (
+                    <>
+                      <div style={{ position: "absolute", bottom: -2, right: -2, width: 20, height: 20, borderRadius: "50%", background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, border: "2px solid #0c0c1c" }}>
+                        📷
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: "none" }}
+                        disabled={avatarUploadBusy}
+                        onChange={(e) => e.target.files?.[0] && handleAvatarUpload(e.target.files[0])}
+                      />
+                    </>
+                  )}
+                </label>
+                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24 }}>TWOJE STATYSTYKI</h2>
+              </div>
               {!stats ? (
                 <p style={{ color: "var(--muted)", fontSize: 13 }}>Brak jeszcze żadnych rozegranych gier.</p>
               ) : (
@@ -3668,7 +3795,19 @@ export default function App() {
         {screen === "home" && showLeaderboard && viewingPlayer && (
           <div className="w-full flex flex-col gap-5">
             <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 26px rgba(245,196,81,0.18)" }}>
-              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 12, color: "var(--gold)" }}>{viewingPlayer.username}</h2>
+              <div className="flex items-center gap-3 mb-3">
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: "50%",
+                    background: viewingPlayer.stats?.avatarUrl ? `url(${viewingPlayer.stats.avatarUrl}) center/cover no-repeat` : "linear-gradient(135deg,#ff5fc9,#4f8cff)",
+                    border: "2px solid rgba(255,255,255,0.4)",
+                    flexShrink: 0,
+                  }}
+                />
+                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: "var(--gold)" }}>{viewingPlayer.username}</h2>
+              </div>
               {!viewingPlayer.stats ? (
                 <p style={{ color: "var(--muted)", fontSize: 13 }}>Brak jeszcze żadnych rozegranych gier.</p>
               ) : (
@@ -3698,6 +3837,33 @@ export default function App() {
                     />
                     <StatBox label="🎧 Odgadnięte wykonawcy/tytuły" value={viewingPlayer.stats.guessesCorrect || 0} />
                     <StatBox label="📀 Dodane do bazy" value={viewingPlayer.stats.songsAdded || 0} />
+                  </div>
+                  <div>
+                    <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase", marginBottom: 8 }}>Kolekcja kart</p>
+                    <div className="flex flex-wrap gap-3">
+                      {(() => {
+                        const owned = viewingPlayer.stats.cardsByRarity || {};
+                        const totals = {};
+                        RARITY_ORDER.forEach((r) => (totals[r] = 0));
+                        effectivePool.forEach((s) => {
+                          totals[effectiveRarity(s)]++;
+                        });
+                        const totalOwned = RARITY_ORDER.reduce((sum, r) => sum + (owned[r] || 0), 0);
+                        const totalAll = RARITY_ORDER.reduce((sum, r) => sum + totals[r], 0);
+                        return (
+                          <>
+                            <StatBox label="Łącznie" value={`${totalOwned}/${totalAll}`} />
+                            {RARITY_ORDER.map((r) => (
+                              <StatBox
+                                key={r}
+                                label={<span style={{ color: RARITY_INFO[r].color }}>{RARITY_INFO[r].icon} {RARITY_INFO[r].label}</span>}
+                                value={`${owned[r] || 0}/${totals[r]}`}
+                              />
+                            ))}
+                          </>
+                        );
+                      })()}
+                    </div>
                   </div>
                   {viewingPlayer.stats.decades && Object.keys(viewingPlayer.stats.decades).length > 0 && (
                     <div>
@@ -4112,6 +4278,63 @@ export default function App() {
               >
                 Pobierz CSV
               </button>
+            </section>
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(255,95,201,0.4)", boxShadow: "0 0 22px rgba(255,95,201,0.15)" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🔁 Znajdź duplikaty</p>
+              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
+                Ten sam utwór dodany do bazy dwa razy (np. ręcznie i przez propozycję) ma podwójną szansę na wylosowanie w każdej talii —
+                niewidoczne "faworyzowanie" niektórych piosenek. Skanuje pełną bibliotekę i pokazuje, co się powtarza; usuwanie zrób ręcznie
+                poniżej (przycisk 🗑 przy utworze), żeby na pewno zostawić właściwą kopię.
+              </p>
+              <button
+                onClick={handleFindDuplicates}
+                disabled={duplicateScanBusy}
+                className="px-4 py-2 rounded-lg text-sm font-bold"
+                style={{ background: "var(--surface2)", border: "1px solid #ff5fc9", color: "#ff5fc9" }}
+              >
+                {duplicateScanBusy ? "Skanuję..." : "Skanuj bibliotekę"}
+              </button>
+              {duplicateSongs !== null && (
+                <div className="mt-3 flex flex-col gap-2">
+                  {duplicateSongs.length === 0 ? (
+                    <p style={{ fontSize: 12, color: "var(--good)" }}>✓ Brak duplikatów — każdy utwór jest w bazie tylko raz.</p>
+                  ) : (
+                    <>
+                      <p style={{ fontSize: 12, color: "#ff5fc9", fontWeight: "bold" }}>
+                        Znaleziono {duplicateSongs.length} zduplikowanych utworów ({duplicateSongs.reduce((sum, g) => sum + g.length - 1, 0)} nadmiarowych kopii):
+                      </p>
+                      {duplicateSongs.map((group) => (
+                        <div key={group[0].videoId} className="rounded-lg p-2" style={{ background: "var(--surface2)" }}>
+                          <p style={{ fontSize: 12, fontWeight: "bold" }}>
+                            {group[0].artist} – {group.map((s) => s.title).join(" / ")} ({group.length}×)
+                          </p>
+                          <p style={{ fontSize: 10, color: "var(--muted)" }}>videoId: {group[0].videoId}</p>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {group.map((s) => (
+                              <button
+                                key={s.id}
+                                onClick={async () => {
+                                  await handleAdminDelete(s.id);
+                                  setDuplicateSongs((prev) =>
+                                    prev
+                                      .map((g) => g.filter((x) => x.id !== s.id))
+                                      .filter((g) => g.length > 1)
+                                  );
+                                }}
+                                className="px-2 py-1 rounded text-xs"
+                                style={{ background: "var(--surface)", border: "1px solid var(--bad)", color: "var(--bad)" }}
+                              >
+                                🗑 usuń "{s.title}" ({s.year})
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
             </section>
 
 
