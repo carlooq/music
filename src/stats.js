@@ -145,6 +145,13 @@ export async function setAvatarUrl(uid, url) {
   await updateDoc(ref, { avatarUrl: url });
 }
 
+// Zeruje flagę "Podwójne XP" ustawioną przez ruletkę nagrody dnia - wołane RAZ,
+// zaraz po tym jak jej efekt (podwojenie XP z zakończonej gry) już się zastosował.
+export async function consumeDoubleXpFlag(uid) {
+  const ref = doc(db, "userStats", uid);
+  await updateDoc(ref, { doubleXpNextGame: false });
+}
+
 // Called whenever a player's artist+title guess gets approved (bezpośrednio
 // lub przez głosowanie) — licznik + zbiór unikalnych trafionych utworów.
 export async function recordSuccessfulGuess(uid, videoId, year) {

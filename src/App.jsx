@@ -15,7 +15,7 @@ import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
 import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId, fuzzyMatch } from "./utils.js";
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
-import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, awardXp, xpForLevel, levelFromXp, progressWeeklyChallenge, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl } from "./stats.js";
+import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, awardXp, xpForLevel, levelFromXp, progressWeeklyChallenge, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag } from "./stats.js";
 import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss, incrementSongPlayCount, getSongCount, migrateRarityForExistingSongs } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
 import { heartbeat, clearPresence, getOnlinePlayers } from "./presence.js";
@@ -24,6 +24,7 @@ import { getOrCreateDailySong } from "./dailySong.js";
 import { getOrCreateDailyPlaylist, hasPlayedPlaylistToday, recordDailyPlaylistScore, fetchDailyPlaylistLeaderboard, fetchWeeklyPlaylistLeaderboard, fetchAllTimePlaylistLeaderboard, processWeeklyPlaylistRewardsIfNeeded } from "./dailyPlaylist.js";
 import { createTournament, cancelTournament, fetchActiveTournament, fetchLastCompletedTournament, fetchTournament, signUpForTournament, recordTournamentMatchResult, checkAndAdvanceTournament, settleTournamentXpIfNeeded, pickMatchPlaylist } from "./tournaments.js";
 import { awardHitcoin, computeWinHitcoin, computeSecondPlaceHitcoin, computeThirdPlaceHitcoin, claimDailyHitcoin, drawCardAfterGame, effectiveRarity, PACKS, openPack, SELL_PRICES, sellDuplicateCard, sellAllDuplicates } from "./cards.js";
+import { DAILY_REWARD_SEGMENTS, claimDailyWheelReward } from "./dailyWheel.js";
 import { updateHeadToHead, fetchHeadToHeadOpponents } from "./headToHead.js";
 import { getAchievementProgress, ACHIEVEMENTS } from "./achievements.js";
 import { playCorrectSound, playWrongSound, playApplause, playVictorySound, unlockAudio } from "./sounds.js";
@@ -457,6 +458,116 @@ const LevelBar = memo(function LevelBar({ level, currentLevelXp, xpForNextLevel,
   );
 });
 
+// ---------- koło nagrody dnia ----------
+
+const DAILY_WHEEL_ICON = { hitcoin: "🪙", xp: "⭐", doubleXp: "✨", card: "🃏" };
+
+// Rozmiar kawałka na kole jest CELOWO równy dla wszystkich (nie odzwierciedla
+// prawdziwych szans z `weight`) — inaczej sam widok koła zdradzałby, że
+// niektóre nagrody są bardzo rzadkie. Prawdziwe wagi żyją wyłącznie w
+// pickDailyRewardSegment() (dailyWheel.js), całkowicie niezależnie od tego,
+// jak koło wygląda.
+const DAILY_WHEEL_SEGMENTS_WITH_ANGLES = (() => {
+  const angleStep = 360 / DAILY_REWARD_SEGMENTS.length;
+  return DAILY_REWARD_SEGMENTS.map((seg, i) => {
+    const startAngle = i * angleStep;
+    const endAngle = (i + 1) * angleStep;
+    return { ...seg, startAngle, endAngle, midAngle: (startAngle + endAngle) / 2 };
+  });
+})();
+
+const DailyWheel = memo(function DailyWheel({ rotation, spinning }) {
+  const gradientStops = DAILY_WHEEL_SEGMENTS_WITH_ANGLES.map((s) => `${s.color} ${s.startAngle}deg ${s.endAngle}deg`).join(", ");
+  const size = 260;
+  const r = size / 2;
+  return (
+    <div style={{ position: "relative", width: size, height: size, margin: "0 auto" }}>
+      <div
+        style={{
+          position: "absolute",
+          top: -6,
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 4,
+          fontSize: 30,
+          color: "var(--gold)",
+          filter: "drop-shadow(0 2px 3px rgba(0,0,0,0.7))",
+        }}
+      >
+        ▼
+      </div>
+      <div
+        style={{
+          position: "absolute",
+          inset: -10,
+          borderRadius: "50%",
+          background: "radial-gradient(circle, rgba(245,196,81,0.4), transparent 70%)",
+          filter: "blur(14px)",
+          zIndex: 0,
+        }}
+      />
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          borderRadius: "50%",
+          position: "relative",
+          background: `conic-gradient(${gradientStops})`,
+          border: "5px solid #1a1428",
+          boxShadow: "0 0 0 3px rgba(245,196,81,0.6), 0 0 40px rgba(245,196,81,0.4), inset 0 0 24px rgba(0,0,0,0.45)",
+          transform: `rotate(${rotation}deg)`,
+          transition: spinning ? "transform 4.2s cubic-bezier(0.12, 0.85, 0.15, 1)" : "none",
+          zIndex: 1,
+        }}
+      >
+        {DAILY_WHEEL_SEGMENTS_WITH_ANGLES.map((s) => {
+          const rad = (s.midAngle - 90) * (Math.PI / 180);
+          const iconR = r * 0.68;
+          const x = r + iconR * Math.cos(rad);
+          const y = r + iconR * Math.sin(rad);
+          return (
+            <div
+              key={s.id}
+              style={{
+                position: "absolute",
+                left: x,
+                top: y,
+                transform: "translate(-50%, -50%)",
+                fontSize: 18,
+                filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.6))",
+                pointerEvents: "none",
+              }}
+            >
+              {DAILY_WHEEL_ICON[s.type]}
+            </div>
+          );
+        })}
+      </div>
+      <div
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%,-50%)",
+          width: 56,
+          height: 56,
+          borderRadius: "50%",
+          background: "#0c0c1c",
+          border: "3px solid var(--gold)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 24,
+          zIndex: 2,
+          boxShadow: "0 0 16px rgba(245,196,81,0.6)",
+        }}
+      >
+        🎁
+      </div>
+    </div>
+  );
+});
+
 // ---------- main app ----------
 
 const guestId = getOrCreatePlayerId();
@@ -532,6 +643,11 @@ export default function App() {
   const ADMIN_PAGE_SIZE = 100;
   const [adminBusy, setAdminBusy] = useState(false);
   const [avatarUploadBusy, setAvatarUploadBusy] = useState(false);
+  const [showDailyWheel, setShowDailyWheel] = useState(false);
+  const [dailyWheelBusy, setDailyWheelBusy] = useState(false);
+  const [dailyWheelSpinning, setDailyWheelSpinning] = useState(false);
+  const [dailyWheelRotation, setDailyWheelRotation] = useState(0);
+  const [dailyWheelResult, setDailyWheelResult] = useState(null);
   const [adminEditingId, setAdminEditingId] = useState(null);
   const [adminEditDraft, setAdminEditDraft] = useState({});
   const [adminNewSong, setAdminNewSong] = useState({ artist: "", title: "", url: "", year: "", categories: "" });
@@ -1727,12 +1843,15 @@ export default function App() {
         });
         if (!shouldProcess) return;
 
-        const { total } = computeGameEndXp(room, playerId);
+        const { total: baseTotal } = computeGameEndXp(room, playerId);
         const before = await getStats(user.uid);
         const oldXp = before?.xp || 0;
         const oldLevel = levelFromXp(oldXp).level;
+        const hadDoubleXp = !!before?.doubleXpNextGame && baseTotal > 0;
+        const total = hadDoubleXp ? baseTotal * 2 : baseTotal;
         let grandTotal = total;
         if (total) await awardXp(user.uid, total);
+        if (hadDoubleXp) consumeDoubleXpFlag(user.uid).catch(() => {});
 
         // wyzwanie tygodniowe — liczy się każda (nie-treningowa) rozegrana gra
         const { gamesThisWeek, justCompleted } = await progressWeeklyChallenge(user.uid);
@@ -1896,6 +2015,57 @@ export default function App() {
     // potrzebna do policzenia "ile ogółem" utworów jest w każdej rzadkości.
     getLiveLibraryPool();
     setViewingPlayer({ uid: p.uid, username: p.username, stats: s });
+  }
+
+  async function handleSpinDailyWheel() {
+    if (!user || !stats || dailyWheelBusy || dailyWheelSpinning) return;
+    const today = currentDayKey();
+    if (stats.lastDailyHitcoinDate === today) return;
+    setDailyWheelBusy(true);
+    setError("");
+    try {
+      const pool = await getLiveLibraryPool();
+      const won = await claimDailyWheelReward(user.uid, today, pool);
+      if (!won) {
+        setDailyWheelBusy(false);
+        return; // ktoś/coś już odebrało dzisiejszą nagrodę w międzyczasie
+      }
+      const seg =
+        DAILY_WHEEL_SEGMENTS_WITH_ANGLES.find((s) => s.id === won.id) ||
+        DAILY_WHEEL_SEGMENTS_WITH_ANGLES.find((s) => s.id === "hc50") ||
+        DAILY_WHEEL_SEGMENTS_WITH_ANGLES[0];
+      const spins = 6;
+      const target = dailyWheelRotation + spins * 360 + (360 - seg.midAngle) - (dailyWheelRotation % 360);
+      setDailyWheelResult(null);
+      setDailyWheelSpinning(true);
+      setDailyWheelRotation(target);
+      setTimeout(() => {
+        setDailyWheelSpinning(false);
+        setDailyWheelBusy(false);
+        setDailyWheelResult(won);
+        setStats((prev) => {
+          if (!prev) return prev;
+          const next = { ...prev, lastDailyHitcoinDate: today };
+          if (won.type === "hitcoin") {
+            next.hitcoin = (prev.hitcoin || 0) + won.amount;
+            setMyHitcoin((h) => (h || 0) + won.amount);
+          } else if (won.type === "xp") {
+            next.xp = (prev.xp || 0) + won.amount;
+            setMyXp((x) => (x || 0) + won.amount);
+          } else if (won.type === "doubleXp") {
+            next.doubleXpNextGame = true;
+          } else if (won.type === "card" && won.song) {
+            next.cardCollection = { ...(prev.cardCollection || {}) };
+            next.cardCollection[won.song.id] = (next.cardCollection[won.song.id] || 0) + 1;
+          }
+          return next;
+        });
+      }, 4300);
+    } catch (e) {
+      setError("Błąd losowania nagrody: " + e.message);
+      setDailyWheelBusy(false);
+      setDailyWheelSpinning(false);
+    }
   }
 
   async function handleAvatarUpload(file) {
@@ -3417,13 +3587,9 @@ export default function App() {
                     const alreadyClaimed = stats.lastDailyHitcoinDate === today;
                     return (
                       <button
-                        onClick={async () => {
+                        onClick={() => {
                           if (alreadyClaimed) return;
-                          const amount = await claimDailyHitcoin(user.uid, today);
-                          if (amount > 0) {
-                            setMyHitcoin((prev) => (prev || 0) + amount);
-                            setStats({ ...stats, lastDailyHitcoinDate: today, hitcoin: (stats.hitcoin || 0) + amount });
-                          }
+                          setShowDailyWheel(true);
                         }}
                         disabled={alreadyClaimed}
                         className="w-full rounded-2xl p-4 flex items-center justify-between"
@@ -3431,9 +3597,9 @@ export default function App() {
                       >
                         <div className="text-left">
                           <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: alreadyClaimed ? "var(--muted)" : "var(--gold)", display: "flex", alignItems: "center", gap: 6 }}>
-                            <img src={iconHitcoin} alt="" style={{ height: 20 }} /> Codzienna nagroda
+                            🎡 Nagroda dnia
                           </p>
-                          <p style={{ fontSize: 11, color: "var(--muted)" }}>{alreadyClaimed ? "Odebrane — wróć jutro" : "Kliknij, żeby odebrać +25 HITCOIN"}</p>
+                          <p style={{ fontSize: 11, color: "var(--muted)" }}>{alreadyClaimed ? "Odebrane — wróć jutro" : "Kliknij, żeby zakręcić kołem"}</p>
                         </div>
                         {!alreadyClaimed && <span style={{ color: "var(--gold)", fontSize: 22 }}>→</span>}
                       </button>
@@ -4698,22 +4864,21 @@ export default function App() {
                 </div>
 
                 {user && stats && (
-                  <button onClick={async () => {
-                    const today = currentDayKey();
-                    if (stats.lastDailyHitcoinDate === today) return;
-                    const amount = await claimDailyHitcoin(user.uid, today);
-                    if (amount > 0) {
-                      setMyHitcoin((prev) => (prev || 0) + amount);
-                      setStats({ ...stats, lastDailyHitcoinDate: today, hitcoin: (stats.hitcoin || 0) + amount });
-                    }
-                  }} className="hs-side-card" style={{ width: "100%", textAlign: "left" }}>
+                  <button
+                    onClick={() => {
+                      if (stats.lastDailyHitcoinDate === currentDayKey()) return;
+                      setShowDailyWheel(true);
+                    }}
+                    className="hs-side-card"
+                    style={{ width: "100%", textAlign: "left" }}
+                  >
                     <img src={glPrezent} alt="" style={{ height: 34, filter: "drop-shadow(0 0 8px rgba(79,224,192,0.4))" }} />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 13, fontWeight: 700 }}>NAGRODA DNIA</div>
-                      <div style={{ fontSize: 11, color: "var(--muted)" }}>{stats.lastDailyHitcoinDate === currentDayKey() ? "Odebrane — wróć jutro" : "Kliknij, żeby odebrać +25 HITCOIN"}</div>
+                      <div style={{ fontSize: 11, color: "var(--muted)" }}>{stats.lastDailyHitcoinDate === currentDayKey() ? "Odebrane — wróć jutro" : "Kliknij, żeby zakręcić kołem"}</div>
                     </div>
                     {stats.lastDailyHitcoinDate !== currentDayKey() && (
-                      <span style={{ borderRadius: 8, border: "1px solid #4fe0c0", color: "#4fe0c0", fontSize: 11, padding: "6px 12px", fontWeight: 700 }}>ODBIERZ</span>
+                      <span style={{ borderRadius: 8, border: "1px solid #4fe0c0", color: "#4fe0c0", fontSize: 11, padding: "6px 12px", fontWeight: 700 }}>🎡</span>
                     )}
                   </button>
                 )}
@@ -6120,6 +6285,78 @@ export default function App() {
         >
           <div onClick={(e) => e.stopPropagation()} style={{ animation: "scale-pop-in 0.3s ease" }}>
             <CollectibleCard song={zoomedCard} size={Math.min(340, window.innerWidth * 0.8)} />
+          </div>
+        </div>
+      )}
+
+      {showDailyWheel && (
+        <div
+          onClick={() => {
+            if (!dailyWheelSpinning) {
+              setShowDailyWheel(false);
+              setDailyWheelResult(null);
+            }
+          }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.85)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 120,
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="rounded-2xl p-6 flex flex-col items-center gap-5"
+            style={{
+              background: "#0c0c1c",
+              border: "1px solid rgba(245,196,81,0.5)",
+              boxShadow: "0 0 50px rgba(245,196,81,0.35)",
+              maxWidth: 340,
+              width: "100%",
+              animation: "scale-pop-in 0.3s ease",
+            }}
+          >
+            <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: "var(--gold)", textAlign: "center" }}>
+              🎡 NAGRODA DNIA
+            </h2>
+            <DailyWheel rotation={dailyWheelRotation} spinning={dailyWheelSpinning} />
+            {dailyWheelResult ? (
+              <div style={{ textAlign: "center", animation: "scale-pop-in 0.4s ease" }}>
+                <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 4 }}>Wygrałeś:</p>
+                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: "var(--gold)", textShadow: "0 0 16px rgba(245,196,81,0.6)" }}>
+                  {dailyWheelResult.label}
+                </p>
+                {dailyWheelResult.sublabel && <p style={{ fontSize: 12, color: "var(--muted)" }}>{dailyWheelResult.sublabel}</p>}
+                {dailyWheelResult.song && (
+                  <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                    {dailyWheelResult.song.artist} – {dailyWheelResult.song.title}
+                  </p>
+                )}
+                <button
+                  onClick={() => {
+                    setShowDailyWheel(false);
+                    setDailyWheelResult(null);
+                  }}
+                  className="mt-4 px-6 py-2.5 rounded-xl text-sm font-bold btn-grad"
+                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+                >
+                  Super!
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleSpinDailyWheel}
+                disabled={dailyWheelBusy || dailyWheelSpinning}
+                className="px-8 py-3 rounded-xl text-base font-bold btn-grad"
+                style={{ fontFamily: "'Bebas Neue', sans-serif", opacity: dailyWheelSpinning ? 0.7 : 1 }}
+              >
+                {dailyWheelSpinning ? "Losowanie..." : "ZAKRĘĆ!"}
+              </button>
+            )}
           </div>
         </div>
       )}
