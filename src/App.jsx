@@ -663,6 +663,9 @@ export default function App() {
   const [brokenLinkReports, setBrokenLinkReports] = useState(null);
   const [mostPlayedSongs, setMostPlayedSongs] = useState(null);
   const [mostPlayedBusy, setMostPlayedBusy] = useState(false);
+  const [poolAnalysis, setPoolAnalysis] = useState(null);
+  const [poolAnalysisBusy, setPoolAnalysisBusy] = useState(false);
+  const [showLeastPlayed, setShowLeastPlayed] = useState(false);
   const [showBrokenLinkReports, setShowBrokenLinkReports] = useState(false);
   const [brokenLinkBusy, setBrokenLinkBusy] = useState(false);
   const [brokenLinkEditingId, setBrokenLinkEditingId] = useState(null);
@@ -1505,6 +1508,39 @@ export default function App() {
     } finally {
       setAdminBusy(false);
       setMigrateProgress(null);
+    }
+  }
+
+  // Diagnostyka: czy losowanie utworów do talii faktycznie korzysta z całej
+  // biblioteki, czy jakaś jej część jest systemowo pomijana. Bazuje na
+  // `timesPlayed` (licznik już istniejący, zliczany tylko dla realnych,
+  // niezastąpionych kart w prawdziwej rozgrywce) - jeśli losowanie jest
+  // uczciwe, po odpowiednio wielu grach odsetek utworów z zerem odtworzeń
+  // powinien być rozsądnie mały i nie powinien korelować z tym, KIEDY dany
+  // utwór został dodany.
+  async function handleAnalyzePool() {
+    setPoolAnalysisBusy(true);
+    setError("");
+    try {
+      const fresh = await fetchAllSongsFromDb();
+      const total = fresh.length;
+      const totalPlays = fresh.reduce((sum, s) => sum + (s.timesPlayed || 0), 0);
+      const neverPlayed = fresh.filter((s) => !(s.timesPlayed > 0)).length;
+      const sortedAsc = [...fresh].sort((a, b) => (a.timesPlayed || 0) - (b.timesPlayed || 0));
+      const sortedDesc = [...fresh].sort((a, b) => (b.timesPlayed || 0) - (a.timesPlayed || 0));
+      setPoolAnalysis({
+        total,
+        totalPlays,
+        neverPlayed,
+        neverPlayedPct: total > 0 ? Math.round((neverPlayed / total) * 100) : 0,
+        avgPlays: total > 0 ? (totalPlays / total).toFixed(2) : "0",
+        leastPlayed: sortedAsc.slice(0, 60),
+        mostPlayed: sortedDesc.slice(0, 15),
+      });
+    } catch (e) {
+      setError("Błąd analizy puli: " + e.message);
+    } finally {
+      setPoolAnalysisBusy(false);
     }
   }
 
@@ -4426,6 +4462,88 @@ export default function App() {
                         <span style={{ color: "var(--accent)" }}>{s.timesPlayed}×</span>
                       </div>
                     ))
+                  )}
+                </div>
+              )}
+            </section>
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(255,95,201,0.4)", boxShadow: "0 0 22px rgba(255,95,201,0.15)" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🔬 Analiza puli losowania</p>
+              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
+                Sprawdza, czy losowanie faktycznie korzysta z całej biblioteki, czy jakaś jej część nigdy (albo prawie nigdy) nie wypada.
+                Pokazuje pełną listę utworów od najrzadziej granych — przejrzyj ją i sprawdź, czy skupiają się tam akurat starsze utwory.
+              </p>
+              <button
+                onClick={handleAnalyzePool}
+                disabled={poolAnalysisBusy}
+                className="px-4 py-2 rounded-lg text-sm font-bold"
+                style={{ background: "var(--surface2)", border: "1px solid #ff5fc9", color: "#ff5fc9" }}
+              >
+                {poolAnalysisBusy ? "Analizuję…" : "Analizuj pulę"}
+              </button>
+              {poolAnalysis && (
+                <div className="mt-3 flex flex-col gap-3">
+                  <div className="flex flex-wrap gap-3">
+                    <div className="rounded-lg px-3 py-2" style={{ background: "var(--surface2)" }}>
+                      <p style={{ fontSize: 18, fontWeight: "bold" }}>{poolAnalysis.total}</p>
+                      <p style={{ fontSize: 10, color: "var(--muted)" }}>UTWORÓW W BAZIE</p>
+                    </div>
+                    <div className="rounded-lg px-3 py-2" style={{ background: "var(--surface2)" }}>
+                      <p style={{ fontSize: 18, fontWeight: "bold", color: poolAnalysis.neverPlayedPct > 50 ? "var(--bad)" : "var(--text)" }}>
+                        {poolAnalysis.neverPlayed} ({poolAnalysis.neverPlayedPct}%)
+                      </p>
+                      <p style={{ fontSize: 10, color: "var(--muted)" }}>NIGDY NIE WYPADŁO</p>
+                    </div>
+                    <div className="rounded-lg px-3 py-2" style={{ background: "var(--surface2)" }}>
+                      <p style={{ fontSize: 18, fontWeight: "bold" }}>{poolAnalysis.totalPlays}</p>
+                      <p style={{ fontSize: 10, color: "var(--muted)" }}>WSZYSTKICH ODTWORZEŃ</p>
+                    </div>
+                    <div className="rounded-lg px-3 py-2" style={{ background: "var(--surface2)" }}>
+                      <p style={{ fontSize: 18, fontWeight: "bold" }}>{poolAnalysis.avgPlays}</p>
+                      <p style={{ fontSize: 10, color: "var(--muted)" }}>ŚREDNIO/UTWÓR</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowLeastPlayed((v) => !v)}
+                    className="px-3 py-2 rounded-lg text-xs font-bold self-start"
+                    style={{ background: "var(--surface2)", border: "1px solid #ff5fc9", color: "#ff5fc9" }}
+                  >
+                    {showLeastPlayed ? "Ukryj" : "Pokaż"} 60 najrzadziej granych
+                  </button>
+                  <div>
+                    <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 6 }}>Dla porównania — 15 NAJCZĘŚCIEJ granych:</p>
+                    <div className="flex flex-col gap-1">
+                      {poolAnalysis.mostPlayed.map((s) => (
+                        <div key={s.id} className="flex items-center justify-between text-xs" style={{ padding: "3px 0", borderBottom: "1px solid #1a1428" }}>
+                          <span>
+                            {s.artist} — {s.title}
+                            {s.addedAt ? (
+                              <span style={{ color: "var(--muted)" }}> · dodano {new Date(s.addedAt).toLocaleDateString("pl-PL")}</span>
+                            ) : (
+                              <span style={{ color: "var(--muted)", fontStyle: "italic" }}> · starszy wpis</span>
+                            )}
+                          </span>
+                          <span style={{ color: "var(--good)" }}>{s.timesPlayed || 0}×</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {showLeastPlayed && (
+                    <div className="flex flex-col gap-1" style={{ maxHeight: 400, overflowY: "auto" }}>
+                      {poolAnalysis.leastPlayed.map((s) => (
+                        <div key={s.id} className="flex items-center justify-between text-xs" style={{ padding: "3px 0", borderBottom: "1px solid #1a1428" }}>
+                          <span>
+                            {s.artist} — {s.title} <span style={{ color: "var(--muted)" }}>({s.year})</span>
+                            {s.addedAt ? (
+                              <span style={{ color: "var(--muted)" }}> · dodano {new Date(s.addedAt).toLocaleDateString("pl-PL")}</span>
+                            ) : (
+                              <span style={{ color: "var(--muted)", fontStyle: "italic" }}> · data dodania nieznana (starszy wpis)</span>
+                            )}
+                          </span>
+                          <span style={{ color: (s.timesPlayed || 0) === 0 ? "var(--bad)" : "var(--muted)" }}>{s.timesPlayed || 0}×</span>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               )}

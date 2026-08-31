@@ -71,6 +71,7 @@ export async function addSongToDb(song) {
     categories: song.categories || [],
     rarity: rollRarity(),
     isDiamond: false,
+    addedAt: Date.now(),
   };
   await setDoc(ref, data);
   return { id: ref.id, ...data };
@@ -251,7 +252,7 @@ export async function importSongsFromCsv(csvText, existingVideoIds, onProgress) 
       continue;
     }
     seen.add(videoId);
-    toAdd.push({ videoId, artist: r.artist, title: r.title, year: r.year, categories: r.categories, rarity: rollRarity(), isDiamond: false });
+    toAdd.push({ videoId, artist: r.artist, title: r.title, year: r.year, categories: r.categories, rarity: rollRarity(), isDiamond: false, addedAt: Date.now() });
   }
 
   const chunkSize = 450;
