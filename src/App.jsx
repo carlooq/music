@@ -176,7 +176,7 @@ const Vinyl = memo(function Vinyl({ spinning, revealed, progress = 0 }) {
           className="rounded-full flex items-center justify-center text-center px-2"
           style={{ width: 78, height: 78, background: "linear-gradient(135deg, var(--accent), var(--accent2))", color: "#061018" }}
         >
-          <span style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 15, lineHeight: 1 }}>
+          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, lineHeight: 1 }}>
             {revealed ? "ODKRYTE" : "?"}
           </span>
         </div>
@@ -249,7 +249,7 @@ const TimelineCard = memo(function TimelineCard({ year, title, artist, onHold, o
         touchAction: "manipulation",
       }}
     >
-      <span style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, color: "var(--accent)" }}>{year}</span>
+      <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: "var(--accent)" }}>{year}</span>
       <span style={{ fontSize: 9, color: "var(--muted)", lineHeight: 1.1, marginTop: 2 }}>
         {artist.length > 14 ? artist.slice(0, 13) + "…" : artist}
       </span>
@@ -298,7 +298,7 @@ const CollectibleCard = memo(function CollectibleCard({ song, size = 140, onClic
           overflow: "hidden",
         }}
       >
-        <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: size * 0.11, lineHeight: 1, color: "#dfe9ff", margin: 0 }}>{song.year}</p>
+        <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: size * 0.11, lineHeight: 1, color: "#dfe9ff", margin: 0 }}>{song.year}</p>
         <p
           style={{
             fontSize: Math.max(6.5, size * 0.032),
@@ -363,7 +363,7 @@ const CardBack = memo(function CardBack({ size = 140, glowColor, onClick }) {
 const StatBox = memo(function StatBox({ label, value }) {
   return (
     <div className="rounded-lg px-4 py-3 flex-1" style={{ background: "#0c0c1c", border: "1px solid rgba(79,214,255,0.35)", boxShadow: "0 0 16px rgba(79,214,255,0.15)", minWidth: 110 }}>
-      <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 26, color: "#4fd6ff" }}>{value}</p>
+      <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: "#4fd6ff" }}>{value}</p>
       <p style={{ color: "var(--muted)", fontSize: 10, textTransform: "uppercase" }}>{label}</p>
     </div>
   );
@@ -427,7 +427,7 @@ const LevelBar = memo(function LevelBar({ level, currentLevelXp, xpForNextLevel,
       <div className="flex items-center justify-between mb-1">
         <span
           style={{
-            fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700,
+            fontFamily: "'Bebas Neue', sans-serif",
             fontSize: big ? 30 : 20,
             color: "var(--accent)",
             letterSpacing: 1,
@@ -3292,7 +3292,7 @@ export default function App() {
         background:
           "radial-gradient(ellipse 850px 600px at 8% -5%, rgba(0,230,195,0.20), transparent 60%), radial-gradient(ellipse 800px 650px at 100% 0%, rgba(139,92,246,0.18), transparent 55%), radial-gradient(ellipse 750px 550px at 50% 115%, rgba(255,95,201,0.10), transparent 55%), var(--bg)",
         color: "var(--text)",
-        fontFamily: "'Martian Mono', monospace",
+        fontFamily: "'Space Mono', monospace",
         padding: "32px 16px 64px",
       }}
     >
@@ -3301,7 +3301,7 @@ export default function App() {
       <div id="broken-link-validator" style={{ position: "fixed", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none", top: -9999 }} />
 
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Martian+Mono:wght@400;500;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap');
         :root {
           --bg: #05060d; --surface: rgba(12,12,28,0.92); --surface2: rgba(18,18,42,0.95);
           --accent: #4fd6ff; --accent2: #8b5cf6; --accent3: #ff5fc9; --gold: #f5c451;
@@ -3367,7 +3367,7 @@ export default function App() {
         .pulse-cta { animation: pulse-glow 2.4s ease-in-out infinite; }
         input[type="text"], input[type="number"], input[type="password"], textarea {
           background: var(--surface2); border: 1px solid rgba(139,92,246,0.35); color: var(--text);
-          border-radius: 8px; padding: 8px 10px; font-family: 'Martian Mono', monospace;
+          border-radius: 8px; padding: 8px 10px; font-family: 'Space Mono', monospace;
           transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
         input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,230,195,0.25); }
@@ -3387,7 +3387,7 @@ export default function App() {
           aspect-ratio: 1738 / 905; padding: 26px; display: flex; flex-direction: column; justify-content: center;
         }
         .hs-eyebrow { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: #b98bff; margin-bottom: 6px; font-weight: 700; }
-        .hs-h1 { font-family: 'Chakra Petch', sans-serif; font-weight: 700; font-size: 30px; margin: 0 0 6px; line-height: 1.1; }
+        .hs-h1 { font-family: 'Bebas Neue', sans-serif; font-size: 30px; margin: 0 0 6px; line-height: 1.1; }
         .hs-h1 span { color: var(--accent3); }
         .hs-sub { color: #b8b8d0; font-size: 12px; margin: 0 0 16px; }
         .hs-btn-wrap { position: relative; height: 52px; max-width: 280px; }
@@ -3397,7 +3397,7 @@ export default function App() {
         .hs-fillbtn { position: absolute; inset: 1.5px; background: linear-gradient(90deg,#c60ee0,#5d0dd0,#0e4ce8); transition: filter 0.15s ease; overflow: hidden; }
         .hs-fillbtn::after { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 55%; background: linear-gradient(180deg, rgba(255,255,255,0.4), rgba(255,255,255,0) 100%); }
         .hs-btn-wrap:hover .hs-fillbtn { filter: brightness(1.15); }
-        .hs-btnlabel { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px; font-family: 'Chakra Petch', sans-serif; font-weight: 700; font-size: 17px; letter-spacing: 0.5px; z-index: 3; color: #fff; }
+        .hs-btnlabel { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px; font-family: 'Bebas Neue', sans-serif; font-size: 17px; letter-spacing: 0.5px; z-index: 3; color: #fff; }
         .hs-join-row { display: flex; gap: 8px; margin-top: 18px; }
         .hs-input {
           height: 38px; border-radius: 0 !important; background: #0e0e22 !important;
@@ -3426,7 +3426,7 @@ export default function App() {
           clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px), 0 14px);
         }
         .hs-tile img.hs-icon { height: 58px; }
-        .hs-tile .hs-t { font-family: 'Chakra Petch', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.5px; color: #fff; }
+        .hs-tile .hs-t { font-family: 'Bebas Neue', sans-serif; font-size: 15px; letter-spacing: 0.5px; color: #fff; }
         .hs-tile .hs-d { font-size: 10px; color: #9d9db8; }
         .hs-tile-slot.cyan .hs-tile-glow, .hs-tile-slot.cyan .hs-tile-rim { background: #4fd6ff; }
         .hs-tile-slot.pink .hs-tile-glow, .hs-tile-slot.pink .hs-tile-rim { background: #ff5fc9; }
@@ -3451,7 +3451,7 @@ export default function App() {
         }
         .hs-stat-tile img { height: 30px; flex-shrink: 0; }
         .hs-stat-tile .hs-lbl { font-size: 10px; color: #9d9db8; text-transform: uppercase; letter-spacing: 0.5px; }
-        .hs-stat-tile .hs-val { font-size: 17px; font-weight: 800; font-family: 'Chakra Petch', sans-serif; font-weight: 700; }
+        .hs-stat-tile .hs-val { font-size: 17px; font-weight: 800; font-family: 'Bebas Neue', sans-serif; }
         .hs-xp-bar { width: 42px; height: 5px; border-radius: 4px; background: rgba(255,255,255,0.15); overflow: hidden; display: inline-block; vertical-align: middle; }
         .hs-xp-bar > div { height: 100%; background: linear-gradient(90deg,#4f8cff,#8b5cf6); }
 
@@ -3492,7 +3492,7 @@ export default function App() {
             <img src={logoImg} alt="" style={{ height: 56 }} />
             <span
               style={{
-                fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700,
+                fontFamily: "'Bebas Neue', sans-serif",
                 fontSize: 24,
                 letterSpacing: 0.5,
                 background: "linear-gradient(90deg, #ff8bec, #7fb8ff)",
@@ -3515,7 +3515,7 @@ export default function App() {
           {user && myXp !== null && (
             <button
               onClick={screen === "home" ? openStats : undefined}
-              style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid var(--accent)", color: "var(--accent)", fontSize: 12, cursor: screen === "home" ? "pointer" : "default", fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700 }}
+              style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid var(--accent)", color: "var(--accent)", fontSize: 12, cursor: screen === "home" ? "pointer" : "default", fontFamily: "'Bebas Neue', sans-serif" }}
             >
               ⭐ LVL {levelFromXp(myXp).level}
               <span className="hs-xp-bar"><div style={{ width: `${Math.round((levelFromXp(myXp).currentLevelXp / levelFromXp(myXp).xpForNextLevel) * 100)}%` }} /></span>
@@ -3626,7 +3626,7 @@ export default function App() {
                     </>
                   )}
                 </label>
-                <h2 style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 24 }}>TWOJE STATYSTYKI</h2>
+                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24 }}>TWOJE STATYSTYKI</h2>
               </div>
               {!stats ? (
                 <p style={{ color: "var(--muted)", fontSize: 13 }}>Brak jeszcze żadnych rozegranych gier.</p>
@@ -3650,7 +3650,7 @@ export default function App() {
                         style={{ background: "#0c0c1c", border: `1.3px solid ${alreadyClaimed ? "#33294f" : "var(--gold)"}`, boxShadow: alreadyClaimed ? "none" : "0 0 22px rgba(245,196,81,0.4)", opacity: alreadyClaimed ? 0.6 : 1 }}
                       >
                         <div className="text-left">
-                          <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 18, color: alreadyClaimed ? "var(--muted)" : "var(--gold)", display: "flex", alignItems: "center", gap: 6 }}>
+                          <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: alreadyClaimed ? "var(--muted)" : "var(--gold)", display: "flex", alignItems: "center", gap: 6 }}>
                             🎡 Nagroda dnia
                           </p>
                           <p style={{ fontSize: 11, color: "var(--muted)" }}>{alreadyClaimed ? "Odebrane — wróć jutro" : "Kliknij, żeby zakręcić kołem"}</p>
@@ -3679,7 +3679,7 @@ export default function App() {
                         <div className="text-left flex items-center gap-3">
                           <img src={glMedal} alt="" style={{ height: 32 }} />
                           <div>
-                            <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 18, color: "var(--gold)" }}>Osiągnięcia</p>
+                            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: "var(--gold)" }}>Osiągnięcia</p>
                             <p style={{ fontSize: 11, color: "var(--muted)" }}>
                               {claimedCount}/{progress.length} odebranych
                               {unclaimed.length > 0 ? ` · ${unclaimed.length} czeka na odbiór!` : ""}
@@ -3701,7 +3701,7 @@ export default function App() {
                     <div className="text-left flex items-center gap-3">
                       <img src={glKolekcja} alt="" style={{ height: 32 }} />
                       <div>
-                        <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 18, color: "#4fd6ff" }}>Album</p>
+                        <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: "#4fd6ff" }}>Album</p>
                         <p style={{ fontSize: 11, color: "var(--muted)" }}>{Object.keys(stats.cardCollection || {}).length} unikalnych kart</p>
                       </div>
                     </div>
@@ -3819,7 +3819,7 @@ export default function App() {
 
             {h2hOpponents && h2hOpponents.length > 0 && (
               <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(255,95,201,0.4)", boxShadow: "0 0 30px rgba(255,95,201,0.15)" }}>
-                <h2 style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, marginBottom: 4 }}>⚔️ POJEDYNKI 1V1</h2>
+                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, marginBottom: 4 }}>⚔️ POJEDYNKI 1V1</h2>
                 <p style={{ color: "var(--muted)", fontSize: 11, marginBottom: 10 }}>
                   Liczą się tylko gry, w których graliście dokładnie we dwójkę.
                 </p>
@@ -3885,7 +3885,7 @@ export default function App() {
               });
               return (
                 <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 26px rgba(245,196,81,0.18)" }}>
-                  <h2 style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 24, marginBottom: 4, color: "var(--gold)", display: "flex", alignItems: "center", gap: 8 }}>
+                  <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 4, color: "var(--gold)", display: "flex", alignItems: "center", gap: 8 }}>
                     <img src={achOsiagniecia} alt="" style={{ height: 28 }} /> OSIĄGNIĘCIA ({claimedCount}/{progress.length})
                   </h2>
 
@@ -3955,7 +3955,7 @@ export default function App() {
         {screen === "home" && showLeaderboard && !viewingPlayer && (
           <div className="w-full flex flex-col gap-5">
             <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 26px rgba(245,196,81,0.18)" }}>
-              <h2 style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 24, marginBottom: 12, color: "var(--gold)" }}>RANKING GRACZY</h2>
+              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 12, color: "var(--gold)" }}>RANKING GRACZY</h2>
               <div className="flex gap-2 mb-4">
                 <button
                   onClick={() => openLeaderboard("gamesWon")}
@@ -3986,7 +3986,7 @@ export default function App() {
                       style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.2)" }}
                     >
                       <div className="flex items-center gap-3">
-                        <span style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 18, color: i === 0 ? "var(--accent)" : "var(--muted)", width: 24 }}>
+                        <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: i === 0 ? "var(--accent)" : "var(--muted)", width: 24 }}>
                           {i === 0 ? <Crown size={18} /> : `#${i + 1}`}
                         </span>
                         <span>{p.username}</span>
@@ -3994,7 +3994,7 @@ export default function App() {
                           lvl {levelFromXp(p.xp).level}
                         </span>
                       </div>
-                      <span style={{ color: "var(--accent)", fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 18 }}>
+                      <span style={{ color: "var(--accent)", fontFamily: "'Bebas Neue', sans-serif", fontSize: 18 }}>
                         {leaderboardSort === "gamesWon" ? `${p.gamesWon || 0} wygranych` : `${p.guessesCorrect || 0} zgadniętych`}
                       </span>
                     </button>
@@ -4026,7 +4026,7 @@ export default function App() {
                     flexShrink: 0,
                   }}
                 />
-                <h2 style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 24, color: "var(--gold)" }}>{viewingPlayer.username}</h2>
+                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: "var(--gold)" }}>{viewingPlayer.username}</h2>
               </div>
               {!viewingPlayer.stats ? (
                 <p style={{ color: "var(--muted)", fontSize: 13 }}>Brak jeszcze żadnych rozegranych gier.</p>
@@ -4118,7 +4118,7 @@ export default function App() {
         {screen === "home" && showAdminPanel && (
           <div className="w-full flex flex-col gap-5">
             <div className="flex items-center justify-between">
-              <h2 style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 24 }}>PANEL ADMINA</h2>
+              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24 }}>PANEL ADMINA</h2>
               <button onClick={() => setShowAdminPanel(false)} className="text-xs" style={{ color: "var(--muted)" }}>
                 ← Wróć
               </button>
@@ -4836,7 +4836,7 @@ export default function App() {
             >
               {user ? (
                 <>
-                  <span style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 16 }}>Cześć, {user.displayName}!</span>
+                  <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 16 }}>Cześć, {user.displayName}!</span>
                   <button onClick={handleLogout} className="flex items-center gap-1 text-xs" style={{ color: "var(--muted)" }}>
                     <LogOut size={13} /> Wyloguj
                   </button>
@@ -4935,7 +4935,7 @@ export default function App() {
                     </div>
                   </div>
                   <div className="hs-hero-right">
-                    <h2 style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 24, margin: "0 0 6px", maxWidth: 220 }}>
+                    <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, margin: "0 0 6px", maxWidth: 220 }}>
                       Muzyka łączy.<br /><span style={{ color: "#4fd6ff" }}>Hity zostają.</span>
                     </h2>
                     <p style={{ fontSize: 12, color: "#d8d8ea", maxWidth: 220, margin: 0 }}>Rywalizuj, odkrywaj, zdobywaj i wspinaj się na szczyt rankingu!</p>
@@ -5155,7 +5155,7 @@ export default function App() {
             </button>
 
             <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
-              <h2 style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 24, marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
                 <img src={iconPlaylistaDnia} alt="" style={{ height: 28 }} /> PLAYLISTA DNIA
               </h2>
               <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 14 }}>
@@ -5163,13 +5163,13 @@ export default function App() {
               </p>
               {dailyPlaylistAlreadyPlayed ? (
                 <div className="rounded-xl p-4 text-center" style={{ background: "var(--surface2)" }}>
-                  <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, color: "var(--accent)" }}>
+                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: "var(--accent)" }}>
                     Dzisiejszy wynik: {dailyPlaylistAlreadyPlayed.score} / 10
                   </p>
                   <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>Wróć jutro po kolejną playlistę!</p>
                 </div>
               ) : (
-                <button onClick={startDailyPlaylistGame} disabled={busy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700 }}>
+                <button onClick={startDailyPlaylistGame} disabled={busy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
                   ZAGRAJ
                 </button>
               )}
@@ -5245,7 +5245,7 @@ export default function App() {
             </button>
 
             <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid var(--gold)" }}>
-              <h2 style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 24, marginBottom: 8, color: "var(--gold)", display: "flex", alignItems: "center", gap: 8 }}>
+              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 8, color: "var(--gold)", display: "flex", alignItems: "center", gap: 8 }}>
                 <img src={iconTurniej} alt="" style={{ height: 28 }} /> TURNIEJ
               </h2>
               <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 14 }}>
@@ -5269,7 +5269,7 @@ export default function App() {
                     {alreadyIn ? (
                       <p style={{ color: "var(--good)", fontSize: 13 }}>✓ Jesteś zapisany — czekamy na resztę.</p>
                     ) : (
-                      <button onClick={handleTournamentSignUp} disabled={tournamentBusy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700 }}>
+                      <button onClick={handleTournamentSignUp} disabled={tournamentBusy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
                         ZAPISZ SIĘ ({activeTournament.entryFee} XP wpisowego)
                       </button>
                     )}
@@ -5322,7 +5322,7 @@ export default function App() {
               {activeTournament.status === "completed" && (
                 <div className="text-center">
                   <p style={{ fontSize: 32 }}>🏆</p>
-                  <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 22, color: "var(--gold)" }}>
+                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "var(--gold)" }}>
                     {activeTournament.signups.find((p) => p.uid === activeTournament.winnerUid)?.name} wygrywa turniej!
                   </p>
                   {activeTournament.winnerUid === user?.uid ? (
@@ -5365,7 +5365,7 @@ export default function App() {
                 return (
                   <>
                     <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(79,214,255,0.4)", boxShadow: "0 0 26px rgba(79,214,255,0.18)" }}>
-                      <h2 style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 24, marginBottom: 4, color: "#4fd6ff", display: "flex", alignItems: "center", gap: 8 }}>
+                      <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 4, color: "#4fd6ff", display: "flex", alignItems: "center", gap: 8 }}>
                         <img src={achAlbum} alt="" style={{ height: 28 }} /> ALBUM
                       </h2>
                       <p style={{ fontSize: 13, marginBottom: 10 }}>
@@ -5494,7 +5494,7 @@ export default function App() {
               <>
                 <div className="w-full text-center">
                   <img src={iconSklep} alt="" style={{ height: 48, margin: "0 auto 6px" }} />
-                  <h2 style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 36, letterSpacing: 3, color: "#4fd6ff", textShadow: "0 0 20px rgba(79,214,255,0.5)" }}>
+                  <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 36, letterSpacing: 3, color: "#4fd6ff", textShadow: "0 0 20px rgba(79,214,255,0.5)" }}>
                     SKLEP
                   </h2>
                   <p style={{ color: "var(--muted)", fontSize: 12 }}>3 dostępne paczki z kartami do Twojego albumu</p>
@@ -5515,7 +5515,7 @@ export default function App() {
                           className="h-44 md:h-64"
                           style={{ width: "auto", filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.55))" }}
                         />
-                        <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 18, marginTop: 12, letterSpacing: 1 }}>{name}</p>
+                        <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, marginTop: 12, letterSpacing: 1 }}>{name}</p>
                         <p style={{ fontSize: 12, color: "var(--muted)" }}>{config.cards} kart</p>
                         <button
                           onClick={() => buyPack(key)}
@@ -5539,7 +5539,7 @@ export default function App() {
             ) : (
               <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 26px rgba(245,196,81,0.18)" }}>
                 {showConfetti && <Confetti />}
-                <h2 style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, marginBottom: 4, textAlign: "center" }}>Kliknij, żeby odkryć kartę</h2>
+                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, marginBottom: 4, textAlign: "center" }}>Kliknij, żeby odkryć kartę</h2>
                 <div className="flex flex-wrap justify-center gap-4 mt-4">
                   {packOpenResult.map((item, i) => {
                     const revealed = packRevealedIndices.has(i);
@@ -5603,7 +5603,7 @@ export default function App() {
             </button>
 
             <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
-              <h2 style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20, marginBottom: 12 }}>🎯 USTAWIENIA TRENINGU</h2>
+              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, marginBottom: 12 }}>🎯 USTAWIENIA TRENINGU</h2>
 
               <div className="flex items-center gap-2 mb-4">
                 <label className="text-xs uppercase" style={{ color: "var(--muted)" }}>Kart do zebrania:</label>
@@ -5641,7 +5641,7 @@ export default function App() {
                 })()}
               </p>
 
-              <button onClick={startPractice} disabled={busy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700 }}>
+              <button onClick={startPractice} disabled={busy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
                 ROZPOCZNIJ TRENING
               </button>
             </section>
@@ -5661,7 +5661,7 @@ export default function App() {
             <section className="w-full rounded-2xl p-5 flex flex-col items-center" style={{ background: "#0c0c1c", border: "1px solid rgba(79,214,255,0.4)", boxShadow: "0 0 26px rgba(79,214,255,0.18)" }}>
               <p style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase" }}>Kod pokoju</p>
               <div className="flex items-center gap-2">
-                <span style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 44, letterSpacing: 4, color: "var(--accent)" }}>{roomId}</span>
+                <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 44, letterSpacing: 4, color: "var(--accent)" }}>{roomId}</span>
                 <button onClick={copyCode} style={{ color: "var(--muted)" }}>
                   {copied ? <Check size={20} /> : <Copy size={20} />}
                 </button>
@@ -5672,7 +5672,7 @@ export default function App() {
             <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(165,107,255,0.4)", boxShadow: "0 0 26px rgba(165,107,255,0.18)" }}>
               <div className="flex items-center gap-2 mb-3">
                 <Users size={16} color="#a56bff" />
-                <h2 style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20 }}>GRACZE ({room.players.length})</h2>
+                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>GRACZE ({room.players.length})</h2>
               </div>
               <div className="flex flex-col gap-1">
                 {room.players.map((p) => (
@@ -5740,7 +5740,7 @@ export default function App() {
                   onClick={beginGame}
                   disabled={busy || !target || room.players.length < 2}
                   className="w-full mt-4 py-3 rounded-xl text-lg font-bold flex items-center justify-center gap-2 btn-grad pulse-cta"
-                  style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700 }}
+                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}
                 >
                   ROZPOCZNIJ GRĘ <ChevronRight size={20} />
                 </button>
@@ -5772,16 +5772,16 @@ export default function App() {
                   zIndex: 60,
                 }}
               >
-                <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 28, color: "var(--muted)", marginBottom: 16, letterSpacing: 2 }}>
+                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: "var(--muted)", marginBottom: 16, letterSpacing: 2 }}>
                   KTO ZACZYNA?
                 </p>
-                <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 160, color: "var(--accent)", lineHeight: 1 }}>
+                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 160, color: "var(--accent)", lineHeight: 1 }}>
                   {openerCountdownNum}
                 </p>
               </div>
             ) : (
               <>
-                <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 26, textAlign: "center" }}>KTO ZACZYNA?</p>
+                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, textAlign: "center" }}>KTO ZACZYNA?</p>
                 <div className="w-full rounded-2xl p-5 flex flex-col items-center" style={{ background: "#0c0c1c", border: "1px solid rgba(79,214,255,0.4)", boxShadow: "0 0 26px rgba(79,214,255,0.18)" }}>
                   <Vinyl spinning={isPlaying} revealed={!!room.openerWinnerId} progress={playElapsed / PLAY_CAP_SECONDS} />
                   <div style={{ width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }}>
@@ -5816,7 +5816,7 @@ export default function App() {
                     <p style={{ color: "var(--good)", fontSize: 18, fontWeight: "bold", textAlign: "center" }}>
                       {room.players.find((p) => p.id === room.openerWinnerId)?.name} zgadł(a) pierwszy(a) i zaczyna!
                     </p>
-                    <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 44, color: "var(--accent)" }}>
+                    <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 44, color: "var(--accent)" }}>
                       {openerRevealCountdown ?? 5}
                     </p>
                   </div>
@@ -5855,7 +5855,7 @@ export default function App() {
           <div className="w-full flex flex-col items-center gap-6">
             <div className="w-full rounded-2xl p-5 flex flex-col items-center" style={{ background: "#0c0c1c", border: "1px solid rgba(79,214,255,0.4)", boxShadow: "0 0 26px rgba(79,214,255,0.18)" }}>
               <p style={{ color: "var(--accent)", fontSize: 12, textTransform: "uppercase", letterSpacing: 2 }}>Tura gracza</p>
-              <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 30 }}>
+              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30 }}>
                 {isMyTurn ? "Twoja kolej!" : turnPlayerName}
               </p>
 
@@ -5949,7 +5949,7 @@ export default function App() {
                   style={{
                     background: chosenSlot === null ? "#232f4d" : undefined,
                     color: chosenSlot === null ? "var(--muted)" : undefined,
-                    fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700,
+                    fontFamily: "'Bebas Neue', sans-serif",
                   }}
                 >
                   ZATWIERDŹ MIEJSCE
@@ -5972,7 +5972,7 @@ export default function App() {
 
             {screen === "voting" && room.pendingGuess && (
               <div className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(255,95,201,0.4)", boxShadow: "0 0 26px rgba(255,95,201,0.18)" }}>
-                <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 22, textAlign: "center", marginBottom: 10 }}>
+                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, textAlign: "center", marginBottom: 10 }}>
                   {isMyTurn ? "Czekasz na głosy…" : `Czy ${turnPlayerName} zgadł(a) poprawnie?`}
                 </p>
                 <div className="rounded-lg p-3 mb-2" style={{ background: "var(--surface2)" }}>
@@ -6037,7 +6037,7 @@ export default function App() {
                   className="w-full flex items-center justify-between rounded-xl px-4 py-2.5"
                   style={{ background: "var(--surface2)", animation: `slide-fade-in 0.4s ease ${delayS - 0.1}s both` }}
                 >
-                  <span style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 18, letterSpacing: 0.5 }}>{label}</span>
+                  <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, letterSpacing: 0.5 }}>{label}</span>
                   {resultBox(isCorrect, delayS)}
                 </div>
               );
@@ -6070,7 +6070,7 @@ export default function App() {
                   <div className="w-full flex flex-col items-center gap-2.5" style={{ maxWidth: 380 }}>
                     <p
                       style={{
-                        fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700,
+                        fontFamily: "'Bebas Neue', sans-serif",
                         fontSize: 44,
                         fontWeight: "bold",
                         textAlign: "center",
@@ -6100,7 +6100,7 @@ export default function App() {
                       style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 30px rgba(245,196,81,0.25)", minWidth: 220, marginTop: 8, animation: "scale-pop-in 0.5s ease 0.5s both" }}
                     >
                       <p style={{ fontSize: 13, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>{r.card.artist}</p>
-                      <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 56, color: "var(--accent)", lineHeight: 1 }}>{r.card.year}</p>
+                      <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 56, color: "var(--accent)", lineHeight: 1 }}>{r.card.year}</p>
                       <p style={{ fontSize: 15, marginTop: 8 }}>„{r.card.title}"</p>
                     </div>
 
@@ -6152,7 +6152,7 @@ export default function App() {
           <div className="w-full flex flex-col items-center gap-5 text-center">
             {showConfetti && <Confetti />}
             <Trophy size={48} color="var(--accent)" />
-            <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 34 }}>
+            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34 }}>
               {room.winnerIds.length > 1
                 ? `REMIS: ${room.winnerIds.map((id) => room.players.find((p) => p.id === id)?.name).join(" i ")}!`
                 : `${room.players.find((p) => p.id === room.winnerIds[0])?.name} WYGRYWA!`}
@@ -6456,14 +6456,14 @@ export default function App() {
               animation: "scale-pop-in 0.3s ease",
             }}
           >
-            <h2 style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 26, color: "var(--gold)", textAlign: "center" }}>
+            <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: "var(--gold)", textAlign: "center" }}>
               🎡 NAGRODA DNIA
             </h2>
             <DailyWheel rotation={dailyWheelRotation} spinning={dailyWheelSpinning} />
             {dailyWheelResult ? (
               <div style={{ textAlign: "center", animation: "scale-pop-in 0.4s ease" }}>
                 <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 4 }}>Wygrałeś:</p>
-                <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 26, color: "var(--gold)", textShadow: "0 0 16px rgba(245,196,81,0.6)" }}>
+                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: "var(--gold)", textShadow: "0 0 16px rgba(245,196,81,0.6)" }}>
                   {dailyWheelResult.label}
                 </p>
                 {dailyWheelResult.sublabel && <p style={{ fontSize: 12, color: "var(--muted)" }}>{dailyWheelResult.sublabel}</p>}
@@ -6478,7 +6478,7 @@ export default function App() {
                     setDailyWheelResult(null);
                   }}
                   className="mt-4 px-6 py-2.5 rounded-xl text-sm font-bold btn-grad"
-                  style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700 }}
+                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}
                 >
                   Super!
                 </button>
@@ -6488,7 +6488,7 @@ export default function App() {
                 onClick={handleSpinDailyWheel}
                 disabled={dailyWheelBusy || dailyWheelSpinning}
                 className="px-8 py-3 rounded-xl text-base font-bold btn-grad"
-                style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, opacity: dailyWheelSpinning ? 0.7 : 1 }}
+                style={{ fontFamily: "'Bebas Neue', sans-serif", opacity: dailyWheelSpinning ? 0.7 : 1 }}
               >
                 {dailyWheelSpinning ? "Losowanie..." : "ZAKRĘĆ!"}
               </button>
@@ -6512,7 +6512,7 @@ export default function App() {
         >
           <div className="rounded-2xl p-6 text-center card-glow" style={{ background: "var(--surface)", maxWidth: 320 }}>
             <p style={{ fontSize: 32 }}>⚔️</p>
-            <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 22, marginTop: 4 }}>
+            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, marginTop: 4 }}>
               {incomingChallenge.fromName} wyzywa Cię na pojedynek!
             </p>
             <div className="flex gap-3 mt-5">
@@ -6553,8 +6553,8 @@ export default function App() {
         >
           <div className="rounded-2xl p-6 text-center card-glow pulse-cta" style={{ background: "var(--surface)", maxWidth: 320 }}>
             <p style={{ fontSize: 40 }}>🎉</p>
-            <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 28, color: "var(--accent)" }}>AWANS POZIOMU!</p>
-            <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 48 }}>Poziom {levelUpInfo.level}</p>
+            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: "var(--accent)" }}>AWANS POZIOMU!</p>
+            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48 }}>Poziom {levelUpInfo.level}</p>
             <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>(kliknij, żeby zamknąć)</p>
           </div>
         </div>
@@ -6598,7 +6598,7 @@ export default function App() {
         >
           <div className="rounded-2xl p-5 card-glow w-full" style={{ background: "var(--surface)", maxWidth: 380 }}>
             <div className="flex items-center justify-between mb-3">
-              <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 24, color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                 <img src={iconPiosenkaDnia} alt="" style={{ height: 26 }} /> PIOSENKA DNIA
               </p>
               <button onClick={closeDailySong} style={{ color: "var(--muted)" }}>
@@ -6631,21 +6631,21 @@ export default function App() {
                   <input type="text" value={dailyGuessTitle} onChange={(e) => setDailyGuessTitle(e.target.value)} placeholder="Tytuł" />
                   <input type="number" value={dailyGuessYear} onChange={(e) => setDailyGuessYear(e.target.value)} placeholder="Rok" />
                 </div>
-                <button onClick={submitDailyGuess} disabled={dailyBusy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700 }}>
+                <button onClick={submitDailyGuess} disabled={dailyBusy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
                   ZATWIERDŹ ODPOWIEDŹ
                 </button>
                 <p style={{ fontSize: 10, color: "var(--muted)" }}>Puste pola liczą się jako błędne — możesz zostawić to, czego nie wiesz.</p>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-3 text-center">
-                <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 20 }}>
+                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>
                   {dailyResult?.score === 3 ? "🎉 KOMPLET!" : dailyResult?.score > 0 ? "Nieźle!" : "Może jutro pójdzie lepiej"}
                 </p>
                 <div className="w-full rounded-lg p-3" style={{ background: "var(--surface2)" }}>
                   <p style={{ fontSize: 13 }}>
                     <strong>{dailySong.artist}</strong> — {dailySong.title}
                   </p>
-                  <p style={{ color: "var(--accent)", fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 22 }}>{dailySong.year}</p>
+                  <p style={{ color: "var(--accent)", fontFamily: "'Bebas Neue', sans-serif", fontSize: 22 }}>{dailySong.year}</p>
                 </div>
                 {dailyResult && (
                   <div className="w-full flex flex-col gap-1 text-left" style={{ fontSize: 12 }}>
@@ -6735,7 +6735,7 @@ export default function App() {
             <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--good)", marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
               <img src={achKupionaKarta} alt="" style={{ height: 16 }} /> Kupiona karta
             </p>
-            <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 40, color: "var(--accent)" }}>{boughtCardReveal.year}</p>
+            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 40, color: "var(--accent)" }}>{boughtCardReveal.year}</p>
             <p style={{ fontSize: 15, fontWeight: "bold", marginTop: 4 }}>{boughtCardReveal.artist}</p>
             <p style={{ fontSize: 14, color: "var(--muted)", marginTop: 2 }}>„{boughtCardReveal.title}"</p>
             <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 10 }}>trafiła na Twoją oś czasu</p>
@@ -6762,7 +6762,7 @@ export default function App() {
             className="rounded-2xl p-5 text-center"
             style={{ background: "var(--surface)", border: "1px solid var(--accent)", maxWidth: 320 }}
           >
-            <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 40, color: "var(--accent)" }}>{heldCard.year}</p>
+            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 40, color: "var(--accent)" }}>{heldCard.year}</p>
             <p style={{ fontSize: 15, fontWeight: "bold", marginTop: 4 }}>{heldCard.artist}</p>
             <p style={{ fontSize: 14, color: "var(--muted)", marginTop: 2 }}>„{heldCard.title}"</p>
             <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 10 }}>(kliknij poza kartą, żeby zamknąć)</p>
@@ -6837,7 +6837,7 @@ export default function App() {
               }}
             >
               <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid #2a2340" }}>
-                <p style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 18 }}>Czat pokoju</p>
+                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18 }}>Czat pokoju</p>
                 <button onClick={() => setShowChat(false)} style={{ color: "var(--muted)" }}>
                   <X size={18} />
                 </button>
