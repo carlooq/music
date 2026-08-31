@@ -759,6 +759,24 @@ export default function App() {
       } catch (e) {
         pool = REAL_SONGS; // ostateczny fallback, gdyby Firestore było niedostępne
       }
+    } else {
+      // Obrona przed nieaktualnym stanem w pamięci: `librarySongs` mogło zostać
+      // ustawione wcześniej w tej sesji (np. ze starego cache w localStorage)
+      // i od tamtej pory nikt go już nie odświeżał, nawet jeśli baza realnie
+      // urosła. `getSongCount()` to prawie darmowe zapytanie liczące (nie
+      // pobiera treści dokumentów) - używamy go tu jako szybkiej kontroli
+      // "czy trzymana liczba utworów nadal się zgadza", zanim zbudujemy z tego
+      // talię do prawdziwej gry.
+      try {
+        const liveCount = await getSongCount();
+        if (liveCount !== null && liveCount !== pool.length) {
+          pool = await fetchAllSongsFromDb();
+          setLibrarySongs(pool);
+          saveLibraryCache(pool);
+        }
+      } catch (e) {
+        // brak internetu/Firestore w tej chwili — gramy dalej z tym co mamy
+      }
     }
     return pool;
   }
