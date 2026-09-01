@@ -15,7 +15,7 @@ import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
 import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId, fuzzyMatch } from "./utils.js";
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
-import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, awardXp, xpForLevel, levelFromXp, progressWeeklyChallenge, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag } from "./stats.js";
+import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, awardXp, xpForLevel, levelFromXp, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag, getWeeklyChallenges, bumpWeeklyChallengeProgress, claimWeeklyChallenge } from "./stats.js";
 import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss, incrementSongPlayCount, getSongCount, migrateRarityForExistingSongs } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
 import { heartbeat, clearPresence, getOnlinePlayers } from "./presence.js";
@@ -25,6 +25,7 @@ import { getOrCreateDailyPlaylist, hasPlayedPlaylistToday, recordDailyPlaylistSc
 import { createTournament, cancelTournament, fetchActiveTournament, fetchLastCompletedTournament, fetchTournament, signUpForTournament, recordTournamentMatchResult, checkAndAdvanceTournament, settleTournamentXpIfNeeded, pickMatchPlaylist } from "./tournaments.js";
 import { awardHitcoin, computeWinHitcoin, computeSecondPlaceHitcoin, computeThirdPlaceHitcoin, claimDailyHitcoin, drawCardAfterGame, effectiveRarity, PACKS, openPack, SELL_PRICES, sellDuplicateCard, sellAllDuplicates } from "./cards.js";
 import { DAILY_REWARD_SEGMENTS, claimDailyWheelReward } from "./dailyWheel.js";
+import { HIT_RUSH_CONFIG, pickNextHitRushSong, computeHitRushPoints, checkHitRushTimeBonus, difficultyLabel, submitHitRushRun, fetchHitRushLeaderboard } from "./hitRush.js";
 import { updateHeadToHead, fetchHeadToHeadOpponents } from "./headToHead.js";
 import { getAchievementProgress, ACHIEVEMENTS } from "./achievements.js";
 import { playCorrectSound, playWrongSound, playApplause, playVictorySound, unlockAudio } from "./sounds.js";
@@ -648,6 +649,12 @@ export default function App() {
   const [dailyWheelSpinning, setDailyWheelSpinning] = useState(false);
   const [dailyWheelRotation, setDailyWheelRotation] = useState(0);
   const [dailyWheelResult, setDailyWheelResult] = useState(null);
+  const [hitRush, setHitRush] = useState(null); // { referenceCard, currentCard, score, combo, bestCombo, correct, wrong, usedIds, timeLeft, running, feedback, maxDifficulty }
+  const [hitRushResult, setHitRushResult] = useState(null);
+  const [hitRushLeaderboard, setHitRushLeaderboard] = useState(null);
+  const [hitRushLeaderboardPeriod, setHitRushLeaderboardPeriod] = useState("weekly");
+  const hitRushTimerRef = useRef(null);
+  const hitRushIframeRef = useRef(null);
   const [adminEditingId, setAdminEditingId] = useState(null);
   const [adminEditDraft, setAdminEditDraft] = useState({});
   const [adminNewSong, setAdminNewSong] = useState({ artist: "", title: "", url: "", year: "", categories: "" });
@@ -1262,6 +1269,7 @@ export default function App() {
       };
       const newStreak = await recordDailyResult(user.uid, currentDayKey(), result);
       markPerfectDailyIfNeeded(user.uid, score).catch(() => {});
+      bumpWeeklyChallengeProgress(user.uid, "dailySongPlays", 1).catch(() => {});
       const xp = 10 + score * 15; // 10 za sam udział, +15 za każdą trafioną część
       await awardXp(user.uid, xp);
       const before = myXp || 0;
@@ -1873,7 +1881,6 @@ export default function App() {
 
   const xpAwardedRef = useRef(null);
   const [levelUpInfo, setLevelUpInfo] = useState(null);
-  const [weeklyBonusInfo, setWeeklyBonusInfo] = useState(null);
   const [gameEndReward, setGameEndReward] = useState(null);
   useEffect(() => {
     if (screen !== "gameover" || !room?.winnerIds?.length || !user || room.practiceMode) return;
@@ -1881,6 +1888,9 @@ export default function App() {
     if (!marker || xpAwardedRef.current === marker) return;
     xpAwardedRef.current = marker;
     updateHeadToHead(room).catch(() => {});
+    if (room.players?.length === 2 && (room.winnerIds || []).includes(playerId)) {
+      bumpWeeklyChallengeProgress(user.uid, "duelWins", 1).catch(() => {});
+    }
     (async () => {
       try {
         // Zabezpieczenie GLOBALNE (nie tylko lokalne w tej karcie przeglądarki) —
@@ -1907,14 +1917,14 @@ export default function App() {
         if (total) await awardXp(user.uid, total);
         if (hadDoubleXp) consumeDoubleXpFlag(user.uid).catch(() => {});
 
-        // wyzwanie tygodniowe — liczy się każda (nie-treningowa) rozegrana gra
-        const { gamesThisWeek, justCompleted } = await progressWeeklyChallenge(user.uid);
-        if (justCompleted) {
-          await awardXp(user.uid, 50);
-          grandTotal += 50;
-          setWeeklyBonusInfo({ gamesThisWeek });
-          setTimeout(() => setWeeklyBonusInfo(null), 6000);
+        // wyzwania tygodniowe (jeśli akurat wypadły w tym tygodniu — funkcja
+        // sama sprawdza i nic nie robi gdy dany typ nie jest w aktualnej 5)
+        bumpWeeklyChallengeProgress(user.uid, "gamesPlayed", 1).catch(() => {});
+        if ((room.winnerIds || []).includes(playerId)) {
+          bumpWeeklyChallengeProgress(user.uid, "gamesWon", 1).catch(() => {});
         }
+        const myBestStreak = room.gameBestStreaks?.[playerId] || 0;
+        if (myBestStreak > 0) bumpWeeklyChallengeProgress(user.uid, "bestStreak", myBestStreak).catch(() => {});
 
         setMyXp(oldXp + grandTotal);
         const newLevel = levelFromXp(oldXp + grandTotal).level;
@@ -1938,9 +1948,13 @@ export default function App() {
         if (hcResult.total) {
           await awardHitcoin(user.uid, hcResult.total);
           setMyHitcoin((prev) => (prev || 0) + hcResult.total);
+          bumpWeeklyChallengeProgress(user.uid, "hitcoinEarned", hcResult.total).catch(() => {});
         }
         const pool = await getLiveLibraryPool();
         const drawResult = await drawCardAfterGame(user.uid, pool);
+        if (drawResult?.rarity && ["zlota", "platynowa", "diamentowa"].includes(drawResult.rarity)) {
+          bumpWeeklyChallengeProgress(user.uid, "cardGoldPlus", 1).catch(() => {});
+        }
         setGameEndReward({ hitcoinItems: hcResult.items, hitcoinTotal: hcResult.total, card: drawResult });
       } catch (e) {
         // ciche niepowodzenie — najwyżej XP z tej gry się nie doliczy
@@ -2114,11 +2128,161 @@ export default function App() {
           }
           return next;
         });
+        bumpWeeklyChallengeProgress(user.uid, "wheelSpins", 1).catch(() => {});
+        if (won.type === "hitcoin") bumpWeeklyChallengeProgress(user.uid, "hitcoinEarned", won.amount).catch(() => {});
+        if (won.type === "card") bumpWeeklyChallengeProgress(user.uid, "cardGoldPlus", 1).catch(() => {});
       }, 4300);
     } catch (e) {
       setError("Błąd losowania nagrody: " + e.message);
       setDailyWheelBusy(false);
       setDailyWheelSpinning(false);
+    }
+  }
+
+  function startHitRush() {
+    const pool = effectivePool.filter((s) => s.year && s.videoId);
+    if (pool.length < 15) {
+      setError("Za mało utworów w bazie, żeby uruchomić Hit Rush.");
+      return;
+    }
+    const referenceCard = pool[Math.floor(Math.random() * pool.length)];
+    const usedIds = new Set([referenceCard.id]);
+    const currentCard = pickNextHitRushSong(pool, referenceCard.year, 0, usedIds);
+    if (!currentCard) {
+      setError("Nie udało się dobrać utworów do Hit Rush.");
+      return;
+    }
+    usedIds.add(currentCard.id);
+    setHitRushResult(null);
+    setHitRush({
+      pool,
+      referenceCard,
+      currentCard,
+      score: 0,
+      combo: 0,
+      bestCombo: 0,
+      correct: 0,
+      wrong: 0,
+      usedIds,
+      timeLeft: HIT_RUSH_CONFIG.ROUND_SECONDS,
+      running: true,
+      feedback: null,
+      maxDifficulty: "easy",
+    });
+    setScreen("hitRush");
+  }
+
+  function answerHitRush(guess) {
+    setHitRush((prev) => {
+      if (!prev || !prev.running || prev.feedback) return prev;
+      const isCorrect = guess === "earlier" ? prev.currentCard.year < prev.referenceCard.year : prev.currentCard.year > prev.referenceCard.year;
+      const newCombo = isCorrect ? prev.combo + 1 : 0;
+      const points = isCorrect ? computeHitRushPoints(newCombo) : 0;
+      const timeBonus = isCorrect ? checkHitRushTimeBonus(newCombo) : 0;
+      return {
+        ...prev,
+        feedback: { correct: isCorrect, year: prev.currentCard.year, points, timeBonus },
+        score: prev.score + points,
+        combo: newCombo,
+        bestCombo: Math.max(prev.bestCombo, newCombo),
+        correct: prev.correct + (isCorrect ? 1 : 0),
+        wrong: prev.wrong + (isCorrect ? 0 : 1),
+        timeLeft: prev.timeLeft + timeBonus,
+        maxDifficulty: isCorrect ? difficultyLabel(newCombo) : prev.maxDifficulty,
+      };
+    });
+    setTimeout(() => {
+      setHitRush((prev) => {
+        if (!prev || !prev.feedback) return prev;
+        const newReference = prev.currentCard;
+        const usedIds = new Set(prev.usedIds);
+        usedIds.add(newReference.id);
+        const nextCard = pickNextHitRushSong(prev.pool, newReference.year, prev.combo, usedIds);
+        if (!nextCard) return { ...prev, running: false, timeLeft: 0, feedback: null };
+        usedIds.add(nextCard.id);
+        return { ...prev, referenceCard: newReference, currentCard: nextCard, usedIds, feedback: null };
+      });
+    }, 900);
+  }
+
+  async function finishHitRush() {
+    if (!hitRush) return;
+    const result = { score: hitRush.score, correct: hitRush.correct, wrong: hitRush.wrong, bestCombo: hitRush.bestCombo, maxDifficulty: hitRush.maxDifficulty };
+    setHitRushResult({ ...result, pending: true });
+    if (user) {
+      try {
+        const res = await submitHitRushRun(user.uid, result);
+        setHitRushResult({ ...result, ...res, pending: false });
+        if (res.xpGain) setMyXp((x) => (x || 0) + res.xpGain);
+        if (res.hitcoinGain) setMyHitcoin((h) => (h || 0) + res.hitcoinGain);
+        bumpWeeklyChallengeProgress(user.uid, "hitRushCombo", result.bestCombo).catch(() => {});
+        if (["gold", "platinum", "diamond"].includes(res.rank)) {
+          bumpWeeklyChallengeProgress(user.uid, "hitRushGoldPlus", 1).catch(() => {});
+        }
+        if (res.hitcoinGain) bumpWeeklyChallengeProgress(user.uid, "hitcoinEarned", res.hitcoinGain).catch(() => {});
+      } catch (e) {
+        setHitRushResult({ ...result, pending: false, saveError: true });
+      }
+    } else {
+      setHitRushResult({ ...result, pending: false, guestNoSave: true });
+    }
+  }
+
+  useEffect(() => {
+    if (!hitRush || !hitRush.running) return;
+    const id = setInterval(() => {
+      setHitRush((prev) => {
+        if (!prev || !prev.running) return prev;
+        const timeLeft = prev.timeLeft - 1;
+        return { ...prev, timeLeft: Math.max(0, timeLeft), running: timeLeft > 0 };
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [hitRush?.running]);
+
+  useEffect(() => {
+    if (hitRush && !hitRush.running && hitRush.timeLeft === 0 && !hitRushResult) {
+      finishHitRush();
+    }
+  }, [hitRush?.running, hitRush?.timeLeft]);
+
+  useEffect(() => {
+    if (!hitRush?.currentCard || !hitRush.running) return;
+    const t = setTimeout(() => {
+      const win = hitRushIframeRef.current?.contentWindow;
+      if (win) {
+        win.postMessage(JSON.stringify({ event: "command", func: "unMute", args: [] }), "*");
+        win.postMessage(JSON.stringify({ event: "command", func: "setVolume", args: [100] }), "*");
+        win.postMessage(JSON.stringify({ event: "command", func: "playVideo", args: [] }), "*");
+      }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [hitRush?.currentCard?.id, hitRush?.running]);
+
+  async function handleClaimWeeklyChallengeReward(challengeId) {
+    if (!user) return;
+    try {
+      const res = await claimWeeklyChallenge(user.uid, challengeId);
+      if (res.ok) {
+        setMyXp((x) => (x || 0) + res.xp);
+        if (res.hitcoin) setMyHitcoin((h) => (h || 0) + res.hitcoin);
+        const s = await getStats(user.uid);
+        setStats(s);
+      }
+    } catch (e) {
+      setError("Błąd odbioru nagrody: " + e.message);
+    }
+  }
+
+  async function loadHitRushLeaderboard(period) {
+    setHitRushLeaderboardPeriod(period);
+    setHitRushLeaderboard(null);
+    try {
+      if (period === "weekly") processHitRushWeeklyRewardsIfNeeded().catch(() => {});
+      const list = await fetchHitRushLeaderboard(period);
+      setHitRushLeaderboard(list);
+    } catch (e) {
+      setHitRushLeaderboard([]);
     }
   }
 
@@ -2143,7 +2307,8 @@ export default function App() {
       await setAvatarUrl(user.uid, url);
       setStats((prev) => (prev ? { ...prev, avatarUrl: url } : prev));
     } catch (e) {
-      setError("Błąd wgrywania zdjęcia: " + e.message + " (jeśli to błąd uprawnień, trzeba dopuścić zapis w regułach Firebase Storage)");
+      console.error("Błąd uploadu avatara:", e);
+      setError("Błąd wgrywania zdjęcia: " + e.message + " — sprawdź reguły Firebase Storage (Storage → Rules w konsoli Firebase).");
     } finally {
       setAvatarUploadBusy(false);
     }
@@ -2789,6 +2954,7 @@ export default function App() {
       }
       if (user && instantGuessAwardedTo === user.uid && !capturedResult?.practiceMode) {
         recordSuccessfulGuess(user.uid, capturedResult?.card?.videoId, capturedResult?.card?.year).catch(() => {});
+        bumpWeeklyChallengeProgress(user.uid, "guessesCorrect", 1).catch(() => {});
         let xp = 20; // trafione zgadywanie
         if (capturedResult.newGuessStreak === 5) xp += 30; // seria 5 trafionych zgadywań z rzędu
         awardXp(user.uid, xp).catch(() => {});
@@ -2918,6 +3084,7 @@ export default function App() {
       });
       if (awardedGuessTo) {
         recordSuccessfulGuess(awardedGuessTo, awardedGuessVideoId, awardedGuessYear).catch(() => {});
+        bumpWeeklyChallengeProgress(awardedGuessTo, "guessesCorrect", 1).catch(() => {});
         let xp = 20; // trafione zgadywanie
         if (newGuessStreakValue === 5) xp += 30; // seria 5 trafionych zgadywań z rzędu
         awardXp(awardedGuessTo, xp).catch(() => {});
@@ -3433,6 +3600,8 @@ export default function App() {
         .hs-tile-slot.violet .hs-tile-glow, .hs-tile-slot.violet .hs-tile-rim { background: #a56bff; }
         .hs-tile-slot.gold .hs-tile-glow, .hs-tile-slot.gold .hs-tile-rim { background: #f5c451; }
         .hs-tile-slot.gold .hs-t { color: #ffcf6b; }
+        .hs-tile-slot.green .hs-tile-glow, .hs-tile-slot.green .hs-tile-rim { background: #2af598; }
+        .hs-tile-slot.green .hs-t { color: #7dffc4; }
         .hs-badge {
           position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
           background: linear-gradient(90deg,#f5c451,#ffb020); color: #3a2400; font-size: 8px; font-weight: 900;
@@ -3708,22 +3877,43 @@ export default function App() {
                     <span style={{ color: "#7dffef", fontSize: 22 }}>→</span>
                   </button>
                   {(() => {
-                    const wc = stats.weeklyChallenge;
-                    const isCurrentWeek = wc && wc.weekKey === currentWeekKey();
-                    const gamesThisWeek = isCurrentWeek ? wc.gamesThisWeek : 0;
-                    const claimed = isCurrentWeek && wc.claimed;
-                    const pct = Math.min(100, Math.round((gamesThisWeek / 3) * 100));
+                    const challenges = getWeeklyChallenges(stats);
                     return (
-                      <div className="w-full rounded-xl p-3" style={{ background: "#0c0c1c", border: "1px solid rgba(165,107,255,0.35)", boxShadow: "0 0 16px rgba(165,107,255,0.15)" }}>
-                        <div className="flex items-center justify-between mb-1">
-                          <span style={{ fontSize: 12, fontWeight: "bold" }}>🎯 Wyzwanie tygodnia: zagraj 3 gry</span>
-                          <span style={{ fontSize: 11, color: claimed ? "var(--good)" : "var(--muted)" }}>
-                            {claimed ? "✓ Ukończone (+50 XP)" : `${Math.min(gamesThisWeek, 3)} / 3`}
-                          </span>
-                        </div>
-                        <div className="w-full rounded-full" style={{ height: 6, background: "#0d0a17", overflow: "hidden" }}>
-                          <div style={{ height: "100%", width: `${pct}%`, background: claimed ? "var(--good)" : "var(--accent)" }} />
-                        </div>
+                      <div className="flex flex-col gap-2">
+                        <p style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1 }}>🎯 Wyzwania tygodnia</p>
+                        {challenges.map((c) => {
+                          const pct = Math.min(100, Math.round((c.progress / c.target) * 100));
+                          return (
+                            <div
+                              key={c.id}
+                              className="w-full rounded-xl p-3"
+                              style={{ background: "#0c0c1c", border: `1px solid rgba(165,107,255,${c.claimed ? 0.15 : 0.35})`, boxShadow: c.claimed ? "none" : "0 0 16px rgba(165,107,255,0.15)", opacity: c.claimed ? 0.6 : 1 }}
+                            >
+                              <div className="flex items-center justify-between mb-1 gap-2">
+                                <span style={{ fontSize: 12, fontWeight: "bold" }}>{c.desc}</span>
+                                {c.claimed ? (
+                                  <span style={{ fontSize: 11, color: "var(--good)", flexShrink: 0 }}>✓ Odebrane</span>
+                                ) : c.done ? (
+                                  <button
+                                    onClick={() => handleClaimWeeklyChallengeReward(c.id)}
+                                    style={{ fontSize: 11, fontWeight: "bold", color: "#3a2400", background: "var(--gold)", borderRadius: 8, padding: "3px 10px", flexShrink: 0 }}
+                                  >
+                                    Odbierz +{c.xp} XP{c.hitcoin ? ` +${c.hitcoin} 🪙` : ""}
+                                  </button>
+                                ) : (
+                                  <span style={{ fontSize: 11, color: "var(--muted)", flexShrink: 0 }}>
+                                    {Math.min(c.progress, c.target)} / {c.target}
+                                  </span>
+                                )}
+                              </div>
+                              {!c.claimed && (
+                                <div className="w-full rounded-full" style={{ height: 6, background: "#0d0a17", overflow: "hidden" }}>
+                                  <div style={{ height: "100%", width: `${pct}%`, background: c.done ? "var(--good)" : "var(--accent2)" }} />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     );
                   })()}
@@ -4955,6 +5145,15 @@ export default function App() {
                         <div className="hs-arrow" style={{ color: "#4fd6ff" }}>›</div>
                       </button>
                     </div>
+                    <div className="hs-tile-slot green">
+                      <div className="hs-tile-glow" />
+                      <div className="hs-tile-rim" />
+                      <button onClick={startHitRush} className="hs-tile">
+                        <img className="hs-icon" src={glTrening} alt="" />
+                        <div className="hs-t">HIT RUSH</div>
+                        <div className="hs-arrow" style={{ color: "#2af598" }}>›</div>
+                      </button>
+                    </div>
                     {user && (
                       <div className="hs-tile-slot pink">
                         <div className="hs-tile-glow" />
@@ -5644,6 +5843,173 @@ export default function App() {
               <button onClick={startPractice} disabled={busy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
                 ROZPOCZNIJ TRENING
               </button>
+            </section>
+          </div>
+        )}
+
+        {screen === "hitRush" && hitRush && !hitRushResult && (
+          <div className="w-full flex flex-col items-center gap-4">
+            <iframe
+              key={hitRush.currentCard.videoId}
+              ref={hitRushIframeRef}
+              src={`https://www.youtube.com/embed/${hitRush.currentCard.videoId}?enablejsapi=1&autoplay=1&mute=1&start=${randomStartSeconds()}&controls=0&modestbranding=1&rel=0`}
+              style={{ display: "none" }}
+              allow="autoplay"
+              title="hitrush-audio"
+            />
+            <div className="w-full flex items-center justify-between">
+              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, color: hitRush.timeLeft <= 10 ? "var(--bad)" : "#fff", textShadow: hitRush.timeLeft <= 10 ? "0 0 14px rgba(232,97,93,0.7)" : "none" }}>
+                ⏱ {hitRush.timeLeft}s
+              </span>
+              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: "#2af598" }}>{hitRush.score} pkt</span>
+              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "var(--gold)" }}>🔥 {hitRush.combo}</span>
+            </div>
+
+            <div
+              className="rounded-2xl p-5 w-full text-center"
+              style={{ background: "#0c0c1c", border: "1px solid rgba(79,214,255,0.4)", boxShadow: "0 0 26px rgba(79,214,255,0.18)" }}
+            >
+              <p style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1 }}>Karta referencyjna</p>
+              <p style={{ fontSize: 18, fontWeight: "bold", marginTop: 4 }}>{hitRush.referenceCard.artist}</p>
+              <p style={{ fontSize: 14, color: "var(--muted)" }}>{hitRush.referenceCard.title}</p>
+              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 42, color: "#4fd6ff" }}>{hitRush.referenceCard.year}</p>
+            </div>
+
+            <div style={{ minHeight: 60, textAlign: "center" }}>
+              {hitRush.feedback ? (
+                <div style={{ animation: "scale-pop-in 0.25s ease" }}>
+                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: hitRush.feedback.correct ? "var(--good)" : "var(--bad)" }}>
+                    {hitRush.feedback.correct ? "✓ DOBRZE" : "✕ ŹLE"} — {hitRush.feedback.year}
+                  </p>
+                  {hitRush.feedback.points > 0 && (
+                    <p style={{ fontSize: 13, color: "#2af598" }}>
+                      +{hitRush.feedback.points} pkt{hitRush.feedback.timeBonus > 0 ? ` · +${hitRush.feedback.timeBonus}s COMBO ${hitRush.combo}!` : ""}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p style={{ fontSize: 13, color: "var(--muted)" }}>
+                  Czy aktualnie grany utwór został wydany <span style={{ color: "#4fd6ff" }}>wcześniej</span> czy <span style={{ color: "#ff5fc9" }}>później</span>?
+                </p>
+              )}
+            </div>
+
+            <div className="flex gap-3 w-full">
+              <button
+                onClick={() => answerHitRush("earlier")}
+                disabled={!!hitRush.feedback}
+                className="flex-1 rounded-xl font-bold"
+                style={{ padding: "22px 8px", background: "#0c0c1c", border: "2px solid #4fd6ff", color: "#4fd6ff", fontSize: 17, opacity: hitRush.feedback ? 0.5 : 1 }}
+              >
+                ← WCZEŚNIEJ
+              </button>
+              <button
+                onClick={() => answerHitRush("later")}
+                disabled={!!hitRush.feedback}
+                className="flex-1 rounded-xl font-bold"
+                style={{ padding: "22px 8px", background: "#0c0c1c", border: "2px solid #ff5fc9", color: "#ff5fc9", fontSize: 17, opacity: hitRush.feedback ? 0.5 : 1 }}
+              >
+                PÓŹNIEJ →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {screen === "hitRush" && hitRushResult && (
+          <div className="w-full flex flex-col items-center gap-4">
+            <section className="w-full rounded-2xl p-6 text-center" style={{ background: "#0c0c1c", border: "1px solid rgba(42,245,152,0.4)", boxShadow: "0 0 30px rgba(42,245,152,0.25)" }}>
+              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: "#2af598" }}>HIT RUSH</p>
+              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52 }}>{hitRushResult.score} pkt</p>
+              {hitRushResult.isNewBest && <p style={{ color: "var(--gold)", fontWeight: "bold", marginTop: 4 }}>🏆 NOWY REKORD!</p>}
+              {hitRushResult.rank && (
+                <p style={{ color: "var(--muted)", marginTop: 4, textTransform: "uppercase" }}>
+                  Ranga: <span style={{ color: "var(--gold)", fontWeight: "bold" }}>{hitRushResult.rank}</span>
+                </p>
+              )}
+              <div className="flex justify-center gap-4 mt-3" style={{ fontSize: 13, color: "var(--muted)" }}>
+                <span>✓ {hitRushResult.correct}</span>
+                <span>✕ {hitRushResult.wrong}</span>
+                <span>🔥 Best {hitRushResult.bestCombo}</span>
+              </div>
+              {hitRushResult.pending ? (
+                <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 10 }}>Zapisuję wynik…</p>
+              ) : hitRushResult.guestNoSave ? (
+                <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 10 }}>Zaloguj się, żeby zapisywać wyniki i zdobywać nagrody.</p>
+              ) : hitRushResult.saveError ? (
+                <p style={{ fontSize: 12, color: "var(--bad)", marginTop: 10 }}>Nie udało się zapisać wyniku.</p>
+              ) : (
+                <div className="flex justify-center gap-4 mt-3">
+                  {hitRushResult.xpGain > 0 && <span style={{ color: "#a56bff", fontSize: 13 }}>+{hitRushResult.xpGain} XP</span>}
+                  {hitRushResult.hitcoinGain > 0 && <span style={{ color: "var(--gold)", fontSize: 13 }}>+{hitRushResult.hitcoinGain} HITCOIN</span>}
+                </div>
+              )}
+            </section>
+            <button onClick={startHitRush} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+              ZAGRAJ PONOWNIE
+            </button>
+            <button
+              onClick={() => {
+                setScreen("hitRushLeaderboard");
+                loadHitRushLeaderboard("weekly");
+              }}
+              className="w-full py-3 rounded-xl text-sm font-bold"
+              style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.35)", color: "var(--gold)" }}
+            >
+              🏆 Zobacz ranking
+            </button>
+            <button onClick={goHome} className="w-full py-3 rounded-xl text-sm font-bold" style={{ background: "#0c0c1c", border: "1px solid rgba(42,245,152,0.35)", color: "#2af598" }}>
+              ← Wróć
+            </button>
+          </div>
+        )}
+
+        {screen === "hitRushLeaderboard" && (
+          <div className="w-full flex flex-col gap-4">
+            <button onClick={goHome} className="self-start text-xs" style={{ color: "var(--gold)" }}>
+              ← Wróć
+            </button>
+            <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 30px rgba(245,196,81,0.18)" }}>
+              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: "var(--gold)", marginBottom: 12 }}>🏆 RANKING HIT RUSH</h2>
+              <div className="flex gap-2 mb-3">
+                {[
+                  ["daily", "Dzienny"],
+                  ["weekly", "Tygodniowy"],
+                  ["alltime", "Wszech czasów"],
+                ].map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => loadHitRushLeaderboard(key)}
+                    className="px-3 py-2 rounded-lg text-xs font-bold"
+                    style={{
+                      background: hitRushLeaderboardPeriod === key ? "var(--gold)" : "var(--surface2)",
+                      color: hitRushLeaderboardPeriod === key ? "#3a2400" : "var(--muted)",
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {hitRushLeaderboardPeriod === "weekly" && (
+                <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 10 }}>🥇 200 · 🥈 100 · 🥉 75 HITCOIN na koniec tygodnia</p>
+              )}
+              {hitRushLeaderboardPeriod === "daily" && <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 10 }}>Tylko dla rywalizacji — bez nagród.</p>}
+              {hitRushLeaderboard === null ? (
+                <p style={{ color: "var(--muted)", fontSize: 13 }}>Ładowanie…</p>
+              ) : hitRushLeaderboard.length === 0 ? (
+                <p style={{ color: "var(--muted)", fontSize: 13 }}>Brak jeszcze wyników w tym okresie.</p>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  {hitRushLeaderboard.map((entry, i) => (
+                    <div key={entry.uid} className="flex items-center justify-between text-sm" style={{ padding: "6px 4px", borderBottom: "1px solid #1a1428" }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ width: 24, textAlign: "center" }}>{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}</span>
+                        {entry.name}
+                      </span>
+                      <span style={{ color: "var(--gold)", fontWeight: "bold" }}>{entry.score} pkt</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </section>
           </div>
         )}
@@ -6379,7 +6745,7 @@ export default function App() {
           </div>
         )}
 
-        {!["playing", "voting", "roundResult"].includes(screen) && (
+        {!["playing", "voting", "roundResult", "hitRush"].includes(screen) && (
           <div className="hs-bottom-nav">
             <button className={`hs-nav-item${screen === "home" && !showStats && !showAchievements && !showLeaderboard && !showAdminPanel ? " active" : ""}`} onClick={goHome}>
               <img src={glGraj} alt="" />
@@ -6557,28 +6923,6 @@ export default function App() {
             <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48 }}>Poziom {levelUpInfo.level}</p>
             <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>(kliknij, żeby zamknąć)</p>
           </div>
-        </div>
-      )}
-
-      {weeklyBonusInfo && (
-        <div
-          style={{
-            position: "fixed",
-            top: 16,
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 96,
-            textAlign: "center",
-            padding: "10px 18px",
-            borderRadius: 12,
-            background: "var(--surface)",
-            border: "1px solid var(--good)",
-            color: "var(--text)",
-            fontSize: 12,
-            maxWidth: "90%",
-          }}
-        >
-          🎯 Wyzwanie tygodnia ukończone! +50 XP
         </div>
       )}
 

@@ -309,3 +309,99 @@ export async function getLeaderboard(count = 10, sortBy = "gamesWon") {
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
 }
+
+// ============================================================
+// WYZWANIA TYGODNIOWE — pula ~12 kandydatów, co tydzień losowanych
+// dokładnie 5 (TAKICH SAMYCH dla wszystkich graczy — deterministycznie,
+// z klucza tygodnia, jak Piosenka dnia). "mode" mówi jak liczyć postęp:
+// "add" (kumulacyjnie w tygodniu), "max" (najwyższa wartość w tygodniu),
+// "flag" (raz zdarzyło się - gotowe).
+// ============================================================
+export const WEEKLY_CHALLENGE_POOL = [
+  { id: "games_3", desc: "Zagraj 3 gry", type: "gamesPlayed", target: 3, mode: "add", xp: 50, hitcoin: 0 },
+  { id: "games_7", desc: "Zagraj 7 gier", type: "gamesPlayed", target: 7, mode: "add", xp: 90, hitcoin: 0 },
+  { id: "wins_3", desc: "Wygraj 3 gry", type: "gamesWon", target: 3, mode: "add", xp: 80, hitcoin: 25 },
+  { id: "guesses_10", desc: "Zgadnij poprawnie 10 wykonawców/tytułów", type: "guessesCorrect", target: 10, mode: "add", xp: 70, hitcoin: 0 },
+  { id: "hitrush_combo10", desc: "Osiągnij combo 10 w Hit Rush", type: "hitRushCombo", target: 10, mode: "max", xp: 90, hitcoin: 25 },
+  { id: "hitrush_gold", desc: "Zdobądź rangę Złoto lub lepszą w Hit Rush", type: "hitRushGoldPlus", target: 1, mode: "flag", xp: 110, hitcoin: 30 },
+  { id: "dailysong_5x", desc: "Zagraj Piosenkę dnia 5 razy w tym tygodniu", type: "dailySongPlays", target: 5, mode: "add", xp: 120, hitcoin: 40 },
+  { id: "duel_win", desc: "Wygraj pojedynek 1v1", type: "duelWins", target: 1, mode: "add", xp: 60, hitcoin: 0 },
+  { id: "card_gold_plus", desc: "Zdobądź kartę Złota lub lepszą", type: "cardGoldPlus", target: 1, mode: "flag", xp: 100, hitcoin: 30 },
+  { id: "streak_5", desc: "Osiągnij serię 5 trafień z rzędu", type: "bestStreak", target: 5, mode: "max", xp: 80, hitcoin: 0 },
+  { id: "hitcoin_300", desc: "Zdobądź 300 HITCOIN w tym tygodniu", type: "hitcoinEarned", target: 300, mode: "add", xp: 150, hitcoin: 50 },
+  { id: "wheel_5x", desc: "Zakręć kołem nagrody dnia 5 razy w tym tygodniu", type: "wheelSpins", target: 5, mode: "add", xp: 130, hitcoin: 40 },
+];
+
+// Prosty deterministyczny generator liczb pseudolosowych z ziarna tekstowego -
+// ten sam klucz tygodnia zawsze daje ten sam wybór 5 wyzwań, dla każdego gracza.
+function pickWeeklyChallenges(weekKey) {
+  let seed = 0;
+  for (let i = 0; i < weekKey.length; i++) seed = (seed * 31 + weekKey.charCodeAt(i)) >>> 0;
+  const rng = () => {
+    seed = (seed * 1103515245 + 12345) >>> 0;
+    return seed / 4294967296;
+  };
+  const pool = [...WEEKLY_CHALLENGE_POOL];
+  const picked = [];
+  for (let i = 0; i < 5 && pool.length > 0; i++) {
+    const idx = Math.floor(rng() * pool.length);
+    picked.push(pool.splice(idx, 1)[0]);
+  }
+  return picked;
+}
+
+// Zwraca 5 wyzwań na TEN tydzień + aktualny postęp gracza w każdym z nich,
+// gotowe do wyrenderowania (bez dalszych obliczeń po stronie UI).
+export function getWeeklyChallenges(stats) {
+  const wk = currentWeekKey();
+  const challenges = pickWeeklyChallenges(wk);
+  const wp = stats?.weeklyProgress && stats.weeklyProgress.weekKey === wk ? stats.weeklyProgress : { counters: {}, claimed: {} };
+  return challenges.map((c) => {
+    const raw = wp.counters[c.type];
+    const progress = c.mode === "flag" ? (raw ? 1 : 0) : raw || 0;
+    return { ...c, progress, done: c.mode === "flag" ? !!raw : progress >= c.target, claimed: !!wp.claimed[c.id] };
+  });
+}
+
+// Wywoływane z różnych miejsc appki w momencie zdarzenia (koniec gry, wygrana
+// pojedynku, zdobycie karty, zakręcenie kołem itd.) - aktualizuje licznik
+// TYLKO jeśli dany typ jest akurat jednym z 5 wyzwań tego tygodnia (inaczej
+// nie ma sensu nic zapisywać). Bezpieczne wołać "na wszelki wypadek" nawet
+// gdy dane wyzwanie akurat nie wypadło w danym tygodniu.
+export async function bumpWeeklyChallengeProgress(uid, type, amount = 1) {
+  const wk = currentWeekKey();
+  const active = pickWeeklyChallenges(wk).find((c) => c.type === type);
+  if (!active) return;
+  const ref = doc(db, "userStats", uid);
+  const snap = await getDoc(ref);
+  const data = snap.exists() ? snap.data() : {};
+  const prev = data.weeklyProgress && data.weeklyProgress.weekKey === wk ? data.weeklyProgress : { weekKey: wk, counters: {}, claimed: {} };
+  const counters = { ...prev.counters };
+  if (active.mode === "max") counters[type] = Math.max(counters[type] || 0, amount);
+  else if (active.mode === "flag") counters[type] = true;
+  else counters[type] = (counters[type] || 0) + amount;
+  await updateDoc(ref, { weeklyProgress: { weekKey: wk, counters, claimed: prev.claimed } });
+}
+
+// Odbiór nagrody za pojedyncze ukończone wyzwanie - transakcja jak przy
+// reszcie nagród w appce, więc nie da się kliknąć "odbierz" dwa razy.
+export async function claimWeeklyChallenge(uid, challengeId) {
+  const def = WEEKLY_CHALLENGE_POOL.find((c) => c.id === challengeId);
+  if (!def) return { ok: false };
+  const ref = doc(db, "userStats", uid);
+  let ok = false;
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const data = snap.exists() ? snap.data() : {};
+    const wk = currentWeekKey();
+    const prev = data.weeklyProgress && data.weeklyProgress.weekKey === wk ? data.weeklyProgress : { weekKey: wk, counters: {}, claimed: {} };
+    if (prev.claimed[challengeId]) return;
+    const raw = prev.counters[def.type];
+    const done = def.mode === "flag" ? !!raw : (raw || 0) >= def.target;
+    if (!done) return;
+    ok = true;
+    const claimed = { ...prev.claimed, [challengeId]: true };
+    tx.update(ref, { weeklyProgress: { weekKey: wk, counters: prev.counters, claimed }, xp: increment(def.xp), hitcoin: increment(def.hitcoin) });
+  });
+  return { ok, xp: def.xp, hitcoin: def.hitcoin };
+}
