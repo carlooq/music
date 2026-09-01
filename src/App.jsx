@@ -60,7 +60,10 @@ import hitrushMenuDesc from "./assets/icons/hitrush-menu-desc.webp";
 import hitrushMenuBlue from "./assets/icons/hitrush-menu-blue.webp";
 import hitrushMenuPink from "./assets/icons/hitrush-menu-pink.webp";
 import hitrushMenuStart from "./assets/icons/hitrush-menu-start.webp";
-import playingPanelFrame from "./assets/icons/playing-panel-frame.webp";
+import playingPanelFrame from "./assets/icons/playing-panel-frame-v2.webp";
+import timelineCardFrame from "./assets/icons/timeline-card-frame.webp";
+import timelineSlotFrame from "./assets/icons/timeline-slot-frame.webp";
+import confirmSlotBtn from "./assets/icons/confirm-slot-btn.webp";
 import playingConfirmBtn from "./assets/icons/playing-confirm-btn.webp";
 import playingYearCard from "./assets/icons/playing-year-card.webp";
 import playingOdtworzBtn from "./assets/icons/playing-odtworz-btn.webp";
@@ -139,39 +142,40 @@ const RARITY_ORDER = ["winyl", "srebrna", "zlota", "platynowa", "diamentowa"];
 
 // ---------- vinyl / now-playing widget ----------
 
-const Vinyl = memo(function Vinyl({ spinning, revealed, progress = 0 }) {
+const Vinyl = memo(function Vinyl({ spinning, revealed, progress = 0, showRing = true }) {
   const radius = 112;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference * (1 - progress);
   return (
     <div className="relative flex flex-col items-center">
-      <svg
-        width={236}
-        height={236}
-        className="absolute"
-        style={{ top: -8, left: -8, transform: "rotate(-90deg)" }}
-      >
-        <defs>
-          <linearGradient id="vinylGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="var(--accent)" />
-            <stop offset="100%" stopColor="var(--accent2)" />
-          </linearGradient>
-        </defs>
-        <circle cx={118} cy={118} r={radius} stroke="rgba(34,211,197,0.15)" strokeWidth={4} fill="none" />
-        <circle
-          cx={118}
-          cy={118}
-          r={radius}
-          stroke="url(#vinylGradient)"
-          strokeWidth={4}
-          fill="none"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          style={{ transition: "stroke-dashoffset 0.2s linear", filter: "drop-shadow(0 0 5px rgba(34,211,197,0.5))" }}
-        />
-      </svg>
-      <div
+      {showRing && (
+        <svg
+          width={236}
+          height={236}
+          className="absolute"
+          style={{ top: -8, left: -8, transform: "rotate(-90deg)" }}
+        >
+          <defs>
+            <linearGradient id="vinylGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="var(--accent)" />
+              <stop offset="100%" stopColor="var(--accent2)" />
+            </linearGradient>
+          </defs>
+          <circle cx={118} cy={118} r={radius} stroke="rgba(34,211,197,0.15)" strokeWidth={4} fill="none" />
+          <circle
+            cx={118}
+            cy={118}
+            r={radius}
+            stroke="url(#vinylGradient)"
+            strokeWidth={4}
+            fill="none"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            strokeLinecap="round"
+            style={{ transition: "stroke-dashoffset 0.2s linear", filter: "drop-shadow(0 0 5px rgba(34,211,197,0.5))" }}
+          />
+        </svg>
+      )}      <div
         className="relative rounded-full flex items-center justify-center"
         style={{
           width: 220,
@@ -220,14 +224,19 @@ const SlotButton = memo(function SlotButton({ index, chosen, onPick, label }) {
   return (
     <button
       onClick={() => onPick(index)}
-      className="slot-btn rounded-lg flex items-center justify-center"
+      className="flex items-center justify-center"
       style={{
-        width: 34,
-        height: 60,
-        background: chosen === index ? "var(--accent)" : "var(--surface2)",
-        color: chosen === index ? "#1a1428" : "var(--muted)",
-        border: "1px dashed #4a3f6b",
-        fontSize: 16,
+        width: 42,
+        height: 62,
+        backgroundImage: `url(${timelineSlotFrame})`,
+        backgroundSize: "100% 100%",
+        backgroundRepeat: "no-repeat",
+        border: "none",
+        color: chosen === index ? "#fff" : "#4fd6ff",
+        fontSize: 15,
+        fontWeight: "bold",
+        opacity: chosen === index ? 1 : 0.55,
+        filter: chosen === index ? "drop-shadow(0 0 6px rgba(79,214,255,0.8))" : "none",
       }}
       title={label}
     >
@@ -254,15 +263,17 @@ const TimelineCard = memo(function TimelineCard({ year, title, artist, onHold, o
       onMouseLeave={cancel}
       onTouchStart={start}
       onTouchEnd={cancel}
-      className="rounded-lg flex flex-col items-center justify-center text-center px-3 select-none"
+      className="flex flex-col items-center justify-center text-center select-none"
       style={{
-        width: 92,
-        height: 60,
-        background: highlight ? `${highlight}22` : "var(--surface2)",
-        border: `1px solid ${highlight || "#33294f"}`,
-        boxShadow: highlight ? `0 0 12px -2px ${highlight}` : undefined,
+        width: 66,
+        height: 83,
+        backgroundImage: `url(${timelineCardFrame})`,
+        backgroundSize: "100% 100%",
+        backgroundRepeat: "no-repeat",
+        filter: highlight ? `drop-shadow(0 0 8px ${highlight})` : "none",
         cursor: "pointer",
         touchAction: "manipulation",
+        padding: "6px 8px",
       }}
     >
       <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: "var(--accent)" }}>{year}</span>
@@ -6417,27 +6428,27 @@ export default function App() {
             <div
               className="w-full flex flex-col items-center"
               style={{
-                aspectRatio: "941 / 1672",
-                maxWidth: 360,
+                aspectRatio: "1122 / 1402",
+                maxWidth: 320,
                 backgroundImage: `url(${playingPanelFrame})`,
                 backgroundSize: "100% 100%",
                 backgroundRepeat: "no-repeat",
-                padding: "8% 10% 6%",
+                padding: "9% 12% 9%",
               }}
             >
-              <p style={{ color: "#4fd6ff", fontSize: 12, textTransform: "uppercase", letterSpacing: 2 }}>Tura gracza</p>
-              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, textAlign: "center" }}>
+              <p style={{ color: "#4fd6ff", fontSize: 11, textTransform: "uppercase", letterSpacing: 2 }}>Tura gracza</p>
+              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, textAlign: "center", marginTop: 2 }}>
                 {isMyTurn ? "Twoja kolej!" : turnPlayerName}
               </p>
 
               {screen === "playing" && (
-                <p style={{ color: decisionLeft <= 10 ? "var(--bad)" : "var(--muted)", fontSize: 12, fontWeight: "bold", marginTop: 2 }}>
-                  ⏱ {decisionLeft}s na decyzję
+                <p style={{ color: decisionLeft <= 10 ? "var(--bad)" : "#d8cdf5", fontSize: 10, fontWeight: "bold", marginTop: -7, paddingLeft: 10 }}>
+                  {decisionLeft}s na decyzję
                 </p>
               )}
 
-              <div style={{ marginTop: 14, marginBottom: 14 }}>
-                <Vinyl spinning={isPlaying} revealed={screen === "roundResult"} progress={playElapsed / PLAY_CAP_SECONDS} />
+              <div style={{ marginTop: 10, marginBottom: 10 }}>
+                <Vinyl spinning={isPlaying} revealed={screen === "roundResult"} progress={playElapsed / PLAY_CAP_SECONDS} showRing={false} />
               </div>
 
               <div style={{ width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }}>
@@ -6457,14 +6468,14 @@ export default function App() {
                 onClick={togglePlay}
                 className="flex items-center justify-center gap-2 font-bold"
                 style={{
-                  width: "82%",
+                  width: "78%",
                   aspectRatio: "2172 / 724",
                   backgroundImage: `url(${playingOdtworzBtn})`,
                   backgroundSize: "100% 100%",
                   backgroundRepeat: "no-repeat",
                   border: "none",
                   color: "#062231",
-                  fontSize: 13,
+                  fontSize: 12,
                 }}
               >
                 <Play size={15} />
@@ -6531,12 +6542,21 @@ export default function App() {
                 <button
                   onClick={confirmPlacement}
                   disabled={chosenSlot === null || busy}
-                  className={`w-full mt-5 py-3 rounded-xl text-lg font-bold ${chosenSlot !== null ? "btn-grad" : ""}`}
-                  style={{
-                    background: chosenSlot === null ? "#232f4d" : undefined,
-                    color: chosenSlot === null ? "var(--muted)" : undefined,
-                    fontFamily: "'Bebas Neue', sans-serif",
-                  }}
+                  className="w-full mt-5 flex items-center justify-center font-bold"
+                  style={
+                    chosenSlot === null
+                      ? { aspectRatio: "2172 / 724", background: "#232f4d", color: "var(--muted)", border: "none", fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, borderRadius: 12 }
+                      : {
+                          aspectRatio: "2172 / 724",
+                          backgroundImage: `url(${confirmSlotBtn})`,
+                          backgroundSize: "100% 100%",
+                          backgroundRepeat: "no-repeat",
+                          border: "none",
+                          color: "#fff",
+                          fontFamily: "'Bebas Neue', sans-serif",
+                          fontSize: 20,
+                        }
+                  }
                 >
                   ZATWIERDŹ MIEJSCE
                 </button>
