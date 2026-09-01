@@ -145,12 +145,21 @@ export async function fetchHitRushLeaderboard(period, count = 10) {
     const snap = await getDocs(q);
     return snap.docs.map((d) => ({ uid: d.id, name: d.data().username || "Gracz", score: d.data().hitRushBestScore || 0 }));
   }
+  // Celowo BEZ where(...) połączonego z orderBy(...) na innym polu - wymagałoby
+  // to złożonego indeksu w Firestore (ręczna konfiguracja w konsoli). Zamiast
+  // tego pobieramy szerszą pulę posortowaną po samym wyniku (indeks
+  // pojedynczego pola - zawsze dostępny bez konfiguracji) i filtrujemy do
+  // aktualnego dnia/tygodnia już po stronie appki.
   const key = period === "daily" ? currentDayKey() : currentWeekKey();
   const coll = period === "daily" ? "hitRushDaily" : "hitRushWeekly";
-  const field = period === "daily" ? "bestScore" : "bestScore";
-  const q = query(collection(db, coll), where(period === "daily" ? "dayKey" : "weekKey", "==", key), orderBy(field, "desc"), limit(count));
+  const keyField = period === "daily" ? "dayKey" : "weekKey";
+  const q = query(collection(db, coll), orderBy("bestScore", "desc"), limit(100));
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ uid: d.data().uid || d.id, name: d.data().name || "Gracz", score: d.data()[field] || 0 }));
+  return snap.docs
+    .map((d) => d.data())
+    .filter((d) => d[keyField] === key)
+    .slice(0, count)
+    .map((d) => ({ uid: d.uid, name: d.name || "Gracz", score: d.bestScore || 0 }));
 }
 
 // Nagrody tygodniowe (200/100/75 HITCOIN za 1./2./3. miejsce) - ten sam wzorzec
@@ -164,9 +173,12 @@ export async function processHitRushWeeklyRewardsIfNeeded() {
   const markerSnap = await getDoc(markerRef);
   if (markerSnap.exists()) return;
 
-  const q = query(collection(db, "hitRushWeekly"), where("weekKey", "==", prevWeekKey), orderBy("bestScore", "desc"), limit(3));
+  const q = query(collection(db, "hitRushWeekly"), orderBy("bestScore", "desc"), limit(100));
   const snap = await getDocs(q);
-  const top3 = snap.docs.map((d) => d.data());
+  const top3 = snap.docs
+    .map((d) => d.data())
+    .filter((d) => d.weekKey === prevWeekKey)
+    .slice(0, 3);
 
   await setDoc(markerRef, { settledAt: Date.now(), winners: top3.map((w) => w.uid) });
 
