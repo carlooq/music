@@ -54,6 +54,12 @@ import hitrushFrameRef from "./assets/icons/hitrush-frame-ref.webp";
 import hitrushFrameBlue from "./assets/icons/hitrush-frame-blue.webp";
 import hitrushFramePink from "./assets/icons/hitrush-frame-pink.webp";
 import hitrushNowPlaying from "./assets/icons/hitrush-nowplaying.webp";
+import hitrushMenuGold from "./assets/icons/hitrush-menu-gold.webp";
+import hitrushMenuBlueThin from "./assets/icons/hitrush-menu-blue-thin.webp";
+import hitrushMenuDesc from "./assets/icons/hitrush-menu-desc.webp";
+import hitrushMenuBlue from "./assets/icons/hitrush-menu-blue.webp";
+import hitrushMenuPink from "./assets/icons/hitrush-menu-pink.webp";
+import hitrushMenuStart from "./assets/icons/hitrush-menu-start.webp";
 import glPiosenka from "./assets/icons/gl-piosenka.png";
 import glPlaylista from "./assets/icons/gl-playlista.png";
 import glTurniej from "./assets/icons/gl-turniej.png";
@@ -2286,11 +2292,15 @@ export default function App() {
     setHitRushLeaderboardPeriod(period);
     setHitRushLeaderboard(null);
     try {
-      if (period === "weekly") processHitRushWeeklyRewardsIfNeeded().catch(() => {});
+      if (period === "weekly") {
+        processHitRushWeeklyRewardsIfNeeded().catch((e) => console.error("Błąd rozliczania nagród tygodniowych Hit Rush:", e));
+      }
       const list = await fetchHitRushLeaderboard(period);
       setHitRushLeaderboard(list);
     } catch (e) {
+      console.error(`Błąd ładowania rankingu Hit Rush (${period}):`, e);
       setHitRushLeaderboard([]);
+      setError(`Nie udało się załadować rankingu (${period}): ${e.message}`);
     }
   }
 
@@ -5867,35 +5877,47 @@ export default function App() {
         )}
 
         {screen === "hitRushMenu" && (
-          <div className="w-full flex flex-col items-center gap-4">
-            <section
-              className="w-full rounded-2xl p-6 text-center"
-              style={{ background: "#0c0c1c", border: "1px solid rgba(42,245,152,0.4)", boxShadow: "0 0 30px rgba(42,245,152,0.25)" }}
+          <div className="w-full flex flex-col items-center gap-3">
+            <img src={glHitRush} alt="" style={{ height: 60, filter: "drop-shadow(0 0 14px rgba(42,245,152,0.5))" }} />
+            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 32, color: "#2af598", marginTop: -6 }}>HIT RUSH</p>
+
+            <div
+              className="w-full flex flex-col items-center justify-center text-center"
+              style={{ aspectRatio: "1672 / 941", backgroundImage: `url(${hitrushMenuDesc})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", padding: "22% 11%" }}
             >
-              <img src={glHitRush} alt="" style={{ height: 64, marginBottom: 8, filter: "drop-shadow(0 0 14px rgba(42,245,152,0.5))" }} />
-              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34, color: "#2af598" }}>HIT RUSH</p>
-              <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 8, lineHeight: 1.5 }}>
+              <p style={{ fontSize: 12.5, color: "#e4defa", lineHeight: 1.5 }}>
                 Szybki tryb solo. Zgadnij, czy grany właśnie utwór jest <span style={{ color: "#4fd6ff" }}>wcześniejszy</span> czy{" "}
                 <span style={{ color: "#ff5fc9" }}>późniejszy</span> od karty referencyjnej. Masz {HIT_RUSH_CONFIG.ROUND_SECONDS} sekund —
                 combo zwiększa punkty i skraca różnicę lat, a co {HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO} trafień z rzędu dokłada{" "}
                 {HIT_RUSH_CONFIG.TIME_BONUS_SECONDS}s czasu.
               </p>
-            </section>
+            </div>
 
             {stats && (
               <div className="w-full grid grid-cols-2 gap-3">
-                <div className="rounded-xl p-3 text-center" style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.35)" }}>
-                  <p style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase" }}>Twój rekord</p>
-                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "var(--gold)" }}>{stats.hitRushBestScore || 0} pkt</p>
+                <div
+                  className="flex flex-col items-center justify-center text-center"
+                  style={{ aspectRatio: "1448 / 1086", backgroundImage: `url(${hitrushMenuBlue})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", padding: "31% 11%" }}
+                >
+                  <p style={{ fontSize: 10, color: "#9fd8ff", textTransform: "uppercase", letterSpacing: 0.5 }}>Twój rekord</p>
+                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: "#bfeeff" }}>{stats.hitRushBestScore || 0}</p>
+                  <p style={{ fontSize: 9, color: "#9fd8ff" }}>PKT</p>
                 </div>
-                <div className="rounded-xl p-3 text-center" style={{ background: "#0c0c1c", border: "1px solid rgba(165,107,255,0.35)" }}>
-                  <p style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase" }}>Najlepsze combo</p>
-                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#a56bff" }}>🔥 {stats.hitRushBestCombo || 0}</p>
+                <div
+                  className="flex flex-col items-center justify-center text-center"
+                  style={{ aspectRatio: "1448 / 1086", backgroundImage: `url(${hitrushMenuPink})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", padding: "31% 11%" }}
+                >
+                  <p style={{ fontSize: 10, color: "#ffb3ec", textTransform: "uppercase", letterSpacing: 0.5 }}>Najlepsze combo</p>
+                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: "#ffd7f3" }}>🔥 {stats.hitRushBestCombo || 0}</p>
                 </div>
               </div>
             )}
 
-            <button onClick={startHitRush} className="w-full py-4 rounded-xl text-xl font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+            <button
+              onClick={startHitRush}
+              className="w-full flex items-center justify-center font-bold"
+              style={{ aspectRatio: "2172 / 724", backgroundImage: `url(${hitrushMenuStart})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", border: "none", color: "#fff", fontSize: 22, fontFamily: "'Bebas Neue', sans-serif" }}
+            >
               ▶ START
             </button>
             <button
@@ -5903,12 +5925,16 @@ export default function App() {
                 setScreen("hitRushLeaderboard");
                 loadHitRushLeaderboard("weekly");
               }}
-              className="w-full py-3 rounded-xl text-sm font-bold"
-              style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.35)", color: "var(--gold)" }}
+              className="w-full flex items-center justify-center font-bold"
+              style={{ aspectRatio: "2172 / 724", backgroundImage: `url(${hitrushMenuGold})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", border: "none", color: "#ffd98a", fontSize: 15 }}
             >
               🏆 Ranking Hit Rush
             </button>
-            <button onClick={goHome} className="w-full py-3 rounded-xl text-sm font-bold" style={{ background: "#0c0c1c", border: "1px solid rgba(42,245,152,0.35)", color: "#2af598" }}>
+            <button
+              onClick={goHome}
+              className="w-full flex items-center justify-center font-bold"
+              style={{ aspectRatio: "2172 / 724", backgroundImage: `url(${hitrushMenuBlueThin})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", border: "none", color: "#bfeeff", fontSize: 15 }}
+            >
               ← Wróć
             </button>
           </div>
