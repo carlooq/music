@@ -60,6 +60,10 @@ import hitrushMenuDesc from "./assets/icons/hitrush-menu-desc.webp";
 import hitrushMenuBlue from "./assets/icons/hitrush-menu-blue.webp";
 import hitrushMenuPink from "./assets/icons/hitrush-menu-pink.webp";
 import hitrushMenuStart from "./assets/icons/hitrush-menu-start.webp";
+import playingPanelFrame from "./assets/icons/playing-panel-frame.webp";
+import playingConfirmBtn from "./assets/icons/playing-confirm-btn.webp";
+import playingYearCard from "./assets/icons/playing-year-card.webp";
+import playingOdtworzBtn from "./assets/icons/playing-odtworz-btn.webp";
 import glPiosenka from "./assets/icons/gl-piosenka.png";
 import glPlaylista from "./assets/icons/gl-playlista.png";
 import glTurniej from "./assets/icons/gl-turniej.png";
@@ -6410,19 +6414,31 @@ export default function App() {
 
         {(screen === "playing" || screen === "voting" || screen === "roundResult") && room && room.currentCard && (
           <div className="w-full flex flex-col items-center gap-6">
-            <div className="w-full rounded-2xl p-5 flex flex-col items-center" style={{ background: "#0c0c1c", border: "1px solid rgba(79,214,255,0.4)", boxShadow: "0 0 26px rgba(79,214,255,0.18)" }}>
-              <p style={{ color: "var(--accent)", fontSize: 12, textTransform: "uppercase", letterSpacing: 2 }}>Tura gracza</p>
-              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30 }}>
+            <div
+              className="w-full flex flex-col items-center"
+              style={{
+                aspectRatio: "941 / 1672",
+                maxWidth: 360,
+                backgroundImage: `url(${playingPanelFrame})`,
+                backgroundSize: "100% 100%",
+                backgroundRepeat: "no-repeat",
+                padding: "8% 10% 6%",
+              }}
+            >
+              <p style={{ color: "#4fd6ff", fontSize: 12, textTransform: "uppercase", letterSpacing: 2 }}>Tura gracza</p>
+              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, textAlign: "center" }}>
                 {isMyTurn ? "Twoja kolej!" : turnPlayerName}
               </p>
 
               {screen === "playing" && (
-                <p style={{ color: decisionLeft <= 10 ? "var(--bad)" : "var(--muted)", fontSize: 13, fontWeight: "bold" }}>
+                <p style={{ color: decisionLeft <= 10 ? "var(--bad)" : "var(--muted)", fontSize: 12, fontWeight: "bold", marginTop: 2 }}>
                   ⏱ {decisionLeft}s na decyzję
                 </p>
               )}
 
-              <Vinyl spinning={isPlaying} revealed={screen === "roundResult"} progress={playElapsed / PLAY_CAP_SECONDS} />
+              <div style={{ marginTop: 14, marginBottom: 14 }}>
+                <Vinyl spinning={isPlaying} revealed={screen === "roundResult"} progress={playElapsed / PLAY_CAP_SECONDS} />
+              </div>
 
               <div style={{ width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }}>
                 <iframe
@@ -6437,8 +6453,21 @@ export default function App() {
                 />
               </div>
 
-              <button onClick={togglePlay} className="mt-4 flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold" style={{ background: "var(--accent)", color: "#1a1428" }}>
-                <Play size={16} />
+              <button
+                onClick={togglePlay}
+                className="flex items-center justify-center gap-2 font-bold"
+                style={{
+                  width: "82%",
+                  aspectRatio: "2172 / 724",
+                  backgroundImage: `url(${playingOdtworzBtn})`,
+                  backgroundSize: "100% 100%",
+                  backgroundRepeat: "no-repeat",
+                  border: "none",
+                  color: "#062231",
+                  fontSize: 13,
+                }}
+              >
+                <Play size={15} />
                 {isPlaying ? `Gra… (${Math.ceil(PLAY_CAP_SECONDS - playElapsed)}s)` : playElapsed >= PLAY_CAP_SECONDS ? "Odtwórz ponownie" : "Odtwórz dźwięk"}
               </button>
             </div>
