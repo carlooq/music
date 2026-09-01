@@ -123,12 +123,12 @@ html, body, #root {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .placement-row {
   width: 100%;
-  min-height: 84px;
+  min-height: 76px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -136,8 +136,8 @@ html, body, #root {
 }
 
 .timeline-slot-button {
-  width: clamp(27px, 7.4vw, 31px);
-  height: clamp(57px, 16.5vw, 64px);
+  width: clamp(28px, 7.6vw, 32px);
+  height: clamp(28px, 7.6vw, 32px);
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -147,7 +147,7 @@ html, body, #root {
   background-size: 100% 100%;
   background-repeat: no-repeat;
   color: #4fd6ff;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
   opacity: .56;
   cursor: pointer;
@@ -164,11 +164,13 @@ html, body, #root {
 /* Keep the native 300x375 (4:5) proportions of timeline-card-frame-v2.webp. */
 .timeline-song-card {
   position: relative;
-  width: clamp(60px, 17.2vw, 68px);
+  width: clamp(61px, 17vw, 67px);
   aspect-ratio: 4 / 5;
   flex: 0 0 auto;
   overflow: visible;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
   cursor: pointer;
   touch-action: manipulation;
   background-size: 100% 100%;
@@ -195,20 +197,16 @@ html, body, #root {
 
 .timeline-song-artist {
   position: absolute;
-  top: 53%;
-  left: 10%;
-  right: 10%;
-  min-height: 20%;
-  display: -webkit-box;
+  top: 56%;
+  left: 11%;
+  right: 11%;
   overflow: hidden;
   color: #aaa1c7;
-  font-size: clamp(7px, 2.1vw, 8.6px);
-  line-height: 1.08;
+  font-size: clamp(7px, 2.05vw, 8.4px);
+  line-height: 1.1;
   text-align: center;
-  word-break: normal;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .timeline-cards-grid {
@@ -224,7 +222,7 @@ html, body, #root {
 
 /* Restore the stronger, thicker CTA proportion from the earlier version. */
 .placement-confirm {
-  width: min(100%, 360px);
+  width: min(100%, 366px);
   aspect-ratio: 2172 / 724;
   margin: 9px auto 0;
   display: flex;
@@ -430,10 +428,10 @@ html, body, #root {
 @media (max-width: 345px) {
   .game-stage-panel { width: min(100%, 326px) !important; }
   .game-play-stack { gap: 8px !important; }
-  .placement-rows { width: 100%; gap: 5px; }
-  .placement-row { gap: 3px; min-height: 77px; }
-  .timeline-song-card { width: clamp(55px, 17.2vw, 60px); }
-  .timeline-slot-button { width: 25px; height: 54px; }
+  .placement-rows { width: 100%; gap: 4px; }
+  .placement-row { gap: 3px; min-height: 70px; }
+  .timeline-song-card { width: clamp(55px, 17vw, 60px); }
+  .timeline-slot-button { width: 27px; height: 27px; }
   .placement-confirm { width: 100%; }
   .timeline-cards-grid { width: min(100%, 245px); column-gap: 5px; row-gap: 5px; }
   .timeline-song-card.is-compact { width: clamp(62px, 19vw, 69px); }
