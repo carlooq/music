@@ -666,6 +666,7 @@ export default function App() {
   const [hitRushLeaderboardPeriod, setHitRushLeaderboardPeriod] = useState("weekly");
   const [showWeeklyChallenges, setShowWeeklyChallenges] = useState(false);
   const [hitRushMenuOpen, setHitRushMenuOpen] = useState(false);
+  const [showHitRushFaq, setShowHitRushFaq] = useState(false);
   const hitRushTimerRef = useRef(null);
   const hitRushIframeRef = useRef(null);
   const [adminEditingId, setAdminEditingId] = useState(null);
@@ -5885,13 +5886,23 @@ export default function App() {
               className="w-full flex flex-col items-center justify-center text-center"
               style={{ aspectRatio: "1672 / 941", backgroundImage: `url(${hitrushMenuDesc})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", padding: "24% 13%", minHeight: 0 }}
             >
-              <p style={{ fontSize: 11.5, color: "#e4defa", lineHeight: 1.45 }}>
-                Szybki tryb solo. Zgadnij, czy grany właśnie utwór jest <span style={{ color: "#4fd6ff" }}>wcześniejszy</span> czy{" "}
-                <span style={{ color: "#ff5fc9" }}>późniejszy</span> od karty referencyjnej. Masz {HIT_RUSH_CONFIG.ROUND_SECONDS} sekund —
-                combo zwiększa punkty i skraca różnicę lat, a co {HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO} trafień z rzędu dokłada{" "}
-                {HIT_RUSH_CONFIG.TIME_BONUS_SECONDS}s czasu.
+              <p style={{ fontSize: 13, color: "#e4defa", lineHeight: 1.5 }}>
+                Zgadnij, czy grany utwór jest <span style={{ color: "#4fd6ff" }}>wcześniejszy</span> czy{" "}
+                <span style={{ color: "#ff5fc9" }}>późniejszy</span> od karty referencyjnej.
               </p>
             </div>
+            <button
+              onClick={() => setShowHitRushFaq(true)}
+              className="flex items-center gap-1.5"
+              style={{ background: "none", border: "none", color: "var(--muted)", fontSize: 11, padding: 0, marginTop: -4 }}
+            >
+              <span
+                style={{ width: 16, height: 16, borderRadius: "50%", border: "1px solid var(--muted)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, flexShrink: 0 }}
+              >
+                i
+              </span>
+              Jak grać?
+            </button>
 
             {stats && (
               <div className="w-full grid grid-cols-2 gap-3">
@@ -5927,7 +5938,7 @@ export default function App() {
                 loadHitRushLeaderboard("weekly");
               }}
               className="w-full flex items-center justify-center font-bold"
-              style={{ aspectRatio: "2172 / 724", backgroundImage: `url(${hitrushMenuGold})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", border: "none", color: "#ffd98a", fontSize: 15 }}
+              style={{ aspectRatio: "2172 / 724", backgroundImage: `url(${hitrushMenuGold})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", border: "none", color: "#ffd98a", fontSize: 15, marginBottom: -10 }}
             >
               🏆 Ranking Hit Rush
             </button>
@@ -6126,7 +6137,7 @@ export default function App() {
 
         {screen === "hitRushLeaderboard" && (
           <div className="w-full flex flex-col gap-4">
-            <button onClick={goHome} className="self-start text-xs" style={{ color: "var(--gold)" }}>
+            <button onClick={() => setScreen("hitRushMenu")} className="self-start text-xs" style={{ color: "var(--gold)" }}>
               ← Wróć
             </button>
             <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 30px rgba(245,196,81,0.18)" }}>
@@ -7020,6 +7031,42 @@ export default function App() {
                 {dailyWheelSpinning ? "Losowanie..." : "ZAKRĘĆ!"}
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {showHitRushFaq && (
+        <div
+          onClick={() => setShowHitRushFaq(false)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 120, padding: 20 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="rounded-2xl p-6"
+            style={{ background: "#0c0c1c", border: "1px solid rgba(42,245,152,0.4)", boxShadow: "0 0 30px rgba(42,245,152,0.25)", maxWidth: 380, width: "100%", maxHeight: "80vh", overflowY: "auto", animation: "scale-pop-in 0.25s ease" }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#2af598" }}>Jak grać w HIT RUSH?</h2>
+              <button onClick={() => setShowHitRushFaq(false)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: 20, lineHeight: 1 }}>
+                ✕
+              </button>
+            </div>
+            <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 12, lineHeight: 1.5 }}>
+              HIT RUSH to szybki tryb solo, w którym liczy się wiedza, refleks i seria poprawnych odpowiedzi.
+            </p>
+            <div className="flex flex-col gap-2.5" style={{ fontSize: 13, lineHeight: 1.4 }}>
+              <p>🎵 Posłuchaj aktualnie granego utworu.</p>
+              <p>⏪ Zdecyduj, czy został wydany wcześniej, czy później niż karta referencyjna.</p>
+              <p>🔄 Po każdej odpowiedzi aktualny utwór staje się nową kartą referencyjną.</p>
+              <p>🔥 Poprawne odpowiedzi budują combo i zwiększają zdobywane punkty.</p>
+              <p>📈 Im większe combo, tym trudniejsze porównania — różnica między latami będzie coraz mniejsza.</p>
+              <p>
+                ⏱️ Masz {HIT_RUSH_CONFIG.ROUND_SECONDS} sekund. Za {HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO} poprawnych odpowiedzi z rzędu otrzymujesz +
+                {HIT_RUSH_CONFIG.TIME_BONUS_SECONDS} sekund.
+              </p>
+              <p>🏆 Zdobądź jak najwięcej punktów i pobij swój rekord!</p>
+            </div>
+            <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 14, fontStyle: "italic" }}>Błąd zeruje combo, ale gra trwa dalej.</p>
           </div>
         </div>
       )}
