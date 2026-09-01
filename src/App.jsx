@@ -49,6 +49,7 @@ import heroBanner from "./assets/home/hero-banner.webp";
 import homeBg from "./assets/home/bg.jpg";
 import footerStrip from "./assets/home/footer-strip.webp";
 import glTrening from "./assets/icons/gl-trening.png";
+import glHitRush from "./assets/icons/gl-hitrush.png";
 import glPiosenka from "./assets/icons/gl-piosenka.png";
 import glPlaylista from "./assets/icons/gl-playlista.png";
 import glTurniej from "./assets/icons/gl-turniej.png";
@@ -2160,6 +2161,7 @@ export default function App() {
       pool,
       referenceCard,
       currentCard,
+      currentStartSeconds: randomStartSeconds(),
       score: 0,
       combo: 0,
       bestCombo: 0,
@@ -2202,7 +2204,7 @@ export default function App() {
         const nextCard = pickNextHitRushSong(prev.pool, newReference.year, prev.combo, usedIds);
         if (!nextCard) return { ...prev, running: false, timeLeft: 0, feedback: null };
         usedIds.add(nextCard.id);
-        return { ...prev, referenceCard: newReference, currentCard: nextCard, usedIds, feedback: null };
+        return { ...prev, referenceCard: newReference, currentCard: nextCard, currentStartSeconds: randomStartSeconds(), usedIds, feedback: null };
       });
     }, 900);
   }
@@ -5162,7 +5164,7 @@ export default function App() {
                       <div className="hs-tile-glow" />
                       <div className="hs-tile-rim" />
                       <button onClick={() => setScreen("hitRushMenu")} className="hs-tile">
-                        <img className="hs-icon" src={glTrening} alt="" />
+                        <img className="hs-icon" src={glHitRush} alt="" />
                         <div className="hs-t">HIT RUSH</div>
                         <div className="hs-arrow" style={{ color: "#2af598" }}>›</div>
                       </button>
@@ -5866,7 +5868,8 @@ export default function App() {
               className="w-full rounded-2xl p-6 text-center"
               style={{ background: "#0c0c1c", border: "1px solid rgba(42,245,152,0.4)", boxShadow: "0 0 30px rgba(42,245,152,0.25)" }}
             >
-              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34, color: "#2af598" }}>⚡ HIT RUSH</p>
+              <img src={glHitRush} alt="" style={{ height: 64, marginBottom: 8, filter: "drop-shadow(0 0 14px rgba(42,245,152,0.5))" }} />
+              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34, color: "#2af598" }}>HIT RUSH</p>
               <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 8, lineHeight: 1.5 }}>
                 Szybki tryb solo. Zgadnij, czy grany właśnie utwór jest <span style={{ color: "#4fd6ff" }}>wcześniejszy</span> czy{" "}
                 <span style={{ color: "#ff5fc9" }}>późniejszy</span> od karty referencyjnej. Masz {HIT_RUSH_CONFIG.ROUND_SECONDS} sekund —
@@ -5916,7 +5919,7 @@ export default function App() {
                 title="hitrush-audio"
                 width="280"
                 height="158"
-                src={`https://www.youtube.com/embed/${hitRush.currentCard.videoId}?enablejsapi=1&autoplay=1&mute=0&start=${randomStartSeconds()}&controls=0&modestbranding=1&rel=0`}
+                src={`https://www.youtube.com/embed/${hitRush.currentCard.videoId}?enablejsapi=1&autoplay=1&mute=0&start=${hitRush.currentStartSeconds}&controls=0&modestbranding=1&rel=0`}
                 allow="autoplay; encrypted-media"
                 style={{ border: "none" }}
               />
