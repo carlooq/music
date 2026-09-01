@@ -2261,16 +2261,18 @@ export default function App() {
     }
   }, [hitRush?.running, hitRush?.timeLeft]);
 
+  function unlockHitRushAudio() {
+    const win = hitRushIframeRef.current?.contentWindow;
+    if (win) {
+      win.postMessage(JSON.stringify({ event: "command", func: "unMute", args: [] }), "*");
+      win.postMessage(JSON.stringify({ event: "command", func: "setVolume", args: [100] }), "*");
+      win.postMessage(JSON.stringify({ event: "command", func: "playVideo", args: [] }), "*");
+    }
+  }
+
   useEffect(() => {
     if (!hitRush?.currentCard || !hitRush.running) return;
-    const t = setTimeout(() => {
-      const win = hitRushIframeRef.current?.contentWindow;
-      if (win) {
-        win.postMessage(JSON.stringify({ event: "command", func: "unMute", args: [] }), "*");
-        win.postMessage(JSON.stringify({ event: "command", func: "setVolume", args: [100] }), "*");
-        win.postMessage(JSON.stringify({ event: "command", func: "playVideo", args: [] }), "*");
-      }
-    }, 600);
+    const t = setTimeout(unlockHitRushAudio, 600);
     return () => clearTimeout(t);
   }, [hitRush?.currentCard?.id, hitRush?.running]);
 
@@ -5964,6 +5966,7 @@ export default function App() {
                 src={`https://www.youtube.com/embed/${hitRush.currentCard.videoId}?enablejsapi=1&autoplay=1&mute=0&start=${hitRush.currentStartSeconds}&controls=0&modestbranding=1&rel=0`}
                 allow="autoplay; encrypted-media"
                 style={{ border: "none" }}
+                onLoad={unlockHitRushAudio}
               />
             </div>
 
@@ -6031,7 +6034,23 @@ export default function App() {
               </p>
             </div>
 
-            <img src={hitrushNowPlaying} alt="Teraz gra" style={{ width: "70%", maxWidth: 260 }} />
+            <button
+              onClick={unlockHitRushAudio}
+              className="flex items-center justify-center font-bold"
+              style={{
+                width: "62%",
+                maxWidth: 240,
+                aspectRatio: "2172 / 724",
+                backgroundImage: `url(${hitrushMenuBlueThin})`,
+                backgroundSize: "100% 100%",
+                backgroundRepeat: "no-repeat",
+                border: "none",
+                color: "#bfeeff",
+                fontSize: 14,
+              }}
+            >
+              ▶ ODTWÓRZ
+            </button>
 
             <div style={{ minHeight: 44, textAlign: "center" }}>
               {hitRush.feedback && (
