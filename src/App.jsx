@@ -29,7 +29,7 @@ import { HIT_RUSH_CONFIG, pickNextHitRushSong, computeHitRushPoints, checkHitRus
 import { updateHeadToHead, fetchHeadToHeadOpponents } from "./headToHead.js";
 import { getAchievementProgress, ACHIEVEMENTS } from "./achievements.js";
 import { playCorrectSound, playWrongSound, playApplause, playVictorySound, unlockAudio } from "./sounds.js";
-import { Play, Music4, Clock3, Trophy, RotateCcw, Users, ChevronRight, Copy, Check, LogIn, LogOut, BarChart3, Flame, Crown, Shield, Search, Trash2, Pencil, Save, X, MessageCircle, Send } from "lucide-react";
+import { Play, Music4, Trophy, RotateCcw, Users, ChevronRight, Copy, Check, LogIn, LogOut, BarChart3, Flame, Crown, Shield, Search, Trash2, Pencil, Save, X, MessageCircle, Send } from "lucide-react";
 import logoImg from "./assets/logo-v2.png";
 import iconTrening from "./assets/icons/trening.png";
 import iconPiosenkaDnia from "./assets/icons/piosenka_dnia.png";
@@ -61,7 +61,7 @@ import hitrushMenuBlue from "./assets/icons/hitrush-menu-blue.webp";
 import hitrushMenuPink from "./assets/icons/hitrush-menu-pink.webp";
 import hitrushMenuStart from "./assets/icons/hitrush-menu-start.webp";
 import playingPanelFrame from "./assets/icons/playing-panel-frame-v3.webp";
-import timelineCardFrame from "./assets/icons/timeline-card-frame-v2.webp";
+import timelineCardFrame from "./assets/icons/timeline-card-frame-v3.webp";
 import confirmSlotBtnInactive from "./assets/icons/confirm-slot-btn-inactive.webp";
 import timelineSlotFrame from "./assets/icons/timeline-slot-frame.webp";
 import confirmSlotBtn from "./assets/icons/confirm-slot-btn.webp";
@@ -220,23 +220,32 @@ const Vinyl = memo(function Vinyl({ spinning, revealed, progress = 0, showRing =
   );
 });
 
-const TIMELINE_CARDS_PER_ROW = 3;
-
 const SlotButton = memo(function SlotButton({ index, chosen, onPick, label }) {
   return (
     <button
       onClick={() => onPick(index)}
-      className={`timeline-slot-button ${chosen === index ? "is-chosen" : ""}`}
-      style={{ backgroundImage: `url(${timelineSlotFrame})` }}
+      className="flex items-center justify-center"
+      style={{
+        width: 42,
+        height: 62,
+        backgroundImage: `url(${timelineSlotFrame})`,
+        backgroundSize: "100% 100%",
+        backgroundRepeat: "no-repeat",
+        border: "none",
+        color: chosen === index ? "#fff" : "#4fd6ff",
+        fontSize: 15,
+        fontWeight: "bold",
+        opacity: chosen === index ? 1 : 0.55,
+        filter: chosen === index ? "drop-shadow(0 0 6px rgba(79,214,255,0.8))" : "none",
+      }}
       title={label}
-      aria-label={label}
     >
       +
     </button>
   );
 });
 
-const TimelineCard = memo(function TimelineCard({ year, title, artist, onHold, onRelease, highlight, compact = false }) {
+const TimelineCard = memo(function TimelineCard({ year, title, artist, onHold, onRelease, highlight }) {
   const timerRef = useRef(null);
   const start = () => {
     timerRef.current = setTimeout(() => {
@@ -254,72 +263,23 @@ const TimelineCard = memo(function TimelineCard({ year, title, artist, onHold, o
       onMouseLeave={cancel}
       onTouchStart={start}
       onTouchEnd={cancel}
-      className={`timeline-song-card ${compact ? "is-compact" : ""}`}
+      className="flex flex-col items-center justify-center text-center select-none"
       style={{
+        width: 108,
+        height: 84,
         backgroundImage: `url(${timelineCardFrame})`,
+        backgroundSize: "100% 100%",
+        backgroundRepeat: "no-repeat",
         filter: highlight ? `drop-shadow(0 0 8px ${highlight})` : "none",
+        cursor: "pointer",
+        touchAction: "manipulation",
+        padding: "10% 10%",
       }}
     >
-      <span className="timeline-song-year">{year}</span>
-      <span className="timeline-song-artist">{artist}</span>
-    </div>
-  );
-});
-
-const PlacementTimeline = memo(function PlacementTimeline({ cards, chosen, onPick, onHold, onRelease }) {
-  const rows = [];
-  for (let startIndex = 0; startIndex < cards.length; startIndex += TIMELINE_CARDS_PER_ROW) {
-    rows.push({ startIndex, cards: cards.slice(startIndex, startIndex + TIMELINE_CARDS_PER_ROW) });
-  }
-  if (rows.length === 0) rows.push({ startIndex: 0, cards: [] });
-
-  return (
-    <div className="placement-rows">
-      {rows.map((row) => {
-        const hasNextRow = row.startIndex + row.cards.length < cards.length;
-        return (
-          <div className="placement-row" key={`row-${row.startIndex}`}>
-            <SlotButton index={row.startIndex} chosen={chosen} onPick={onPick} label={row.startIndex === 0 ? "najstarsza" : "tutaj"} />
-            {row.cards.map((c, localIndex) => {
-              const globalIndex = row.startIndex + localIndex;
-              const isLastInRow = localIndex === row.cards.length - 1;
-              const showSlotAfter = !isLastInRow || !hasNextRow;
-              return (
-                <React.Fragment key={c.id}>
-                  <TimelineCard year={c.year} title={c.title} artist={c.artist} onHold={onHold} onRelease={onRelease} />
-                  {showSlotAfter && (
-                    <SlotButton index={globalIndex + 1} chosen={chosen} onPick={onPick} label="tutaj" />
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </div>
-        );
-      })}
-    </div>
-  );
-});
-
-const TimelineCardsGrid = memo(function TimelineCardsGrid({ cards, onHold, onRelease, resultCard, resultCorrect = false, ghostCard = null }) {
-  return (
-    <div className="timeline-cards-grid">
-      {cards.map((c, i) => {
-        const isGhost = c.__ghost || (ghostCard && c === ghostCard);
-        const isPlacedCard = !isGhost && resultCorrect && resultCard && c.videoId === resultCard.videoId && c.year === resultCard.year;
-        const highlight = isGhost ? "var(--bad)" : isPlacedCard ? "var(--good)" : null;
-        return (
-          <TimelineCard
-            key={isGhost ? `ghost-${i}` : c.id || i}
-            year={c.year}
-            title={c.title}
-            artist={c.artist}
-            onHold={onHold}
-            onRelease={onRelease}
-            highlight={highlight}
-            compact
-          />
-        );
-      })}
+      <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: "var(--accent)", lineHeight: 1 }}>{year}</span>
+      <span style={{ fontSize: 9, color: "var(--muted)", lineHeight: 1.15, marginTop: 3 }}>
+        {artist.length > 16 ? artist.slice(0, 15) + "…" : artist}
+      </span>
     </div>
   );
 });
@@ -6464,26 +6424,28 @@ export default function App() {
         )}
 
         {(screen === "playing" || screen === "voting" || screen === "roundResult") && room && room.currentCard && (
-          <div className="w-full flex flex-col items-center game-play-stack">
+          <div className="w-full flex flex-col items-center gap-6">
             <div
-              className="w-full game-stage-panel"
+              className="w-full"
               style={{
                 position: "relative",
                 aspectRatio: "1122 / 1402",
+                maxWidth: 320,
                 backgroundImage: `url(${playingPanelFrame})`,
                 backgroundSize: "100% 100%",
                 backgroundRepeat: "no-repeat",
               }}
             >
-              <div className="game-stage-heading">
-                <p className="game-stage-kicker">Tura gracza</p>
-                <p className="game-stage-title">{isMyTurn ? "Twoja kolej!" : turnPlayerName}</p>
+              <div style={{ position: "absolute", top: "7%", left: "8%", right: "8%", textAlign: "center" }}>
+                <p style={{ color: "#4fd6ff", fontSize: 11, textTransform: "uppercase", letterSpacing: 2 }}>Tura gracza</p>
+                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 21, marginTop: 2 }}>
+                  {isMyTurn ? "Twoja kolej!" : turnPlayerName}
+                </p>
               </div>
 
               {screen === "playing" && (
-                <div className={`game-stage-timer ${decisionLeft <= 10 ? "is-danger" : ""}`}>
-                  <Clock3 size={13} strokeWidth={2.4} />
-                  <span>{decisionLeft}s na decyzję</span>
+                <div style={{ position: "absolute", top: "21%", left: "20%", right: "20%", textAlign: "center", transform: "translateY(-50%)" }}>
+                  <p style={{ color: decisionLeft <= 10 ? "var(--bad)" : "#d8cdf5", fontSize: 9, fontWeight: "bold", margin: 0 }}>{decisionLeft}s na decyzję</p>
                 </div>
               )}
 
@@ -6500,14 +6462,28 @@ export default function App() {
                 />
               </div>
 
-              <button onClick={togglePlay} className="game-stage-play-button">
-                <Play size={16} />
+              <button
+                onClick={togglePlay}
+                className="flex items-center justify-center gap-2 font-bold"
+                style={{
+                  position: "absolute",
+                  top: "76%",
+                  bottom: "3%",
+                  left: "14%",
+                  right: "14%",
+                  background: "none",
+                  border: "none",
+                  color: "#062231",
+                  fontSize: 12,
+                }}
+              >
+                <Play size={15} />
                 {isPlaying ? `Gra… (${Math.ceil(PLAY_CAP_SECONDS - playElapsed)}s)` : playElapsed >= PLAY_CAP_SECONDS ? "Odtwórz ponownie" : "Odtwórz dźwięk"}
               </button>
             </div>
 
             {screen === "playing" && isMyTurn && !room.practiceMode && (
-              <div className="w-full game-guess-panel">
+              <div className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(165,107,255,0.4)", boxShadow: "0 0 22px rgba(165,107,255,0.15)" }}>
                 <div className="flex items-center justify-between mb-2">
                   <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase" }}>Zgadnij wykonawcę i tytuł (opcjonalnie, +1 token)</p>
                   <span style={{ color: "var(--accent)", fontSize: 12, fontWeight: "bold", display: "inline-flex", alignItems: "center", gap: 3 }}>
@@ -6551,22 +6527,44 @@ export default function App() {
             )}
 
             {screen === "playing" && isMyTurn && (
-              <div className="w-full placement-section">
-                <p className="placement-question">Gdzie umieszczasz tę piosenkę?</p>
-                <PlacementTimeline
-                  cards={turnTimeline}
-                  chosen={chosenSlot}
-                  onPick={setChosenSlot}
-                  onHold={setHeldCard}
-                  onRelease={clearHeldCard}
-                />
+              <div className="w-full">
+                <p style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase", marginBottom: 10 }}>Gdzie umieszczasz tę piosenkę?</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <SlotButton index={0} chosen={chosenSlot} onPick={setChosenSlot} label="najstarsza" />
+                  {turnTimeline.map((c, i) => (
+                    <React.Fragment key={c.id}>
+                      <TimelineCard year={c.year} title={c.title} artist={c.artist} onHold={setHeldCard} onRelease={clearHeldCard} />
+                      <SlotButton index={i + 1} chosen={chosenSlot} onPick={setChosenSlot} label="tutaj" />
+                    </React.Fragment>
+                  ))}
+                </div>
                 <button
                   onClick={confirmPlacement}
                   disabled={chosenSlot === null || busy}
-                  className={`placement-confirm ${chosenSlot === null ? "is-disabled" : ""}`}
-                  style={{
-                    backgroundImage: `url(${chosenSlot === null ? confirmSlotBtnInactive : confirmSlotBtn})`,
-                  }}
+                  className="w-full mt-5 flex items-center justify-center font-bold"
+                  style={
+                    chosenSlot === null
+                      ? {
+                          aspectRatio: "2172 / 724",
+                          backgroundImage: `url(${confirmSlotBtnInactive})`,
+                          backgroundSize: "100% 100%",
+                          backgroundRepeat: "no-repeat",
+                          border: "none",
+                          color: "#8a8a8a",
+                          fontFamily: "'Bebas Neue', sans-serif",
+                          fontSize: 20,
+                        }
+                      : {
+                          aspectRatio: "2172 / 724",
+                          backgroundImage: `url(${confirmSlotBtn})`,
+                          backgroundSize: "100% 100%",
+                          backgroundRepeat: "no-repeat",
+                          border: "none",
+                          color: "#fff",
+                          fontFamily: "'Bebas Neue', sans-serif",
+                          fontSize: 20,
+                        }
+                  }
                 >
                   ZATWIERDŹ MIEJSCE
                 </button>
@@ -6578,7 +6576,11 @@ export default function App() {
                 <p style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase", marginBottom: 10, textAlign: "center" }}>
                   Oś czasu gracza {displayedPlayerName} <span style={{ fontSize: 10 }}>(kliknij gracza poniżej, żeby zmienić)</span>
                 </p>
-                <TimelineCardsGrid cards={viewedTimeline} onHold={setHeldCard} onRelease={clearHeldCard} />
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  {viewedTimeline.map((c) => (
+                    <TimelineCard key={c.id} year={c.year} title={c.title} artist={c.artist} onHold={setHeldCard} onRelease={clearHeldCard} />
+                  ))}
+                </div>
               </div>
             )}
 
@@ -6625,17 +6627,31 @@ export default function App() {
               const r = room.lastResult;
 
               const resultBox = (isCorrect, delayS) => (
-                <div className={`round-result-verdict ${isCorrect ? "is-correct" : "is-wrong"}`} style={{ animationDelay: `${delayS}s` }}>
-                  {isCorrect ? <Check size={25} strokeWidth={3.6} /> : <X size={25} strokeWidth={3.6} />}
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 14,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    background: isCorrect ? "rgba(42,245,152,0.15)" : "rgba(255,56,104,0.15)",
+                    border: `2px solid ${isCorrect ? "var(--good)" : "var(--bad)"}`,
+                    boxShadow: `0 0 18px -3px ${isCorrect ? "var(--good)" : "var(--bad)"}`,
+                    animation: `scale-pop-in 0.4s ease ${delayS}s both`,
+                  }}
+                >
+                  {isCorrect ? <Check size={28} color="var(--good)" strokeWidth={3.5} /> : <X size={28} color="var(--bad)" strokeWidth={3.5} />}
                 </div>
               );
 
-              const resultRow = (label, isCorrect, delayS, Icon) => (
-                <div className={`round-result-row ${isCorrect ? "is-correct" : "is-wrong"}`} style={{ animationDelay: `${Math.max(0, delayS - 0.1)}s` }}>
-                  <div className="round-result-row-label">
-                    {Icon && <Icon size={19} strokeWidth={2.1} />}
-                    <span>{label}</span>
-                  </div>
+              const resultRow = (label, isCorrect, delayS) => (
+                <div
+                  className="w-full flex items-center justify-between rounded-xl px-4 py-2.5"
+                  style={{ background: "var(--surface2)", animation: `slide-fade-in 0.4s ease ${delayS - 0.1}s both` }}
+                >
+                  <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, letterSpacing: 0.5 }}>{label}</span>
                   {resultBox(isCorrect, delayS)}
                 </div>
               );
@@ -6651,40 +6667,73 @@ export default function App() {
                 : ownerTimeline;
 
               return (
-                <div className="round-result-overlay">
-                  <div className="round-result-panel">
-                    <div className="round-result-fixed">
-                      <p className="round-result-player">{ownerName}</p>
+                <div
+                  style={{
+                    position: "fixed",
+                    inset: 0,
+                    background: "rgba(5,8,16,0.92)",
+                    backdropFilter: "blur(4px)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    zIndex: 97,
+                    padding: 16,
+                    overflowY: "auto",
+                  }}
+                >
+                  <div className="w-full flex flex-col items-center gap-2.5" style={{ maxWidth: 380 }}>
+                    <p
+                      style={{
+                        fontFamily: "'Bebas Neue', sans-serif",
+                        fontSize: 44,
+                        fontWeight: "bold",
+                        textAlign: "center",
+                        letterSpacing: 1,
+                        color: "var(--text)",
+                        textShadow: "0 0 20px rgba(0,230,195,0.45)",
+                        animation: "slide-fade-in 0.45s ease both",
+                        lineHeight: 1,
+                      }}
+                    >
+                      {ownerName}
+                    </p>
 
-                      <div className="round-result-statuses">
-                        {r.bought ? (
-                          resultRow("KUPIONA KARTA", true, 0.2, Trophy)
-                        ) : r.timedOut ? (
-                          resultRow("OŚ CZASU", false, 0.2, Clock3)
-                        ) : (
-                          <>
-                            {resultRow("OŚ CZASU", r.correct, 0.2, Clock3)}
-                            {r.tokenAwarded !== undefined && resultRow("TYTUŁ I WYKONAWCA", r.tokenAwarded, 0.35, Music4)}
-                          </>
-                        )}
-                      </div>
+                    {r.bought ? (
+                      resultRow("🎁 KUPIONA KARTA", true, 0.2)
+                    ) : r.timedOut ? (
+                      resultRow("OŚ CZASU", false, 0.2)
+                    ) : (
+                      <>
+                        {resultRow("OŚ CZASU", r.correct, 0.2)}
+                        {r.tokenAwarded !== undefined && resultRow("TYTUŁ I WYKONAWCA", r.tokenAwarded, 0.35)}
+                      </>
+                    )}
 
-                      <div className="round-result-reveal">
-                        <p className="round-result-artist">{r.card.artist}</p>
-                        <p className="round-result-year">{r.card.year}</p>
-                        <span className="round-result-divider" />
-                        <p className="round-result-title">„{r.card.title}"</p>
-                      </div>
+                    <div
+                      className="rounded-2xl p-6 text-center"
+                      style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 30px rgba(245,196,81,0.25)", minWidth: 220, marginTop: 8, animation: "scale-pop-in 0.5s ease 0.5s both" }}
+                    >
+                      <p style={{ fontSize: 13, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>{r.card.artist}</p>
+                      <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 56, color: "var(--accent)", lineHeight: 1 }}>{r.card.year}</p>
+                      <p style={{ fontSize: 15, marginTop: 8 }}>„{r.card.title}"</p>
                     </div>
 
                     {!r.timedOut && displayCards.length > 0 && (
-                      <div className="round-result-timeline-wrap">
-                        <p className="round-result-timeline-label">Oś czasu gracza {ownerName}</p>
-                        <TimelineCardsGrid cards={displayCards} resultCard={r.card} resultCorrect={r.correct} />
+                      <div className="w-full" style={{ animation: "slide-fade-in 0.5s ease 0.65s both" }}>
+                        <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase", marginBottom: 8, textAlign: "center" }}>
+                          Oś czasu gracza {ownerName}
+                        </p>
+                        <div className="flex flex-wrap items-center justify-center gap-2">
+                          {displayCards.map((c, i) => {
+                            const isPlacedCard = !c.__ghost && r.correct && c.videoId === r.card.videoId && c.year === r.card.year;
+                            const highlight = c.__ghost ? "var(--bad)" : isPlacedCard ? "var(--good)" : null;
+                            return <TimelineCard key={c.__ghost ? "ghost" : c.id || i} year={c.year} title={c.title} artist={c.artist} highlight={highlight} />;
+                          })}
+                        </div>
                       </div>
                     )}
 
-                    <p className="round-result-countdown">Kolejny gracz za {advanceCountdown ?? 5}…</p>
+                    <p style={{ color: "var(--muted)", fontSize: 13 }}>Kolejny gracz za {advanceCountdown ?? 5}…</p>
                   </div>
                 </div>
               );
