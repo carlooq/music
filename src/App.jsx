@@ -29,7 +29,7 @@ import { HIT_RUSH_CONFIG, pickNextHitRushSong, computeHitRushPoints, checkHitRus
 import { updateHeadToHead, fetchHeadToHeadOpponents } from "./headToHead.js";
 import { getAchievementProgress, ACHIEVEMENTS } from "./achievements.js";
 import { playCorrectSound, playWrongSound, playApplause, playVictorySound, unlockAudio } from "./sounds.js";
-import { Play, Music4, Trophy, RotateCcw, Users, ChevronRight, Copy, Check, LogIn, LogOut, BarChart3, Flame, Crown, Shield, Search, Trash2, Pencil, Save, X, MessageCircle, Send } from "lucide-react";
+import { Play, Music4, Clock3, Trophy, RotateCcw, Users, ChevronRight, Copy, Check, LogIn, LogOut, BarChart3, Flame, Crown, Shield, Search, Trash2, Pencil, Save, X, MessageCircle, Send } from "lucide-react";
 import logoImg from "./assets/logo-v2.png";
 import iconTrening from "./assets/icons/trening.png";
 import iconPiosenkaDnia from "./assets/icons/piosenka_dnia.png";
@@ -224,28 +224,19 @@ const SlotButton = memo(function SlotButton({ index, chosen, onPick, label }) {
   return (
     <button
       onClick={() => onPick(index)}
-      className="flex items-center justify-center"
+      className={`timeline-slot-button ${chosen === index ? "is-chosen" : ""}`}
       style={{
-        width: 34,
-        height: 52,
         backgroundImage: `url(${timelineSlotFrame})`,
-        backgroundSize: "100% 100%",
-        backgroundRepeat: "no-repeat",
-        border: "none",
-        color: chosen === index ? "#fff" : "#4fd6ff",
-        fontSize: 13,
-        fontWeight: "bold",
-        opacity: chosen === index ? 1 : 0.55,
-        filter: chosen === index ? "drop-shadow(0 0 6px rgba(79,214,255,0.8))" : "none",
       }}
       title={label}
+      aria-label={label}
     >
       +
     </button>
   );
 });
 
-const TimelineCard = memo(function TimelineCard({ year, title, artist, onHold, onRelease, highlight }) {
+const TimelineCard = memo(function TimelineCard({ year, title, artist, onHold, onRelease, highlight, compact = false }) {
   const timerRef = useRef(null);
   const start = () => {
     timerRef.current = setTimeout(() => {
@@ -263,23 +254,14 @@ const TimelineCard = memo(function TimelineCard({ year, title, artist, onHold, o
       onMouseLeave={cancel}
       onTouchStart={start}
       onTouchEnd={cancel}
-      className="flex flex-col items-center justify-center text-center select-none"
+      className={`timeline-song-card ${compact ? "is-compact" : ""}`}
       style={{
-        width: 68,
-        height: 86,
         backgroundImage: `url(${timelineCardFrame})`,
-        backgroundSize: "100% 100%",
-        backgroundRepeat: "no-repeat",
         filter: highlight ? `drop-shadow(0 0 8px ${highlight})` : "none",
-        cursor: "pointer",
-        touchAction: "manipulation",
-        padding: "20% 10% 24%",
       }}
     >
-      <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 17, color: "var(--accent)", lineHeight: 1 }}>{year}</span>
-      <span style={{ fontSize: 8, color: "var(--muted)", lineHeight: 1.1, marginTop: 2 }}>
-        {artist.length > 16 ? artist.slice(0, 15) + "…" : artist}
-      </span>
+      <span className="timeline-song-year">{year}</span>
+      <span className="timeline-song-artist">{artist}</span>
     </div>
   );
 });
@@ -6424,28 +6406,26 @@ export default function App() {
         )}
 
         {(screen === "playing" || screen === "voting" || screen === "roundResult") && room && room.currentCard && (
-          <div className="w-full flex flex-col items-center gap-6">
+          <div className="w-full flex flex-col items-center game-play-stack">
             <div
-              className="w-full"
+              className="w-full game-stage-panel"
               style={{
                 position: "relative",
                 aspectRatio: "1122 / 1402",
-                maxWidth: 360,
                 backgroundImage: `url(${playingPanelFrame})`,
                 backgroundSize: "100% 100%",
                 backgroundRepeat: "no-repeat",
               }}
             >
-              <div style={{ position: "absolute", top: "5.8%", left: "9%", right: "9%", textAlign: "center" }}>
-                <p style={{ color: "#4fd6ff", fontSize: 13, textTransform: "uppercase", letterSpacing: 3 }}>Tura gracza</p>
-                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginTop: 4, lineHeight: 1 }}>
-                  {isMyTurn ? "Twoja kolej!" : turnPlayerName}
-                </p>
+              <div className="game-stage-heading">
+                <p className="game-stage-kicker">Tura gracza</p>
+                <p className="game-stage-title">{isMyTurn ? "Twoja kolej!" : turnPlayerName}</p>
               </div>
 
               {screen === "playing" && (
-                <div style={{ position: "absolute", top: "17.3%", left: "34%", right: "34%", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 26 }}>
-                  <p style={{ color: decisionLeft <= 10 ? "var(--bad)" : "#d8cdf5", fontSize: 11.5, fontWeight: "bold", lineHeight: 1 }}>{decisionLeft}s na decyzję</p>
+                <div className={`game-stage-timer ${decisionLeft <= 10 ? "is-danger" : ""}`}>
+                  <Clock3 size={13} strokeWidth={2.4} />
+                  <span>{decisionLeft}s na decyzję</span>
                 </div>
               )}
 
@@ -6464,18 +6444,7 @@ export default function App() {
 
               <button
                 onClick={togglePlay}
-                className="flex items-center justify-center gap-2 font-bold"
-                style={{
-                  position: "absolute",
-                  top: "77.4%",
-                  bottom: "4.2%",
-                  left: "16.5%",
-                  right: "16.5%",
-                  background: "none",
-                  border: "none",
-                  color: "#062231",
-                  fontSize: 13,
-                }}
+                className="game-stage-play-button"
               >
                 <Play size={16} />
                 {isPlaying ? `Gra… (${Math.ceil(PLAY_CAP_SECONDS - playElapsed)}s)` : playElapsed >= PLAY_CAP_SECONDS ? "Odtwórz ponownie" : "Odtwórz dźwięk"}
@@ -6483,7 +6452,7 @@ export default function App() {
             </div>
 
             {screen === "playing" && isMyTurn && !room.practiceMode && (
-              <div className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(165,107,255,0.4)", boxShadow: "0 0 22px rgba(165,107,255,0.15)" }}>
+              <div className="w-full game-guess-panel">
                 <div className="flex items-center justify-between mb-2">
                   <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase" }}>Zgadnij wykonawcę i tytuł (opcjonalnie, +1 token)</p>
                   <span style={{ color: "var(--accent)", fontSize: 13, fontWeight: "bold", display: "inline-flex", alignItems: "center", gap: 3 }}>
@@ -6527,9 +6496,9 @@ export default function App() {
             )}
 
             {screen === "playing" && isMyTurn && (
-              <div className="w-full">
-                <p style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase", marginBottom: 8, textAlign: "center", letterSpacing: 1.4 }}>Gdzie umieszczasz tę piosenkę?</p>
-                <div className="flex flex-wrap items-center justify-center" style={{ columnGap: 6, rowGap: 8, maxWidth: 372, margin: "0 auto" }}>
+              <div className="w-full placement-section">
+                <p className="placement-question">Gdzie umieszczasz tę piosenkę?</p>
+                <div className="placement-timeline">
                   <SlotButton index={0} chosen={chosenSlot} onPick={setChosenSlot} label="najstarsza" />
                   {turnTimeline.map((c, i) => (
                     <React.Fragment key={c.id}>
@@ -6541,30 +6510,10 @@ export default function App() {
                 <button
                   onClick={confirmPlacement}
                   disabled={chosenSlot === null || busy}
-                  className="w-full mt-3 flex items-center justify-center font-bold"
-                  style={
-                    chosenSlot === null
-                      ? {
-                          aspectRatio: "2172 / 724",
-                          backgroundImage: `url(${confirmSlotBtnInactive})`,
-                          backgroundSize: "100% 100%",
-                          backgroundRepeat: "no-repeat",
-                          border: "none",
-                          color: "#8a8a8a",
-                          fontFamily: "'Bebas Neue', sans-serif",
-                          fontSize: 18,
-                        }
-                      : {
-                          aspectRatio: "2172 / 724",
-                          backgroundImage: `url(${confirmSlotBtn})`,
-                          backgroundSize: "100% 100%",
-                          backgroundRepeat: "no-repeat",
-                          border: "none",
-                          color: "#fff",
-                          fontFamily: "'Bebas Neue', sans-serif",
-                          fontSize: 18,
-                        }
-                  }
+                  className={`placement-confirm ${chosenSlot === null ? "is-disabled" : ""}`}
+                  style={{
+                    backgroundImage: `url(${chosenSlot === null ? confirmSlotBtnInactive : confirmSlotBtn})`,
+                  }}
                 >
                   ZATWIERDŹ MIEJSCE
                 </button>
@@ -6573,10 +6522,10 @@ export default function App() {
 
             {screen === "playing" && !isMyTurn && (
               <div className="w-full">
-                <p style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase", marginBottom: 8, textAlign: "center", letterSpacing: 1.2 }}>
+                <p className="placement-question">
                   Oś czasu gracza {displayedPlayerName} <span style={{ fontSize: 10 }}>(kliknij gracza poniżej, żeby zmienić)</span>
                 </p>
-                <div className="flex flex-wrap items-center justify-center" style={{ columnGap: 6, rowGap: 8, maxWidth: 372, margin: "0 auto" }}>
+                <div className="spectator-timeline">
                   {viewedTimeline.map((c) => (
                     <TimelineCard key={c.id} year={c.year} title={c.title} artist={c.artist} onHold={setHeldCard} onRelease={clearHeldCard} />
                   ))}
@@ -6627,31 +6576,17 @@ export default function App() {
               const r = room.lastResult;
 
               const resultBox = (isCorrect, delayS) => (
-                <div
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 14,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                    background: isCorrect ? "rgba(42,245,152,0.15)" : "rgba(255,56,104,0.15)",
-                    border: `2px solid ${isCorrect ? "var(--good)" : "var(--bad)"}`,
-                    boxShadow: `0 0 18px -3px ${isCorrect ? "var(--good)" : "var(--bad)"}`,
-                    animation: `scale-pop-in 0.4s ease ${delayS}s both`,
-                  }}
-                >
-                  {isCorrect ? <Check size={28} color="var(--good)" strokeWidth={3.5} /> : <X size={28} color="var(--bad)" strokeWidth={3.5} />}
+                <div className={`round-result-verdict ${isCorrect ? "is-correct" : "is-wrong"}`} style={{ animationDelay: `${delayS}s` }}>
+                  {isCorrect ? <Check size={25} strokeWidth={3.6} /> : <X size={25} strokeWidth={3.6} />}
                 </div>
               );
 
-              const resultRow = (label, isCorrect, delayS) => (
-                <div
-                  className="w-full flex items-center justify-between rounded-xl px-4 py-2.5"
-                  style={{ background: "var(--surface2)", animation: `slide-fade-in 0.4s ease ${delayS - 0.1}s both` }}
-                >
-                  <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 17, letterSpacing: 0.5 }}>{label}</span>
+              const resultRow = (label, isCorrect, delayS, Icon) => (
+                <div className={`round-result-row ${isCorrect ? "is-correct" : "is-wrong"}`} style={{ animationDelay: `${Math.max(0, delayS - 0.1)}s` }}>
+                  <div className="round-result-row-label">
+                    {Icon && <Icon size={19} strokeWidth={2.1} />}
+                    <span>{label}</span>
+                  </div>
                   {resultBox(isCorrect, delayS)}
                 </div>
               );
@@ -6667,75 +6602,55 @@ export default function App() {
                 : ownerTimeline;
 
               return (
-                <div
-                  style={{
-                    position: "fixed",
-                    inset: 0,
-                    background: "rgba(5,8,16,0.92)",
-                    backdropFilter: "blur(4px)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    zIndex: 97,
-                    padding: 16, paddingTop: 22,
-                    overflowY: "auto",
-                  }}
-                >
-                  <div className="w-full flex flex-col items-center gap-2" style={{ maxWidth: 380 }}>
-                    <div className="w-full flex flex-col items-center gap-2" style={{ position: "sticky", top: 0, zIndex: 2, background: "rgba(5,8,16,0.92)", paddingBottom: 6 }}>
-                    <p
-                      style={{
-                        fontFamily: "'Bebas Neue', sans-serif",
-                        fontSize: 44,
-                        fontWeight: "bold",
-                        textAlign: "center",
-                        letterSpacing: 1,
-                        color: "var(--text)",
-                        textShadow: "0 0 20px rgba(0,230,195,0.45)",
-                        animation: "slide-fade-in 0.45s ease both",
-                        lineHeight: 1,
-                      }}
-                    >
-                      {ownerName}
-                    </p>
+                <div className="round-result-overlay">
+                  <div className="round-result-panel">
+                    <div className="round-result-fixed">
+                      <p className="round-result-player">{ownerName}</p>
 
-                    {r.bought ? (
-                      resultRow("🎁 KUPIONA KARTA", true, 0.2)
-                    ) : r.timedOut ? (
-                      resultRow("OŚ CZASU", false, 0.2)
-                    ) : (
-                      <>
-                        {resultRow("OŚ CZASU", r.correct, 0.2)}
-                        {r.tokenAwarded !== undefined && resultRow("TYTUŁ I WYKONAWCA", r.tokenAwarded, 0.35)}
-                      </>
-                    )}
+                      <div className="round-result-statuses">
+                        {r.bought ? (
+                          resultRow("KUPIONA KARTA", true, 0.2, Trophy)
+                        ) : r.timedOut ? (
+                          resultRow("OŚ CZASU", false, 0.2, Clock3)
+                        ) : (
+                          <>
+                            {resultRow("OŚ CZASU", r.correct, 0.2, Clock3)}
+                            {r.tokenAwarded !== undefined && resultRow("TYTUŁ I WYKONAWCA", r.tokenAwarded, 0.35, Music4)}
+                          </>
+                        )}
+                      </div>
 
-                    <div
-                      className="rounded-2xl p-6 text-center"
-                      style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 30px rgba(245,196,81,0.25)", minWidth: 220, marginTop: 8, animation: "scale-pop-in 0.5s ease 0.5s both" }}
-                    >
-                      <p style={{ fontSize: 13, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>{r.card.artist}</p>
-                      <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 56, color: "var(--accent)", lineHeight: 1 }}>{r.card.year}</p>
-                      <p style={{ fontSize: 13, marginTop: 8 }}>„{r.card.title}"</p>
-                    </div>
+                      <div className="round-result-reveal">
+                        <p className="round-result-artist">{r.card.artist}</p>
+                        <p className="round-result-year">{r.card.year}</p>
+                        <span className="round-result-divider" />
+                        <p className="round-result-title">„{r.card.title}"</p>
+                      </div>
                     </div>
 
                     {!r.timedOut && displayCards.length > 0 && (
-                      <div className="w-full" style={{ animation: "slide-fade-in 0.5s ease 0.65s both" }}>
-                        <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase", marginBottom: 8, textAlign: "center" }}>
-                          Oś czasu gracza {ownerName}
-                        </p>
-                        <div className="flex flex-wrap items-center justify-center" style={{ columnGap: 6, rowGap: 8, maxWidth: 372, maxHeight: "32vh", overflowY: "auto", margin: "0 auto", paddingInline: 2, paddingBottom: 6 }}>
+                      <div className="round-result-timeline-wrap">
+                        <p className="round-result-timeline-label">Oś czasu gracza {ownerName}</p>
+                        <div className="round-result-timeline-grid">
                           {displayCards.map((c, i) => {
                             const isPlacedCard = !c.__ghost && r.correct && c.videoId === r.card.videoId && c.year === r.card.year;
                             const highlight = c.__ghost ? "var(--bad)" : isPlacedCard ? "var(--good)" : null;
-                            return <TimelineCard key={c.__ghost ? "ghost" : c.id || i} year={c.year} title={c.title} artist={c.artist} highlight={highlight} />;
+                            return (
+                              <TimelineCard
+                                key={c.__ghost ? "ghost" : c.id || i}
+                                year={c.year}
+                                title={c.title}
+                                artist={c.artist}
+                                highlight={highlight}
+                                compact
+                              />
+                            );
                           })}
                         </div>
                       </div>
                     )}
 
-                    <p style={{ color: "var(--muted)", fontSize: 13 }}>Kolejny gracz za {advanceCountdown ?? 5}…</p>
+                    <p className="round-result-countdown">Kolejny gracz za {advanceCountdown ?? 5}…</p>
                   </div>
                 </div>
               );

@@ -7,3 +7,442 @@ html, body, #root {
   padding: 0;
   min-height: 100%;
 }
+
+
+/* ===== HITSTERIADA — gameplay & round-result responsive UI ===== */
+.game-play-stack {
+  gap: 9px !important;
+}
+
+.game-stage-panel {
+  max-width: 356px;
+  margin: 0 auto;
+  filter: drop-shadow(0 0 18px rgba(41, 197, 255, 0.08));
+}
+
+.game-stage-heading {
+  position: absolute;
+  top: 5.8%;
+  left: 9%;
+  right: 9%;
+  text-align: center;
+  pointer-events: none;
+}
+
+.game-stage-kicker {
+  color: #51e5ff;
+  font-size: 12px;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  margin: 0;
+}
+
+.game-stage-title {
+  margin: 5px 0 0;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(23px, 7vw, 28px);
+  line-height: 1;
+  color: #f8f5ff;
+  text-shadow: 0 0 16px rgba(113, 213, 255, .28);
+}
+
+.game-stage-timer {
+  position: absolute;
+  top: 17.4%;
+  left: 34.6%;
+  right: 34.6%;
+  height: 5.2%;
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #d8cdf5;
+  font-size: clamp(9px, 2.8vw, 11px);
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.game-stage-timer.is-danger {
+  color: #ff476e;
+  text-shadow: 0 0 10px rgba(255, 71, 110, .55);
+}
+
+.game-stage-play-button {
+  position: absolute;
+  top: 78.2%;
+  bottom: 4.8%;
+  left: 16.5%;
+  right: 16.5%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: none;
+  border: 0;
+  color: #061c29;
+  font-size: clamp(12px, 3.8vw, 15px);
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.game-guess-panel {
+  padding: 12px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(17, 15, 40, .96), rgba(8, 10, 26, .96));
+  border: 1px solid rgba(165, 107, 255, .34);
+  box-shadow: 0 0 18px rgba(165, 107, 255, .10);
+}
+
+.placement-section {
+  margin-top: 0;
+}
+
+.placement-question {
+  margin: 0 0 6px;
+  color: #a9a0c8;
+  font-size: 11px;
+  line-height: 1.15;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+}
+
+.placement-timeline,
+.spectator-timeline {
+  width: min(100%, 366px);
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  align-content: flex-start;
+  column-gap: 4px;
+  row-gap: 5px;
+}
+
+.timeline-slot-button {
+  width: clamp(26px, 7.5vw, 30px);
+  height: clamp(74px, 21vw, 84px);
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  border: 0;
+  color: #4fd6ff;
+  font-size: 15px;
+  font-weight: 800;
+  opacity: .54;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: opacity .15s ease, filter .15s ease, transform .15s ease;
+}
+
+.timeline-slot-button.is-chosen {
+  opacity: 1;
+  color: #fff;
+  filter: drop-shadow(0 0 7px rgba(79, 214, 255, .82));
+  transform: translateY(-1px);
+}
+
+.timeline-song-card {
+  width: clamp(59px, 17vw, 66px);
+  aspect-ratio: 4 / 5;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  user-select: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  padding: 18% 10% 21%;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+
+.timeline-song-card.is-compact {
+  width: clamp(66px, 19vw, 76px);
+}
+
+.timeline-song-year {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(16px, 4.8vw, 19px);
+  color: var(--accent);
+  line-height: 1;
+  text-shadow: 0 0 8px rgba(79, 214, 255, .18);
+}
+
+.timeline-song-artist {
+  width: 100%;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: clamp(7.5px, 2.2vw, 9px);
+  line-height: 1.08;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+
+.placement-confirm {
+  width: min(100%, 366px);
+  height: clamp(62px, 18vw, 72px);
+  margin: 7px auto 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  border: 0;
+  color: #fff;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(18px, 5.3vw, 22px);
+  letter-spacing: .5px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.placement-confirm.is-disabled {
+  color: #85838e;
+}
+
+/* Round result: top summary stays visible; only timeline area scrolls. */
+.round-result-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 97;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 15%, rgba(32, 196, 255, .11), transparent 28%),
+    radial-gradient(circle at 20% 62%, rgba(159, 70, 255, .08), transparent 31%),
+    rgba(3, 6, 16, .95);
+  backdrop-filter: blur(8px);
+}
+
+.round-result-panel {
+  width: min(100%, 390px);
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.round-result-fixed {
+  width: 100%;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+}
+
+.round-result-player {
+  margin: 0 0 3px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(38px, 11vw, 50px);
+  font-weight: 700;
+  line-height: .95;
+  letter-spacing: 1px;
+  color: #fff;
+  text-transform: uppercase;
+  text-shadow: 0 0 22px rgba(62, 218, 255, .42);
+}
+
+.round-result-statuses {
+  width: 100%;
+  display: grid;
+  gap: 6px;
+}
+
+.round-result-row {
+  width: 100%;
+  min-height: 58px;
+  padding: 7px 9px 7px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 16px;
+  background: linear-gradient(105deg, rgba(14, 26, 51, .96), rgba(12, 10, 35, .96));
+  border: 1px solid rgba(79, 214, 255, .42);
+  box-shadow: inset 0 0 18px rgba(72, 199, 255, .035);
+  animation: slide-fade-in .38s ease both;
+}
+
+.round-result-row.is-wrong {
+  border-color: rgba(209, 77, 255, .45);
+}
+
+.round-result-row-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #f7f5ff;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(17px, 5vw, 20px);
+  letter-spacing: .5px;
+}
+
+.round-result-row.is-correct .round-result-row-label svg { color: #4fd6ff; }
+.round-result-row.is-wrong .round-result-row-label svg { color: #ff5fc9; }
+
+.round-result-verdict {
+  width: 45px;
+  height: 45px;
+  flex: 0 0 45px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 13px;
+  animation: scale-pop-in .4s ease both;
+}
+
+.round-result-verdict.is-correct {
+  color: #2af598;
+  background: rgba(42, 245, 152, .12);
+  border: 2px solid #2af598;
+  box-shadow: 0 0 19px rgba(42, 245, 152, .38);
+}
+
+.round-result-verdict.is-wrong {
+  color: #ff3868;
+  background: rgba(255, 56, 104, .12);
+  border: 2px solid #ff3868;
+  box-shadow: 0 0 19px rgba(255, 56, 104, .38);
+}
+
+.round-result-reveal {
+  width: min(82%, 280px);
+  min-height: 178px;
+  margin-top: 3px;
+  padding: 15px 18px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 50% 52%, rgba(45, 108, 190, .08), transparent 48%),
+    linear-gradient(160deg, rgba(14, 13, 32, .98), rgba(6, 8, 22, .98));
+  border: 1px solid rgba(245, 196, 81, .65);
+  box-shadow: 0 0 24px rgba(245, 196, 81, .18), inset 0 0 28px rgba(245, 196, 81, .035);
+  animation: scale-pop-in .45s ease .42s both;
+}
+
+.round-result-artist {
+  margin: 0 0 3px;
+  color: #d6b95f;
+  font-size: 11px;
+  line-height: 1.15;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.round-result-year {
+  margin: 0;
+  color: #45d7ff;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(55px, 16vw, 72px);
+  line-height: .94;
+  text-shadow: 0 0 18px rgba(69, 215, 255, .28);
+}
+
+.round-result-divider {
+  width: 72%;
+  height: 1px;
+  margin: 9px 0 8px;
+  background: linear-gradient(90deg, transparent, rgba(245, 196, 81, .9), transparent);
+}
+
+.round-result-title {
+  max-width: 100%;
+  margin: 0;
+  color: #f6f2ff;
+  font-size: clamp(12px, 3.7vw, 15px);
+  line-height: 1.2;
+}
+
+.round-result-timeline-wrap {
+  width: 100%;
+  min-height: 0;
+  margin-top: 8px;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  animation: slide-fade-in .45s ease .58s both;
+}
+
+.round-result-timeline-label {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0 0 5px;
+  padding: 4px 0 5px;
+  color: #a99acb;
+  background: linear-gradient(180deg, rgba(3, 6, 16, .98) 70%, rgba(3, 6, 16, 0));
+  font-size: 10.5px;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 1.3px;
+}
+
+.round-result-timeline-grid {
+  width: min(100%, 272px);
+  margin: 0 auto;
+  padding: 0 0 5px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  justify-items: center;
+  align-items: start;
+  column-gap: 5px;
+  row-gap: 5px;
+}
+
+.round-result-countdown {
+  flex: 0 0 auto;
+  margin: 6px 0 0;
+  color: #a89bc4;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+@media (max-width: 380px) {
+  .game-stage-panel { max-width: 340px; }
+  .game-play-stack { gap: 7px !important; }
+  .placement-timeline,
+  .spectator-timeline { width: 100%; column-gap: 3px; row-gap: 4px; }
+  .timeline-slot-button { width: clamp(24px, 7vw, 28px); }
+  .timeline-song-card { width: clamp(57px, 16.5vw, 63px); }
+  .round-result-row { min-height: 54px; }
+  .round-result-reveal { min-height: 162px; }
+  .round-result-timeline-grid { width: min(100%, 250px); column-gap: 3px; row-gap: 4px; }
+  .timeline-song-card.is-compact { width: clamp(62px, 18vw, 70px); }
+}
+
+@media (max-height: 760px) {
+  .round-result-overlay { padding-top: 8px; padding-bottom: 8px; }
+  .round-result-fixed { gap: 5px; }
+  .round-result-player { font-size: 38px; }
+  .round-result-row { min-height: 50px; padding-block: 5px; }
+  .round-result-verdict { width: 40px; height: 40px; flex-basis: 40px; }
+  .round-result-reveal { min-height: 142px; padding-block: 10px; }
+  .round-result-year { font-size: 54px; }
+  .round-result-divider { margin-block: 6px; }
+  .round-result-timeline-wrap { margin-top: 5px; }
+  .round-result-countdown { margin-top: 4px; }
+}
