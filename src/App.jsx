@@ -25,7 +25,7 @@ import { getOrCreateDailyPlaylist, hasPlayedPlaylistToday, recordDailyPlaylistSc
 import { createTournament, cancelTournament, fetchActiveTournament, fetchLastCompletedTournament, fetchTournament, signUpForTournament, recordTournamentMatchResult, checkAndAdvanceTournament, settleTournamentXpIfNeeded, pickMatchPlaylist } from "./tournaments.js";
 import { awardHitcoin, computeWinHitcoin, computeSecondPlaceHitcoin, computeThirdPlaceHitcoin, claimDailyHitcoin, drawCardAfterGame, effectiveRarity, PACKS, openPack, SELL_PRICES, sellDuplicateCard, sellAllDuplicates } from "./cards.js";
 import { DAILY_REWARD_SEGMENTS, claimDailyWheelReward } from "./dailyWheel.js";
-import { HIT_RUSH_CONFIG, pickNextHitRushSong, computeHitRushPoints, checkHitRushTimeBonus, difficultyLabel, submitHitRushRun, fetchHitRushLeaderboard } from "./hitRush.js";
+import { HIT_RUSH_CONFIG, pickNextHitRushSong, computeHitRushPoints, checkHitRushTimeBonus, difficultyLabel, submitHitRushRun, fetchHitRushLeaderboard, processHitRushWeeklyRewardsIfNeeded } from "./hitRush.js";
 import { updateHeadToHead, fetchHeadToHeadOpponents } from "./headToHead.js";
 import { getAchievementProgress, ACHIEVEMENTS } from "./achievements.js";
 import { playCorrectSound, playWrongSound, playApplause, playVictorySound, unlockAudio } from "./sounds.js";
@@ -5877,15 +5877,15 @@ export default function App() {
         )}
 
         {screen === "hitRushMenu" && (
-          <div className="w-full flex flex-col items-center gap-3">
-            <img src={glHitRush} alt="" style={{ height: 60, filter: "drop-shadow(0 0 14px rgba(42,245,152,0.5))" }} />
-            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 32, color: "#2af598", marginTop: -6 }}>HIT RUSH</p>
+          <div className="w-full flex flex-col items-center" style={{ maxWidth: 460, gap: 10 }}>
+            <img src={glHitRush} alt="" style={{ height: 56, filter: "drop-shadow(0 0 14px rgba(42,245,152,0.5))" }} />
+            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, color: "#2af598", marginTop: -10, marginBottom: -2 }}>HIT RUSH</p>
 
             <div
               className="w-full flex flex-col items-center justify-center text-center"
-              style={{ aspectRatio: "1672 / 941", backgroundImage: `url(${hitrushMenuDesc})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", padding: "22% 11%" }}
+              style={{ aspectRatio: "1672 / 941", backgroundImage: `url(${hitrushMenuDesc})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", padding: "24% 13%", minHeight: 0 }}
             >
-              <p style={{ fontSize: 12.5, color: "#e4defa", lineHeight: 1.5 }}>
+              <p style={{ fontSize: 11.5, color: "#e4defa", lineHeight: 1.45 }}>
                 Szybki tryb solo. Zgadnij, czy grany właśnie utwór jest <span style={{ color: "#4fd6ff" }}>wcześniejszy</span> czy{" "}
                 <span style={{ color: "#ff5fc9" }}>późniejszy</span> od karty referencyjnej. Masz {HIT_RUSH_CONFIG.ROUND_SECONDS} sekund —
                 combo zwiększa punkty i skraca różnicę lat, a co {HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO} trafień z rzędu dokłada{" "}
@@ -5897,18 +5897,19 @@ export default function App() {
               <div className="w-full grid grid-cols-2 gap-3">
                 <div
                   className="flex flex-col items-center justify-center text-center"
-                  style={{ aspectRatio: "1448 / 1086", backgroundImage: `url(${hitrushMenuBlue})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", padding: "31% 11%" }}
+                  style={{ aspectRatio: "1448 / 1086", backgroundImage: `url(${hitrushMenuBlue})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", padding: "32% 12%", minHeight: 0 }}
                 >
-                  <p style={{ fontSize: 10, color: "#9fd8ff", textTransform: "uppercase", letterSpacing: 0.5 }}>Twój rekord</p>
-                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: "#bfeeff" }}>{stats.hitRushBestScore || 0}</p>
-                  <p style={{ fontSize: 9, color: "#9fd8ff" }}>PKT</p>
+                  <p style={{ fontSize: 9.5, color: "#9fd8ff", textTransform: "uppercase", letterSpacing: 0.3 }}>Twój rekord</p>
+                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#bfeeff" }}>
+                    {stats.hitRushBestScore || 0} <span style={{ fontSize: 11 }}>PKT</span>
+                  </p>
                 </div>
                 <div
                   className="flex flex-col items-center justify-center text-center"
-                  style={{ aspectRatio: "1448 / 1086", backgroundImage: `url(${hitrushMenuPink})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", padding: "31% 11%" }}
+                  style={{ aspectRatio: "1448 / 1086", backgroundImage: `url(${hitrushMenuPink})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", padding: "32% 12%", minHeight: 0 }}
                 >
-                  <p style={{ fontSize: 10, color: "#ffb3ec", textTransform: "uppercase", letterSpacing: 0.5 }}>Najlepsze combo</p>
-                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: "#ffd7f3" }}>🔥 {stats.hitRushBestCombo || 0}</p>
+                  <p style={{ fontSize: 9.5, color: "#ffb3ec", textTransform: "uppercase", letterSpacing: 0.3 }}>Najlepsze combo</p>
+                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#ffd7f3" }}>🔥 {stats.hitRushBestCombo || 0}</p>
                 </div>
               </div>
             )}
