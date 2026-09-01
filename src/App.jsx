@@ -50,6 +50,10 @@ import homeBg from "./assets/home/bg.jpg";
 import footerStrip from "./assets/home/footer-strip.webp";
 import glTrening from "./assets/icons/gl-trening.png";
 import glHitRush from "./assets/icons/gl-hitrush.png";
+import hitrushFrameRef from "./assets/icons/hitrush-frame-ref.webp";
+import hitrushFrameBlue from "./assets/icons/hitrush-frame-blue.webp";
+import hitrushFramePink from "./assets/icons/hitrush-frame-pink.webp";
+import hitrushNowPlaying from "./assets/icons/hitrush-nowplaying.webp";
 import glPiosenka from "./assets/icons/gl-piosenka.png";
 import glPlaylista from "./assets/icons/gl-playlista.png";
 import glTurniej from "./assets/icons/gl-turniej.png";
@@ -5911,7 +5915,7 @@ export default function App() {
         )}
 
         {screen === "hitRush" && hitRush && !hitRushResult && (
-          <div className="w-full flex flex-col items-center gap-4">
+          <div className="w-full flex flex-col items-center gap-3">
             <div style={{ width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }}>
               <iframe
                 key={hitRush.currentCard.videoId}
@@ -5924,26 +5928,75 @@ export default function App() {
                 style={{ border: "none" }}
               />
             </div>
-            <div className="w-full flex items-center justify-between">
-              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, color: hitRush.timeLeft <= 10 ? "var(--bad)" : "#fff", textShadow: hitRush.timeLeft <= 10 ? "0 0 14px rgba(232,97,93,0.7)" : "none" }}>
-                ⏱ {hitRush.timeLeft}s
-              </span>
-              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: "#2af598" }}>{hitRush.score} pkt</span>
-              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "var(--gold)" }}>🔥 {hitRush.combo}</span>
+
+            <div
+              className="w-full rounded-xl flex items-center justify-around"
+              style={{ background: "#0c0c1c", border: "1px solid rgba(79,214,255,0.4)", boxShadow: "0 0 20px rgba(79,214,255,0.15)", padding: "10px 6px" }}
+            >
+              <div className="text-center">
+                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: hitRush.timeLeft <= 10 ? "var(--bad)" : "#fff", textShadow: hitRush.timeLeft <= 10 ? "0 0 14px rgba(232,97,93,0.7)" : "none" }}>
+                  ⏱ {hitRush.timeLeft}s
+                </p>
+                <p style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase" }}>Czas</p>
+              </div>
+              <div className="text-center">
+                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: "#2af598" }}>{hitRush.score}</p>
+                <p style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase" }}>Wynik</p>
+              </div>
+              <div className="text-center" style={{ minWidth: 74 }}>
+                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "var(--gold)" }}>
+                  🔥 {hitRush.combo % HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO || (hitRush.combo > 0 ? HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO : 0)}/{HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO}
+                </p>
+                <div className="w-full rounded-full" style={{ height: 4, background: "#0d0a17", overflow: "hidden", marginTop: 2 }}>
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${((hitRush.combo % HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO) / HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO) * 100 || (hitRush.combo > 0 ? 100 : 0)}%`,
+                      background: "linear-gradient(90deg,#ff5fc9,#f5c451)",
+                    }}
+                  />
+                </div>
+                <p style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase" }}>Combo +{HIT_RUSH_CONFIG.TIME_BONUS_SECONDS}s</p>
+              </div>
             </div>
 
             <div
-              className="rounded-2xl p-5 w-full text-center"
-              style={{ background: "#0c0c1c", border: "1px solid rgba(79,214,255,0.4)", boxShadow: "0 0 26px rgba(79,214,255,0.18)" }}
+              className="rounded-full"
+              style={{
+                padding: "4px 18px",
+                border: `1.3px solid ${{ easy: "#4fd6ff", normal: "#a56bff", hard: "#ff5fc9", expert: "#f5c451", insane: "var(--bad)" }[difficultyLabel(hitRush.combo)]}`,
+                color: { easy: "#4fd6ff", normal: "#a56bff", hard: "#ff5fc9", expert: "#f5c451", insane: "var(--bad)" }[difficultyLabel(hitRush.combo)],
+                fontSize: 12,
+                fontWeight: "bold",
+                letterSpacing: 1,
+                textTransform: "uppercase",
+              }}
             >
-              <p style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1 }}>Karta referencyjna</p>
-              <p style={{ fontSize: 18, fontWeight: "bold", marginTop: 4 }}>{hitRush.referenceCard.artist}</p>
-              <p style={{ fontSize: 14, color: "var(--muted)" }}>{hitRush.referenceCard.title}</p>
-              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 42, color: "#4fd6ff" }}>{hitRush.referenceCard.year}</p>
+              {{ easy: "Łatwo", normal: "Normalnie", hard: "Trudno", expert: "Ekspert", insane: "Szaleństwo" }[difficultyLabel(hitRush.combo)]}
             </div>
 
-            <div style={{ minHeight: 60, textAlign: "center" }}>
-              {hitRush.feedback ? (
+            <div
+              className="w-full flex flex-col items-center justify-center text-center"
+              style={{
+                aspectRatio: "1448 / 1086",
+                backgroundImage: `url(${hitrushFrameRef})`,
+                backgroundSize: "100% 100%",
+                backgroundRepeat: "no-repeat",
+                padding: "17% 13%",
+              }}
+            >
+              <p style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1 }}>Karta referencyjna</p>
+              <p style={{ fontSize: 17, fontWeight: "bold", marginTop: 6, lineHeight: 1.2 }}>{hitRush.referenceCard.artist}</p>
+              <p style={{ fontSize: 13, color: "var(--muted)" }}>{hitRush.referenceCard.title}</p>
+              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 38, background: "linear-gradient(90deg,#4fd6ff,#a56bff,#ff5fc9)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>
+                {hitRush.referenceCard.year}
+              </p>
+            </div>
+
+            <img src={hitrushNowPlaying} alt="Teraz gra" style={{ width: "70%", maxWidth: 260 }} />
+
+            <div style={{ minHeight: 44, textAlign: "center" }}>
+              {hitRush.feedback && (
                 <div style={{ animation: "scale-pop-in 0.25s ease" }}>
                   <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: hitRush.feedback.correct ? "var(--good)" : "var(--bad)" }}>
                     {hitRush.feedback.correct ? "✓ DOBRZE" : "✕ ŹLE"} — {hitRush.feedback.year}
@@ -5954,10 +6007,6 @@ export default function App() {
                     </p>
                   )}
                 </div>
-              ) : (
-                <p style={{ fontSize: 13, color: "var(--muted)" }}>
-                  Czy aktualnie grany utwór został wydany <span style={{ color: "#4fd6ff" }}>wcześniej</span> czy <span style={{ color: "#ff5fc9" }}>później</span>?
-                </p>
               )}
             </div>
 
@@ -5965,16 +6014,34 @@ export default function App() {
               <button
                 onClick={() => answerHitRush("earlier")}
                 disabled={!!hitRush.feedback}
-                className="flex-1 rounded-xl font-bold"
-                style={{ padding: "22px 8px", background: "#0c0c1c", border: "2px solid #4fd6ff", color: "#4fd6ff", fontSize: 17, opacity: hitRush.feedback ? 0.5 : 1 }}
+                className="flex-1 flex items-center justify-center font-bold"
+                style={{
+                  aspectRatio: "1672 / 941",
+                  backgroundImage: `url(${hitrushFrameBlue})`,
+                  backgroundSize: "100% 100%",
+                  backgroundRepeat: "no-repeat",
+                  border: "none",
+                  color: "#bfeeff",
+                  fontSize: 16,
+                  opacity: hitRush.feedback ? 0.5 : 1,
+                }}
               >
                 ← WCZEŚNIEJ
               </button>
               <button
                 onClick={() => answerHitRush("later")}
                 disabled={!!hitRush.feedback}
-                className="flex-1 rounded-xl font-bold"
-                style={{ padding: "22px 8px", background: "#0c0c1c", border: "2px solid #ff5fc9", color: "#ff5fc9", fontSize: 17, opacity: hitRush.feedback ? 0.5 : 1 }}
+                className="flex-1 flex items-center justify-center font-bold"
+                style={{
+                  aspectRatio: "1672 / 941",
+                  backgroundImage: `url(${hitrushFramePink})`,
+                  backgroundSize: "100% 100%",
+                  backgroundRepeat: "no-repeat",
+                  border: "none",
+                  color: "#ffd7f3",
+                  fontSize: 16,
+                  opacity: hitRush.feedback ? 0.5 : 1,
+                }}
               >
                 PÓŹNIEJ →
               </button>

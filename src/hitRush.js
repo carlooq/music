@@ -16,7 +16,7 @@ export const HIT_RUSH_CONFIG = {
     { minCombo: 3, mult: 1.5 },
     { minCombo: 0, mult: 1 },
   ],
-  TIME_BONUS_EVERY_COMBO: 10,
+  TIME_BONUS_EVERY_COMBO: 5,
   TIME_BONUS_SECONDS: 5,
   DIFFICULTY_TIERS: [
     { name: "insane", minCombo: 15, minGap: 1, maxGap: 2 },
