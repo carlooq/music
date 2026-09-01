@@ -653,6 +653,8 @@ export default function App() {
   const [hitRushResult, setHitRushResult] = useState(null);
   const [hitRushLeaderboard, setHitRushLeaderboard] = useState(null);
   const [hitRushLeaderboardPeriod, setHitRushLeaderboardPeriod] = useState("weekly");
+  const [showWeeklyChallenges, setShowWeeklyChallenges] = useState(false);
+  const [hitRushMenuOpen, setHitRushMenuOpen] = useState(false);
   const hitRushTimerRef = useRef(null);
   const hitRushIframeRef = useRef(null);
   const [adminEditingId, setAdminEditingId] = useState(null);
@@ -3878,10 +3880,21 @@ export default function App() {
                   </button>
                   {(() => {
                     const challenges = getWeeklyChallenges(stats);
+                    const doneCount = challenges.filter((c) => c.claimed).length;
                     return (
                       <div className="flex flex-col gap-2">
-                        <p style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1 }}>🎯 Wyzwania tygodnia</p>
-                        {challenges.map((c) => {
+                        <button
+                          onClick={() => setShowWeeklyChallenges((v) => !v)}
+                          className="w-full flex items-center justify-between"
+                          style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
+                        >
+                          <span style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1 }}>
+                            🎯 Wyzwania tygodnia ({doneCount}/5)
+                          </span>
+                          <span style={{ color: "var(--muted)", fontSize: 14 }}>{showWeeklyChallenges ? "▲" : "▼"}</span>
+                        </button>
+                        {showWeeklyChallenges &&
+                          challenges.map((c) => {
                           const pct = Math.min(100, Math.round((c.progress / c.target) * 100));
                           return (
                             <div
@@ -5148,7 +5161,7 @@ export default function App() {
                     <div className="hs-tile-slot green">
                       <div className="hs-tile-glow" />
                       <div className="hs-tile-rim" />
-                      <button onClick={startHitRush} className="hs-tile">
+                      <button onClick={() => setScreen("hitRushMenu")} className="hs-tile">
                         <img className="hs-icon" src={glTrening} alt="" />
                         <div className="hs-t">HIT RUSH</div>
                         <div className="hs-arrow" style={{ color: "#2af598" }}>›</div>
@@ -5847,16 +5860,67 @@ export default function App() {
           </div>
         )}
 
+        {screen === "hitRushMenu" && (
+          <div className="w-full flex flex-col items-center gap-4">
+            <section
+              className="w-full rounded-2xl p-6 text-center"
+              style={{ background: "#0c0c1c", border: "1px solid rgba(42,245,152,0.4)", boxShadow: "0 0 30px rgba(42,245,152,0.25)" }}
+            >
+              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34, color: "#2af598" }}>⚡ HIT RUSH</p>
+              <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 8, lineHeight: 1.5 }}>
+                Szybki tryb solo. Zgadnij, czy grany właśnie utwór jest <span style={{ color: "#4fd6ff" }}>wcześniejszy</span> czy{" "}
+                <span style={{ color: "#ff5fc9" }}>późniejszy</span> od karty referencyjnej. Masz {HIT_RUSH_CONFIG.ROUND_SECONDS} sekund —
+                combo zwiększa punkty i skraca różnicę lat, a co {HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO} trafień z rzędu dokłada{" "}
+                {HIT_RUSH_CONFIG.TIME_BONUS_SECONDS}s czasu.
+              </p>
+            </section>
+
+            {stats && (
+              <div className="w-full grid grid-cols-2 gap-3">
+                <div className="rounded-xl p-3 text-center" style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.35)" }}>
+                  <p style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase" }}>Twój rekord</p>
+                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "var(--gold)" }}>{stats.hitRushBestScore || 0} pkt</p>
+                </div>
+                <div className="rounded-xl p-3 text-center" style={{ background: "#0c0c1c", border: "1px solid rgba(165,107,255,0.35)" }}>
+                  <p style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase" }}>Najlepsze combo</p>
+                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#a56bff" }}>🔥 {stats.hitRushBestCombo || 0}</p>
+                </div>
+              </div>
+            )}
+
+            <button onClick={startHitRush} className="w-full py-4 rounded-xl text-xl font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+              ▶ START
+            </button>
+            <button
+              onClick={() => {
+                setScreen("hitRushLeaderboard");
+                loadHitRushLeaderboard("weekly");
+              }}
+              className="w-full py-3 rounded-xl text-sm font-bold"
+              style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.35)", color: "var(--gold)" }}
+            >
+              🏆 Ranking Hit Rush
+            </button>
+            <button onClick={goHome} className="w-full py-3 rounded-xl text-sm font-bold" style={{ background: "#0c0c1c", border: "1px solid rgba(42,245,152,0.35)", color: "#2af598" }}>
+              ← Wróć
+            </button>
+          </div>
+        )}
+
         {screen === "hitRush" && hitRush && !hitRushResult && (
           <div className="w-full flex flex-col items-center gap-4">
-            <iframe
-              key={hitRush.currentCard.videoId}
-              ref={hitRushIframeRef}
-              src={`https://www.youtube.com/embed/${hitRush.currentCard.videoId}?enablejsapi=1&autoplay=1&mute=1&start=${randomStartSeconds()}&controls=0&modestbranding=1&rel=0`}
-              style={{ display: "none" }}
-              allow="autoplay"
-              title="hitrush-audio"
-            />
+            <div style={{ width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }}>
+              <iframe
+                key={hitRush.currentCard.videoId}
+                ref={hitRushIframeRef}
+                title="hitrush-audio"
+                width="280"
+                height="158"
+                src={`https://www.youtube.com/embed/${hitRush.currentCard.videoId}?enablejsapi=1&autoplay=1&mute=0&start=${randomStartSeconds()}&controls=0&modestbranding=1&rel=0`}
+                allow="autoplay; encrypted-media"
+                style={{ border: "none" }}
+              />
+            </div>
             <div className="w-full flex items-center justify-between">
               <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, color: hitRush.timeLeft <= 10 ? "var(--bad)" : "#fff", textShadow: hitRush.timeLeft <= 10 ? "0 0 14px rgba(232,97,93,0.7)" : "none" }}>
                 ⏱ {hitRush.timeLeft}s
