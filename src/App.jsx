@@ -99,9 +99,6 @@ import cardDiamentImg from "./assets/icons/card-diamentowa.webp";
 // 👉 PODMIEŃ TO NA SWOJE WŁASNE HASŁO trybu admina
 const ADMIN_PASSWORD = "zmien-to-haslo-123";
 
-// Bezpieczna konwersja znacznika czasu z serwera Firestore na milisekundy.
-// Zwraca null, jeśli zapis jeszcze nie doszedł do serwera (chwilowy stan
-// tylko u klienta, który właśnie zapisał — reszta graczy tego nie widzi).
 function toMillis(ts) {
   if (!ts) return null;
   if (typeof ts === "number") return ts;
@@ -120,17 +117,10 @@ const CATEGORIES = [
   { slug: "religijne", label: "Religijne" },
 ];
 
-// Kategorie utworu są wpisywane ręcznie (panel admina, import CSV) więc mogą
-// mieć niespójną wielkość liter/spacje (np. "Tymek" zamiast "tymek") — bez
-// tej normalizacji taki utwór milcząco nie pasowałby do żadnego filtra.
 function normCategories(categories) {
   return (categories || []).map((c) => (c || "").trim().toLowerCase());
 }
 
-// Wspólne metadane 5 poziomów rzadkości kart — używane wszędzie, gdzie
-// pokazujemy kartę (koniec gry, album, paczki), żeby kolory/etykiety były
-// spójne w całej appce. Ikony to tymczasowy placeholder — do podmiany na
-// prawdziwe grafiki, gdy będą gotowe.
 const RARITY_INFO = {
   winyl: { label: "Winyl", color: "#aab8c4", icon: "⚪" },
   srebrna: { label: "Srebrna Płyta", color: "#dbe6ee", icon: "⚪" },
@@ -139,8 +129,6 @@ const RARITY_INFO = {
   diamentowa: { label: "Diamentowa Płyta", color: "#7dffef", icon: "💎" },
 };
 const RARITY_ORDER = ["winyl", "srebrna", "zlota", "platynowa", "diamentowa"];
-
-// ---------- vinyl / now-playing widget ----------
 
 const Vinyl = memo(function Vinyl({ spinning, revealed, progress = 0, showRing = true }) {
   const radius = 112;
@@ -220,22 +208,23 @@ const Vinyl = memo(function Vinyl({ spinning, revealed, progress = 0, showRing =
   );
 });
 
+// POPRAWKA ROZMIARU 1: Zmniejszony przycisk ze slotem
 const SlotButton = memo(function SlotButton({ index, chosen, onPick, label }) {
   return (
     <button
       onClick={() => onPick(index)}
-      className="flex items-center justify-center"
+      className="flex items-center justify-center slot-btn"
       style={{
-        width: 42,
-        height: 62,
+        width: 30,
+        height: 48,
         backgroundImage: `url(${timelineSlotFrame})`,
         backgroundSize: "100% 100%",
         backgroundRepeat: "no-repeat",
         border: "none",
         color: chosen === index ? "#fff" : "#4fd6ff",
-        fontSize: 15,
+        fontSize: 13,
         fontWeight: "bold",
-        opacity: chosen === index ? 1 : 0.55,
+        opacity: chosen === index ? 1 : 0.65,
         filter: chosen === index ? "drop-shadow(0 0 6px rgba(79,214,255,0.8))" : "none",
       }}
       title={label}
@@ -245,6 +234,7 @@ const SlotButton = memo(function SlotButton({ index, chosen, onPick, label }) {
   );
 });
 
+// POPRAWKA ROZMIARU 2: Zmniejszona karta osi czasu
 const TimelineCard = memo(function TimelineCard({ year, title, artist, onHold, onRelease, highlight }) {
   const timerRef = useRef(null);
   const start = () => {
@@ -265,20 +255,20 @@ const TimelineCard = memo(function TimelineCard({ year, title, artist, onHold, o
       onTouchEnd={cancel}
       className="flex flex-col items-center justify-center text-center select-none"
       style={{
-        width: 108,
-        height: 84,
+        width: 82,
+        height: 64,
         backgroundImage: `url(${timelineCardFrame})`,
         backgroundSize: "100% 100%",
         backgroundRepeat: "no-repeat",
         filter: highlight ? `drop-shadow(0 0 8px ${highlight})` : "none",
         cursor: "pointer",
         touchAction: "manipulation",
-        padding: "10% 10%",
+        padding: "6% 8%",
       }}
     >
-      <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: "var(--accent)", lineHeight: 1 }}>{year}</span>
-      <span style={{ fontSize: 9, color: "var(--muted)", lineHeight: 1.15, marginTop: 3 }}>
-        {artist.length > 16 ? artist.slice(0, 15) + "…" : artist}
+      <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, color: "var(--accent)", lineHeight: 1 }}>{year}</span>
+      <span style={{ fontSize: 8, color: "var(--muted)", lineHeight: 1.15, marginTop: 2 }}>
+        {artist.length > 14 ? artist.slice(0, 13) + "…" : artist}
       </span>
     </div>
   );
@@ -292,9 +282,6 @@ const CARD_FRAMES = {
   diamentowa: cardDiamentImg,
 };
 
-// Karta kolekcjonerska — jeden komponent używany wszędzie (album, odkrywanie
-// paczki, podgląd na powiększeniu, ekran końca gry), żeby wygląd był spójny.
-// Współrzędne miniaturki/tekstu zmierzone precyzyjnie z siatki na pikselach.
 const CollectibleCard = memo(function CollectibleCard({ song, size = 140, onClick }) {
   const rarity = effectiveRarity(song);
   const frame = CARD_FRAMES[rarity] || CARD_FRAMES.winyl;
@@ -485,15 +472,8 @@ const LevelBar = memo(function LevelBar({ level, currentLevelXp, xpForNextLevel,
   );
 });
 
-// ---------- koło nagrody dnia ----------
-
 const DAILY_WHEEL_ICON = { hitcoin: "🪙", xp: "⭐", doubleXp: "✨", card: "🃏" };
 
-// Rozmiar kawałka na kole jest CELOWO równy dla wszystkich (nie odzwierciedla
-// prawdziwych szans z `weight`) — inaczej sam widok koła zdradzałby, że
-// niektóre nagrody są bardzo rzadkie. Prawdziwe wagi żyją wyłącznie w
-// pickDailyRewardSegment() (dailyWheel.js), całkowicie niezależnie od tego,
-// jak koło wygląda.
 const DAILY_WHEEL_SEGMENTS_WITH_ANGLES = (() => {
   const angleStep = 360 / DAILY_REWARD_SEGMENTS.length;
   return DAILY_REWARD_SEGMENTS.map((seg, i) => {
@@ -595,12 +575,10 @@ const DailyWheel = memo(function DailyWheel({ rotation, spinning }) {
   );
 });
 
-// ---------- main app ----------
-
 const guestId = getOrCreatePlayerId();
 
 export default function App() {
-  const [screen, setScreen] = useState("home"); // home | lobby | playing | roundResult | gameover
+  const [screen, setScreen] = useState("home");
   const [name, setName] = useState(localStorage.getItem("hitster-player-name") || "");
   const [joinCode, setJoinCode] = useState("");
   const [roomId, setRoomId] = useState(null);
@@ -625,8 +603,8 @@ export default function App() {
   const [chatInput, setChatInput] = useState("");
   const chatEndRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [playElapsed, setPlayElapsed] = useState(0); // seconds played in current listen session (0-25)
-  const [decisionLeft, setDecisionLeft] = useState(60); // seconds left of the 60s total decision timer
+  const [playElapsed, setPlayElapsed] = useState(0);
+  const [decisionLeft, setDecisionLeft] = useState(60);
   const [guessArtist, setGuessArtist] = useState("");
   const [guessTitle, setGuessTitle] = useState("");
   const iframeRef = useRef(null);
@@ -641,7 +619,7 @@ export default function App() {
 
   const [user, setUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
-  const [authMode, setAuthMode] = useState("login"); // login | register
+  const [authMode, setAuthMode] = useState("login");
   const [authUsername, setAuthUsername] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
@@ -655,11 +633,11 @@ export default function App() {
   const [myHitcoin, setMyHitcoin] = useState(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showAchievements, setShowAchievements] = useState(false);
-  const [leaderboardSort, setLeaderboardSort] = useState("gamesWon"); // "gamesWon" | "guessesCorrect"
-  const [viewingPlayer, setViewingPlayer] = useState(null); // { uid, username, stats }
+  const [leaderboardSort, setLeaderboardSort] = useState("gamesWon");
+  const [viewingPlayer, setViewingPlayer] = useState(null);
   const [leaderboard, setLeaderboard] = useState(null);
 
-  const [librarySongs, setLibrarySongs] = useState(null); // null = jeszcze nie sprawdzono
+  const [librarySongs, setLibrarySongs] = useState(null);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [adminPasswordInput, setAdminPasswordInput] = useState("");
   const [adminUnlocked, setAdminUnlocked] = useState(false);
@@ -675,7 +653,7 @@ export default function App() {
   const [dailyWheelSpinning, setDailyWheelSpinning] = useState(false);
   const [dailyWheelRotation, setDailyWheelRotation] = useState(0);
   const [dailyWheelResult, setDailyWheelResult] = useState(null);
-  const [hitRush, setHitRush] = useState(null); // { referenceCard, currentCard, score, combo, bestCombo, correct, wrong, usedIds, timeLeft, running, feedback, maxDifficulty }
+  const [hitRush, setHitRush] = useState(null);
   const [hitRushResult, setHitRushResult] = useState(null);
   const [hitRushLeaderboard, setHitRushLeaderboard] = useState(null);
   const [hitRushLeaderboardPeriod, setHitRushLeaderboardPeriod] = useState("weekly");
@@ -722,8 +700,6 @@ export default function App() {
 
   const playerId = user ? user.uid : guestId;
 
-  // odblokowanie dźwięku na iOS/Androidzie — musi się zdarzyć w reakcji na
-  // prawdziwy dotyk/klik, więc łapiemy pierwszą taką interakcję w całej appce
   useEffect(() => {
     const unlock = () => {
       unlockAudio();
@@ -740,51 +716,36 @@ export default function App() {
 
   const effectivePool = librarySongs && librarySongs.length > 0 ? librarySongs : REAL_SONGS;
 
-  const LIBRARY_CACHE_KEY = "hitster-library-cache-v3"; // v3: unieważnia stary cache sprzed dodania systemu rzadkości kart (mógł nie mieć pola `rarity`)
-  const LIBRARY_CACHE_TTL_MS = 60 * 60 * 1000; // 1h — świeża baza wystarczająco często, a nie za każdym odświeżeniem
+  const LIBRARY_CACHE_KEY = "hitster-library-cache-v3";
+  const LIBRARY_CACHE_TTL_MS = 60 * 60 * 1000;
 
   function saveLibraryCache(songs) {
     try {
       localStorage.setItem(LIBRARY_CACHE_KEY, JSON.stringify({ songs, ts: Date.now() }));
-    } catch (e) {
-      // localStorage może być niedostępny (np. tryb prywatny) — nic się nie dzieje, po prostu nie cache'ujemy
-    }
+    } catch (e) {}
   }
 
-  // Ładuje bibliotekę TYLKO gdy jest faktycznie potrzebna (host w lobby,
-  // panel admina) — dołączenie do cudzej gry i zwykłe granie nigdy jej nie
-  // wymaga, więc nie ma sensu pobierać 700+ dokumentów za każdym razem.
   function ensureLibraryLoaded() {
-    if (librarySongs !== null) return; // już wczytana (albo w trakcie) w tej sesji
-    setLibrarySongs(undefined); // znacznik "ładowanie", żeby nie odpalić drugi raz równolegle
+    if (librarySongs !== null) return;
+    setLibrarySongs(undefined);
     try {
       const cached = localStorage.getItem(LIBRARY_CACHE_KEY);
       if (cached) {
         const { songs, ts } = JSON.parse(cached);
         if (Array.isArray(songs) && songs.length > 0 && Date.now() - ts < LIBRARY_CACHE_TTL_MS) {
           setLibrarySongs(songs);
-          return; // świeży cache — zero odczytów z Firestore
+          return;
         }
       }
-    } catch (e) {
-      // uszkodzony/nieodczytywalny cache — po prostu pobieramy normalnie
-    }
+    } catch (e) {}
     fetchAllSongsFromDb()
       .then((songs) => {
         setLibrarySongs(songs);
         saveLibraryCache(songs);
       })
-      .catch(() => setLibrarySongs([])); // brak kolekcji / błąd → cicho wracamy do wbudowanej listy
+      .catch(() => setLibrarySongs([]));
   }
 
-  // Piosenka/Playlista dnia MUSZĄ mieć prawdziwe kategorie do filtrowania
-  // (np. wykluczenie rapu) — nie mogą polegać na effectivePool, bo ten
-  // przy pierwszej wizycie w appce cicho spada do starej, wbudowanej listy
-  // 746 utworów BEZ zapisanych kategorii (filtr wtedy nic by nie wykluczał).
-  // Ten sam mechanizm gwarantuje żywą bibliotekę też przy starcie zwykłej
-  // gry i Treningu (tam ryzyko jest dużo mniejsze — host zwykle czeka
-  // chwilę w lobby, co daje appce czas na doładowanie — ale wolę mieć to
-  // pewne wszędzie, nie tylko "zwykle wystarczająco dużo czasu").
   async function getLiveLibraryPool() {
     let pool = librarySongs;
     if (!pool || pool.length === 0) {
@@ -793,16 +754,9 @@ export default function App() {
         setLibrarySongs(pool);
         saveLibraryCache(pool);
       } catch (e) {
-        pool = REAL_SONGS; // ostateczny fallback, gdyby Firestore było niedostępne
+        pool = REAL_SONGS;
       }
     } else {
-      // Obrona przed nieaktualnym stanem w pamięci: `librarySongs` mogło zostać
-      // ustawione wcześniej w tej sesji (np. ze starego cache w localStorage)
-      // i od tamtej pory nikt go już nie odświeżał, nawet jeśli baza realnie
-      // urosła. `getSongCount()` to prawie darmowe zapytanie liczące (nie
-      // pobiera treści dokumentów) - używamy go tu jako szybkiej kontroli
-      // "czy trzymana liczba utworów nadal się zgadza", zanim zbudujemy z tego
-      // talię do prawdziwej gry.
       try {
         const liveCount = await getSongCount();
         if (liveCount !== null && liveCount !== pool.length) {
@@ -810,9 +764,7 @@ export default function App() {
           setLibrarySongs(pool);
           saveLibraryCache(pool);
         }
-      } catch (e) {
-        // brak internetu/Firestore w tej chwili — gramy dalej z tym co mamy
-      }
+      } catch (e) {}
     }
     return pool;
   }
@@ -862,9 +814,6 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  // Ta sama tania funkcja licząca, co wcześniej wołana tylko przy wejściu w Statystyki -
-  // bez tego kafelek "Kolekcja" na stronie głównej cicho spadał do starej wbudowanej
-  // listy zapasowej (746 utworów) zanim ktoś odwiedził Statystyki/Album.
   useEffect(() => {
     getSongCount().then((c) => c !== null && setTotalSongCount(c));
   }, []);
@@ -883,7 +832,6 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  // --- Wyzwania 1v1 (na żywo) ---
   const [showOnlineList, setShowOnlineList] = useState(false);
   const [incomingChallenge, setIncomingChallenge] = useState(null);
   const [challengeSentTo, setChallengeSentTo] = useState(null);
@@ -904,7 +852,7 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     const unsub = listenForSentChallenges(user.uid, (data) => {
-      if (isChallengeStale(data.createdAt)) return; // stary, nieposprzątany wpis — ignorujemy
+      if (isChallengeStale(data.createdAt)) return;
       if (data.status === "accepted" && data.roomCode) {
         clearDuelChallenge(data.toUid).catch(() => {});
         setChallengeSentTo(null);
@@ -961,7 +909,6 @@ export default function App() {
     setIncomingChallenge(null);
   }
 
-  // --- "Piosenka dnia" ---
   const [showDailySong, setShowDailySong] = useState(false);
   const [dailyPlaylistSongs, setDailyPlaylistSongs] = useState(null);
   const [dailyPlaylistAlreadyPlayed, setDailyPlaylistAlreadyPlayed] = useState(null);
@@ -1022,7 +969,7 @@ export default function App() {
     setDailyPlaylistBusy(true);
     setError("");
     try {
-      processWeeklyPlaylistRewardsIfNeeded().catch(() => {}); // ciche, okazjonalne sprawdzenie nagród za zeszły tydzień
+      processWeeklyPlaylistRewardsIfNeeded().catch(() => {});
       const dayKey = currentDayKey();
       const pool = await getDailyFeaturesPool();
       const songs = await getOrCreateDailyPlaylist(dayKey, pool);
@@ -1299,7 +1246,7 @@ export default function App() {
       const newStreak = await recordDailyResult(user.uid, currentDayKey(), result);
       markPerfectDailyIfNeeded(user.uid, score).catch(() => {});
       bumpWeeklyChallengeProgress(user.uid, "dailySongPlays", 1).catch(() => {});
-      const xp = 10 + score * 15; // 10 za sam udział, +15 za każdą trafioną część
+      const xp = 10 + score * 15;
       await awardXp(user.uid, xp);
       const before = myXp || 0;
       setMyXp(before + xp);
@@ -1320,8 +1267,6 @@ export default function App() {
       setDailyBusy(false);
     }
   }
-
-
 
   useEffect(() => {
     setAdminPage(1);
@@ -1404,9 +1349,6 @@ export default function App() {
     }
     setAdminBusy(true);
     try {
-      // Sprawdzamy duplikat względem NAJŚWIEŻSZEJ biblioteki (nie lokalnego cache) —
-      // ten sam link dodany dwa razy dawałby danemu utworowi podwójną szansę na
-      // wylosowanie w każdej talii, bez żadnego widocznego śladu w appce.
       const fresh = await fetchAllSongsFromDb();
       const dup = fresh.find((s) => s.videoId === videoId);
       if (dup) {
@@ -1486,9 +1428,6 @@ export default function App() {
   async function handleAcceptProposal(p) {
     setAdminBusy(true);
     try {
-      // Ta sama zasada co przy ręcznym dodawaniu — sprawdzamy względem najświeższej
-      // biblioteki, żeby nie dodać drugi raz utworu, który już tam jest (np. ktoś
-      // wcześniej dodał go ręcznie, zanim ta propozycja została rozpatrzona).
       const fresh = await fetchAllSongsFromDb();
       const dup = fresh.find((s) => s.videoId === p.videoId);
       if (dup) {
@@ -1503,7 +1442,7 @@ export default function App() {
       const added = await acceptProposal(p);
       if (p.submittedByUid) {
         recordSongAdded(p.submittedByUid).catch(() => {});
-        awardXp(p.submittedByUid, 25).catch(() => {}); // zaakceptowana propozycja utworu
+        awardXp(p.submittedByUid, 25).catch(() => {});
       }
       setProposals((prev) => prev.filter((x) => x.id !== p.id));
       const next = [...fresh, added];
@@ -1566,13 +1505,6 @@ export default function App() {
     }
   }
 
-  // Diagnostyka: czy losowanie utworów do talii faktycznie korzysta z całej
-  // biblioteki, czy jakaś jej część jest systemowo pomijana. Bazuje na
-  // `timesPlayed` (licznik już istniejący, zliczany tylko dla realnych,
-  // niezastąpionych kart w prawdziwej rozgrywce) - jeśli losowanie jest
-  // uczciwe, po odpowiednio wielu grach odsetek utworów z zerem odtworzeń
-  // powinien być rozsądnie mały i nie powinien korelować z tym, KIEDY dany
-  // utwór został dodany.
   async function handleAnalyzePool() {
     setPoolAnalysisBusy(true);
     setError("");
@@ -1626,7 +1558,6 @@ export default function App() {
     setImportResult(null);
     setError("");
     try {
-      // upewniamy się, że deduplikujemy względem NAJŚWIEŻSZEJ biblioteki
       const fresh = await fetchAllSongsFromDb();
       const existingVideoIds = fresh.map((s) => s.videoId);
       const result = await importSongsFromCsv(importCsvText, existingVideoIds, (done, total) =>
@@ -1653,8 +1584,6 @@ export default function App() {
       const buffer = ev.target.result;
       let text = new TextDecoder("utf-8").decode(buffer);
       if (text.includes("\uFFFD")) {
-        // UTF-8 dało nieprawidłowe znaki — to zwykle CSV zapisany przez Excela
-        // w kodowaniu Windows-1250 (domyślne dla polskiego Windowsa), spróbuj tego
         text = new TextDecoder("windows-1250").decode(buffer);
       }
       setImportCsvText(text);
@@ -1776,7 +1705,6 @@ export default function App() {
     }
   }
 
-
   useEffect(() => {
     const unsub = watchAuthState(async (u) => {
       setUser(u);
@@ -1819,9 +1747,6 @@ export default function App() {
     setShowStats(false);
   }
 
-  // Sortuje wszystkich graczy wg tych samych zasad, co wyłanianie zwycięzcy
-  // przy remisie: długość osi czasu → tokeny → liczba udanych zgadnięć.
-  // Używane do podium (2./3. miejsce) w grach 3+ osobowych.
   function computeFinalStandings(gameRoom) {
     return [...(gameRoom.players || [])].sort((a, b) => {
       const lenA = (gameRoom.timelines?.[a.id] || []).length;
@@ -1836,8 +1761,6 @@ export default function App() {
     });
   }
 
-  // Wspólna logika liczenia XP na koniec gry — używana zarówno do
-  // faktycznego przyznania punktów, jak i do wyświetlenia rozbicia graczowi.
   function computeGameEndXp(gameRoom, forPlayerId) {
     if (!gameRoom || gameRoom.practiceMode) return { items: [], total: 0 };
     const items = [{ label: "🎮 Udział w grze", amount: 30 }];
@@ -1846,7 +1769,6 @@ export default function App() {
     if (won) {
       items.push({ label: `🏆 Wygrana (${gameRoom.players.length} graczy)`, amount: winXp });
     } else if ((gameRoom.players || []).length >= 3) {
-      // podium — tylko gry 3+ osobowe, tylko dla graczy spoza grona zwycięzców
       const winnerSet = new Set(gameRoom.winnerIds || []);
       const rest = computeFinalStandings(gameRoom).filter((p) => !winnerSet.has(p.id));
       const myRank = rest.findIndex((p) => p.id === forPlayerId);
@@ -1876,8 +1798,6 @@ export default function App() {
     return { items, total };
   }
 
-  // HITCOIN — ten sam wzorzec co XP (skalowane liczbą graczy), ale prostsze:
-  // tylko udział + wygrana/podium, bez bonusów za szybkość/serie/perfekcję.
   function computeGameEndHitcoin(gameRoom, forPlayerId) {
     if (!gameRoom || gameRoom.practiceMode) return { items: [], total: 0 };
     const items = [{ label: "🎮 Udział w grze", amount: 25 }];
@@ -1922,10 +1842,6 @@ export default function App() {
     }
     (async () => {
       try {
-        // Zabezpieczenie GLOBALNE (nie tylko lokalne w tej karcie przeglądarki) —
-        // gdyby to samo konto było zalogowane naraz na dwóch urządzeniach,
-        // każde z nich niezależnie próbowałoby przyznać nagrody za tę samą
-        // grę. Transakcja w Firestore gwarantuje, że wygra dokładnie jedno.
         const rewardMarkerRef = doc(db, "gameRewardsProcessed", `${roomId}_${marker}_${user.uid}`);
         let shouldProcess = false;
         await runTransaction(db, async (tx) => {
@@ -1946,8 +1862,6 @@ export default function App() {
         if (total) await awardXp(user.uid, total);
         if (hadDoubleXp) consumeDoubleXpFlag(user.uid).catch(() => {});
 
-        // wyzwania tygodniowe (jeśli akurat wypadły w tym tygodniu — funkcja
-        // sama sprawdza i nic nie robi gdy dany typ nie jest w aktualnej 5)
         bumpWeeklyChallengeProgress(user.uid, "gamesPlayed", 1).catch(() => {});
         if ((room.winnerIds || []).includes(playerId)) {
           bumpWeeklyChallengeProgress(user.uid, "gamesWon", 1).catch(() => {});
@@ -1962,7 +1876,6 @@ export default function App() {
           setTimeout(() => setLevelUpInfo(null), 5000);
         }
 
-        // liczniki potrzebne wyłącznie do osiągnięć
         const won = (room.winnerIds || []).includes(playerId);
         const myCards = (room.playedCards || []).filter((c) => c.playerId === playerId && !c.bought);
         const perfectGame = (room.target || 0) >= 7 && myCards.length > 0 && myCards.every((c) => c.correct);
@@ -1972,7 +1885,6 @@ export default function App() {
         const frugalFinish = (room.tokens?.[playerId] || 0) >= 5;
         updateAchievementCounters(user.uid, { won, perfectGame, opponents, playerCount: room.players.length, nightGame, frugalFinish }).catch(() => {});
 
-        // HITCOIN + losowanie karty
         const hcResult = computeGameEndHitcoin(room, playerId);
         if (hcResult.total) {
           await awardHitcoin(user.uid, hcResult.total);
@@ -1985,15 +1897,10 @@ export default function App() {
           bumpWeeklyChallengeProgress(user.uid, "cardGoldPlus", 1).catch(() => {});
         }
         setGameEndReward({ hitcoinItems: hcResult.items, hitcoinTotal: hcResult.total, card: drawResult });
-      } catch (e) {
-        // ciche niepowodzenie — najwyżej XP z tej gry się nie doliczy
-      }
+      } catch (e) {}
     })();
   }, [screen, room?.winnerIds, toMillis(room?.expireAt), user, playerId]);
 
-  // Koniec gry w trybie "Playlista dnia" — osobny efekt, bo ta gra ma
-  // celowo practiceMode:true (żeby ominąć zwykłe liczenie XP/wygranych),
-  // a jej własna nagroda liczy się tutaj według innych zasad.
   const dailyPlaylistProcessedRef = useRef(null);
   useEffect(() => {
     if (screen !== "gameover" || !room?.dailyPlaylistMode || !user) return;
@@ -2015,8 +1922,8 @@ export default function App() {
         const score = (room.playedCards || []).filter((c) => c.playerId === playerId && c.correct).length;
         const timeMs = (room.decisionTimes?.[playerId] || []).reduce((a, b) => a + b, 0);
         await recordDailyPlaylistScore(user.uid, name.trim() || user.displayName || "Gracz", room.dailyPlaylistDayKey, score, timeMs);
-        let xp = 25; // udział
-        if (score === 10) xp += 100; // wszystkie 10 poprawnie
+        let xp = 25;
+        if (score === 10) xp += 100;
         const before = await getStats(user.uid);
         const oldXp = before?.xp || 0;
         const oldLevel = levelFromXp(oldXp).level;
@@ -2027,15 +1934,10 @@ export default function App() {
           setLevelUpInfo({ level: newLevel });
           setTimeout(() => setLevelUpInfo(null), 5000);
         }
-      } catch (e) {
-        // ciche niepowodzenie
-      }
+      } catch (e) {}
     })();
   }, [screen, room?.dailyPlaylistMode, toMillis(room?.expireAt), user, playerId]);
 
-  // Koniec meczu turniejowego — zapisuje wynik do drabinki. Żadnego XP tutaj
-  // nie przyznajemy — rozliczenie (zwycięzca zgarnia pulę, przegrani tracą
-  // wpisowe) dzieje się dopiero po zakończeniu CAŁEGO turnieju.
   const tournamentMatchProcessedRef = useRef(null);
   useEffect(() => {
     if (screen !== "gameover" || !room?.tournamentMode || !user) return;
@@ -2047,9 +1949,7 @@ export default function App() {
         const score = (room.playedCards || []).filter((c) => c.playerId === playerId && c.correct).length;
         const timeMs = (room.decisionTimes?.[playerId] || []).reduce((a, b) => a + b, 0);
         await recordTournamentMatchResult(room.tournamentId, room.tournamentRoundNumber, room.tournamentMatchId, user.uid, score, timeMs);
-      } catch (e) {
-        // ciche niepowodzenie
-      }
+      } catch (e) {}
     })();
   }, [screen, room?.tournamentMode, toMillis(room?.expireAt), user, playerId]);
 
@@ -2092,8 +1992,6 @@ export default function App() {
       const list = await getLeaderboard(10, sortBy);
       setLeaderboard(list);
     } catch (e) {
-      // pierwsza próba czasem pada na chwilowy problem z połączeniem —
-      // cicho próbujemy jeszcze raz, zanim pokażemy błąd
       try {
         await new Promise((r) => setTimeout(r, 600));
         const list = await getLeaderboard(10, sortBy);
@@ -2107,9 +2005,6 @@ export default function App() {
 
   async function viewPlayerProfile(p) {
     const s = await getStats(p.uid);
-    // Dociągamy żywą bibliotekę (nie effectivePool, które przy pierwszej wizycie
-    // w appce cicho spada do starej wbudowanej listy bez przypisanej rzadkości) -
-    // potrzebna do policzenia "ile ogółem" utworów jest w każdej rzadkości.
     getLiveLibraryPool();
     setViewingPlayer({ uid: p.uid, username: p.username, stats: s });
   }
@@ -2125,7 +2020,7 @@ export default function App() {
       const won = await claimDailyWheelReward(user.uid, today, pool);
       if (!won) {
         setDailyWheelBusy(false);
-        return; // ktoś/coś już odebrało dzisiejszą nagrodę w międzyczasie
+        return;
       }
       const seg =
         DAILY_WHEEL_SEGMENTS_WITH_ANGLES.find((s) => s.id === won.id) ||
@@ -2370,7 +2265,6 @@ export default function App() {
     return () => unsub();
   }, [roomId]);
 
-  // reset local per-round UI whenever the shared card changes
   const timeoutFiredRef = useRef(false);
   useEffect(() => {
     setChosenSlot(null);
@@ -2382,16 +2276,10 @@ export default function App() {
     if (playIntervalRef.current) clearInterval(playIntervalRef.current);
   }, [room?.currentCard?.id, toMillis(room?.openerCreatedAt), room?.openerWinnerId]);
 
-  // domyślnie podążamy za aktywnym graczem, ale reset następuje dopiero
-  // na początku nowej tury — w trakcie tej samej tury wybór widza się utrzymuje
   useEffect(() => {
     setViewedPlayerId(null);
   }, [room?.currentPlayerId]);
 
-  // 60s total decision timer, liczony od serwerowego znacznika turnStartedAt
-  // (nie zegara żadnego konkretnego telefonu — eliminuje rozjazdy między urządzeniami).
-  // Mechanizm awaryjny: jeśli aktywny gracz nie zdąży (zablokowany ekran,
-  // karta w tle), dowolny inny gracz wymusza timeout po dodatkowym czasie.
   useEffect(() => {
     if (decisionIntervalRef.current) clearInterval(decisionIntervalRef.current);
     const turnStartedAtMs = toMillis(room?.turnStartedAt);
@@ -2415,10 +2303,6 @@ export default function App() {
     return () => clearInterval(decisionIntervalRef.current);
   }, [screen, toMillis(room?.turnStartedAt), room?.currentPlayerId]);
 
-  // automatyczne przejście do kolejnej tury po wyniku rundy (licznik 3-2-1);
-  // normalnie robi to klient gracza, którego tura się kończy — ale gdyby jego
-  // urządzenie akurat "zasnęło" (zablokowany ekran, karta w tle), dowolny
-  // inny gracz przejmuje to po dłuższym czasie oczekiwania (mechanizm awaryjny)
   const advanceFiredRef = useRef(null);
   const [advanceCountdown, setAdvanceCountdown] = useState(null);
   useEffect(() => {
@@ -2428,7 +2312,7 @@ export default function App() {
       return;
     }
     const ADVANCE_SECONDS = 5;
-    const FALLBACK_EXTRA_MS = 8000; // dodatkowy czas, zanim ktoś inny przejmie
+    const FALLBACK_EXTRA_MS = 8000;
     const isResponsible = room.currentPlayerId === playerId;
     const tick = () => {
       const elapsedMs = Date.now() - resultAtMs;
@@ -2445,8 +2329,6 @@ export default function App() {
     return () => clearInterval(id);
   }, [screen, toMillis(room?.resultAt), room?.currentPlayerId, room?.lastResult?.correct]);
 
-  // 20s na głosowanie — kto nie zdąży zagłosować, liczy się jako "TAK";
-  // każdy klient odpowiada tylko za swój własny (domyślny) głos
   const votingAutoVoteFiredRef = useRef(null);
   const [votingCountdown, setVotingCountdown] = useState(null);
   useEffect(() => {
@@ -2475,8 +2357,6 @@ export default function App() {
     return () => clearInterval(id);
   }, [screen, toMillis(room?.votingStartedAt), room?.currentPlayerId, room?.votes, playerId]);
 
-  // dźwięk trafienia/pudła (i braw przy zaliczonym zgadywaniu) — leci
-  // u każdego gracza w chwili ujawnienia wyniku rundy
   const soundPlayedRef = useRef(null);
   useEffect(() => {
     const resultAtMs = toMillis(room?.resultAt);
@@ -2488,13 +2368,10 @@ export default function App() {
     if (room.lastResult?.tokenAwarded) setTimeout(() => playApplause(), 250);
   }, [screen, toMillis(room?.resultAt)]);
 
-  // minigra "kto zaczyna": 3s odliczanie na pełnym ekranie, muzyka odtwarza
-  // się automatycznie wszystkim, 20s na odpowiedź; jeśli nikt nie trafi,
-  // host (jedyny gwarantowany klient) rozstrzyga na siebie
   const OPENER_COUNTDOWN_MS = 3000;
   const OPENER_ANSWER_MS = 20000;
-  const OPENER_REVEAL_MS = 5000; // dłuższy czas na pokazanie zwycięzcy przed startem
-  const [openerPhase, setOpenerPhase] = useState("countdown"); // "countdown" | "answering"
+  const OPENER_REVEAL_MS = 5000;
+  const [openerPhase, setOpenerPhase] = useState("countdown");
   const [openerCountdownNum, setOpenerCountdownNum] = useState(3);
   const [openerLockedOut, setOpenerLockedOut] = useState(false);
   const openerFallbackFiredRef = useRef(null);
@@ -2532,9 +2409,7 @@ export default function App() {
                 openerResolvedAt: serverTimestamp(),
               });
             });
-          } catch (e) {
-            // ciche niepowodzenie
-          }
+          } catch (e) {}
         })();
       }
     };
@@ -2543,8 +2418,6 @@ export default function App() {
     return () => clearInterval(id);
   }, [screen, toMillis(room?.openerCreatedAt), room?.openerWinnerId, room?.hostId, roomId, playerId]);
 
-  // po wyłonieniu zwycięzcy minigry: pokazujemy wynik przez 5s (5 4 3 2 1),
-  // a klient zwycięzcy finalizuje przejście do właściwej gry
   useEffect(() => {
     const openerResolvedAtMs = toMillis(room?.openerResolvedAt);
     if (screen !== "opener" || !room?.openerWinnerId || !openerResolvedAtMs) {
@@ -2601,7 +2474,7 @@ export default function App() {
         lastResult: null,
         winnerIds: [],
         createdAt: serverTimestamp(),
-        expireAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // TTL: porzucone/niedokończone pokoje znikają po 24h
+        expireAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
         messages: [],
       });
       setRoomId(code);
@@ -2612,9 +2485,6 @@ export default function App() {
     }
   }
 
-  // Osobna, lekka wersja tworzenia pokoju dla wyzwań 1v1 — zwraca kod, żeby
-  // można było od razu przekazać go osobie wyzywającej (przez zaproszenie),
-  // a przyjmujący wyzwanie od razu wchodzi do lobby jako host.
   async function createDuelRoom() {
     const code = generateRoomCode();
     const ref = doc(db, "rooms", code);
@@ -2693,7 +2563,7 @@ export default function App() {
         messages: [],
         practiceMode: true,
         createdAt: serverTimestamp(),
-        expireAt: new Date(Date.now() + 3 * 60 * 60 * 1000), // TTL: sesje treningowe znikają po 3h
+        expireAt: new Date(Date.now() + 3 * 60 * 60 * 1000),
       });
       setRoomId(code);
     } catch (e) {
@@ -2772,7 +2642,6 @@ export default function App() {
         setBusy(false);
         return;
       }
-      // +1 karta na minigrę "kto zaczyna" — osobna, nie wchodzi do talii rozgrywki
       const extended = shuffle(pool).slice(0, needed + 1);
       const openerCard = extended[0];
       const deck = extended.slice(1);
@@ -2835,7 +2704,7 @@ export default function App() {
         const snap = await tx.get(ref);
         const data = snap.data();
         if (data.status !== "opener" || data.openerWinnerId) return;
-        if (index !== data.openerCorrectIndex) return; // zła odpowiedź — nikt nie wygrywa
+        if (index !== data.openerCorrectIndex) return;
         tx.update(ref, {
           openerWinnerId: playerId,
           openerResolvedAt: serverTimestamp(),
@@ -2846,8 +2715,6 @@ export default function App() {
     }
   }
 
-  // dopiero po chwili wyświetlania wyniku ("X zaczyna!") faktycznie
-  // przechodzimy do właściwej gry — wywołuje to klient zwycięzcy
   async function finalizeOpenerStart() {
     try {
       const ref = doc(db, "rooms", roomId);
@@ -2862,10 +2729,8 @@ export default function App() {
           turnStartedAt: serverTimestamp(),
         });
       });
-      if (user) awardXp(user.uid, 10).catch(() => {}); // wygrana minigra "kto zaczyna"
-    } catch (e) {
-      // ciche niepowodzenie
-    }
+      if (user) awardXp(user.uid, 10).catch(() => {});
+    } catch (e) {}
   }
 
   function togglePlay() {
@@ -2914,7 +2779,7 @@ export default function App() {
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
-        if (data.status !== "playing") return; // runda już się rozstrzygnęła (np. timeout) — nie dokładamy karty drugi raz
+        if (data.status !== "playing") return;
         const timeline = data.timelines[data.currentPlayerId] || [];
         const sorted = [...timeline].sort((a, b) => a.year - b.year);
         const before = sorted[chosenSlot - 1];
@@ -2925,7 +2790,6 @@ export default function App() {
         if (correct) newTimelines[data.currentPlayerId] = [...timeline, card];
         capturedResult = { correct, card, practiceMode: !!data.practiceMode };
 
-        // podsumowanie gry: czas decyzji, seria trafień, playlista wieczoru
         const elapsed = Date.now() - (toMillis(data.turnStartedAt) || Date.now());
         const newDecisionTimes = { ...(data.decisionTimes || {}) };
         newDecisionTimes[data.currentPlayerId] = [...(newDecisionTimes[data.currentPlayerId] || []), elapsed];
@@ -2957,7 +2821,6 @@ export default function App() {
             ...summaryFields,
           });
         } else {
-          // brak zgadywania, albo gra solo — bez głosowania (a w solo od razu przyznajemy token)
           if (hasGuess) instantGuessAwardedTo = data.currentPlayerId;
           const playedCardsWithGuess = hasGuess
             ? newPlayedCards.map((pc, i) => (i === newPlayedCards.length - 1 ? { ...pc, guessedCorrect: true } : pc))
@@ -2983,16 +2846,16 @@ export default function App() {
       if (user && capturedResult && !capturedResult.practiceMode) {
         recordCardGuess(user.uid, capturedResult.card.year, capturedResult.correct, capturedResult.card.artist, capturedResult.card.videoId).catch(() => {});
         if (capturedResult.correct) {
-          let xp = 10; // poprawne umieszczenie
-          if (capturedResult.newPlacementStreak === 5) xp += 15; // seria 5 poprawnych z rzędu
+          let xp = 10;
+          if (capturedResult.newPlacementStreak === 5) xp += 15;
           awardXp(user.uid, xp).catch(() => {});
         }
       }
       if (user && instantGuessAwardedTo === user.uid && !capturedResult?.practiceMode) {
         recordSuccessfulGuess(user.uid, capturedResult?.card?.videoId, capturedResult?.card?.year).catch(() => {});
         bumpWeeklyChallengeProgress(user.uid, "guessesCorrect", 1).catch(() => {});
-        let xp = 20; // trafione zgadywanie
-        if (capturedResult.newGuessStreak === 5) xp += 30; // seria 5 trafionych zgadywań z rzędu
+        let xp = 20;
+        if (capturedResult.newGuessStreak === 5) xp += 30;
         awardXp(user.uid, xp).catch(() => {});
         if (capturedResult.newGuessStreak) updateLongestGuessStreak(user.uid, capturedResult.newGuessStreak).catch(() => {});
       }
@@ -3012,9 +2875,9 @@ export default function App() {
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
-        if (data.status !== "playing") return; // runda już się rozstrzygnęła — bez sensu kupować kartę do minionej tury
+        if (data.status !== "playing") return;
         if ((data.tokens?.[data.currentPlayerId] || 0) < BUY_CARD_TOKENS) return;
-        if (data.deckIndex >= data.deck.length) return; // brak kart w talii do kupienia
+        if (data.deckIndex >= data.deck.length) return;
 
         const boughtCard = data.deck[data.deckIndex];
         capturedBought = boughtCard;
@@ -3022,7 +2885,7 @@ export default function App() {
         const newTimelines = { ...data.timelines, [data.currentPlayerId]: [...timeline, boughtCard] };
 
         const prevStreak = data.gameStreaks?.[data.currentPlayerId] || 0;
-        const newStreak = prevStreak + 1; // kupiona karta zawsze trafiona
+        const newStreak = prevStreak + 1;
         const prevBest = data.gameBestStreaks?.[data.currentPlayerId] || 0;
         const newPlayedCards = [...(data.playedCards || []), { ...boughtCard, correct: true, playerId: data.currentPlayerId, bought: true, guessedCorrect: null }];
 
@@ -3036,8 +2899,6 @@ export default function App() {
           lastBoughtCard: { playerId: data.currentPlayerId, card: boughtCard, at: serverTimestamp() },
         };
 
-        // kupiona karta może dopełnić cel — nie kończymy gry od razu,
-        // tylko oznaczamy rundę do dogrania (jak przy normalnym trafieniu celu)
         if (newTimelines[data.currentPlayerId].length >= data.target) {
           update.finishingRound = true;
         }
@@ -3062,8 +2923,8 @@ export default function App() {
 
   async function castVote(accept) {
     if (!room || room.status !== "voting") return;
-    if (playerId === room.currentPlayerId) return; // nie głosujesz na własne zgadywanie
-    if (room.votes && room.votes[playerId] !== undefined) return; // już zagłosowano
+    if (playerId === room.currentPlayerId) return;
+    if (room.votes && room.votes[playerId] !== undefined) return;
     setBusy(true);
     try {
       const ref = doc(db, "rooms", roomId);
@@ -3121,8 +2982,8 @@ export default function App() {
       if (awardedGuessTo) {
         recordSuccessfulGuess(awardedGuessTo, awardedGuessVideoId, awardedGuessYear).catch(() => {});
         bumpWeeklyChallengeProgress(awardedGuessTo, "guessesCorrect", 1).catch(() => {});
-        let xp = 20; // trafione zgadywanie
-        if (newGuessStreakValue === 5) xp += 30; // seria 5 trafionych zgadywań z rzędu
+        let xp = 20;
+        if (newGuessStreakValue === 5) xp += 30;
         awardXp(awardedGuessTo, xp).catch(() => {});
         if (newGuessStreakValue) updateLongestGuessStreak(awardedGuessTo, newGuessStreakValue).catch(() => {});
       }
@@ -3138,16 +2999,13 @@ export default function App() {
     const at = toMillis(room?.lastBoughtCard?.at);
     if (!at || boughtNoticeFiredRef.current === at) return;
     boughtNoticeFiredRef.current = at;
-    if (room.lastBoughtCard.playerId === playerId) return; // kupujący ma już swój lokalny popup
+    if (room.lastBoughtCard.playerId === playerId) return;
     const buyerName = room.players.find((p) => p.id === room.lastBoughtCard.playerId)?.name;
     setSharedBoughtNotice({ name: buyerName, card: room.lastBoughtCard.card });
     setTimeout(() => setSharedBoughtNotice(null), 4000);
   }, [toMillis(room?.lastBoughtCard?.at)]);
 
   const brokenLinkFiredRef = useRef(null);
-  // Wywoływane, gdy YouTube zgłosi błąd wczytania filmu (usunięty/prywatny/
-  // wyłączone osadzanie). Wymiana karty przez transakcję z zabezpieczeniem —
-  // jeśli kilku graczy wykryje to jednocześnie, tylko pierwsza próba coś zrobi.
   async function handleBrokenLink(card) {
     if (!room || !roomId || !card) return;
     if (brokenLinkFiredRef.current === card.id) return;
@@ -3158,9 +3016,9 @@ export default function App() {
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
-        if (data.status !== "playing") return; // po fazie decyzji już za późno na wymianę
-        if (!data.currentCard || data.currentCard.id !== card.id) return; // ktoś już to obsłużył
-        if (data.deckIndex >= data.deck.length) return; // brak zapasu w talii — zostawiamy jak jest
+        if (data.status !== "playing") return;
+        if (!data.currentCard || data.currentCard.id !== card.id) return;
+        if (data.deckIndex >= data.deck.length) return;
         swapped = true;
         tx.update(ref, {
           currentCard: data.deck[data.deckIndex],
@@ -3174,13 +3032,9 @@ export default function App() {
         setBrokenLinkNotice(card);
         setTimeout(() => setBrokenLinkNotice(null), 4000);
       }
-    } catch (e) {
-      // ciche niepowodzenie — gracz może ręcznie skorzystać z wymiany za token
-    }
+    } catch (e) {}
   }
 
-  // Ładujemy oficjalne IFrame API YouTube RAZ — potrzebne wyłącznie do
-  // formalnego "zarejestrowania się" jako słuchacz zdarzeń (onError).
   useEffect(() => {
     if (window.YT && window.YT.Player) return;
     if (document.getElementById("youtube-iframe-api-script")) return;
@@ -3190,12 +3044,6 @@ export default function App() {
     document.head.appendChild(tag);
   }, []);
 
-  // Wykrywanie zepsutych linków — osobny, ukryty i zawsze wyciszony
-  // "testowy" odtwarzacz, niezależny od tego, co faktycznie słychać.
-  // Błąd musi potwierdzić się DWA razy z rzędu (z chwilą przerwy między
-  // próbami), zanim appka faktycznie wymieni kartę — pierwszy błąd może
-  // być chwilowym problemem (np. sam mechanizm testera zbyt szybko tworzy
-  // i niszczy odtwarzacze), a nie realnym, trwałym problemem z linkiem.
   const ytValidatorRef = useRef(null);
   useEffect(() => {
     if (screen !== "playing" || !room?.currentCard) return;
@@ -3219,20 +3067,16 @@ export default function App() {
               if (cancelled) return;
               errorCount += 1;
               if (errorCount === 1) {
-                // pierwszy błąd — może być fałszywym alarmem, spróbuj jeszcze raz po chwili
                 setTimeout(() => {
                   if (!cancelled) createValidator();
                 }, 2500);
               } else {
-                // błąd potwierdzony drugi raz z rzędu dla tej samej karty — dopiero teraz reagujemy
                 handleBrokenLink(currentCard);
               }
             },
           },
         });
-      } catch (e) {
-        // ciche niepowodzenie — automatyczne wykrywanie po prostu nie zadziała tym razem
-      }
+      } catch (e) {}
     };
 
     const tryAttach = () => {
@@ -3259,7 +3103,7 @@ export default function App() {
         const snap = await tx.get(ref);
         const data = snap.data();
         if ((data.tokens?.[data.currentPlayerId] || 0) < SWAP_SONG_TOKENS) return;
-        if (data.deckIndex >= data.deck.length) return; // brak kart w talii do wymiany
+        if (data.deckIndex >= data.deck.length) return;
         tx.update(ref, {
           currentCard: data.deck[data.deckIndex],
           deckIndex: data.deckIndex + 1,
@@ -3283,7 +3127,7 @@ export default function App() {
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
-        if (data.status !== "playing") return; // ktoś już zdążył zatwierdzić/kupić
+        if (data.status !== "playing") return;
         const card = data.currentCard;
         capturedCard = card;
         capturedPracticeMode = !!data.practiceMode;
@@ -3308,9 +3152,7 @@ export default function App() {
       if (user && capturedCard && !capturedPracticeMode) {
         recordCardGuess(user.uid, capturedCard.year, false, capturedCard.artist, capturedCard.videoId).catch(() => {});
       }
-    } catch (e) {
-      // ciche niepowodzenie — najwyżej gracz sam kliknie coś innego
-    }
+    } catch (e) {}
   }
 
   async function nextRound() {
@@ -3321,7 +3163,7 @@ export default function App() {
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
-        if (data.status !== "roundResult") return; // ktoś już zdążył przejść dalej
+        if (data.status !== "roundResult") return;
         const players = data.players;
         const idx = players.findIndex((p) => p.id === data.currentPlayerId);
         const nextIdx = (idx + 1) % players.length;
@@ -3329,8 +3171,7 @@ export default function App() {
         const someoneReachedTarget = Object.values(data.timelines).some((t) => t.length >= data.target);
         const finishingRound = data.finishingRound || someoneReachedTarget;
         const deckExhausted = data.deckIndex >= data.deck.length;
-        // runda kończy się, gdy tura wraca do gracza, który zaczynał —
-        // wtedy wszyscy mieli dokładnie tyle samo tur
+
         const lapWillComplete = players[nextIdx].id === data.startingPlayerId;
 
         if (deckExhausted || (finishingRound && lapWillComplete)) {
@@ -3365,7 +3206,7 @@ export default function App() {
           tx.update(ref, {
             status: "gameover",
             winnerIds,
-            expireAt: new Date(Date.now() + 60 * 60 * 1000), // TTL: zakończone gry znikają po 1h
+            expireAt: new Date(Date.now() + 60 * 60 * 1000),
           });
           gameOverInfo = { winnerIds, players, practiceMode: !!data.practiceMode };
           return;
@@ -3434,9 +3275,7 @@ export default function App() {
       await updateDoc(ref, {
         messages: arrayUnion({ playerId, name: name || user?.displayName || "Gracz", text, ts: Date.now() }),
       });
-    } catch (e) {
-      // ciche niepowodzenie — wiadomość po prostu nie doleci
-    }
+    } catch (e) {}
   }
 
   useEffect(() => {
@@ -3499,8 +3338,6 @@ export default function App() {
         padding: "32px 16px 64px",
       }}
     >
-      {/* Osobny, zawsze ukryty i wyciszony odtwarzacz-tester do wykrywania
-          zepsutych linków — nigdy nie jest tym, co gracze faktycznie słyszą. */}
       <div id="broken-link-validator" style={{ position: "fixed", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none", top: -9999 }} />
 
       <style>{`
@@ -3575,7 +3412,6 @@ export default function App() {
         }
         input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,230,195,0.25); }
 
-        /* --- redesign strony głównej (hs = home screen) --- */
         .hs-wrap { position: relative; }
         .hs-bg { content: ""; position: fixed; inset: 0; height: 100vh; background: url(${homeBg}) center top / cover no-repeat; opacity: 0.5; z-index: 0; pointer-events: none; -webkit-mask-image: linear-gradient(to bottom, black 45%, transparent 85%); mask-image: linear-gradient(to bottom, black 45%, transparent 85%); }
         .hs-content { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 16px; }
@@ -3688,8 +3524,6 @@ export default function App() {
           .hs-h1 { font-size: 24px; }
         }
       `}</style>
-
-
 
       <div className="w-full flex flex-col items-center hs-page" style={{ maxWidth: screen === "home" ? 1200 : 720 }}>
         <div className="w-full" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, flexWrap: "wrap", position: "relative", zIndex: 1 }}>
@@ -5012,2523 +4846,4 @@ export default function App() {
                                     title: s.title,
                                     year: s.year,
                                     url: `https://www.youtube.com/watch?v=${s.videoId}`,
-                                    categoriesText: (s.categories || []).join(";"),
-                                  });
-                                }}
-                                style={{ color: "var(--accent)" }}
-                              >
-                                <Pencil size={16} />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  if (window.confirm(`Na pewno usunąć "${s.artist} — ${s.title}"? Tego nie da się cofnąć.`)) handleAdminDelete(s.id);
-                                }}
-                                disabled={adminBusy}
-                                style={{ color: "var(--bad)" }}
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  {totalPages > 1 && (
-                    <div className="flex items-center justify-center gap-2 flex-wrap mt-2">
-                      <button
-                        onClick={() => setAdminPage((p) => Math.max(1, p - 1))}
-                        disabled={page <= 1}
-                        className="px-3 py-1.5 rounded-lg text-xs font-bold"
-                        style={{ background: page <= 1 ? "#231d38" : "var(--surface2)", color: page <= 1 ? "var(--muted)" : "var(--text)", border: "1px solid #33294f" }}
-                      >
-                        ← Poprzednia
-                      </button>
-                      <span style={{ fontSize: 12, color: "var(--muted)" }}>
-                        Strona {page} / {totalPages}
-                      </span>
-                      <button
-                        onClick={() => setAdminPage((p) => Math.min(totalPages, p + 1))}
-                        disabled={page >= totalPages}
-                        className="px-3 py-1.5 rounded-lg text-xs font-bold"
-                        style={{ background: page >= totalPages ? "#231d38" : "var(--surface2)", color: page >= totalPages ? "var(--muted)" : "var(--text)", border: "1px solid #33294f" }}
-                      >
-                        Następna →
-                      </button>
-                    </div>
-                  )}
-                </>
-              );
-            })()}
-          </div>
-        )}
-
-        {screen === "home" && !showStats && !showLeaderboard && !showAdminPanel && !showAchievements && (
-          <div className="w-full flex flex-col gap-5">
-            {/* PASEK TOŻSAMOŚCI — kompaktowy, jedna linia zamiast całej formy */}
-            <section
-              className="w-full rounded-xl p-3 flex items-center justify-between gap-2 flex-wrap"
-              style={{ background: "var(--surface2)", border: user ? "1px solid #22304f" : "1px dashed #33294f" }}
-            >
-              {user ? (
-                <>
-                  <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 16 }}>Cześć, {user.displayName}!</span>
-                  <button onClick={handleLogout} className="flex items-center gap-1 text-xs" style={{ color: "var(--muted)" }}>
-                    <LogOut size={13} /> Wyloguj
-                  </button>
-                </>
-              ) : (
-                <>
-                  <div className="flex items-center gap-2">
-                    <span style={{ color: "var(--muted)", fontSize: 12 }}>Imię:</span>
-                    <input type="text" value={name} onChange={(e) => saveName(e.target.value)} placeholder="np. Kasia" style={{ width: 120, fontSize: 12, padding: "4px 8px" }} />
-                  </div>
-                  <button onClick={() => setShowAuthForm((v) => !v)} className="text-xs font-bold" style={{ color: "var(--accent)", textDecoration: "underline" }}>
-                    {showAuthForm ? "Zwiń" : "Zaloguj się"}
-                  </button>
-                </>
-              )}
-            </section>
-
-            {!user && showAuthForm && (
-              <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
-                <div className="flex gap-2 mb-3">
-                  <button
-                    onClick={() => setAuthMode("login")}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold"
-                    style={{ background: authMode === "login" ? "var(--accent)" : "var(--surface2)", color: authMode === "login" ? "#1a1428" : "var(--muted)" }}
-                  >
-                    Zaloguj
-                  </button>
-                  <button
-                    onClick={() => setAuthMode("register")}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold"
-                    style={{ background: authMode === "register" ? "var(--accent)" : "var(--surface2)", color: authMode === "register" ? "#1a1428" : "var(--muted)" }}
-                  >
-                    Zarejestruj
-                  </button>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <input type="text" value={authUsername} onChange={(e) => setAuthUsername(e.target.value)} placeholder="Login" />
-                  <input
-                    type="password"
-                    value={authPassword}
-                    onChange={(e) => setAuthPassword(e.target.value)}
-                    placeholder="Hasło (wymyśl inne niż wszędzie indziej!)"
-                  />
-                  <button
-                    onClick={handleAuthSubmit}
-                    disabled={authBusy}
-                    className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold"
-                    style={{ background: "var(--good)", color: "#0d1f1a" }}
-                  >
-                    <LogIn size={16} /> {authMode === "login" ? "Zaloguj się" : "Zarejestruj się"}
-                  </button>
-                  {authError && <p style={{ color: "var(--bad)", fontSize: 12 }}>{authError}</p>}
-                  <p style={{ color: "var(--muted)", fontSize: 11 }}>
-                    Konto = zbieramy Twoje statystyki gier (wygrane, skuteczność odgadywania). Bez konta też możesz grać — podaj tylko imię powyżej.
-                  </p>
-                </div>
-              </section>
-            )}
-
-            {/* REDESIGN — hero + tryby gry + postęp, na realnych assetach i danych */}
-            <div className="hs-wrap">
-              <div className="hs-bg" />
-              <div className="hs-content">
-
-                {/* HERO */}
-                <div className="hs-hero-grid">
-                  <div className="hs-hero-left">
-                    <div className="hs-eyebrow">⟡ Graj teraz</div>
-                    <h1 className="hs-h1">Twój utwór. <span>Twoja zasada.</span></h1>
-                    <p className="hs-sub">Stwórz pokój lub dołącz do gry i baw się muzyką!</p>
-                    <div className="hs-btn-wrap">
-                      <button
-                        onClick={createRoom}
-                        disabled={busy}
-                        style={{ position: "absolute", inset: 0, background: "none", border: "none", cursor: "pointer", padding: 0, zIndex: 4 }}
-                        aria-label="Stwórz pokój"
-                      />
-                      <div className="hs-glow" />
-                      <div className="hs-rim hs-cut" />
-                      <div className="hs-fillbtn hs-cut" />
-                      <div className="hs-btnlabel">STWÓRZ POKÓJ</div>
-                    </div>
-                    <div className="hs-join-row">
-                      <input
-                        type="text"
-                        value={joinCode}
-                        onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                        placeholder="KOD POKOJU"
-                        maxLength={4}
-                        className="hs-input flex-1"
-                        style={{ textAlign: "center", fontSize: 13, letterSpacing: 2 }}
-                      />
-                      <button onClick={() => joinRoom()} disabled={busy} className="hs-join-btn">
-                        Dołącz
-                      </button>
-                    </div>
-                  </div>
-                  <div className="hs-hero-right">
-                    <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, margin: "0 0 6px", maxWidth: 220 }}>
-                      Muzyka łączy.<br /><span style={{ color: "#4fd6ff" }}>Hity zostają.</span>
-                    </h2>
-                    <p style={{ fontSize: 12, color: "#d8d8ea", maxWidth: 220, margin: 0 }}>Rywalizuj, odkrywaj, zdobywaj i wspinaj się na szczyt rankingu!</p>
-                  </div>
-                </div>
-
-                {/* TRYBY GRY + karty boczne */}
-                <div>
-                  <p style={{ color: "var(--muted)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Tryby gry</p>
-                  <div className="hs-tiles-row">
-                    <div className="hs-tile-slot cyan">
-                      <div className="hs-tile-glow" />
-                      <div className="hs-tile-rim" />
-                      <button onClick={() => setScreen("practiceSetup")} className="hs-tile">
-                        <img className="hs-icon" src={glTrening} alt="" />
-                        <div className="hs-t">TRENING</div>
-                        <div className="hs-arrow" style={{ color: "#4fd6ff" }}>›</div>
-                      </button>
-                    </div>
-                    <div className="hs-tile-slot green">
-                      <div className="hs-tile-glow" />
-                      <div className="hs-tile-rim" />
-                      <button onClick={() => setScreen("hitRushMenu")} className="hs-tile">
-                        <img className="hs-icon" src={glHitRush} alt="" />
-                        <div className="hs-t">HIT RUSH</div>
-                        <div className="hs-arrow" style={{ color: "#2af598" }}>›</div>
-                      </button>
-                    </div>
-                    {user && (
-                      <div className="hs-tile-slot pink">
-                        <div className="hs-tile-glow" />
-                        <div className="hs-tile-rim" />
-                        <button onClick={openDailySong} disabled={dailyBusy} className="hs-tile">
-                          <img className="hs-icon" src={glPiosenka} alt="" />
-                          <div className="hs-t">PIOSENKA DNIA</div>
-                          <div className="hs-arrow" style={{ color: "#ff5fc9" }}>›</div>
-                        </button>
-                      </div>
-                    )}
-                    {user && (
-                      <div className="hs-tile-slot violet">
-                        <div className="hs-tile-glow" />
-                        <div className="hs-tile-rim" />
-                        <button onClick={openDailyPlaylistHub} disabled={dailyPlaylistBusy} className="hs-tile">
-                          <img className="hs-icon" src={glPlaylista} alt="" />
-                          <div className="hs-t">PLAYLISTA DNIA</div>
-                          <div className="hs-arrow" style={{ color: "#a56bff" }}>›</div>
-                        </button>
-                      </div>
-                    )}
-                    <div className="hs-tile-slot gold">
-                      <div className="hs-tile-glow" />
-                      <div className="hs-tile-rim" />
-                      <div className="hs-badge">★ PREMIUM</div>
-                      <button onClick={activeTournament ? openTournamentHub : undefined} disabled={tournamentBusy} className="hs-tile" style={{ cursor: activeTournament ? "pointer" : "default" }}>
-                        <img className="hs-icon" src={glTurniej} alt="" />
-                        <div className="hs-t">TURNIEJ</div>
-                        <div className="hs-d">
-                          {activeTournament
-                            ? activeTournament.status === "signup"
-                              ? `${activeTournament.signups.length}/${activeTournament.maxPlayers} zapisanych`
-                              : "trwa!"
-                            : lastCompletedTournament
-                            ? `Wygrał: ${lastCompletedTournament.signups?.find((p) => p.uid === lastCompletedTournament.winnerUid)?.name || "?"} · wkrótce kolejny!`
-                            : "Wkrótce pierwszy turniej!"}
-                        </div>
-                        <div className="hs-arrow" style={{ color: "#f5c451" }}>›</div>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {user && stats && (
-                  <button
-                    onClick={() => {
-                      if (stats.lastDailyHitcoinDate === currentDayKey()) return;
-                      setShowDailyWheel(true);
-                    }}
-                    className="hs-side-card"
-                    style={{ width: "100%", textAlign: "left" }}
-                  >
-                    <img src={glPrezent} alt="" style={{ height: 34, filter: "drop-shadow(0 0 8px rgba(79,224,192,0.4))" }} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>NAGRODA DNIA</div>
-                      <div style={{ fontSize: 11, color: "var(--muted)" }}>{stats.lastDailyHitcoinDate === currentDayKey() ? "Odebrane — wróć jutro" : "Kliknij, żeby zakręcić kołem"}</div>
-                    </div>
-                    {stats.lastDailyHitcoinDate !== currentDayKey() && (
-                      <span style={{ borderRadius: 8, border: "1px solid #4fe0c0", color: "#4fe0c0", fontSize: 11, padding: "6px 12px", fontWeight: 700 }}>🎡</span>
-                    )}
-                  </button>
-                )}
-
-                {/* TWÓJ POSTĘP */}
-                {user && stats && (
-                  <div>
-                    <p style={{ color: "var(--muted)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Twój postęp</p>
-                    <div className="hs-stats-grid">
-                      <button onClick={openAlbum} className="hs-stat-tile" style={{ borderColor: "#4fd6ff", boxShadow: "0 0 20px rgba(79,214,255,0.5)" }}>
-                        <img src={glKolekcja} alt="" />
-                        <div><div className="hs-lbl">Kolekcja</div><div className="hs-val">{Object.keys(stats.cardCollection || {}).length}/{totalSongCount ?? effectivePool.length}</div></div>
-                      </button>
-                      <button onClick={() => setShowAchievements(true)} className="hs-stat-tile" style={{ borderColor: "#a56bff", boxShadow: "0 0 20px rgba(165,107,255,0.5)" }}>
-                        <img src={glMedal} alt="" />
-                        <div><div className="hs-lbl">Osiągnięcia</div><div className="hs-val">{getAchievementProgress(stats, levelFromXp(stats.xp).level).filter((a) => a.qualifies).length}/{ACHIEVEMENTS.length}</div></div>
-                      </button>
-                      <button onClick={openStats} className="hs-stat-tile" style={{ borderColor: "#4fd6ff", boxShadow: "0 0 20px rgba(79,214,255,0.5)" }}>
-                        <img src={glStatystyki} alt="" />
-                        <div><div className="hs-lbl">Statystyki</div><div className="hs-val">{stats.gamesPlayed ? Math.round(((stats.gamesWon || 0) / stats.gamesPlayed) * 100) + "%" : "—"}</div></div>
-                      </button>
-                      <button onClick={() => openLeaderboard()} className="hs-stat-tile" style={{ borderColor: "#f5c451", boxShadow: "0 0 20px rgba(245,196,81,0.5)" }}>
-                        <img src={glKorona} alt="" />
-                        <div><div className="hs-lbl">Ranking</div><div className="hs-val">TOP 10</div></div>
-                      </button>
-                      <button onClick={() => setScreen("packShop")} className="hs-stat-tile" style={{ borderColor: "#4fe0c0", boxShadow: "0 0 20px rgba(79,224,192,0.5)" }}>
-                        <img src={glKoszyk} alt="" />
-                        <div><div className="hs-lbl">Sklep</div><div className="hs-val">Nowe!</div></div>
-                      </button>
-                      <button onClick={() => setShowOnlineList((v) => !v)} className="hs-stat-tile" style={{ borderColor: "#ff5fc9", boxShadow: "0 0 20px rgba(255,95,201,0.5)" }}>
-                        <img src={glOsoba} alt="" />
-                        <div><div className="hs-lbl">Społeczność</div><div className="hs-val">{onlinePlayers.length}</div></div>
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-              </div>
-            </div>
-
-            {user && (
-              <>
-                <button
-                  onClick={() => setShowProposeForm((v) => !v)}
-                  className="hs-side-card"
-                  style={{ width: "100%", textAlign: "left", borderColor: "#4fe0c0", boxShadow: "0 0 18px rgba(79,224,192,0.35)", cursor: "pointer" }}
-                >
-                  <img src={iconZaproponuj} alt="" style={{ height: 30, filter: "drop-shadow(0 0 8px rgba(79,224,192,0.4))" }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--good)" }}>ZAPROPONUJ NOWY UTWÓR</div>
-                    <div style={{ fontSize: 11, color: "var(--muted)" }}>Masz pomysł na hit?</div>
-                  </div>
-                  <span style={{ color: "var(--good)", fontSize: 18 }}>{showProposeForm ? "▲" : "›"}</span>
-                </button>
-
-                {showProposeForm && (
-                  <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
-                    {proposeSuccess ? (
-                      <p style={{ color: "var(--good)", fontSize: 13, textAlign: "center" }}>✓ Dzięki! Propozycja czeka na zatwierdzenie.</p>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        <div className="flex gap-2 flex-wrap">
-                          <input type="text" placeholder="Wykonawca" value={proposeDraft.artist} onChange={(e) => setProposeDraft({ ...proposeDraft, artist: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
-                          <input type="text" placeholder="Tytuł" value={proposeDraft.title} onChange={(e) => setProposeDraft({ ...proposeDraft, title: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
-                        </div>
-                        <input type="text" placeholder="Link YouTube" value={proposeDraft.url} onChange={(e) => setProposeDraft({ ...proposeDraft, url: e.target.value })} />
-                        <input type="number" placeholder="Rok" value={proposeDraft.year} onChange={(e) => setProposeDraft({ ...proposeDraft, year: e.target.value })} style={{ width: 90 }} />
-
-                        <p style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginTop: 4 }}>Kategorie (min. 1)</p>
-                        <div className="flex flex-wrap gap-2">
-                          {CATEGORIES.map((c) => {
-                            const active = proposeDraft.categories.includes(c.slug);
-                            return (
-                              <button
-                                key={c.slug}
-                                type="button"
-                                onClick={() => toggleProposeCategory(c.slug)}
-                                className="px-3 py-1.5 rounded-lg text-xs font-bold"
-                                style={{ background: active ? "var(--accent)" : "var(--surface2)", color: active ? "#1a1428" : "var(--muted)" }}
-                              >
-                                {c.label}
-                              </button>
-                            );
-                          })}
-                        </div>
-
-                        {proposeError && <p style={{ color: "var(--bad)", fontSize: 12 }}>{proposeError}</p>}
-                        <button onClick={handleSubmitProposal} disabled={proposeBusy} className="px-4 py-2 rounded-lg text-sm font-bold mt-1" style={{ background: "var(--good)", color: "#0d1f1a" }}>
-                          Wyślij propozycję
-                        </button>
-                      </div>
-                    )}
-                  </section>
-                )}
-              </>
-            )}
-
-            {adminUnlocked ? (
-              <button
-                onClick={() => setShowAdminPanel(true)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold"
-                style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
-              >
-                <img src={iconAdmin} alt="" style={{ height: 20 }} /> Panel admina ({effectivePool.length} utworów)
-              </button>
-            ) : showAdminLogin ? (
-              <div className="w-full rounded-xl p-3 flex gap-2 items-center flex-wrap" style={{ background: "var(--surface2)", border: "1px solid #33294f" }}>
-                <input
-                  type="password"
-                  value={adminPasswordInput}
-                  onChange={(e) => setAdminPasswordInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && unlockAdmin()}
-                  placeholder="Hasło admina"
-                  className="flex-1"
-                  style={{ minWidth: 120 }}
-                />
-                <button onClick={unlockAdmin} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: "var(--accent)", color: "#1a1428" }}>
-                  Odblokuj
-                </button>
-                {adminError && <span style={{ color: "var(--bad)", fontSize: 11 }}>{adminError}</span>}
-              </div>
-            ) : (
-              <button
-                onClick={() => setShowAdminLogin(true)}
-                className="self-center text-xs"
-                style={{ color: "var(--muted)" }}
-              >
-                🔐 Tryb admina
-              </button>
-            )}
-          </div>
-        )}
-
-        {screen === "dailyPlaylistHub" && (
-          <div className="w-full flex flex-col gap-5">
-            <button onClick={() => setScreen("home")} className="self-start flex items-center gap-1 text-xs" style={{ color: "var(--muted)" }}>
-              ← Wróć
-            </button>
-
-            <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
-              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
-                <img src={iconPlaylistaDnia} alt="" style={{ height: 28 }} /> PLAYLISTA DNIA
-              </h2>
-              <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 14 }}>
-                10 tych samych piosenek dla wszystkich graczy dzisiaj — ułóż je poprawnie na osi czasu, jedna po drugiej.
-              </p>
-              {dailyPlaylistAlreadyPlayed ? (
-                <div className="rounded-xl p-4 text-center" style={{ background: "var(--surface2)" }}>
-                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: "var(--accent)" }}>
-                    Dzisiejszy wynik: {dailyPlaylistAlreadyPlayed.score} / 10
-                  </p>
-                  <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>Wróć jutro po kolejną playlistę!</p>
-                </div>
-              ) : (
-                <button onClick={startDailyPlaylistGame} disabled={busy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
-                  ZAGRAJ
-                </button>
-              )}
-            </section>
-
-            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
-              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🏆 Ranking dnia</p>
-              {dailyPlaylistDailyBoard.length === 0 ? (
-                <p style={{ color: "var(--muted)", fontSize: 12 }}>Nikt jeszcze dziś nie grał — możesz być pierwszy!</p>
-              ) : (
-                <div className="flex flex-col gap-1">
-                  {dailyPlaylistDailyBoard.map((e, i) => (
-                    <div key={e.uid} className="flex items-center justify-between text-sm">
-                      <span>
-                        #{i + 1} {e.name}
-                      </span>
-                      <span style={{ color: "var(--accent)" }}>{e.score} / 10</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <p style={{ color: "var(--muted)", fontSize: 10, marginTop: 8 }}>Przy remisie decyduje czas wykonania — kto szybszy, wyżej.</p>
-            </section>
-
-            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
-              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>📆 Ranking tygodnia</p>
-              {dailyPlaylistWeeklyBoard.length === 0 ? (
-                <p style={{ color: "var(--muted)", fontSize: 12 }}>Brak jeszcze wyników w tym tygodniu.</p>
-              ) : (
-                <div className="flex flex-col gap-1">
-                  {dailyPlaylistWeeklyBoard.map((e, i) => (
-                    <div key={e.uid} className="flex items-center justify-between text-sm">
-                      <span>
-                        #{i + 1} {e.name} <span style={{ color: "var(--muted)", fontSize: 10 }}>({e.gamesPlayed} gier)</span>
-                      </span>
-                      <span style={{ color: "var(--accent)" }}>{e.score} pkt</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <p style={{ color: "var(--muted)", fontSize: 10, marginTop: 8 }}>
-                Nagrody za tydzień (od poniedziałku):{" "}
-                <img src={ach1Miejsce} alt="" style={{ height: 14, display: "inline", verticalAlign: "middle" }} /> +500 XP ·{" "}
-                <img src={ach2Miejsce} alt="" style={{ height: 14, display: "inline", verticalAlign: "middle" }} /> +250 XP ·{" "}
-                <img src={ach3Miejsce} alt="" style={{ height: 14, display: "inline", verticalAlign: "middle" }} /> +100 XP — przyznawane automatycznie na starcie nowego tygodnia.
-              </p>
-            </section>
-
-            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
-              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>⭐ Ranking wszech czasów</p>
-              {dailyPlaylistAllTimeBoard.length === 0 ? (
-                <p style={{ color: "var(--muted)", fontSize: 12 }}>Brak jeszcze żadnych wyników.</p>
-              ) : (
-                <div className="flex flex-col gap-1">
-                  {dailyPlaylistAllTimeBoard.map((e, i) => (
-                    <div key={e.uid} className="flex items-center justify-between text-sm">
-                      <span>
-                        #{i + 1} {e.username} <span style={{ color: "var(--muted)", fontSize: 10 }}>({e.playlistGamesPlayed || 0} gier)</span>
-                      </span>
-                      <span style={{ color: "var(--gold)" }}>{e.playlistTotalScore || 0} pkt</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          </div>
-        )}
-
-        {screen === "tournamentHub" && activeTournament && (
-          <div className="w-full flex flex-col gap-5">
-            <button onClick={() => setScreen("home")} className="self-start flex items-center gap-1 text-xs" style={{ color: "var(--muted)" }}>
-              ← Wróć
-            </button>
-
-            <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid var(--gold)" }}>
-              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 8, color: "var(--gold)", display: "flex", alignItems: "center", gap: 8 }}>
-                <img src={iconTurniej} alt="" style={{ height: 28 }} /> TURNIEJ
-              </h2>
-              <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 14 }}>
-                Wpisowe: {activeTournament.entryFee} XP — przegrani tracą je na koniec turnieju, zwycięzca zgarnia całą pulę.
-              </p>
-
-              {activeTournament.status === "signup" && (() => {
-                const alreadyIn = activeTournament.signups.some((p) => p.uid === user?.uid);
-                return (
-                  <>
-                    <p style={{ fontSize: 13, marginBottom: 10 }}>
-                      Zapisanych: <strong>{activeTournament.signups.length}/{activeTournament.maxPlayers}</strong>
-                    </p>
-                    <div className="flex flex-col gap-1 mb-4">
-                      {activeTournament.signups.map((p) => (
-                        <p key={p.uid} style={{ fontSize: 13, color: "var(--muted)" }}>
-                          • {p.name} {p.uid === user?.uid && <span style={{ color: "var(--accent)" }}>(Ty)</span>}
-                        </p>
-                      ))}
-                    </div>
-                    {alreadyIn ? (
-                      <p style={{ color: "var(--good)", fontSize: 13 }}>✓ Jesteś zapisany — czekamy na resztę.</p>
-                    ) : (
-                      <button onClick={handleTournamentSignUp} disabled={tournamentBusy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
-                        ZAPISZ SIĘ ({activeTournament.entryFee} XP wpisowego)
-                      </button>
-                    )}
-                  </>
-                );
-              })()}
-
-              {activeTournament.status === "active" &&
-                activeTournament.rounds.map((round) => (
-                  <div key={round.roundNumber} className="mb-4">
-                    <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>
-                      {round.matches.length === 1 ? "Finał" : `Runda ${round.roundNumber}`}
-                    </p>
-                    <div className="flex flex-col gap-2">
-                      {round.matches.map((m) => {
-                        const isMine = user && (m.player1.uid === user.uid || m.player2?.uid === user.uid);
-                        const myResult = m.player1.uid === user?.uid ? m.player1Result : m.player2Result;
-                        const canPlay = isMine && !m.winnerUid && !myResult;
-                        return (
-                          <div key={m.matchId} className="rounded-xl p-3" style={{ background: "var(--surface2)" }}>
-                            <div className="flex items-center justify-between text-sm">
-                              <span style={{ fontWeight: m.winnerUid === m.player1.uid ? "bold" : "normal", color: m.winnerUid === m.player1.uid ? "var(--good)" : "var(--text)" }}>
-                                {m.player1.name} {m.player1Result && `(${m.player1Result.score}/10)`}
-                              </span>
-                              <span style={{ color: "var(--muted)", fontSize: 11 }}>vs</span>
-                              <span style={{ fontWeight: m.winnerUid === m.player2?.uid ? "bold" : "normal", color: m.winnerUid === m.player2?.uid ? "var(--good)" : "var(--text)" }}>
-                                {m.player2 ? `${m.player2.name} ${m.player2Result ? `(${m.player2Result.score}/10)` : ""}` : "wolny los"}
-                              </span>
-                            </div>
-                            {canPlay && (
-                              <button
-                                onClick={() => startTournamentMatch(m, round.roundNumber)}
-                                disabled={busy}
-                                className="w-full mt-2 py-2 rounded-lg text-xs font-bold"
-                                style={{ background: "var(--good)", color: "#0d1f1a" }}
-                              >
-                                Zagraj swój mecz
-                              </button>
-                            )}
-                            {isMine && myResult && !m.winnerUid && (
-                              <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>Zagrałeś — czekamy na przeciwnika.</p>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-
-              {activeTournament.status === "completed" && (
-                <div className="text-center">
-                  <p style={{ fontSize: 32 }}>🏆</p>
-                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "var(--gold)" }}>
-                    {activeTournament.signups.find((p) => p.uid === activeTournament.winnerUid)?.name} wygrywa turniej!
-                  </p>
-                  {activeTournament.winnerUid === user?.uid ? (
-                    <p style={{ color: "var(--good)", fontSize: 13, marginTop: 6 }}>Zgarniasz {(activeTournament.signups.length - 1) * activeTournament.entryFee} XP!</p>
-                  ) : (
-                    <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 6 }}>Tracisz {activeTournament.entryFee} XP wpisowego.</p>
-                  )}
-                </div>
-              )}
-            </section>
-          </div>
-        )}
-
-        {screen === "album" && (
-          <div className="w-full flex flex-col gap-5">
-            <button onClick={() => setScreen("home")} className="self-start flex items-center gap-1 text-xs" style={{ color: "var(--muted)" }}>
-              ← Wróć
-            </button>
-
-            {!albumSongs ? (
-              <p style={{ color: "var(--muted)", fontSize: 13, textAlign: "center" }}>Wczytuję kolekcję…</p>
-            ) : (
-              (() => {
-                const myCollection = stats?.cardCollection || {};
-                const bySongId = new Map(albumSongs.map((s) => [s.id, s]));
-                const counts = {};
-                RARITY_ORDER.forEach((r) => (counts[r] = { owned: 0, total: 0 }));
-                albumSongs.forEach((s) => {
-                  const r = effectiveRarity(s);
-                  counts[r].total++;
-                  if (myCollection[s.id]) counts[r].owned++;
-                });
-                const totalOwned = Object.keys(myCollection).length;
-                const totalDuplicates = Object.values(myCollection).reduce((sum, c) => sum + Math.max(0, c - 1), 0);
-
-                const tabSongs = albumSongs.filter((s) => effectiveRarity(s) === albumSelectedRarity);
-                const visibleSongs = albumOnlyOwned ? tabSongs.filter((s) => myCollection[s.id]) : tabSongs;
-                const shown = visibleSongs.slice(0, albumVisibleCount);
-
-                return (
-                  <>
-                    <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(79,214,255,0.4)", boxShadow: "0 0 26px rgba(79,214,255,0.18)" }}>
-                      <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 4, color: "#4fd6ff", display: "flex", alignItems: "center", gap: 8 }}>
-                        <img src={achAlbum} alt="" style={{ height: 28 }} /> ALBUM
-                      </h2>
-                      <p style={{ fontSize: 13, marginBottom: 10 }}>
-                        Kolekcja: {totalOwned}/{albumSongs.length}
-                      </p>
-                      <div className="flex flex-wrap gap-2 mb-3">
-                        {RARITY_ORDER.map((r) => (
-                          <span key={r} style={{ fontSize: 10, color: RARITY_INFO[r].color }}>
-                            {RARITY_INFO[r].icon} {counts[r].owned}/{counts[r].total}
-                          </span>
-                        ))}
-                      </div>
-                      {totalDuplicates > 0 && (
-                        <button
-                          onClick={() => {
-                            if (window.confirm(`Sprzedać wszystkie duplikaty (${totalDuplicates} kart)? Zostanie po 1 sztuce każdej.`)) handleSellAllDuplicates();
-                          }}
-                          disabled={albumSellBusy}
-                          className="px-4 py-2 rounded-lg text-xs font-bold"
-                          style={{ background: "var(--surface2)", border: "1px solid var(--gold)", color: "var(--gold)" }}
-                        >
-                          Sprzedaj wszystkie duplikaty ({totalDuplicates})
-                        </button>
-                      )}
-                    </section>
-
-                    <div className="flex flex-wrap gap-2">
-                      {RARITY_ORDER.map((r) => (
-                        <button
-                          key={r}
-                          onClick={() => {
-                            setAlbumSelectedRarity(r);
-                            setAlbumVisibleCount(60);
-                          }}
-                          className="px-3 py-1.5 rounded-full text-xs font-bold"
-                          style={{
-                            background: albumSelectedRarity === r ? RARITY_INFO[r].color : "var(--surface2)",
-                            color: albumSelectedRarity === r ? "#0a0410" : RARITY_INFO[r].color,
-                          }}
-                        >
-                          {RARITY_INFO[r].icon} {RARITY_INFO[r].label}
-                        </button>
-                      ))}
-                    </div>
-
-                    <label className="flex items-center gap-2 text-xs" style={{ color: "var(--muted)" }}>
-                      <input type="checkbox" checked={albumOnlyOwned} onChange={(e) => setAlbumOnlyOwned(e.target.checked)} />
-                      Pokaż tylko zdobyte
-                    </label>
-
-                    <div className="flex flex-wrap gap-2 justify-center">
-                      {shown.map((s) => {
-                        const owned = myCollection[s.id] || 0;
-                        return owned ? (
-                          <div key={s.id} style={{ position: "relative" }}>
-                            <CollectibleCard song={s} size={100} onClick={() => setZoomedCard(s)} />
-                            {owned > 1 && (
-                              <span
-                                style={{
-                                  position: "absolute",
-                                  top: 4,
-                                  right: 4,
-                                  fontSize: 9,
-                                  background: "var(--surface)",
-                                  border: "1px solid var(--gold)",
-                                  color: "var(--gold)",
-                                  borderRadius: 999,
-                                  padding: "1px 6px",
-                                  fontWeight: "bold",
-                                }}
-                              >
-                                ×{owned}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <div
-                            key={s.id}
-                            style={{
-                              width: 100,
-                              height: 130,
-                              borderRadius: 10,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              background: "rgba(20,26,38,0.5)",
-                              border: "1px dashed #33294f",
-                            }}
-                          >
-                            <span style={{ fontSize: 18, color: "var(--muted)" }}>🔒 ?</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {visibleSongs.length > albumVisibleCount && (
-                      <button
-                        onClick={() => setAlbumVisibleCount((v) => v + 60)}
-                        className="self-center px-4 py-2 rounded-lg text-xs font-bold"
-                        style={{ background: "var(--surface2)", border: "1px solid #33294f", color: "var(--muted)" }}
-                      >
-                        Pokaż więcej ({visibleSongs.length - albumVisibleCount} pozostało)
-                      </button>
-                    )}
-                  </>
-                );
-              })()
-            )}
-          </div>
-        )}
-
-        {screen === "packShop" && (
-          <div className="w-full flex flex-col gap-5">
-            <button
-              onClick={() => {
-                setScreen("home");
-                setPackOpenResult(null);
-              }}
-              className="self-start flex items-center gap-1 text-xs"
-              style={{ color: "var(--muted)" }}
-            >
-              ← Wróć
-            </button>
-
-            {!packOpenResult ? (
-              <>
-                <div className="w-full text-center">
-                  <img src={iconSklep} alt="" style={{ height: 48, margin: "0 auto 6px" }} />
-                  <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 36, letterSpacing: 3, color: "#4fd6ff", textShadow: "0 0 20px rgba(79,214,255,0.5)" }}>
-                    SKLEP
-                  </h2>
-                  <p style={{ color: "var(--muted)", fontSize: 12 }}>3 dostępne paczki z kartami do Twojego albumu</p>
-                </div>
-
-                <div className="w-full flex flex-wrap gap-6 md:gap-10 justify-center" style={{ scrollbarWidth: "none" }}>
-                  {[
-                    { key: "50", name: "PODSTAWOWA", img: packPodstawowa },
-                    { key: "75", name: "ROZSZERZONA", img: packRozszerzona },
-                    { key: "100", name: "PREMIUM", img: packPremium },
-                  ].map(({ key, name, img }) => {
-                    const config = PACKS[key];
-                    return (
-                      <div key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                        <img
-                          src={img}
-                          alt={name}
-                          className="h-44 md:h-64"
-                          style={{ width: "auto", filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.55))" }}
-                        />
-                        <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, marginTop: 12, letterSpacing: 1 }}>{name}</p>
-                        <p style={{ fontSize: 12, color: "var(--muted)" }}>{config.cards} kart</p>
-                        <button
-                          onClick={() => buyPack(key)}
-                          disabled={packShopBusy || (myHitcoin ?? 0) < config.price}
-                          className="mt-3 px-5 py-2 rounded-full text-base font-bold flex items-center gap-2"
-                          style={{
-                            background: "var(--surface2)",
-                            border: "1px solid var(--gold)",
-                            color: "var(--gold)",
-                            opacity: (myHitcoin ?? 0) < config.price ? 0.5 : 1,
-                          }}
-                        >
-                          <img src={iconHitcoin} alt="" style={{ height: 18 }} /> {config.price}
-                        </button>
-                        <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>{(config.diamondChance * 100).toFixed(1)}% szans na Diament</p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            ) : (
-              <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 26px rgba(245,196,81,0.18)" }}>
-                {showConfetti && <Confetti />}
-                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, marginBottom: 4, textAlign: "center" }}>Kliknij, żeby odkryć kartę</h2>
-                <div className="flex flex-wrap justify-center gap-4 mt-4">
-                  {packOpenResult.map((item, i) => {
-                    const revealed = packRevealedIndices.has(i);
-                    const rarity = effectiveRarity(item.song);
-                    const glowColor = REVEAL_GLOW_COLORS[rarity];
-                    return (
-                      <div key={i} style={{ position: "relative" }}>
-                        {revealed && glowColor && (
-                          <div
-                            style={{
-                              position: "absolute",
-                              inset: -20,
-                              borderRadius: "50%",
-                              background: `radial-gradient(circle, ${glowColor}, transparent 70%)`,
-                              animation: "reveal-glow-burst 0.8s ease-out",
-                              pointerEvents: "none",
-                            }}
-                          />
-                        )}
-                        <div style={{ position: "relative", animation: revealed ? "card-reveal-flash 0.5s ease" : "none" }}>
-                          {revealed ? (
-                            <div className="flex flex-col items-center">
-                              <CollectibleCard song={item.song} size={130} onClick={() => setZoomedCard(item.song)} />
-                              {item.isDuplicate && <p style={{ fontSize: 9, color: "var(--muted)", marginTop: 4 }}>masz już tę kartę</p>}
-                            </div>
-                          ) : (
-                            <CardBack
-                              size={130}
-                              glowColor={glowColor}
-                              onClick={() => {
-                                setPackRevealedIndices((prev) => new Set(prev).add(i));
-                                if (rarity === "diamentowa") {
-                                  setShowConfetti(true);
-                                  setTimeout(() => setShowConfetti(false), 2500);
-                                }
-                              }}
-                            />
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                {packRevealedIndices.size === packOpenResult.length && (
-                  <button
-                    onClick={() => setPackOpenResult(null)}
-                    className="w-full mt-5 py-3 rounded-xl text-sm font-bold btn-grad"
-                  >
-                    Gotowe
-                  </button>
-                )}
-              </section>
-            )}
-          </div>
-        )}
-
-        {screen === "practiceSetup" && (
-          <div className="w-full flex flex-col gap-5">
-            <button onClick={() => setScreen("home")} className="self-start flex items-center gap-1 text-xs" style={{ color: "var(--muted)" }}>
-              ← Wróć
-            </button>
-
-            <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
-              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, marginBottom: 12 }}>🎯 USTAWIENIA TRENINGU</h2>
-
-              <div className="flex items-center gap-2 mb-4">
-                <label className="text-xs uppercase" style={{ color: "var(--muted)" }}>Kart do zebrania:</label>
-                <input type="number" min={1} value={practiceTarget} onChange={(e) => setPracticeTarget(parseInt(e.target.value, 10) || "")} style={{ width: 60 }} />
-              </div>
-
-              <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase", marginBottom: 8 }}>Kategorie</p>
-              <div className="flex flex-wrap gap-2 mb-4">
-                {[{ slug: "wszystkie", label: "Wszystkie" }, ...CATEGORIES].map((c) => {
-                  const active = selectedCategories.includes(c.slug);
-                  return (
-                    <button
-                      key={c.slug}
-                      type="button"
-                      onClick={() => toggleCategory(c.slug)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-bold"
-                      style={{ background: active ? "var(--accent)" : "var(--surface2)", color: active ? "#1a1428" : "var(--muted)" }}
-                    >
-                      {c.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 14 }}>
-                {(() => {
-                  const filterActive = !selectedCategories.includes("wszystkie") && selectedCategories.length > 0;
-                  const nonReligijne = effectivePool.filter((s) => !normCategories(s.categories).includes("religijne"));
-                  const count = filterActive
-                    ? effectivePool.filter((s) => normCategories(s.categories).some((c) => selectedCategories.includes(c))).length
-                    : nonReligijne.length;
-                  return filterActive
-                    ? `${count} utworów pasuje do wybranych kategorii (z ${effectivePool.length} w całej bibliotece).`
-                    : `Trenujesz z biblioteką ${count} utworów (bez kategorii Religijne — dodaj ją ręcznie, jeśli chcesz ją włączyć).`;
-                })()}
-              </p>
-
-              <button onClick={startPractice} disabled={busy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
-                ROZPOCZNIJ TRENING
-              </button>
-            </section>
-          </div>
-        )}
-
-        {screen === "hitRushMenu" && (
-          <div className="w-full flex flex-col items-center" style={{ maxWidth: 460, gap: 10 }}>
-            <img src={glHitRush} alt="" style={{ height: 56, filter: "drop-shadow(0 0 14px rgba(42,245,152,0.5))" }} />
-            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, color: "#2af598", marginTop: -10, marginBottom: -2 }}>HIT RUSH</p>
-
-            <div
-              className="w-full flex flex-col items-center justify-center text-center"
-              style={{ aspectRatio: "1672 / 941", backgroundImage: `url(${hitrushMenuDesc})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", padding: "24% 13%", minHeight: 0 }}
-            >
-              <p style={{ fontSize: 13, color: "#e4defa", lineHeight: 1.5 }}>
-                Zgadnij, czy grany utwór jest <span style={{ color: "#4fd6ff" }}>wcześniejszy</span> czy{" "}
-                <span style={{ color: "#ff5fc9" }}>późniejszy</span> od karty referencyjnej.
-              </p>
-            </div>
-            <button
-              onClick={() => setShowHitRushFaq(true)}
-              className="flex items-center gap-1.5"
-              style={{ background: "none", border: "none", color: "var(--muted)", fontSize: 11, padding: 0, marginTop: -4 }}
-            >
-              <span
-                style={{ width: 16, height: 16, borderRadius: "50%", border: "1px solid var(--muted)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, flexShrink: 0 }}
-              >
-                i
-              </span>
-              Jak grać?
-            </button>
-
-            {stats && (
-              <div className="w-full grid grid-cols-2 gap-3">
-                <div
-                  className="flex flex-col items-center justify-center text-center"
-                  style={{ aspectRatio: "1448 / 1086", backgroundImage: `url(${hitrushMenuBlue})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", padding: "32% 12%", minHeight: 0 }}
-                >
-                  <p style={{ fontSize: 9.5, color: "#9fd8ff", textTransform: "uppercase", letterSpacing: 0.3 }}>Twój rekord</p>
-                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#bfeeff" }}>
-                    {stats.hitRushBestScore || 0} <span style={{ fontSize: 11 }}>PKT</span>
-                  </p>
-                </div>
-                <div
-                  className="flex flex-col items-center justify-center text-center"
-                  style={{ aspectRatio: "1448 / 1086", backgroundImage: `url(${hitrushMenuPink})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", padding: "32% 12%", minHeight: 0 }}
-                >
-                  <p style={{ fontSize: 9.5, color: "#ffb3ec", textTransform: "uppercase", letterSpacing: 0.3 }}>Najlepsze combo</p>
-                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#ffd7f3" }}>🔥 {stats.hitRushBestCombo || 0}</p>
-                </div>
-              </div>
-            )}
-
-            <button
-              onClick={startHitRush}
-              className="w-full flex items-center justify-center font-bold"
-              style={{ aspectRatio: "2172 / 724", backgroundImage: `url(${hitrushMenuStart})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", border: "none", color: "#fff", fontSize: 22, fontFamily: "'Bebas Neue', sans-serif" }}
-            >
-              ▶ START
-            </button>
-            <button
-              onClick={() => {
-                setScreen("hitRushLeaderboard");
-                loadHitRushLeaderboard("weekly");
-              }}
-              className="w-full flex items-center justify-center font-bold"
-              style={{ aspectRatio: "2172 / 724", backgroundImage: `url(${hitrushMenuGold})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", border: "none", color: "#ffd98a", fontSize: 15, marginBottom: -10 }}
-            >
-              🏆 Ranking Hit Rush
-            </button>
-            <button
-              onClick={goHome}
-              className="w-full flex items-center justify-center font-bold"
-              style={{ aspectRatio: "2172 / 724", backgroundImage: `url(${hitrushMenuBlueThin})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", border: "none", color: "#bfeeff", fontSize: 15 }}
-            >
-              ← Wróć
-            </button>
-          </div>
-        )}
-
-        {screen === "hitRush" && hitRush && !hitRushResult && (
-          <div className="w-full flex flex-col items-center gap-3">
-            <div style={{ width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }}>
-              <iframe
-                key={hitRush.currentCard.videoId}
-                ref={hitRushIframeRef}
-                title="hitrush-audio"
-                width="280"
-                height="158"
-                src={`https://www.youtube.com/embed/${hitRush.currentCard.videoId}?enablejsapi=1&autoplay=1&mute=0&start=${hitRush.currentStartSeconds}&controls=0&modestbranding=1&rel=0`}
-                allow="autoplay; encrypted-media"
-                style={{ border: "none" }}
-                onLoad={unlockHitRushAudio}
-              />
-            </div>
-
-            <div
-              className="w-full rounded-xl flex items-center justify-around"
-              style={{ background: "#0c0c1c", border: "1px solid rgba(79,214,255,0.4)", boxShadow: "0 0 20px rgba(79,214,255,0.15)", padding: "10px 6px" }}
-            >
-              <div className="text-center">
-                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: hitRush.timeLeft <= 10 ? "var(--bad)" : "#fff", textShadow: hitRush.timeLeft <= 10 ? "0 0 14px rgba(232,97,93,0.7)" : "none" }}>
-                  ⏱ {hitRush.timeLeft}s
-                </p>
-                <p style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase" }}>Czas</p>
-              </div>
-              <div className="text-center">
-                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: "#2af598" }}>{hitRush.score}</p>
-                <p style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase" }}>Wynik</p>
-              </div>
-              <div className="text-center" style={{ minWidth: 74 }}>
-                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "var(--gold)" }}>
-                  🔥 {hitRush.combo % HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO || (hitRush.combo > 0 ? HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO : 0)}/{HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO}
-                </p>
-                <div className="w-full rounded-full" style={{ height: 4, background: "#0d0a17", overflow: "hidden", marginTop: 2 }}>
-                  <div
-                    style={{
-                      height: "100%",
-                      width: `${((hitRush.combo % HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO) / HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO) * 100 || (hitRush.combo > 0 ? 100 : 0)}%`,
-                      background: "linear-gradient(90deg,#ff5fc9,#f5c451)",
-                    }}
-                  />
-                </div>
-                <p style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase" }}>Combo +{HIT_RUSH_CONFIG.TIME_BONUS_SECONDS}s</p>
-              </div>
-            </div>
-
-            <div
-              className="rounded-full"
-              style={{
-                padding: "4px 18px",
-                border: `1.3px solid ${{ easy: "#4fd6ff", normal: "#a56bff", hard: "#ff5fc9", expert: "#f5c451", insane: "var(--bad)" }[difficultyLabel(hitRush.combo)]}`,
-                color: { easy: "#4fd6ff", normal: "#a56bff", hard: "#ff5fc9", expert: "#f5c451", insane: "var(--bad)" }[difficultyLabel(hitRush.combo)],
-                fontSize: 12,
-                fontWeight: "bold",
-                letterSpacing: 1,
-                textTransform: "uppercase",
-              }}
-            >
-              {{ easy: "Łatwo", normal: "Normalnie", hard: "Trudno", expert: "Ekspert", insane: "Szaleństwo" }[difficultyLabel(hitRush.combo)]}
-            </div>
-
-            <div
-              className="w-full flex flex-col items-center justify-center text-center"
-              style={{
-                aspectRatio: "1448 / 1086",
-                backgroundImage: `url(${hitrushFrameRef})`,
-                backgroundSize: "100% 100%",
-                backgroundRepeat: "no-repeat",
-                padding: "17% 13%",
-              }}
-            >
-              <p style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1 }}>Karta referencyjna</p>
-              <p style={{ fontSize: 17, fontWeight: "bold", marginTop: 6, lineHeight: 1.2 }}>{hitRush.referenceCard.artist}</p>
-              <p style={{ fontSize: 13, color: "var(--muted)" }}>{hitRush.referenceCard.title}</p>
-              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 38, background: "linear-gradient(90deg,#4fd6ff,#a56bff,#ff5fc9)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>
-                {hitRush.referenceCard.year}
-              </p>
-            </div>
-
-            <button
-              onClick={unlockHitRushAudio}
-              className="flex items-center justify-center font-bold"
-              style={{
-                width: "62%",
-                maxWidth: 240,
-                aspectRatio: "2172 / 724",
-                backgroundImage: `url(${hitrushMenuBlueThin})`,
-                backgroundSize: "100% 100%",
-                backgroundRepeat: "no-repeat",
-                border: "none",
-                color: "#bfeeff",
-                fontSize: 14,
-              }}
-            >
-              ▶ ODTWÓRZ
-            </button>
-
-            <div style={{ minHeight: 44, textAlign: "center" }}>
-              {hitRush.feedback && (
-                <div style={{ animation: "scale-pop-in 0.25s ease" }}>
-                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: hitRush.feedback.correct ? "var(--good)" : "var(--bad)" }}>
-                    {hitRush.feedback.correct ? "✓ DOBRZE" : "✕ ŹLE"} — {hitRush.feedback.year}
-                  </p>
-                  {hitRush.feedback.points > 0 && (
-                    <p style={{ fontSize: 13, color: "#2af598" }}>
-                      +{hitRush.feedback.points} pkt{hitRush.feedback.timeBonus > 0 ? ` · +${hitRush.feedback.timeBonus}s COMBO ${hitRush.combo}!` : ""}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="flex gap-3 w-full">
-              <button
-                onClick={() => answerHitRush("earlier")}
-                disabled={!!hitRush.feedback}
-                className="flex-1 flex items-center justify-center font-bold"
-                style={{
-                  aspectRatio: "1672 / 941",
-                  backgroundImage: `url(${hitrushFrameBlue})`,
-                  backgroundSize: "100% 100%",
-                  backgroundRepeat: "no-repeat",
-                  border: "none",
-                  color: "#bfeeff",
-                  fontSize: 16,
-                  opacity: hitRush.feedback ? 0.5 : 1,
-                }}
-              >
-                ← WCZEŚNIEJ
-              </button>
-              <button
-                onClick={() => answerHitRush("later")}
-                disabled={!!hitRush.feedback}
-                className="flex-1 flex items-center justify-center font-bold"
-                style={{
-                  aspectRatio: "1672 / 941",
-                  backgroundImage: `url(${hitrushFramePink})`,
-                  backgroundSize: "100% 100%",
-                  backgroundRepeat: "no-repeat",
-                  border: "none",
-                  color: "#ffd7f3",
-                  fontSize: 16,
-                  opacity: hitRush.feedback ? 0.5 : 1,
-                }}
-              >
-                PÓŹNIEJ →
-              </button>
-            </div>
-          </div>
-        )}
-
-        {screen === "hitRush" && hitRushResult && (
-          <div className="w-full flex flex-col items-center gap-4">
-            <section className="w-full rounded-2xl p-6 text-center" style={{ background: "#0c0c1c", border: "1px solid rgba(42,245,152,0.4)", boxShadow: "0 0 30px rgba(42,245,152,0.25)" }}>
-              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: "#2af598" }}>HIT RUSH</p>
-              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52 }}>{hitRushResult.score} pkt</p>
-              {hitRushResult.isNewBest && <p style={{ color: "var(--gold)", fontWeight: "bold", marginTop: 4 }}>🏆 NOWY REKORD!</p>}
-              {hitRushResult.rank && (
-                <p style={{ color: "var(--muted)", marginTop: 4, textTransform: "uppercase" }}>
-                  Ranga: <span style={{ color: "var(--gold)", fontWeight: "bold" }}>{hitRushResult.rank}</span>
-                </p>
-              )}
-              <div className="flex justify-center gap-4 mt-3" style={{ fontSize: 13, color: "var(--muted)" }}>
-                <span>✓ {hitRushResult.correct}</span>
-                <span>✕ {hitRushResult.wrong}</span>
-                <span>🔥 Best {hitRushResult.bestCombo}</span>
-              </div>
-              {hitRushResult.pending ? (
-                <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 10 }}>Zapisuję wynik…</p>
-              ) : hitRushResult.guestNoSave ? (
-                <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 10 }}>Zaloguj się, żeby zapisywać wyniki i zdobywać nagrody.</p>
-              ) : hitRushResult.saveError ? (
-                <p style={{ fontSize: 12, color: "var(--bad)", marginTop: 10 }}>Nie udało się zapisać wyniku.</p>
-              ) : (
-                <div className="flex justify-center gap-4 mt-3">
-                  {hitRushResult.xpGain > 0 && <span style={{ color: "#a56bff", fontSize: 13 }}>+{hitRushResult.xpGain} XP</span>}
-                  {hitRushResult.hitcoinGain > 0 && <span style={{ color: "var(--gold)", fontSize: 13 }}>+{hitRushResult.hitcoinGain} HITCOIN</span>}
-                </div>
-              )}
-            </section>
-            <button onClick={startHitRush} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
-              ZAGRAJ PONOWNIE
-            </button>
-            <button
-              onClick={() => {
-                setScreen("hitRushLeaderboard");
-                loadHitRushLeaderboard("weekly");
-              }}
-              className="w-full py-3 rounded-xl text-sm font-bold"
-              style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.35)", color: "var(--gold)" }}
-            >
-              🏆 Zobacz ranking
-            </button>
-            <button onClick={goHome} className="w-full py-3 rounded-xl text-sm font-bold" style={{ background: "#0c0c1c", border: "1px solid rgba(42,245,152,0.35)", color: "#2af598" }}>
-              ← Wróć
-            </button>
-          </div>
-        )}
-
-        {screen === "hitRushLeaderboard" && (
-          <div className="w-full flex flex-col gap-4">
-            <button onClick={() => setScreen("hitRushMenu")} className="self-start text-xs" style={{ color: "var(--gold)" }}>
-              ← Wróć
-            </button>
-            <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 30px rgba(245,196,81,0.18)" }}>
-              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: "var(--gold)", marginBottom: 12 }}>🏆 RANKING HIT RUSH</h2>
-              <div className="flex gap-2 mb-3">
-                {[
-                  ["daily", "Dzienny"],
-                  ["weekly", "Tygodniowy"],
-                  ["alltime", "Wszech czasów"],
-                ].map(([key, label]) => (
-                  <button
-                    key={key}
-                    onClick={() => loadHitRushLeaderboard(key)}
-                    className="px-3 py-2 rounded-lg text-xs font-bold"
-                    style={{
-                      background: hitRushLeaderboardPeriod === key ? "var(--gold)" : "var(--surface2)",
-                      color: hitRushLeaderboardPeriod === key ? "#3a2400" : "var(--muted)",
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              {hitRushLeaderboardPeriod === "weekly" && (
-                <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 10 }}>🥇 200 · 🥈 100 · 🥉 75 HITCOIN na koniec tygodnia</p>
-              )}
-              {hitRushLeaderboardPeriod === "daily" && <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 10 }}>Tylko dla rywalizacji — bez nagród.</p>}
-              {hitRushLeaderboard === null ? (
-                <p style={{ color: "var(--muted)", fontSize: 13 }}>Ładowanie…</p>
-              ) : hitRushLeaderboard.length === 0 ? (
-                <p style={{ color: "var(--muted)", fontSize: 13 }}>Brak jeszcze wyników w tym okresie.</p>
-              ) : (
-                <div className="flex flex-col gap-1">
-                  {hitRushLeaderboard.map((entry, i) => (
-                    <div key={entry.uid} className="flex items-center justify-between text-sm" style={{ padding: "6px 4px", borderBottom: "1px solid #1a1428" }}>
-                      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ width: 24, textAlign: "center" }}>{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}</span>
-                        {entry.name}
-                      </span>
-                      <span style={{ color: "var(--gold)", fontWeight: "bold" }}>{entry.score} pkt</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          </div>
-        )}
-
-        {screen === "lobby" && room && (
-          <div className="w-full flex flex-col gap-5">
-            <button
-              onClick={leaveRoom}
-              className="self-start flex items-center gap-1 text-xs"
-              style={{ color: "var(--accent)" }}
-            >
-              ← Wróć
-            </button>
-
-            <section className="w-full rounded-2xl p-5 flex flex-col items-center" style={{ background: "#0c0c1c", border: "1px solid rgba(79,214,255,0.4)", boxShadow: "0 0 26px rgba(79,214,255,0.18)" }}>
-              <p style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase" }}>Kod pokoju</p>
-              <div className="flex items-center gap-2">
-                <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 44, letterSpacing: 4, color: "var(--accent)" }}>{roomId}</span>
-                <button onClick={copyCode} style={{ color: "var(--muted)" }}>
-                  {copied ? <Check size={20} /> : <Copy size={20} />}
-                </button>
-              </div>
-              <p style={{ color: "var(--muted)", fontSize: 11, marginTop: 4 }}>Prześlij ten kod znajomym, żeby dołączyli</p>
-            </section>
-
-            <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(165,107,255,0.4)", boxShadow: "0 0 26px rgba(165,107,255,0.18)" }}>
-              <div className="flex items-center gap-2 mb-3">
-                <Users size={16} color="#a56bff" />
-                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>GRACZE ({room.players.length})</h2>
-              </div>
-              <div className="flex flex-col gap-1">
-                {room.players.map((p) => (
-                  <div key={p.id} className="flex items-center gap-2 text-sm">
-                    <span>{p.name}</span>
-                    {p.id === room.hostId && <span style={{ color: "#a56bff", fontSize: 10 }}>HOST</span>}
-                    {p.id === playerId && <span style={{ color: "var(--muted)", fontSize: 10 }}>(Ty)</span>}
-                    {p.authed && playerLevels[p.id] !== undefined && (
-                      <span style={{ fontSize: 10, color: "#a56bff", background: "var(--surface2)", padding: "1px 6px", borderRadius: 8 }}>
-                        lvl {levelFromXp(playerLevels[p.id]).level}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {isHost ? (
-              <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 26px rgba(245,196,81,0.18)" }}>
-                <div className="flex items-center gap-2 mb-4">
-                  <label className="text-xs uppercase" style={{ color: "var(--muted)" }}>Kart do wygrania:</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={target}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setTarget(v === "" ? "" : parseInt(v, 10));
-                    }}
-                    style={{ width: 60 }}
-                  />
-                </div>
-
-                <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase", marginBottom: 8 }}>Kategorie</p>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {[{ slug: "wszystkie", label: "Wszystkie" }, ...CATEGORIES].map((c) => {
-                    const active = selectedCategories.includes(c.slug);
-                    return (
-                      <button
-                        key={c.slug}
-                        type="button"
-                        onClick={() => toggleCategory(c.slug)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-bold"
-                        style={{ background: active ? "var(--accent)" : "var(--surface2)", color: active ? "#1a1428" : "var(--muted)" }}
-                      >
-                        {c.label}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 6 }}>
-                  {(() => {
-                    const filterActive = !selectedCategories.includes("wszystkie") && selectedCategories.length > 0;
-                    const nonReligijne = effectivePool.filter((s) => !normCategories(s.categories).includes("religijne"));
-                    const count = filterActive
-                      ? effectivePool.filter((s) => normCategories(s.categories).some((c) => selectedCategories.includes(c))).length
-                      : nonReligijne.length;
-                    return filterActive
-                      ? `${count} utworów pasuje do wybranych kategorii (z ${effectivePool.length} w całej bibliotece).`
-                      : `Gracie z biblioteką ${count} utworów (bez kategorii Religijne — dodaj ją ręcznie, jeśli chcesz ją włączyć).`;
-                  })()}
-                </p>
-                <button
-                  onClick={beginGame}
-                  disabled={busy || !target || room.players.length < 2}
-                  className="w-full mt-4 py-3 rounded-xl text-lg font-bold flex items-center justify-center gap-2 btn-grad pulse-cta"
-                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}
-                >
-                  ROZPOCZNIJ GRĘ <ChevronRight size={20} />
-                </button>
-                {!target && <p style={{ color: "var(--muted)", fontSize: 11, marginTop: 6, textAlign: "center" }}>Podaj liczbę kart do wygrania</p>}
-                {target && room.players.length < 2 && (
-                  <p style={{ color: "var(--muted)", fontSize: 11, marginTop: 6, textAlign: "center" }}>
-                    Potrzeba minimum 2 graczy — do gry solo użyj Treningu na ekranie głównym.
-                  </p>
-                )}
-              </section>
-            ) : (
-              <p style={{ color: "var(--muted)", fontSize: 13, textAlign: "center" }}>Czekasz, aż {room.players.find((p) => p.id === room.hostId)?.name} rozpocznie grę…</p>
-            )}
-          </div>
-        )}
-
-        {screen === "opener" && room && room.openerCard && (
-          <div className="w-full flex flex-col items-center gap-6">
-            {openerPhase === "countdown" ? (
-              <div
-                style={{
-                  position: "fixed",
-                  inset: 0,
-                  background: "var(--bg)",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  zIndex: 60,
-                }}
-              >
-                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: "var(--muted)", marginBottom: 16, letterSpacing: 2 }}>
-                  KTO ZACZYNA?
-                </p>
-                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 160, color: "var(--accent)", lineHeight: 1 }}>
-                  {openerCountdownNum}
-                </p>
-              </div>
-            ) : (
-              <>
-                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, textAlign: "center" }}>KTO ZACZYNA?</p>
-                <div className="w-full rounded-2xl p-5 flex flex-col items-center" style={{ background: "#0c0c1c", border: "1px solid rgba(79,214,255,0.4)", boxShadow: "0 0 26px rgba(79,214,255,0.18)" }}>
-                  <Vinyl spinning={isPlaying} revealed={!!room.openerWinnerId} progress={playElapsed / PLAY_CAP_SECONDS} />
-                  <div style={{ width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }}>
-                    <iframe
-                      key={"opener-" + room.openerCard.id}
-                      ref={iframeRef}
-                      title="opener-player"
-                      width="280"
-                      height="158"
-                      src={`https://www.youtube.com/embed/${room.openerCard.videoId}?enablejsapi=1&autoplay=1&mute=1&start=${room.openerStartSeconds}&controls=0&modestbranding=1&rel=0`}
-                      allow="autoplay; encrypted-media"
-                      style={{ border: "none" }}
-                    />
-                  </div>
-                  {!isPlaying && (
-                    <p style={{ color: "var(--muted)", fontSize: 11, marginTop: 10, textAlign: "center" }}>
-                      Wideo już gra wyciszone — kliknij, żeby usłyszeć dźwięk
-                    </p>
-                  )}
-                  <button
-                    onClick={togglePlay}
-                    className="mt-2 flex items-center gap-2 px-8 py-3 rounded-full text-base font-bold"
-                    style={{ background: "var(--accent)", color: "#1a1428" }}
-                  >
-                    <Play size={20} />
-                    {isPlaying ? `Gra… (${Math.ceil(PLAY_CAP_SECONDS - playElapsed)}s)` : "🔊 Włącz dźwięk"}
-                  </button>
-                </div>
-
-                {room.openerWinnerId ? (
-                  <div className="w-full flex flex-col items-center gap-2">
-                    <p style={{ color: "var(--good)", fontSize: 18, fontWeight: "bold", textAlign: "center" }}>
-                      {room.players.find((p) => p.id === room.openerWinnerId)?.name} zgadł(a) pierwszy(a) i zaczyna!
-                    </p>
-                    <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 44, color: "var(--accent)" }}>
-                      {openerRevealCountdown ?? 5}
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <p style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase" }}>Kto pierwszy zaznaczy poprawną odpowiedź, zaczyna grę</p>
-                    <div className="w-full grid grid-cols-1 gap-2">
-                      {room.openerOptions.map((opt, i) => (
-                        <button
-                          key={i}
-                          onClick={() => {
-                            setOpenerLockedOut(true);
-                            answerOpener(i);
-                          }}
-                          disabled={openerLockedOut}
-                          className="w-full py-3 rounded-xl text-sm font-bold text-left px-4"
-                          style={{
-                            background: openerLockedOut ? "#1a1428" : "#0c0c1c",
-                            color: openerLockedOut ? "var(--muted)" : "var(--text)",
-                            border: `1px solid ${openerLockedOut ? "#33294f" : "rgba(79,214,255,0.35)"}`,
-                          }}
-                        >
-                          {opt.artist} — {opt.title}
-                        </button>
-                      ))}
-                    </div>
-                    {openerLockedOut && <p style={{ color: "var(--muted)", fontSize: 11 }}>Odpowiedziałeś(aś) — czekaj na wynik…</p>}
-                  </>
-                )}
-              </>
-            )}
-          </div>
-        )}
-
-        {(screen === "playing" || screen === "voting" || screen === "roundResult") && room && room.currentCard && (
-          <div className="w-full flex flex-col items-center gap-6">
-            <div
-              className="w-full"
-              style={{
-                position: "relative",
-                aspectRatio: "1122 / 1402",
-                maxWidth: 320,
-                backgroundImage: `url(${playingPanelFrame})`,
-                backgroundSize: "100% 100%",
-                backgroundRepeat: "no-repeat",
-              }}
-            >
-              <div style={{ position: "absolute", top: "7%", left: "8%", right: "8%", textAlign: "center" }}>
-                <p style={{ color: "#4fd6ff", fontSize: 11, textTransform: "uppercase", letterSpacing: 2 }}>Tura gracza</p>
-                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 21, marginTop: 2 }}>
-                  {isMyTurn ? "Twoja kolej!" : turnPlayerName}
-                </p>
-              </div>
-
-              {screen === "playing" && (
-                <div style={{ position: "absolute", top: "21%", left: "20%", right: "20%", textAlign: "center", transform: "translateY(-50%)" }}>
-                  <p style={{ color: decisionLeft <= 10 ? "var(--bad)" : "#d8cdf5", fontSize: 9, fontWeight: "bold", margin: 0 }}>{decisionLeft}s na decyzję</p>
-                </div>
-              )}
-
-              <div style={{ width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }}>
-                <iframe
-                  key={room.currentCard.id}
-                  ref={iframeRef}
-                  title="player"
-                  width="280"
-                  height="158"
-                  src={`https://www.youtube.com/embed/${room.currentCard.videoId}?enablejsapi=1&autoplay=1&mute=1&start=${room.startSeconds}&controls=0&modestbranding=1&rel=0`}
-                  allow="autoplay; encrypted-media"
-                  style={{ border: "none" }}
-                />
-              </div>
-
-              <button
-                onClick={togglePlay}
-                className="flex items-center justify-center gap-2 font-bold"
-                style={{
-                  position: "absolute",
-                  top: "76%",
-                  bottom: "3%",
-                  left: "14%",
-                  right: "14%",
-                  background: "none",
-                  border: "none",
-                  color: "#062231",
-                  fontSize: 12,
-                }}
-              >
-                <Play size={15} />
-                {isPlaying ? `Gra… (${Math.ceil(PLAY_CAP_SECONDS - playElapsed)}s)` : playElapsed >= PLAY_CAP_SECONDS ? "Odtwórz ponownie" : "Odtwórz dźwięk"}
-              </button>
-            </div>
-
-            {screen === "playing" && isMyTurn && !room.practiceMode && (
-              <div className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(165,107,255,0.4)", boxShadow: "0 0 22px rgba(165,107,255,0.15)" }}>
-                <div className="flex items-center justify-between mb-2">
-                  <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase" }}>Zgadnij wykonawcę i tytuł (opcjonalnie, +1 token)</p>
-                  <span style={{ color: "var(--accent)", fontSize: 12, fontWeight: "bold", display: "inline-flex", alignItems: "center", gap: 3 }}>
-                    <img src={iconToken} alt="" style={{ height: 14 }} /> {room.tokens?.[playerId] || 0}
-                  </span>
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  <input type="text" value={guessArtist} onChange={(e) => setGuessArtist(e.target.value)} placeholder="Wykonawca" className="flex-1" style={{ minWidth: 120 }} />
-                  <input type="text" value={guessTitle} onChange={(e) => setGuessTitle(e.target.value)} placeholder="Tytuł" className="flex-1" style={{ minWidth: 120 }} />
-                </div>
-                <p style={{ color: "var(--muted)", fontSize: 10, marginTop: 4 }}>
-                  Inni gracze zagłosują, czy Twoja odpowiedź się liczy — zostaw puste, jeśli nie zgadujesz.
-                </p>
-
-                <div className="flex gap-2 mt-3 flex-wrap">
-                  <button
-                    onClick={swapSong}
-                    disabled={busy || (room.tokens?.[playerId] || 0) < SWAP_SONG_TOKENS}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold"
-                    style={{
-                      background: (room.tokens?.[playerId] || 0) < SWAP_SONG_TOKENS ? "#33294f" : "var(--surface2)",
-                      color: (room.tokens?.[playerId] || 0) < SWAP_SONG_TOKENS ? "var(--muted)" : "var(--text)",
-                      border: "1px solid #33294f",
-                    }}
-                  >
-                    🔁 Wymień piosenkę ({SWAP_SONG_TOKENS} <img src={iconToken} alt="" style={{ height: 12, display: "inline", verticalAlign: "middle" }} />)
-                  </button>
-                  <button
-                    onClick={buyCard}
-                    disabled={busy || (room.tokens?.[playerId] || 0) < BUY_CARD_TOKENS}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold"
-                    style={{
-                      background: (room.tokens?.[playerId] || 0) < BUY_CARD_TOKENS ? "#33294f" : "var(--good)",
-                      color: (room.tokens?.[playerId] || 0) < BUY_CARD_TOKENS ? "var(--muted)" : "#0d1f1a",
-                    }}
-                  >
-                    🎁 Kup kartę w ciemno ({BUY_CARD_TOKENS} <img src={iconToken} alt="" style={{ height: 12, display: "inline", verticalAlign: "middle" }} />)
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {screen === "playing" && isMyTurn && (
-              <div className="w-full">
-                <p style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase", marginBottom: 10 }}>Gdzie umieszczasz tę piosenkę?</p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <SlotButton index={0} chosen={chosenSlot} onPick={setChosenSlot} label="najstarsza" />
-                  {turnTimeline.map((c, i) => (
-                    <React.Fragment key={c.id}>
-                      <TimelineCard year={c.year} title={c.title} artist={c.artist} onHold={setHeldCard} onRelease={clearHeldCard} />
-                      <SlotButton index={i + 1} chosen={chosenSlot} onPick={setChosenSlot} label="tutaj" />
-                    </React.Fragment>
-                  ))}
-                </div>
-                <button
-                  onClick={confirmPlacement}
-                  disabled={chosenSlot === null || busy}
-                  className="w-full mt-5 flex items-center justify-center font-bold"
-                  style={
-                    chosenSlot === null
-                      ? {
-                          aspectRatio: "2172 / 724",
-                          backgroundImage: `url(${confirmSlotBtnInactive})`,
-                          backgroundSize: "100% 100%",
-                          backgroundRepeat: "no-repeat",
-                          border: "none",
-                          color: "#8a8a8a",
-                          fontFamily: "'Bebas Neue', sans-serif",
-                          fontSize: 20,
-                        }
-                      : {
-                          aspectRatio: "2172 / 724",
-                          backgroundImage: `url(${confirmSlotBtn})`,
-                          backgroundSize: "100% 100%",
-                          backgroundRepeat: "no-repeat",
-                          border: "none",
-                          color: "#fff",
-                          fontFamily: "'Bebas Neue', sans-serif",
-                          fontSize: 20,
-                        }
-                  }
-                >
-                  ZATWIERDŹ MIEJSCE
-                </button>
-              </div>
-            )}
-
-            {screen === "playing" && !isMyTurn && (
-              <div className="w-full">
-                <p style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase", marginBottom: 10, textAlign: "center" }}>
-                  Oś czasu gracza {displayedPlayerName} <span style={{ fontSize: 10 }}>(kliknij gracza poniżej, żeby zmienić)</span>
-                </p>
-                <div className="flex flex-wrap items-center justify-center gap-2">
-                  {viewedTimeline.map((c) => (
-                    <TimelineCard key={c.id} year={c.year} title={c.title} artist={c.artist} onHold={setHeldCard} onRelease={clearHeldCard} />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {screen === "voting" && room.pendingGuess && (
-              <div className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(255,95,201,0.4)", boxShadow: "0 0 26px rgba(255,95,201,0.18)" }}>
-                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, textAlign: "center", marginBottom: 10 }}>
-                  {isMyTurn ? "Czekasz na głosy…" : `Czy ${turnPlayerName} zgadł(a) poprawnie?`}
-                </p>
-                <div className="rounded-lg p-3 mb-2" style={{ background: "var(--surface2)" }}>
-                  <p style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase" }}>Prawidłowa odpowiedź</p>
-                  <p style={{ fontSize: 15 }}>{room.lastResult.card.artist} — „{room.lastResult.card.title}"</p>
-                </div>
-                <div className="rounded-lg p-3 mb-3" style={{ background: "var(--surface2)" }}>
-                  <p style={{ fontSize: 10, color: "var(--accent)", textTransform: "uppercase" }}>Odpowiedź gracza</p>
-                  <p style={{ fontSize: 15 }}>{room.pendingGuess.artist || "—"} — „{room.pendingGuess.title || "—"}"</p>
-                </div>
-                <p style={{ color: "var(--muted)", fontSize: 11, textAlign: "center", marginBottom: 4 }}>
-                  Potrzeba {room.requiredApprovals} głos{room.requiredApprovals === 1 ? "u" : "ów"} na TAK
-                  {" · "}oddano {Object.keys(room.votes || {}).length}/{room.players.length - 1}
-                </p>
-                {votingCountdown !== null && (
-                  <p style={{ color: votingCountdown <= 5 ? "var(--bad)" : "var(--muted)", fontSize: 11, textAlign: "center", marginBottom: 10 }}>
-                    ⏱ {votingCountdown}s (brak głosu = TAK)
-                  </p>
-                )}
-                {!isMyTurn && (room.votes?.[playerId] === undefined ? (
-                  <div className="flex gap-3">
-                    <button onClick={() => castVote(true)} disabled={busy} className="flex-1 py-3 rounded-xl text-sm font-bold" style={{ background: "var(--good)", color: "#0d1f1a" }}>
-                      ✓ TAK, zalicza się
-                    </button>
-                    <button onClick={() => castVote(false)} disabled={busy} className="flex-1 py-3 rounded-xl text-sm font-bold" style={{ background: "var(--bad)", color: "#2a1414" }}>
-                      ✗ NIE
-                    </button>
-                  </div>
-                ) : (
-                  <p style={{ textAlign: "center", color: "var(--muted)", fontSize: 12 }}>Twój głos: {room.votes[playerId] ? "TAK" : "NIE"}</p>
-                ))}
-              </div>
-            )}
-
-            {screen === "roundResult" && room.lastResult && (() => {
-              const ownerId = room.currentPlayerId;
-              const ownerName = room.players.find((p) => p.id === ownerId)?.name || "Gracz";
-              const r = room.lastResult;
-
-              const resultBox = (isCorrect, delayS) => (
-                <div
-                  style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 14,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                    background: isCorrect ? "rgba(42,245,152,0.15)" : "rgba(255,56,104,0.15)",
-                    border: `2px solid ${isCorrect ? "var(--good)" : "var(--bad)"}`,
-                    boxShadow: `0 0 18px -3px ${isCorrect ? "var(--good)" : "var(--bad)"}`,
-                    animation: `scale-pop-in 0.4s ease ${delayS}s both`,
-                  }}
-                >
-                  {isCorrect ? <Check size={28} color="var(--good)" strokeWidth={3.5} /> : <X size={28} color="var(--bad)" strokeWidth={3.5} />}
-                </div>
-              );
-
-              const resultRow = (label, isCorrect, delayS) => (
-                <div
-                  className="w-full flex items-center justify-between rounded-xl px-4 py-2.5"
-                  style={{ background: "var(--surface2)", animation: `slide-fade-in 0.4s ease ${delayS - 0.1}s both` }}
-                >
-                  <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, letterSpacing: 0.5 }}>{label}</span>
-                  {resultBox(isCorrect, delayS)}
-                </div>
-              );
-
-              const ownerTimeline = [...(room.timelines[ownerId] || [])].sort((a, b) => a.year - b.year);
-              const hasGhost = !r.timedOut && !r.correct && r.chosenSlot !== undefined && r.chosenSlot !== null;
-              const displayCards = hasGhost
-                ? (() => {
-                    const withGhost = [...ownerTimeline];
-                    withGhost.splice(r.chosenSlot, 0, { ...r.card, __ghost: true });
-                    return withGhost;
-                  })()
-                : ownerTimeline;
-
-              return (
-                <div
-                  style={{
-                    position: "fixed",
-                    inset: 0,
-                    background: "rgba(5,8,16,0.92)",
-                    backdropFilter: "blur(4px)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    zIndex: 97,
-                    padding: 16,
-                    overflowY: "auto",
-                  }}
-                >
-                  <div className="w-full flex flex-col items-center gap-2.5" style={{ maxWidth: 380 }}>
-                    <p
-                      style={{
-                        fontFamily: "'Bebas Neue', sans-serif",
-                        fontSize: 44,
-                        fontWeight: "bold",
-                        textAlign: "center",
-                        letterSpacing: 1,
-                        color: "var(--text)",
-                        textShadow: "0 0 20px rgba(0,230,195,0.45)",
-                        animation: "slide-fade-in 0.45s ease both",
-                        lineHeight: 1,
-                      }}
-                    >
-                      {ownerName}
-                    </p>
-
-                    {r.bought ? (
-                      resultRow("🎁 KUPIONA KARTA", true, 0.2)
-                    ) : r.timedOut ? (
-                      resultRow("OŚ CZASU", false, 0.2)
-                    ) : (
-                      <>
-                        {resultRow("OŚ CZASU", r.correct, 0.2)}
-                        {r.tokenAwarded !== undefined && resultRow("TYTUŁ I WYKONAWCA", r.tokenAwarded, 0.35)}
-                      </>
-                    )}
-
-                    <div
-                      className="rounded-2xl p-6 text-center"
-                      style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 30px rgba(245,196,81,0.25)", minWidth: 220, marginTop: 8, animation: "scale-pop-in 0.5s ease 0.5s both" }}
-                    >
-                      <p style={{ fontSize: 13, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>{r.card.artist}</p>
-                      <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 56, color: "var(--accent)", lineHeight: 1 }}>{r.card.year}</p>
-                      <p style={{ fontSize: 15, marginTop: 8 }}>„{r.card.title}"</p>
-                    </div>
-
-                    {!r.timedOut && displayCards.length > 0 && (
-                      <div className="w-full" style={{ animation: "slide-fade-in 0.5s ease 0.65s both" }}>
-                        <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase", marginBottom: 8, textAlign: "center" }}>
-                          Oś czasu gracza {ownerName}
-                        </p>
-                        <div className="flex flex-wrap items-center justify-center gap-2">
-                          {displayCards.map((c, i) => {
-                            const isPlacedCard = !c.__ghost && r.correct && c.videoId === r.card.videoId && c.year === r.card.year;
-                            const highlight = c.__ghost ? "var(--bad)" : isPlacedCard ? "var(--good)" : null;
-                            return <TimelineCard key={c.__ghost ? "ghost" : c.id || i} year={c.year} title={c.title} artist={c.artist} highlight={highlight} />;
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    <p style={{ color: "var(--muted)", fontSize: 13 }}>Kolejny gracz za {advanceCountdown ?? 5}…</p>
-                  </div>
-                </div>
-              );
-            })()}
-
-            <div className="w-full flex flex-wrap gap-2 justify-center">
-              {room.players.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => setViewedPlayerId(p.id)}
-                  className="px-3 py-1 rounded-full text-xs"
-                  style={{
-                    background: displayedPlayerId === p.id ? "var(--accent)" : "var(--surface2)",
-                    color: displayedPlayerId === p.id ? "#1a1428" : "var(--muted)",
-                    border: p.id === room.currentPlayerId ? "1px solid var(--accent)" : "1px solid transparent",
-                    cursor: "pointer",
-                  }}
-                >
-                  {p.name}: {(room.timelines[p.id] || []).length}/{room.target} ·{" "}
-                  <img src={iconToken} alt="" style={{ height: 11, display: "inline", verticalAlign: "middle" }} />
-                  {room.tokens?.[p.id] || 0}
-                  {p.authed && playerLevels[p.id] !== undefined && ` · lvl ${levelFromXp(playerLevels[p.id]).level}`}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {screen === "gameover" && room && room.winnerIds && room.winnerIds.length > 0 && (
-          <div className="w-full flex flex-col items-center gap-5 text-center">
-            {showConfetti && <Confetti />}
-            <Trophy size={48} color="var(--accent)" />
-            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34 }}>
-              {room.winnerIds.length > 1
-                ? `REMIS: ${room.winnerIds.map((id) => room.players.find((p) => p.id === id)?.name).join(" i ")}!`
-                : `${room.players.find((p) => p.id === room.winnerIds[0])?.name} WYGRYWA!`}
-            </p>
-            {room.winnerIds.map((id) => (
-              <p key={id} style={{ color: "var(--muted)", fontSize: 13 }}>
-                {room.winnerIds.length > 1 && <strong style={{ color: "var(--text)" }}>{room.players.find((p) => p.id === id)?.name}: </strong>}
-                Oś czasu: {(room.timelines[id] || []).map((c) => c.year).sort((a, b) => a - b).join(" → ")}
-              </p>
-            ))}
-
-            {room.players.length >= 3 && (() => {
-              const winnerSet = new Set(room.winnerIds);
-              const rest = computeFinalStandings(room).filter((p) => !winnerSet.has(p.id));
-              if (rest.length === 0) return null;
-              return (
-                <div className="w-full flex flex-col gap-2" style={{ maxWidth: 320 }}>
-                  {rest[0] && (
-                    <div className="flex items-center justify-between rounded-xl px-4 py-2" style={{ background: "var(--surface2)", border: "1px solid #c0c0c0" }}>
-                      <span className="flex items-center gap-2">
-                        <img src={ach2Miejsce} alt="" style={{ height: 22 }} /> 2. miejsce — {rest[0].name}
-                      </span>
-                      <span style={{ color: "var(--muted)", fontSize: 12 }}>{(room.timelines[rest[0].id] || []).length} kart</span>
-                    </div>
-                  )}
-                  {rest[1] && (
-                    <div className="flex items-center justify-between rounded-xl px-4 py-2" style={{ background: "var(--surface2)", border: "1px solid var(--gold)" }}>
-                      <span className="flex items-center gap-2">
-                        <img src={ach3Miejsce} alt="" style={{ height: 22 }} /> 3. miejsce — {rest[1].name}
-                      </span>
-                      <span style={{ color: "var(--muted)", fontSize: 12 }}>{(room.timelines[rest[1].id] || []).length} kart</span>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-
-            {(() => {
-              // najszybszy gracz — najniższy średni czas decyzji
-              const avgTimes = Object.entries(room.decisionTimes || {})
-                .filter(([, times]) => times.length > 0)
-                .map(([id, times]) => ({ id, avg: times.reduce((a, b) => a + b, 0) / times.length }));
-              const fastest = avgTimes.length ? avgTimes.reduce((a, b) => (b.avg < a.avg ? b : a)) : null;
-
-              // najdłuższa seria trafień w tej rozgrywce
-              const streakEntries = Object.entries(room.gameBestStreaks || {}).filter(([, s]) => s > 0);
-              const bestStreak = streakEntries.length ? streakEntries.reduce((a, b) => (b[1] > a[1] ? b : a)) : null;
-
-              if (!fastest && !bestStreak) return null;
-
-              return (
-                <div className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(79,214,255,0.4)", boxShadow: "0 0 22px rgba(79,214,255,0.15)" }}>
-                  <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>Podsumowanie gry</p>
-                  <div className="flex gap-3 flex-wrap justify-center">
-                    {fastest && (
-                      <StatBox
-                        label={
-                          <span className="flex items-center gap-1">
-                            <img src={achNajszybszy} alt="" style={{ height: 12 }} /> Najszybszy gracz
-                          </span>
-                        }
-                        value={`${room.players.find((p) => p.id === fastest.id)?.name} (${(fastest.avg / 1000).toFixed(1)}s)`}
-                      />
-                    )}
-                    {bestStreak && (
-                      <StatBox
-                        label={
-                          <span className="flex items-center gap-1">
-                            <img src={achSeria} alt="" style={{ height: 12 }} /> Najdłuższa seria
-                          </span>
-                        }
-                        value={`${room.players.find((p) => p.id === bestStreak[0])?.name}: ${bestStreak[1]} z rzędu`}
-                      />
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {user && !room.practiceMode && (() => {
-              const { items, total } = computeGameEndXp(room, playerId);
-              if (!items.length) return null;
-              return (
-                <div className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(165,107,255,0.4)", boxShadow: "0 0 22px rgba(165,107,255,0.15)" }}>
-                  <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>⭐ Zdobyte XP</p>
-                  <div className="flex flex-col gap-1 text-left">
-                    {items.map((it, i) => (
-                      <div key={i} className="flex items-center justify-between text-sm">
-                        <span>{it.label}</span>
-                        <span style={{ color: it.amount >= 0 ? "var(--good)" : "var(--bad)" }}>
-                          {it.amount >= 0 ? "+" : ""}
-                          {it.amount} XP
-                        </span>
-                      </div>
-                    ))}
-                    <div className="flex items-center justify-between text-sm mt-1 pt-1" style={{ borderTop: "1px solid #33294f", fontWeight: "bold" }}>
-                      <span>Razem</span>
-                      <span style={{ color: "var(--accent)" }}>
-                        {total >= 0 ? "+" : ""}
-                        {total} XP
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {user && !room.practiceMode && gameEndReward && (
-              <div className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 22px rgba(245,196,81,0.18)" }}>
-                <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8, display: "flex", alignItems: "center", gap: 5 }}>
-                  <img src={iconHitcoin} alt="" style={{ height: 14 }} /> Zdobyty HITCOIN
-                </p>
-                <div className="flex flex-col gap-1 text-left mb-3">
-                  {gameEndReward.hitcoinItems.map((it, i) => (
-                    <div key={i} className="flex items-center justify-between text-sm">
-                      <span>{it.label}</span>
-                      <span style={{ color: "var(--gold)", display: "flex", alignItems: "center", gap: 4 }}>
-                        +{it.amount} <img src={iconHitcoin} alt="" style={{ height: 13 }} />
-                      </span>
-                    </div>
-                  ))}
-                  {gameEndReward.hitcoinItems.length > 1 && (
-                    <div className="flex items-center justify-between text-sm mt-1 pt-1" style={{ borderTop: "1px solid #33294f", fontWeight: "bold" }}>
-                      <span>Razem</span>
-                      <span style={{ color: "var(--gold)", display: "flex", alignItems: "center", gap: 4 }}>
-                        +{gameEndReward.hitcoinTotal} <img src={iconHitcoin} alt="" style={{ height: 13 }} />
-                      </span>
-                    </div>
-                  )}
-                </div>
-                {gameEndReward.card && (
-                  <div className="rounded-xl p-3 flex items-center gap-3" style={{ background: "var(--surface2)" }}>
-                    <CollectibleCard song={gameEndReward.card.song} size={64} onClick={() => setZoomedCard(gameEndReward.card.song)} />
-                    <div className="text-left flex-1">
-                      <p style={{ fontSize: 13, fontWeight: "bold" }}>{gameEndReward.card.song.artist} — {gameEndReward.card.song.title}</p>
-                      <p style={{ fontSize: 11, color: RARITY_INFO[effectiveRarity(gameEndReward.card.song)].color }}>
-                        {RARITY_INFO[effectiveRarity(gameEndReward.card.song)].label}
-                        {gameEndReward.card.isDuplicate && <span style={{ color: "var(--muted)" }}> · masz już tę kartę</span>}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {room.playedCards && room.playedCards.length > 0 && (
-              <div className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(255,95,201,0.4)", boxShadow: "0 0 22px rgba(255,95,201,0.15)" }}>
-                <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-                  <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)" }}>
-                    🎵 {showOnlyMyPlaylist ? "Twoja playlista" : "Playlista wieczoru"} (
-                    {showOnlyMyPlaylist ? room.playedCards.filter((c) => c.playerId === playerId).length : room.playedCards.length})
-                  </p>
-                  <button
-                    onClick={() => setShowOnlyMyPlaylist((v) => !v)}
-                    className="px-3 py-1 rounded-full text-xs font-bold"
-                    style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
-                  >
-                    {showOnlyMyPlaylist ? "Pokaż wszystkich" : "Pokaż tylko moje"}
-                  </button>
-                </div>
-                <div className="flex flex-col gap-1 text-left" style={{ maxHeight: 240, overflowY: "auto" }}>
-                  {(showOnlyMyPlaylist ? room.playedCards.filter((c) => c.playerId === playerId) : room.playedCards).map((c, i) => {
-                    const guessColor = showOnlyMyPlaylist
-                      ? c.guessedCorrect === true
-                        ? "rgba(42,245,152,0.18)"
-                        : c.guessedCorrect === false
-                        ? "rgba(255,56,104,0.18)"
-                        : "var(--surface2)"
-                      : "var(--surface2)";
-                    return (
-                      <a
-                        key={i}
-                        href={`https://www.youtube.com/watch?v=${c.videoId}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center justify-between px-2 py-1.5 rounded"
-                        style={{ background: guessColor, textDecoration: "none", color: "var(--text)" }}
-                      >
-                        <span style={{ fontSize: 12 }}>
-                          {c.correct ? "✓" : "✗"} {c.artist} — {c.title}
-                        </span>
-                        <span style={{ fontSize: 11, color: "var(--accent)" }}>{c.year}</span>
-                      </a>
-                    );
-                  })}
-                </div>
-                {showOnlyMyPlaylist && (
-                  <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 8 }}>
-                    🟢 odgadnięty wykonawca/tytuł · 🔴 nieodgadnięty · szare = nie próbowano zgadywać
-                  </p>
-                )}
-              </div>
-            )}
-
-            {isHost && !room.dailyPlaylistMode && !room.tournamentMode && (
-              <button onClick={playAgain} className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold" style={{ background: "var(--accent)", color: "#1a1428" }}>
-                <RotateCcw size={16} /> ZAGRAJ PONOWNIE
-              </button>
-            )}
-            {room.dailyPlaylistMode && (
-              <button
-                onClick={() => {
-                  leaveRoom();
-                  openDailyPlaylistHub();
-                }}
-                className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold"
-                style={{ background: "var(--accent)", color: "#1a1428" }}
-              >
-                🎶 Wróć do rankingów Playlisty dnia
-              </button>
-            )}
-            {room.tournamentMode && (
-              <button
-                onClick={() => {
-                  leaveRoom();
-                  openTournamentHub();
-                }}
-                className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold"
-                style={{ background: "var(--accent)", color: "#1a1428" }}
-              >
-                🏆 Wróć do turnieju
-              </button>
-            )}
-          </div>
-        )}
-
-        {!["playing", "voting", "roundResult", "hitRush"].includes(screen) && (
-          <div className="hs-bottom-nav">
-            <button className={`hs-nav-item${screen === "home" && !showStats && !showAchievements && !showLeaderboard && !showAdminPanel ? " active" : ""}`} onClick={goHome}>
-              <img src={glGraj} alt="" />
-              <span>GRAJ</span>
-            </button>
-            <button className={`hs-nav-item${screen === "album" ? " active" : ""}`} onClick={openAlbum}>
-              <img src={glKolekcja} alt="" />
-              <span>KOLEKCJA</span>
-            </button>
-            <button className={`hs-nav-item${showAchievements ? " active" : ""}`} onClick={() => { setScreen("home"); setShowAchievements(true); }}>
-              <img src={glPrezent} alt="" />
-              <span>NAGRODY</span>
-            </button>
-            <button className={`hs-nav-item${screen === "packShop" ? " active" : ""}`} onClick={() => setScreen("packShop")}>
-              <img src={glKoszyk} alt="" />
-              <span>SKLEP</span>
-            </button>
-            <button className={`hs-nav-item${showStats ? " active" : ""}`} onClick={() => { setScreen("home"); openStats(); }}>
-              <img src={glOsoba} alt="" />
-              <span>PROFIL</span>
-            </button>
-          </div>
-        )}
-      </div>
-
-      {zoomedCard && (
-        <div
-          onClick={() => setZoomedCard(null)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.85)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 110,
-            padding: 24,
-          }}
-        >
-          <div onClick={(e) => e.stopPropagation()} style={{ animation: "scale-pop-in 0.3s ease" }}>
-            <CollectibleCard song={zoomedCard} size={Math.min(340, window.innerWidth * 0.8)} />
-          </div>
-        </div>
-      )}
-
-      {showDailyWheel && (
-        <div
-          onClick={() => {
-            if (!dailyWheelSpinning) {
-              setShowDailyWheel(false);
-              setDailyWheelResult(null);
-            }
-          }}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.85)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 120,
-            padding: 20,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="rounded-2xl p-6 flex flex-col items-center gap-5"
-            style={{
-              background: "#0c0c1c",
-              border: "1px solid rgba(245,196,81,0.5)",
-              boxShadow: "0 0 50px rgba(245,196,81,0.35)",
-              maxWidth: 340,
-              width: "100%",
-              animation: "scale-pop-in 0.3s ease",
-            }}
-          >
-            <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: "var(--gold)", textAlign: "center" }}>
-              🎡 NAGRODA DNIA
-            </h2>
-            <DailyWheel rotation={dailyWheelRotation} spinning={dailyWheelSpinning} />
-            {dailyWheelResult ? (
-              <div style={{ textAlign: "center", animation: "scale-pop-in 0.4s ease" }}>
-                <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 4 }}>Wygrałeś:</p>
-                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: "var(--gold)", textShadow: "0 0 16px rgba(245,196,81,0.6)" }}>
-                  {dailyWheelResult.label}
-                </p>
-                {dailyWheelResult.sublabel && <p style={{ fontSize: 12, color: "var(--muted)" }}>{dailyWheelResult.sublabel}</p>}
-                {dailyWheelResult.song && (
-                  <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
-                    {dailyWheelResult.song.artist} – {dailyWheelResult.song.title}
-                  </p>
-                )}
-                <button
-                  onClick={() => {
-                    setShowDailyWheel(false);
-                    setDailyWheelResult(null);
-                  }}
-                  className="mt-4 px-6 py-2.5 rounded-xl text-sm font-bold btn-grad"
-                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}
-                >
-                  Super!
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={handleSpinDailyWheel}
-                disabled={dailyWheelBusy || dailyWheelSpinning}
-                className="px-8 py-3 rounded-xl text-base font-bold btn-grad"
-                style={{ fontFamily: "'Bebas Neue', sans-serif", opacity: dailyWheelSpinning ? 0.7 : 1 }}
-              >
-                {dailyWheelSpinning ? "Losowanie..." : "ZAKRĘĆ!"}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {showHitRushFaq && (
-        <div
-          onClick={() => setShowHitRushFaq(false)}
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 120, padding: 20 }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="rounded-2xl p-6"
-            style={{ background: "#0c0c1c", border: "1px solid rgba(42,245,152,0.4)", boxShadow: "0 0 30px rgba(42,245,152,0.25)", maxWidth: 380, width: "100%", maxHeight: "80vh", overflowY: "auto", animation: "scale-pop-in 0.25s ease" }}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#2af598" }}>Jak grać w HIT RUSH?</h2>
-              <button onClick={() => setShowHitRushFaq(false)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: 20, lineHeight: 1 }}>
-                ✕
-              </button>
-            </div>
-            <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 12, lineHeight: 1.5 }}>
-              HIT RUSH to szybki tryb solo, w którym liczy się wiedza, refleks i seria poprawnych odpowiedzi.
-            </p>
-            <div className="flex flex-col gap-2.5" style={{ fontSize: 13, lineHeight: 1.4 }}>
-              <p>🎵 Posłuchaj aktualnie granego utworu.</p>
-              <p>⏪ Zdecyduj, czy został wydany wcześniej, czy później niż karta referencyjna.</p>
-              <p>🔄 Po każdej odpowiedzi aktualny utwór staje się nową kartą referencyjną.</p>
-              <p>🔥 Poprawne odpowiedzi budują combo i zwiększają zdobywane punkty.</p>
-              <p>📈 Im większe combo, tym trudniejsze porównania — różnica między latami będzie coraz mniejsza.</p>
-              <p>
-                ⏱️ Masz {HIT_RUSH_CONFIG.ROUND_SECONDS} sekund. Za {HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO} poprawnych odpowiedzi z rzędu otrzymujesz +
-                {HIT_RUSH_CONFIG.TIME_BONUS_SECONDS} sekund.
-              </p>
-              <p>🏆 Zdobądź jak najwięcej punktów i pobij swój rekord!</p>
-            </div>
-            <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 14, fontStyle: "italic" }}>Błąd zeruje combo, ale gra trwa dalej.</p>
-          </div>
-        </div>
-      )}
-
-      {incomingChallenge && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.75)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 100,
-            padding: 24,
-          }}
-        >
-          <div className="rounded-2xl p-6 text-center card-glow" style={{ background: "var(--surface)", maxWidth: 320 }}>
-            <p style={{ fontSize: 32 }}>⚔️</p>
-            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, marginTop: 4 }}>
-              {incomingChallenge.fromName} wyzywa Cię na pojedynek!
-            </p>
-            <div className="flex gap-3 mt-5">
-              <button
-                onClick={handleAcceptChallenge}
-                disabled={challengeBusy}
-                className="flex-1 py-2.5 rounded-xl text-sm font-bold"
-                style={{ background: "var(--good)", color: "#0d1f1a" }}
-              >
-                Przyjmij
-              </button>
-              <button
-                onClick={handleDeclineChallenge}
-                disabled={challengeBusy}
-                className="flex-1 py-2.5 rounded-xl text-sm font-bold"
-                style={{ border: "1px solid #33294f", color: "var(--muted)" }}
-              >
-                Odrzuć
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {levelUpInfo && (
-        <div
-          onClick={() => setLevelUpInfo(null)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.65)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 100,
-            padding: 24,
-          }}
-        >
-          <div className="rounded-2xl p-6 text-center card-glow pulse-cta" style={{ background: "var(--surface)", maxWidth: 320 }}>
-            <p style={{ fontSize: 40 }}>🎉</p>
-            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: "var(--accent)" }}>AWANS POZIOMU!</p>
-            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48 }}>Poziom {levelUpInfo.level}</p>
-            <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>(kliknij, żeby zamknąć)</p>
-          </div>
-        </div>
-      )}
-
-      {showDailySong && dailySong && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.75)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 98,
-            padding: 16,
-            overflowY: "auto",
-          }}
-        >
-          <div className="rounded-2xl p-5 card-glow w-full" style={{ background: "var(--surface)", maxWidth: 380 }}>
-            <div className="flex items-center justify-between mb-3">
-              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                <img src={iconPiosenkaDnia} alt="" style={{ height: 26 }} /> PIOSENKA DNIA
-              </p>
-              <button onClick={closeDailySong} style={{ color: "var(--muted)" }}>
-                <X size={20} />
-              </button>
-            </div>
-
-            {!dailyAlreadyPlayed ? (
-              <div className="flex flex-col items-center gap-4">
-                <Vinyl spinning={dailyIsPlaying} revealed={false} progress={dailyPlayElapsed / PLAY_CAP_SECONDS} />
-                <div style={{ width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }}>
-                  <iframe
-                    key={"daily-" + dailySong.videoId}
-                    ref={dailyIframeRef}
-                    title="daily-player"
-                    width="280"
-                    height="158"
-                    src={`https://www.youtube.com/embed/${dailySong.videoId}?enablejsapi=1&autoplay=1&mute=1&start=${dailySong.startSeconds}&controls=0&modestbranding=1&rel=0`}
-                    allow="autoplay; encrypted-media"
-                    style={{ border: "none" }}
-                  />
-                </div>
-                <button onClick={toggleDailyPlay} className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-bold btn-grad">
-                  <Play size={16} />
-                  {dailyIsPlaying ? `Gra… (${Math.ceil(PLAY_CAP_SECONDS - dailyPlayElapsed)}s)` : "Odtwórz dźwięk"}
-                </button>
-
-                <div className="w-full flex flex-col gap-2">
-                  <input type="text" value={dailyGuessArtist} onChange={(e) => setDailyGuessArtist(e.target.value)} placeholder="Wykonawca" />
-                  <input type="text" value={dailyGuessTitle} onChange={(e) => setDailyGuessTitle(e.target.value)} placeholder="Tytuł" />
-                  <input type="number" value={dailyGuessYear} onChange={(e) => setDailyGuessYear(e.target.value)} placeholder="Rok" />
-                </div>
-                <button onClick={submitDailyGuess} disabled={dailyBusy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
-                  ZATWIERDŹ ODPOWIEDŹ
-                </button>
-                <p style={{ fontSize: 10, color: "var(--muted)" }}>Puste pola liczą się jako błędne — możesz zostawić to, czego nie wiesz.</p>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-3 text-center">
-                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>
-                  {dailyResult?.score === 3 ? "🎉 KOMPLET!" : dailyResult?.score > 0 ? "Nieźle!" : "Może jutro pójdzie lepiej"}
-                </p>
-                <div className="w-full rounded-lg p-3" style={{ background: "var(--surface2)" }}>
-                  <p style={{ fontSize: 13 }}>
-                    <strong>{dailySong.artist}</strong> — {dailySong.title}
-                  </p>
-                  <p style={{ color: "var(--accent)", fontFamily: "'Bebas Neue', sans-serif", fontSize: 22 }}>{dailySong.year}</p>
-                </div>
-                {dailyResult && (
-                  <div className="w-full flex flex-col gap-1 text-left" style={{ fontSize: 12 }}>
-                    <span style={{ color: dailyResult.correctArtist ? "var(--good)" : "var(--bad)" }}>
-                      {dailyResult.correctArtist ? "✓" : "✗"} Wykonawca: {dailyResult.guessArtist || "—"}
-                    </span>
-                    <span style={{ color: dailyResult.correctTitle ? "var(--good)" : "var(--bad)" }}>
-                      {dailyResult.correctTitle ? "✓" : "✗"} Tytuł: {dailyResult.guessTitle || "—"}
-                    </span>
-                    <span style={{ color: dailyResult.correctYear ? "var(--good)" : "var(--bad)" }}>
-                      {dailyResult.correctYear ? "✓" : "✗"} Rok: {dailyResult.guessYear || "—"}
-                    </span>
-                  </div>
-                )}
-                {dailyResult?.streak !== undefined && (
-                  <p style={{ fontSize: 12, color: "var(--accent2)" }}>🔥 Seria dni z rzędu: {dailyResult.streak}</p>
-                )}
-                {dailyResult?.xpEarned !== undefined && (
-                  <p style={{ fontSize: 12, color: "var(--good)" }}>+{dailyResult.xpEarned} XP</p>
-                )}
-                <p style={{ fontSize: 11, color: "var(--muted)" }}>Wróć jutro po kolejną piosenkę!</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {sharedBoughtNotice && (
-        <div
-          style={{
-            position: "fixed",
-            top: 16,
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 96,
-            textAlign: "center",
-            padding: "10px 18px",
-            borderRadius: 12,
-            background: "var(--surface)",
-            border: "1px solid var(--accent)",
-            color: "var(--text)",
-            fontSize: 12,
-            maxWidth: "90%",
-          }}
-        >
-          <img src={achKupionaKarta} alt="" style={{ height: 16, display: "inline", verticalAlign: "middle", marginRight: 6 }} />
-          {sharedBoughtNotice.name} kupił(a) kartę za tokeny!
-        </div>
-      )}
-
-      {brokenLinkNotice && (
-        <div
-          style={{
-            position: "fixed",
-            top: 16,
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 96,
-            textAlign: "center",
-            padding: "10px 18px",
-            borderRadius: 12,
-            background: "var(--surface)",
-            border: "1px solid var(--bad)",
-            color: "var(--text)",
-            fontSize: 12,
-            maxWidth: "90%",
-          }}
-        >
-          ⚠ Ten utwór nie mógł się załadować — losujemy nowy.
-        </div>
-      )}
-
-      {boughtCardReveal && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.6)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 100,
-            padding: 24,
-          }}
-        >
-          <div className="rounded-2xl p-5 text-center card-glow" style={{ background: "var(--surface)", maxWidth: 320 }}>
-            <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--good)", marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
-              <img src={achKupionaKarta} alt="" style={{ height: 16 }} /> Kupiona karta
-            </p>
-            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 40, color: "var(--accent)" }}>{boughtCardReveal.year}</p>
-            <p style={{ fontSize: 15, fontWeight: "bold", marginTop: 4 }}>{boughtCardReveal.artist}</p>
-            <p style={{ fontSize: 14, color: "var(--muted)", marginTop: 2 }}>„{boughtCardReveal.title}"</p>
-            <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 10 }}>trafiła na Twoją oś czasu</p>
-          </div>
-        </div>
-      )}
-
-      {heldCard && (
-        <div
-          onClick={() => setHeldCard(null)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.6)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 100,
-            padding: 24,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="rounded-2xl p-5 text-center"
-            style={{ background: "var(--surface)", border: "1px solid var(--accent)", maxWidth: 320 }}
-          >
-            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 40, color: "var(--accent)" }}>{heldCard.year}</p>
-            <p style={{ fontSize: 15, fontWeight: "bold", marginTop: 4 }}>{heldCard.artist}</p>
-            <p style={{ fontSize: 14, color: "var(--muted)", marginTop: 2 }}>„{heldCard.title}"</p>
-            <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 10 }}>(kliknij poza kartą, żeby zamknąć)</p>
-          </div>
-        </div>
-      )}
-
-      {roomId && room && screen !== "home" && (
-        <>
-          <button
-            onClick={() => setShowChat((v) => !v)}
-            style={{
-              position: "fixed",
-              bottom: 20,
-              right: 20,
-              width: 56,
-              height: 56,
-              borderRadius: "50%",
-              background: "var(--accent)",
-              color: "#1a1428",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
-              zIndex: 90,
-              border: "none",
-            }}
-          >
-            <MessageCircle size={24} />
-            {(() => {
-              const unread = Math.max(0, (room.messages?.length || 0) - chatSeenCount);
-              return unread > 0 ? (
-                <span
-                  style={{
-                    position: "absolute",
-                    top: -2,
-                    right: -2,
-                    background: "var(--bad)",
-                    color: "#fff",
-                    fontSize: 10,
-                    fontWeight: "bold",
-                    borderRadius: "50%",
-                    width: 18,
-                    height: 18,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  {unread > 99 ? "99+" : unread}
-                </span>
-              ) : null;
-            })()}
-          </button>
-
-          {showChat && (
-            <div
-              style={{
-                position: "fixed",
-                bottom: 88,
-                right: 20,
-                width: "min(360px, calc(100vw - 40px))",
-                height: "min(480px, calc(100vh - 140px))",
-                background: "var(--surface)",
-                border: "1px solid #2a2340",
-                borderRadius: 16,
-                display: "flex",
-                flexDirection: "column",
-                boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
-                zIndex: 90,
-                overflow: "hidden",
-              }}
-            >
-              <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid #2a2340" }}>
-                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18 }}>Czat pokoju</p>
-                <button onClick={() => setShowChat(false)} style={{ color: "var(--muted)" }}>
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto px-3 py-2 flex flex-col gap-2">
-                {(!room.messages || room.messages.length === 0) && (
-                  <p style={{ color: "var(--muted)", fontSize: 12, textAlign: "center", marginTop: 20 }}>
-                    Brak wiadomości — napisz coś pierwszy!
-                  </p>
-                )}
-                {(room.messages || [])
-                  .slice()
-                  .sort((a, b) => a.ts - b.ts)
-                  .map((m, i) => (
-                    <div
-                      key={i}
-                      className="rounded-lg px-3 py-2"
-                      style={{
-                        background: m.playerId === playerId ? "var(--accent)" : "var(--surface2)",
-                        color: m.playerId === playerId ? "#061018" : "var(--text)",
-                        alignSelf: m.playerId === playerId ? "flex-end" : "flex-start",
-                        maxWidth: "85%",
-                      }}
-                    >
-                      <p
-                        style={{
-                          fontSize: 10,
-                          color: m.playerId === playerId ? "#0a2420" : "var(--accent)",
-                          fontWeight: "bold",
-                          marginBottom: 2,
-                        }}
-                      >
-                        {m.name}
-                      </p>
-                      <p style={{ fontSize: 13, wordBreak: "break-word" }}>{m.text}</p>
-                    </div>
-                  ))}
-                <div ref={chatEndRef} />
-              </div>
-
-              <div className="flex items-center gap-2 px-3 py-3" style={{ borderTop: "1px solid #2a2340" }}>
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && sendChatMessage()}
-                  placeholder="Napisz wiadomość…"
-                  className="flex-1"
-                  maxLength={300}
-                />
-                <button
-                  onClick={sendChatMessage}
-                  disabled={!chatInput.trim()}
-                  style={{ color: chatInput.trim() ? "var(--accent)" : "var(--muted)" }}
-                >
-                  <Send size={20} />
-                </button>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
+                                    categoriesText:
