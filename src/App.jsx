@@ -60,13 +60,13 @@ import hitrushMenuDesc from "./assets/icons/hitrush-menu-desc.webp";
 import hitrushMenuBlue from "./assets/icons/hitrush-menu-blue.webp";
 import hitrushMenuPink from "./assets/icons/hitrush-menu-pink.webp";
 import hitrushMenuStart from "./assets/icons/hitrush-menu-start.webp";
-import playingPanelFrame from "./assets/icons/playing-panel-frame-v2.webp";
-import timelineCardFrame from "./assets/icons/timeline-card-frame.webp";
+import playingPanelFrame from "./assets/icons/playing-panel-frame-v3.webp";
+import timelineCardFrame from "./assets/icons/timeline-card-frame-v2.webp";
+import confirmSlotBtnInactive from "./assets/icons/confirm-slot-btn-inactive.webp";
 import timelineSlotFrame from "./assets/icons/timeline-slot-frame.webp";
 import confirmSlotBtn from "./assets/icons/confirm-slot-btn.webp";
 import playingConfirmBtn from "./assets/icons/playing-confirm-btn.webp";
 import playingYearCard from "./assets/icons/playing-year-card.webp";
-import playingOdtworzBtn from "./assets/icons/playing-odtworz-btn.webp";
 import glPiosenka from "./assets/icons/gl-piosenka.png";
 import glPlaylista from "./assets/icons/gl-playlista.png";
 import glTurniej from "./assets/icons/gl-turniej.png";
@@ -265,20 +265,20 @@ const TimelineCard = memo(function TimelineCard({ year, title, artist, onHold, o
       onTouchEnd={cancel}
       className="flex flex-col items-center justify-center text-center select-none"
       style={{
-        width: 66,
-        height: 83,
+        width: 78,
+        height: 98,
         backgroundImage: `url(${timelineCardFrame})`,
         backgroundSize: "100% 100%",
         backgroundRepeat: "no-repeat",
         filter: highlight ? `drop-shadow(0 0 8px ${highlight})` : "none",
         cursor: "pointer",
         touchAction: "manipulation",
-        padding: "6px 8px",
+        padding: "22% 10% 26%",
       }}
     >
-      <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: "var(--accent)" }}>{year}</span>
-      <span style={{ fontSize: 9, color: "var(--muted)", lineHeight: 1.1, marginTop: 2 }}>
-        {artist.length > 14 ? artist.slice(0, 13) + "…" : artist}
+      <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 19, color: "var(--accent)", lineHeight: 1 }}>{year}</span>
+      <span style={{ fontSize: 8.5, color: "var(--muted)", lineHeight: 1.15, marginTop: 3 }}>
+        {artist.length > 16 ? artist.slice(0, 15) + "…" : artist}
       </span>
     </div>
   );
@@ -6426,30 +6426,28 @@ export default function App() {
         {(screen === "playing" || screen === "voting" || screen === "roundResult") && room && room.currentCard && (
           <div className="w-full flex flex-col items-center gap-6">
             <div
-              className="w-full flex flex-col items-center"
+              className="w-full"
               style={{
+                position: "relative",
                 aspectRatio: "1122 / 1402",
                 maxWidth: 320,
                 backgroundImage: `url(${playingPanelFrame})`,
                 backgroundSize: "100% 100%",
                 backgroundRepeat: "no-repeat",
-                padding: "9% 12% 9%",
               }}
             >
-              <p style={{ color: "#4fd6ff", fontSize: 11, textTransform: "uppercase", letterSpacing: 2 }}>Tura gracza</p>
-              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, textAlign: "center", marginTop: 2 }}>
-                {isMyTurn ? "Twoja kolej!" : turnPlayerName}
-              </p>
+              <div style={{ position: "absolute", top: "7%", left: "8%", right: "8%", textAlign: "center" }}>
+                <p style={{ color: "#4fd6ff", fontSize: 11, textTransform: "uppercase", letterSpacing: 2 }}>Tura gracza</p>
+                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 21, marginTop: 2 }}>
+                  {isMyTurn ? "Twoja kolej!" : turnPlayerName}
+                </p>
+              </div>
 
               {screen === "playing" && (
-                <p style={{ color: decisionLeft <= 10 ? "var(--bad)" : "#d8cdf5", fontSize: 10, fontWeight: "bold", marginTop: -7, paddingLeft: 10 }}>
-                  {decisionLeft}s na decyzję
-                </p>
+                <div style={{ position: "absolute", top: "24.5%", left: "20%", right: "20%", textAlign: "center" }}>
+                  <p style={{ color: decisionLeft <= 10 ? "var(--bad)" : "#d8cdf5", fontSize: 11, fontWeight: "bold" }}>{decisionLeft}s na decyzję</p>
+                </div>
               )}
-
-              <div style={{ marginTop: 10, marginBottom: 10 }}>
-                <Vinyl spinning={isPlaying} revealed={screen === "roundResult"} progress={playElapsed / PLAY_CAP_SECONDS} showRing={false} />
-              </div>
 
               <div style={{ width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }}>
                 <iframe
@@ -6468,11 +6466,12 @@ export default function App() {
                 onClick={togglePlay}
                 className="flex items-center justify-center gap-2 font-bold"
                 style={{
-                  width: "78%",
-                  aspectRatio: "2172 / 724",
-                  backgroundImage: `url(${playingOdtworzBtn})`,
-                  backgroundSize: "100% 100%",
-                  backgroundRepeat: "no-repeat",
+                  position: "absolute",
+                  top: "76%",
+                  bottom: "3%",
+                  left: "14%",
+                  right: "14%",
+                  background: "none",
                   border: "none",
                   color: "#062231",
                   fontSize: 12,
@@ -6545,7 +6544,16 @@ export default function App() {
                   className="w-full mt-5 flex items-center justify-center font-bold"
                   style={
                     chosenSlot === null
-                      ? { aspectRatio: "2172 / 724", background: "#232f4d", color: "var(--muted)", border: "none", fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, borderRadius: 12 }
+                      ? {
+                          aspectRatio: "2172 / 724",
+                          backgroundImage: `url(${confirmSlotBtnInactive})`,
+                          backgroundSize: "100% 100%",
+                          backgroundRepeat: "no-repeat",
+                          border: "none",
+                          color: "#8a8a8a",
+                          fontFamily: "'Bebas Neue', sans-serif",
+                          fontSize: 20,
+                        }
                       : {
                           aspectRatio: "2172 / 724",
                           backgroundImage: `url(${confirmSlotBtn})`,
