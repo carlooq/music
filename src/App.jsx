@@ -196,7 +196,7 @@ const Vinyl = memo(function Vinyl({ spinning, revealed, progress = 0, showRing =
           className="rounded-full flex items-center justify-center text-center px-2"
           style={{ width: 78, height: 78, background: "linear-gradient(135deg, var(--accent), var(--accent2))", color: "#061018" }}
         >
-          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, lineHeight: 1 }}>
+          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 13, lineHeight: 1 }}>
             {revealed ? "ODKRYTE" : "?"}
           </span>
         </div>
@@ -226,14 +226,14 @@ const SlotButton = memo(function SlotButton({ index, chosen, onPick, label }) {
       onClick={() => onPick(index)}
       className="flex items-center justify-center"
       style={{
-        width: 42,
-        height: 62,
+        width: 34,
+        height: 52,
         backgroundImage: `url(${timelineSlotFrame})`,
         backgroundSize: "100% 100%",
         backgroundRepeat: "no-repeat",
         border: "none",
         color: chosen === index ? "#fff" : "#4fd6ff",
-        fontSize: 15,
+        fontSize: 13,
         fontWeight: "bold",
         opacity: chosen === index ? 1 : 0.55,
         filter: chosen === index ? "drop-shadow(0 0 6px rgba(79,214,255,0.8))" : "none",
@@ -265,19 +265,19 @@ const TimelineCard = memo(function TimelineCard({ year, title, artist, onHold, o
       onTouchEnd={cancel}
       className="flex flex-col items-center justify-center text-center select-none"
       style={{
-        width: 78,
-        height: 98,
+        width: 68,
+        height: 86,
         backgroundImage: `url(${timelineCardFrame})`,
         backgroundSize: "100% 100%",
         backgroundRepeat: "no-repeat",
         filter: highlight ? `drop-shadow(0 0 8px ${highlight})` : "none",
         cursor: "pointer",
         touchAction: "manipulation",
-        padding: "22% 10% 26%",
+        padding: "20% 10% 24%",
       }}
     >
-      <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 19, color: "var(--accent)", lineHeight: 1 }}>{year}</span>
-      <span style={{ fontSize: 8.5, color: "var(--muted)", lineHeight: 1.15, marginTop: 3 }}>
+      <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 17, color: "var(--accent)", lineHeight: 1 }}>{year}</span>
+      <span style={{ fontSize: 8, color: "var(--muted)", lineHeight: 1.1, marginTop: 2 }}>
         {artist.length > 16 ? artist.slice(0, 15) + "…" : artist}
       </span>
     </div>
@@ -319,7 +319,7 @@ const CollectibleCard = memo(function CollectibleCard({ song, size = 140, onClic
           height: "25.5%",
           display: "flex",
           flexDirection: "column",
-          alignItems: "center",
+          alignItems: "flex-start",
           justifyContent: "center",
           textAlign: "center",
           overflow: "hidden",
@@ -3713,14 +3713,14 @@ export default function App() {
           <div style={{ flex: 1 }} />
           <button
             onClick={() => setShowOnlineList((v) => !v)}
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid #1fd97a", color: "#7dffb0", fontSize: 12, cursor: "pointer" }}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid #1fd97a", color: "#7dffb0", fontSize: 13, cursor: "pointer" }}
           >
             🟢 {onlinePlayers.length} online
           </button>
           {user && myXp !== null && (
             <button
               onClick={screen === "home" ? openStats : undefined}
-              style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid var(--accent)", color: "var(--accent)", fontSize: 12, cursor: screen === "home" ? "pointer" : "default", fontFamily: "'Bebas Neue', sans-serif" }}
+              style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid var(--accent)", color: "var(--accent)", fontSize: 13, cursor: screen === "home" ? "pointer" : "default", fontFamily: "'Bebas Neue', sans-serif" }}
             >
               ⭐ LVL {levelFromXp(myXp).level}
               <span className="hs-xp-bar"><div style={{ width: `${Math.round((levelFromXp(myXp).currentLevelXp / levelFromXp(myXp).xpForNextLevel) * 100)}%` }} /></span>
@@ -3729,7 +3729,7 @@ export default function App() {
           {user && stats && (
             <button
               onClick={screen === "home" ? openStats : undefined}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid #a56bff", color: "#c9a8ff", fontSize: 12, cursor: screen === "home" ? "pointer" : "default" }}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid #a56bff", color: "#c9a8ff", fontSize: 13, cursor: screen === "home" ? "pointer" : "default" }}
             >
               ♪ {stats.guessesCorrect || 0}
             </button>
@@ -3737,7 +3737,7 @@ export default function App() {
           {user && myHitcoin !== null && (
             <button
               onClick={screen === "home" ? () => setScreen("packShop") : undefined}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid var(--gold)", color: "var(--gold)", fontSize: 12, cursor: screen === "home" ? "pointer" : "default" }}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid var(--gold)", color: "var(--gold)", fontSize: 13, cursor: screen === "home" ? "pointer" : "default" }}
             >
               <img src={iconHitcoin} alt="" style={{ height: 14 }} /> {myHitcoin}
             </button>
@@ -3762,7 +3762,7 @@ export default function App() {
         {showOnlineList && (
           <div className="w-full rounded-xl p-3 mb-6" style={{ background: "var(--surface2)", maxWidth: 340 }}>
             {onlinePlayers.length === 0 ? (
-              <p style={{ color: "var(--muted)", fontSize: 12, textAlign: "center" }}>Nikt inny teraz nie jest online.</p>
+              <p style={{ color: "var(--muted)", fontSize: 13, textAlign: "center" }}>Nikt inny teraz nie jest online.</p>
             ) : (
               <div className="flex flex-col gap-1.5">
                 {onlinePlayers.map((p) => {
@@ -3937,13 +3937,13 @@ export default function App() {
                               style={{ background: "#0c0c1c", border: `1px solid rgba(165,107,255,${c.claimed ? 0.15 : 0.35})`, boxShadow: c.claimed ? "none" : "0 0 16px rgba(165,107,255,0.15)", opacity: c.claimed ? 0.6 : 1 }}
                             >
                               <div className="flex items-center justify-between mb-1 gap-2">
-                                <span style={{ fontSize: 12, fontWeight: "bold" }}>{c.desc}</span>
+                                <span style={{ fontSize: 13, fontWeight: "bold" }}>{c.desc}</span>
                                 {c.claimed ? (
                                   <span style={{ fontSize: 11, color: "var(--good)", flexShrink: 0 }}>✓ Odebrane</span>
                                 ) : c.done ? (
                                   <button
                                     onClick={() => handleClaimWeeklyChallengeReward(c.id)}
-                                    style={{ fontSize: 11, fontWeight: "bold", color: "#3a2400", background: "var(--gold)", borderRadius: 8, padding: "3px 10px", flexShrink: 0 }}
+                                    style={{ fontSize: 11.5, fontWeight: "bold", lineHeight: 1, color: "#3a2400", background: "var(--gold)", borderRadius: 8, padding: "3px 10px", flexShrink: 0 }}
                                   >
                                     Odbierz +{c.xp} XP{c.hitcoin ? ` +${c.hitcoin} 🪙` : ""}
                                   </button>
@@ -4056,7 +4056,7 @@ export default function App() {
 
             {h2hOpponents && h2hOpponents.length > 0 && (
               <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(255,95,201,0.4)", boxShadow: "0 0 30px rgba(255,95,201,0.15)" }}>
-                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, marginBottom: 4 }}>⚔️ POJEDYNKI 1V1</h2>
+                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, marginBottom: 4 }}>⚔️ POJEDYNKI 1V1</h2>
                 <p style={{ color: "var(--muted)", fontSize: 11, marginBottom: 10 }}>
                   Liczą się tylko gry, w których graliście dokładnie we dwójkę.
                 </p>
@@ -4255,8 +4255,8 @@ export default function App() {
               <div className="flex items-center gap-3 mb-3">
                 <div
                   style={{
-                    width: 48,
-                    height: 48,
+                    width: 44,
+                    height: 44,
                     borderRadius: "50%",
                     background: viewingPlayer.stats?.avatarUrl ? `url(${viewingPlayer.stats.avatarUrl}) center/cover no-repeat` : "linear-gradient(135deg,#ff5fc9,#4f8cff)",
                     border: "2px solid rgba(255,255,255,0.4)",
@@ -4373,11 +4373,11 @@ export default function App() {
             </button>
 
             {showProposals && (
-              <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <section className="w-full rounded-2xl p-3.5" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
                 {!proposals ? (
-                  <p style={{ fontSize: 12, color: "var(--muted)" }}>Ładowanie…</p>
+                  <p style={{ fontSize: 13, color: "var(--muted)" }}>Ładowanie…</p>
                 ) : proposals.length === 0 ? (
-                  <p style={{ fontSize: 12, color: "var(--muted)" }}>Brak oczekujących propozycji.</p>
+                  <p style={{ fontSize: 13, color: "var(--muted)" }}>Brak oczekujących propozycji.</p>
                 ) : (
                   <div className="flex flex-col gap-2">
                     {proposals.map((p) => (
@@ -4448,7 +4448,7 @@ export default function App() {
 
             {(!librarySongs || librarySongs.length === 0) && (
               <section className="w-full rounded-2xl p-4" style={{ background: "rgba(231,178,76,0.1)", border: "1px solid var(--accent)" }}>
-                <p style={{ fontSize: 12, marginBottom: 8 }}>
+                <p style={{ fontSize: 13, marginBottom: 8 }}>
                   Baza w Firestore jest pusta — gra korzysta teraz z wbudowanej listy ({REAL_SONGS.length} utworów), której nie da się edytować na żywo.
                   Wgraj ją do bazy jednym kliknięciem, żeby móc dalej edytować bezpośrednio w appce:
                 </p>
@@ -4481,7 +4481,7 @@ export default function App() {
                   : "Wyczyść stare pokoje"}
               </button>
               {cleanupResult && (
-                <p style={{ fontSize: 12, marginTop: 8, color: "var(--good)" }}>
+                <p style={{ fontSize: 13, marginTop: 8, color: "var(--good)" }}>
                   ✓ Usunięto {cleanupResult.deleted} z {cleanupResult.totalRooms} sprawdzonych pokojów.
                 </p>
               )}
@@ -4507,9 +4507,9 @@ export default function App() {
               {showBrokenLinkReports && (
                 <div className="flex flex-col gap-2 mt-3">
                   {!brokenLinkReports ? (
-                    <p style={{ fontSize: 12, color: "var(--muted)" }}>Ładowanie…</p>
+                    <p style={{ fontSize: 13, color: "var(--muted)" }}>Ładowanie…</p>
                   ) : brokenLinkReports.length === 0 ? (
-                    <p style={{ fontSize: 12, color: "var(--muted)" }}>Brak zgłoszeń — nic nie zawiodło (jeszcze 🙂).</p>
+                    <p style={{ fontSize: 13, color: "var(--muted)" }}>Brak zgłoszeń — nic nie zawiodło (jeszcze 🙂).</p>
                   ) : (
                     brokenLinkReports.map((r) => (
                       <div key={r.id} className="rounded-lg p-3" style={{ background: "var(--surface2)" }}>
@@ -4837,15 +4837,15 @@ export default function App() {
               {duplicateSongs !== null && (
                 <div className="mt-3 flex flex-col gap-2">
                   {duplicateSongs.length === 0 ? (
-                    <p style={{ fontSize: 12, color: "var(--good)" }}>✓ Brak duplikatów — każdy utwór jest w bazie tylko raz.</p>
+                    <p style={{ fontSize: 13, color: "var(--good)" }}>✓ Brak duplikatów — każdy utwór jest w bazie tylko raz.</p>
                   ) : (
                     <>
-                      <p style={{ fontSize: 12, color: "#ff5fc9", fontWeight: "bold" }}>
+                      <p style={{ fontSize: 13, color: "#ff5fc9", fontWeight: "bold" }}>
                         Znaleziono {duplicateSongs.length} zduplikowanych utworów ({duplicateSongs.reduce((sum, g) => sum + g.length - 1, 0)} nadmiarowych kopii):
                       </p>
                       {duplicateSongs.map((group) => (
                         <div key={group[0].videoId} className="rounded-lg p-2" style={{ background: "var(--surface2)" }}>
-                          <p style={{ fontSize: 12, fontWeight: "bold" }}>
+                          <p style={{ fontSize: 13, fontWeight: "bold" }}>
                             {group[0].artist} – {group.map((s) => s.title).join(" / ")} ({group.length}×)
                           </p>
                           <p style={{ fontSize: 10, color: "var(--muted)" }}>videoId: {group[0].videoId}</p>
@@ -4882,7 +4882,7 @@ export default function App() {
               <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
                 Format wierszy: <code>url;wykonawca;tytuł;rok;kategorie;po;średniku</code>. Duplikaty (po linku YouTube) są pomijane automatycznie.
               </p>
-              <input type="file" accept=".csv,text/csv" onChange={handleImportFilePick} style={{ fontSize: 12, marginBottom: 8 }} />
+              <input type="file" accept=".csv,text/csv" onChange={handleImportFilePick} style={{ fontSize: 13, marginBottom: 8 }} />
               <textarea
                 rows={5}
                 value={importCsvText}
@@ -4903,7 +4903,7 @@ export default function App() {
                   : "Importuj do bazy"}
               </button>
               {importResult && (
-                <p style={{ fontSize: 12, marginTop: 8, color: "var(--good)" }}>
+                <p style={{ fontSize: 13, marginTop: 8, color: "var(--good)" }}>
                   ✓ Dodano {importResult.added} nowych utworów. Pominięto: {importResult.skippedDup} duplikatów, {importResult.skippedBad} błędnych wierszy (z {importResult.totalRows} w pliku).
                 </p>
               )}
@@ -5045,7 +5045,7 @@ export default function App() {
                       >
                         ← Poprzednia
                       </button>
-                      <span style={{ fontSize: 12, color: "var(--muted)" }}>
+                      <span style={{ fontSize: 13, color: "var(--muted)" }}>
                         Strona {page} / {totalPages}
                       </span>
                       <button
@@ -5082,7 +5082,7 @@ export default function App() {
                 <>
                   <div className="flex items-center gap-2">
                     <span style={{ color: "var(--muted)", fontSize: 12 }}>Imię:</span>
-                    <input type="text" value={name} onChange={(e) => saveName(e.target.value)} placeholder="np. Kasia" style={{ width: 120, fontSize: 12, padding: "4px 8px" }} />
+                    <input type="text" value={name} onChange={(e) => saveName(e.target.value)} placeholder="np. Kasia" style={{ width: 120, fontSize: 13, padding: "4px 8px" }} />
                   </div>
                   <button onClick={() => setShowAuthForm((v) => !v)} className="text-xs font-bold" style={{ color: "var(--accent)", textDecoration: "underline" }}>
                     {showAuthForm ? "Zwiń" : "Zaloguj się"}
@@ -5175,7 +5175,7 @@ export default function App() {
                     <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, margin: "0 0 6px", maxWidth: 220 }}>
                       Muzyka łączy.<br /><span style={{ color: "#4fd6ff" }}>Hity zostają.</span>
                     </h2>
-                    <p style={{ fontSize: 12, color: "#d8d8ea", maxWidth: 220, margin: 0 }}>Rywalizuj, odkrywaj, zdobywaj i wspinaj się na szczyt rankingu!</p>
+                    <p style={{ fontSize: 13, color: "#d8d8ea", maxWidth: 220, margin: 0 }}>Rywalizuj, odkrywaj, zdobywaj i wspinaj się na szczyt rankingu!</p>
                   </div>
                 </div>
 
@@ -5404,12 +5404,12 @@ export default function App() {
               <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
                 <img src={iconPlaylistaDnia} alt="" style={{ height: 28 }} /> PLAYLISTA DNIA
               </h2>
-              <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 14 }}>
+              <p style={{ color: "var(--muted)", fontSize: 13, marginBottom: 14 }}>
                 10 tych samych piosenek dla wszystkich graczy dzisiaj — ułóż je poprawnie na osi czasu, jedna po drugiej.
               </p>
               {dailyPlaylistAlreadyPlayed ? (
                 <div className="rounded-xl p-4 text-center" style={{ background: "var(--surface2)" }}>
-                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: "var(--accent)" }}>
+                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: "var(--accent)" }}>
                     Dzisiejszy wynik: {dailyPlaylistAlreadyPlayed.score} / 10
                   </p>
                   <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>Wróć jutro po kolejną playlistę!</p>
@@ -5494,7 +5494,7 @@ export default function App() {
               <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 8, color: "var(--gold)", display: "flex", alignItems: "center", gap: 8 }}>
                 <img src={iconTurniej} alt="" style={{ height: 28 }} /> TURNIEJ
               </h2>
-              <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 14 }}>
+              <p style={{ color: "var(--muted)", fontSize: 13, marginBottom: 14 }}>
                 Wpisowe: {activeTournament.entryFee} XP — przegrani tracą je na koniec turnieju, zwycięzca zgarnia całą pulę.
               </p>
 
@@ -5762,7 +5762,7 @@ export default function App() {
                           style={{ width: "auto", filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.55))" }}
                         />
                         <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, marginTop: 12, letterSpacing: 1 }}>{name}</p>
-                        <p style={{ fontSize: 12, color: "var(--muted)" }}>{config.cards} kart</p>
+                        <p style={{ fontSize: 13, color: "var(--muted)" }}>{config.cards} kart</p>
                         <button
                           onClick={() => buyPack(key)}
                           disabled={packShopBusy || (myHitcoin ?? 0) < config.price}
@@ -5785,7 +5785,7 @@ export default function App() {
             ) : (
               <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 26px rgba(245,196,81,0.18)" }}>
                 {showConfetti && <Confetti />}
-                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, marginBottom: 4, textAlign: "center" }}>Kliknij, żeby odkryć kartę</h2>
+                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, marginBottom: 4, textAlign: "center" }}>Kliknij, żeby odkryć kartę</h2>
                 <div className="flex flex-wrap justify-center gap-4 mt-4">
                   {packOpenResult.map((item, i) => {
                     const revealed = packRevealedIndices.has(i);
@@ -5849,7 +5849,7 @@ export default function App() {
             </button>
 
             <section className="w-full rounded-2xl p-5 card-glow" style={{ background: "var(--surface)", border: "1px solid #22304f" }}>
-              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, marginBottom: 12 }}>🎯 USTAWIENIA TRENINGU</h2>
+              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, marginBottom: 12 }}>🎯 USTAWIENIA TRENINGU</h2>
 
               <div className="flex items-center gap-2 mb-4">
                 <label className="text-xs uppercase" style={{ color: "var(--muted)" }}>Kart do zebrania:</label>
@@ -5874,7 +5874,7 @@ export default function App() {
                 })}
               </div>
 
-              <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 14 }}>
+              <p style={{ color: "var(--muted)", fontSize: 13, marginBottom: 14 }}>
                 {(() => {
                   const filterActive = !selectedCategories.includes("wszystkie") && selectedCategories.length > 0;
                   const nonReligijne = effectivePool.filter((s) => !normCategories(s.categories).includes("religijne"));
@@ -5955,7 +5955,7 @@ export default function App() {
                 loadHitRushLeaderboard("weekly");
               }}
               className="w-full flex items-center justify-center font-bold"
-              style={{ aspectRatio: "2172 / 724", backgroundImage: `url(${hitrushMenuGold})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", border: "none", color: "#ffd98a", fontSize: 15, marginBottom: -10 }}
+              style={{ aspectRatio: "2172 / 724", backgroundImage: `url(${hitrushMenuGold})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", border: "none", color: "#ffd98a", fontSize: 13, marginBottom: -10 }}
             >
               🏆 Ranking Hit Rush
             </button>
@@ -6022,7 +6022,7 @@ export default function App() {
                 padding: "4px 18px",
                 border: `1.3px solid ${{ easy: "#4fd6ff", normal: "#a56bff", hard: "#ff5fc9", expert: "#f5c451", insane: "var(--bad)" }[difficultyLabel(hitRush.combo)]}`,
                 color: { easy: "#4fd6ff", normal: "#a56bff", hard: "#ff5fc9", expert: "#f5c451", insane: "var(--bad)" }[difficultyLabel(hitRush.combo)],
-                fontSize: 12,
+                fontSize: 13,
                 fontWeight: "bold",
                 letterSpacing: 1,
                 textTransform: "uppercase",
@@ -6138,11 +6138,11 @@ export default function App() {
                 <span>🔥 Best {hitRushResult.bestCombo}</span>
               </div>
               {hitRushResult.pending ? (
-                <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 10 }}>Zapisuję wynik…</p>
+                <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 10 }}>Zapisuję wynik…</p>
               ) : hitRushResult.guestNoSave ? (
-                <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 10 }}>Zaloguj się, żeby zapisywać wyniki i zdobywać nagrody.</p>
+                <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 10 }}>Zaloguj się, żeby zapisywać wyniki i zdobywać nagrody.</p>
               ) : hitRushResult.saveError ? (
-                <p style={{ fontSize: 12, color: "var(--bad)", marginTop: 10 }}>Nie udało się zapisać wyniku.</p>
+                <p style={{ fontSize: 13, color: "var(--bad)", marginTop: 10 }}>Nie udało się zapisać wyniku.</p>
               ) : (
                 <div className="flex justify-center gap-4 mt-3">
                   {hitRushResult.xpGain > 0 && <span style={{ color: "#a56bff", fontSize: 13 }}>+{hitRushResult.xpGain} XP</span>}
@@ -6231,7 +6231,7 @@ export default function App() {
             </button>
 
             <section className="w-full rounded-2xl p-5 flex flex-col items-center" style={{ background: "#0c0c1c", border: "1px solid rgba(79,214,255,0.4)", boxShadow: "0 0 26px rgba(79,214,255,0.18)" }}>
-              <p style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase" }}>Kod pokoju</p>
+              <p style={{ color: "var(--muted)", fontSize: 13, textTransform: "uppercase" }}>Kod pokoju</p>
               <div className="flex items-center gap-2">
                 <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 44, letterSpacing: 4, color: "var(--accent)" }}>{roomId}</span>
                 <button onClick={copyCode} style={{ color: "var(--muted)" }}>
@@ -6296,7 +6296,7 @@ export default function App() {
                   })}
                 </div>
 
-                <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 6 }}>
+                <p style={{ color: "var(--muted)", fontSize: 13, marginBottom: 6 }}>
                   {(() => {
                     const filterActive = !selectedCategories.includes("wszystkie") && selectedCategories.length > 0;
                     const nonReligijne = effectivePool.filter((s) => !normCategories(s.categories).includes("religijne"));
@@ -6330,7 +6330,7 @@ export default function App() {
         )}
 
         {screen === "opener" && room && room.openerCard && (
-          <div className="w-full flex flex-col items-center gap-6">
+          <div className="w-full flex flex-col items-center gap-3">
             {openerPhase === "countdown" ? (
               <div
                 style={{
@@ -6394,7 +6394,7 @@ export default function App() {
                   </div>
                 ) : (
                   <>
-                    <p style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase" }}>Kto pierwszy zaznaczy poprawną odpowiedź, zaczyna grę</p>
+                    <p style={{ color: "var(--muted)", fontSize: 13, textTransform: "uppercase" }}>Kto pierwszy zaznaczy poprawną odpowiedź, zaczyna grę</p>
                     <div className="w-full grid grid-cols-1 gap-2">
                       {room.openerOptions.map((opt, i) => (
                         <button
@@ -6430,22 +6430,22 @@ export default function App() {
               style={{
                 position: "relative",
                 aspectRatio: "1122 / 1402",
-                maxWidth: 320,
+                maxWidth: 360,
                 backgroundImage: `url(${playingPanelFrame})`,
                 backgroundSize: "100% 100%",
                 backgroundRepeat: "no-repeat",
               }}
             >
-              <div style={{ position: "absolute", top: "7%", left: "8%", right: "8%", textAlign: "center" }}>
-                <p style={{ color: "#4fd6ff", fontSize: 11, textTransform: "uppercase", letterSpacing: 2 }}>Tura gracza</p>
-                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 21, marginTop: 2 }}>
+              <div style={{ position: "absolute", top: "5.8%", left: "9%", right: "9%", textAlign: "center" }}>
+                <p style={{ color: "#4fd6ff", fontSize: 13, textTransform: "uppercase", letterSpacing: 3 }}>Tura gracza</p>
+                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginTop: 4, lineHeight: 1 }}>
                   {isMyTurn ? "Twoja kolej!" : turnPlayerName}
                 </p>
               </div>
 
               {screen === "playing" && (
-                <div style={{ position: "absolute", top: "24.5%", left: "20%", right: "20%", textAlign: "center" }}>
-                  <p style={{ color: decisionLeft <= 10 ? "var(--bad)" : "#d8cdf5", fontSize: 11, fontWeight: "bold" }}>{decisionLeft}s na decyzję</p>
+                <div style={{ position: "absolute", top: "17.3%", left: "34%", right: "34%", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 26 }}>
+                  <p style={{ color: decisionLeft <= 10 ? "var(--bad)" : "#d8cdf5", fontSize: 11.5, fontWeight: "bold", lineHeight: 1 }}>{decisionLeft}s na decyzję</p>
                 </div>
               )}
 
@@ -6467,17 +6467,17 @@ export default function App() {
                 className="flex items-center justify-center gap-2 font-bold"
                 style={{
                   position: "absolute",
-                  top: "76%",
-                  bottom: "3%",
-                  left: "14%",
-                  right: "14%",
+                  top: "77.4%",
+                  bottom: "4.2%",
+                  left: "16.5%",
+                  right: "16.5%",
                   background: "none",
                   border: "none",
                   color: "#062231",
-                  fontSize: 12,
+                  fontSize: 13,
                 }}
               >
-                <Play size={15} />
+                <Play size={16} />
                 {isPlaying ? `Gra… (${Math.ceil(PLAY_CAP_SECONDS - playElapsed)}s)` : playElapsed >= PLAY_CAP_SECONDS ? "Odtwórz ponownie" : "Odtwórz dźwięk"}
               </button>
             </div>
@@ -6486,7 +6486,7 @@ export default function App() {
               <div className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(165,107,255,0.4)", boxShadow: "0 0 22px rgba(165,107,255,0.15)" }}>
                 <div className="flex items-center justify-between mb-2">
                   <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase" }}>Zgadnij wykonawcę i tytuł (opcjonalnie, +1 token)</p>
-                  <span style={{ color: "var(--accent)", fontSize: 12, fontWeight: "bold", display: "inline-flex", alignItems: "center", gap: 3 }}>
+                  <span style={{ color: "var(--accent)", fontSize: 13, fontWeight: "bold", display: "inline-flex", alignItems: "center", gap: 3 }}>
                     <img src={iconToken} alt="" style={{ height: 14 }} /> {room.tokens?.[playerId] || 0}
                   </span>
                 </div>
@@ -6528,8 +6528,8 @@ export default function App() {
 
             {screen === "playing" && isMyTurn && (
               <div className="w-full">
-                <p style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase", marginBottom: 10 }}>Gdzie umieszczasz tę piosenkę?</p>
-                <div className="flex flex-wrap items-center gap-2">
+                <p style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase", marginBottom: 8, textAlign: "center", letterSpacing: 1.4 }}>Gdzie umieszczasz tę piosenkę?</p>
+                <div className="flex flex-wrap items-center justify-center" style={{ columnGap: 6, rowGap: 8, maxWidth: 372, margin: "0 auto" }}>
                   <SlotButton index={0} chosen={chosenSlot} onPick={setChosenSlot} label="najstarsza" />
                   {turnTimeline.map((c, i) => (
                     <React.Fragment key={c.id}>
@@ -6541,7 +6541,7 @@ export default function App() {
                 <button
                   onClick={confirmPlacement}
                   disabled={chosenSlot === null || busy}
-                  className="w-full mt-5 flex items-center justify-center font-bold"
+                  className="w-full mt-3 flex items-center justify-center font-bold"
                   style={
                     chosenSlot === null
                       ? {
@@ -6552,7 +6552,7 @@ export default function App() {
                           border: "none",
                           color: "#8a8a8a",
                           fontFamily: "'Bebas Neue', sans-serif",
-                          fontSize: 20,
+                          fontSize: 18,
                         }
                       : {
                           aspectRatio: "2172 / 724",
@@ -6562,7 +6562,7 @@ export default function App() {
                           border: "none",
                           color: "#fff",
                           fontFamily: "'Bebas Neue', sans-serif",
-                          fontSize: 20,
+                          fontSize: 18,
                         }
                   }
                 >
@@ -6573,10 +6573,10 @@ export default function App() {
 
             {screen === "playing" && !isMyTurn && (
               <div className="w-full">
-                <p style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase", marginBottom: 10, textAlign: "center" }}>
+                <p style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase", marginBottom: 8, textAlign: "center", letterSpacing: 1.2 }}>
                   Oś czasu gracza {displayedPlayerName} <span style={{ fontSize: 10 }}>(kliknij gracza poniżej, żeby zmienić)</span>
                 </p>
-                <div className="flex flex-wrap items-center justify-center gap-2">
+                <div className="flex flex-wrap items-center justify-center" style={{ columnGap: 6, rowGap: 8, maxWidth: 372, margin: "0 auto" }}>
                   {viewedTimeline.map((c) => (
                     <TimelineCard key={c.id} year={c.year} title={c.title} artist={c.artist} onHold={setHeldCard} onRelease={clearHeldCard} />
                   ))}
@@ -6629,8 +6629,8 @@ export default function App() {
               const resultBox = (isCorrect, delayS) => (
                 <div
                   style={{
-                    width: 48,
-                    height: 48,
+                    width: 44,
+                    height: 44,
                     borderRadius: 14,
                     display: "flex",
                     alignItems: "center",
@@ -6651,7 +6651,7 @@ export default function App() {
                   className="w-full flex items-center justify-between rounded-xl px-4 py-2.5"
                   style={{ background: "var(--surface2)", animation: `slide-fade-in 0.4s ease ${delayS - 0.1}s both` }}
                 >
-                  <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, letterSpacing: 0.5 }}>{label}</span>
+                  <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 17, letterSpacing: 0.5 }}>{label}</span>
                   {resultBox(isCorrect, delayS)}
                 </div>
               );
@@ -6677,11 +6677,12 @@ export default function App() {
                     alignItems: "center",
                     justifyContent: "center",
                     zIndex: 97,
-                    padding: 16,
+                    padding: 16, paddingTop: 22,
                     overflowY: "auto",
                   }}
                 >
-                  <div className="w-full flex flex-col items-center gap-2.5" style={{ maxWidth: 380 }}>
+                  <div className="w-full flex flex-col items-center gap-2" style={{ maxWidth: 380 }}>
+                    <div className="w-full flex flex-col items-center gap-2" style={{ position: "sticky", top: 0, zIndex: 2, background: "rgba(5,8,16,0.92)", paddingBottom: 6 }}>
                     <p
                       style={{
                         fontFamily: "'Bebas Neue', sans-serif",
@@ -6715,7 +6716,8 @@ export default function App() {
                     >
                       <p style={{ fontSize: 13, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>{r.card.artist}</p>
                       <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 56, color: "var(--accent)", lineHeight: 1 }}>{r.card.year}</p>
-                      <p style={{ fontSize: 15, marginTop: 8 }}>„{r.card.title}"</p>
+                      <p style={{ fontSize: 13, marginTop: 8 }}>„{r.card.title}"</p>
+                    </div>
                     </div>
 
                     {!r.timedOut && displayCards.length > 0 && (
@@ -6723,7 +6725,7 @@ export default function App() {
                         <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase", marginBottom: 8, textAlign: "center" }}>
                           Oś czasu gracza {ownerName}
                         </p>
-                        <div className="flex flex-wrap items-center justify-center gap-2">
+                        <div className="flex flex-wrap items-center justify-center" style={{ columnGap: 6, rowGap: 8, maxWidth: 372, maxHeight: "32vh", overflowY: "auto", margin: "0 auto", paddingInline: 2, paddingBottom: 6 }}>
                           {displayCards.map((c, i) => {
                             const isPlacedCard = !c.__ghost && r.correct && c.videoId === r.card.videoId && c.year === r.card.year;
                             const highlight = c.__ghost ? "var(--bad)" : isPlacedCard ? "var(--good)" : null;
@@ -7080,9 +7082,9 @@ export default function App() {
                 <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: "var(--gold)", textShadow: "0 0 16px rgba(245,196,81,0.6)" }}>
                   {dailyWheelResult.label}
                 </p>
-                {dailyWheelResult.sublabel && <p style={{ fontSize: 12, color: "var(--muted)" }}>{dailyWheelResult.sublabel}</p>}
+                {dailyWheelResult.sublabel && <p style={{ fontSize: 13, color: "var(--muted)" }}>{dailyWheelResult.sublabel}</p>}
                 {dailyWheelResult.song && (
-                  <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                  <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>
                     {dailyWheelResult.song.artist} – {dailyWheelResult.song.title}
                   </p>
                 )}
@@ -7123,7 +7125,7 @@ export default function App() {
           >
             <div className="flex items-center justify-between mb-3">
               <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#2af598" }}>Jak grać w HIT RUSH?</h2>
-              <button onClick={() => setShowHitRushFaq(false)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: 20, lineHeight: 1 }}>
+              <button onClick={() => setShowHitRushFaq(false)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: 18, lineHeight: 1 }}>
                 ✕
               </button>
             </div>
@@ -7142,7 +7144,7 @@ export default function App() {
               </p>
               <p>🏆 Zdobądź jak najwięcej punktów i pobij swój rekord!</p>
             </div>
-            <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 14, fontStyle: "italic" }}>Błąd zeruje combo, ale gra trwa dalej.</p>
+            <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 14, fontStyle: "italic" }}>Błąd zeruje combo, ale gra trwa dalej.</p>
           </div>
         </div>
       )}
@@ -7289,10 +7291,10 @@ export default function App() {
                   </div>
                 )}
                 {dailyResult?.streak !== undefined && (
-                  <p style={{ fontSize: 12, color: "var(--accent2)" }}>🔥 Seria dni z rzędu: {dailyResult.streak}</p>
+                  <p style={{ fontSize: 13, color: "var(--accent2)" }}>🔥 Seria dni z rzędu: {dailyResult.streak}</p>
                 )}
                 {dailyResult?.xpEarned !== undefined && (
-                  <p style={{ fontSize: 12, color: "var(--good)" }}>+{dailyResult.xpEarned} XP</p>
+                  <p style={{ fontSize: 13, color: "var(--good)" }}>+{dailyResult.xpEarned} XP</p>
                 )}
                 <p style={{ fontSize: 11, color: "var(--muted)" }}>Wróć jutro po kolejną piosenkę!</p>
               </div>
@@ -7315,7 +7317,7 @@ export default function App() {
             background: "var(--surface)",
             border: "1px solid var(--accent)",
             color: "var(--text)",
-            fontSize: 12,
+            fontSize: 13,
             maxWidth: "90%",
           }}
         >
@@ -7338,7 +7340,7 @@ export default function App() {
             background: "var(--surface)",
             border: "1px solid var(--bad)",
             color: "var(--text)",
-            fontSize: 12,
+            fontSize: 13,
             maxWidth: "90%",
           }}
         >
@@ -7364,7 +7366,7 @@ export default function App() {
               <img src={achKupionaKarta} alt="" style={{ height: 16 }} /> Kupiona karta
             </p>
             <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 40, color: "var(--accent)" }}>{boughtCardReveal.year}</p>
-            <p style={{ fontSize: 15, fontWeight: "bold", marginTop: 4 }}>{boughtCardReveal.artist}</p>
+            <p style={{ fontSize: 13, fontWeight: "bold", marginTop: 4 }}>{boughtCardReveal.artist}</p>
             <p style={{ fontSize: 14, color: "var(--muted)", marginTop: 2 }}>„{boughtCardReveal.title}"</p>
             <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 10 }}>trafiła na Twoją oś czasu</p>
           </div>
@@ -7391,7 +7393,7 @@ export default function App() {
             style={{ background: "var(--surface)", border: "1px solid var(--accent)", maxWidth: 320 }}
           >
             <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 40, color: "var(--accent)" }}>{heldCard.year}</p>
-            <p style={{ fontSize: 15, fontWeight: "bold", marginTop: 4 }}>{heldCard.artist}</p>
+            <p style={{ fontSize: 13, fontWeight: "bold", marginTop: 4 }}>{heldCard.artist}</p>
             <p style={{ fontSize: 14, color: "var(--muted)", marginTop: 2 }}>„{heldCard.title}"</p>
             <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 10 }}>(kliknij poza kartą, żeby zamknąć)</p>
           </div>
@@ -7473,7 +7475,7 @@ export default function App() {
 
               <div className="flex-1 overflow-y-auto px-3 py-2 flex flex-col gap-2">
                 {(!room.messages || room.messages.length === 0) && (
-                  <p style={{ color: "var(--muted)", fontSize: 12, textAlign: "center", marginTop: 20 }}>
+                  <p style={{ color: "var(--muted)", fontSize: 13, textAlign: "center", marginTop: 20 }}>
                     Brak wiadomości — napisz coś pierwszy!
                   </p>
                 )}
