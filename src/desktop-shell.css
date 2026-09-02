@@ -1296,24 +1296,6 @@
   text-shadow: 0 0 14px rgba(255,255,255,.2);
   overflow: visible;
 }
-.desk-primary-cta::before {
-  content: '';
-  position: absolute;
-  inset: 3px;
-  clip-path: inherit;
-  border: 1px solid rgba(255,255,255,.72);
-  pointer-events: none;
-  opacity: .75;
-}
-.desk-primary-cta::after {
-  content: '';
-  position: absolute;
-  left: 12%; right: 12%; bottom: -8px;
-  height: 14px;
-  background: linear-gradient(90deg,transparent,#ff5fc9,#4fd6ff,transparent);
-  filter: blur(10px);
-  opacity: .7;
-}
 .desk-primary-cta:hover { filter: brightness(1.12); transform: translateY(-2px); }
 
 /* Game mode tiles — stronger sci-fi frame, less plain dashboard card */
@@ -2085,15 +2067,6 @@
   box-shadow: 0 0 30px rgba(170,72,255,.30), inset 0 0 22px rgba(255,255,255,.08);
   transition: filter .18s ease, transform .18s ease;
 }
-.desk-primary-cta::before {
-  content:'';
-  position:absolute;
-  inset:4px 7px;
-  pointer-events:none;
-  clip-path: polygon(14px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 14px 100%, 0 calc(100% - 14px), 0 14px);
-  border-top:1px solid rgba(255,255,255,.48);
-  border-bottom:1px solid rgba(255,255,255,.18);
-}
 .desk-primary-cta:hover { transform: translateY(-2px); filter: brightness(1.08) saturate(1.08); }
 .desk-primary-cta > span:first-child { flex:1; text-align:center; padding-left:36px; }
 .desk-primary-plus {
@@ -2419,9 +2392,9 @@
 
 @media (max-width: 1500px) {
   .desk-room-card { grid-template-columns:minmax(0,1fr) 42px minmax(0,1fr); gap:12px; padding:18px; }
-  .desk-join-row { grid-template-columns:minmax(170px,1fr) 118px; gap:9px; }
-  .desk-join-row input { font-size:13px; padding:0 12px; }
-  .desk-secondary-cta { font-size:24px; }
+  .desk-join-row { grid-template-columns:minmax(150px,1fr) 150px; gap:9px; }
+  .desk-join-row input { font-size:13px; padding:0 10px; }
+  .desk-secondary-cta { font-size:20px; padding: 0 6px; }
   .desk-primary-cta { font-size:30px; padding-left:20px; }
   .desk-primary-cta > span:first-child { padding-left:30px; }
   .desk-guide-visual { width:45%; right:9px; }
