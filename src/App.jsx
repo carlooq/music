@@ -872,6 +872,7 @@ export default function App() {
 
   // --- Wyzwania 1v1 (na żywo) ---
   const [showOnlineList, setShowOnlineList] = useState(false);
+  const [copiedRoomCode, setCopiedRoomCode] = useState(false);
   const [incomingChallenge, setIncomingChallenge] = useState(null);
   const [challengeSentTo, setChallengeSentTo] = useState(null);
   const [challengeBusy, setChallengeBusy] = useState(false);
@@ -2349,6 +2350,13 @@ export default function App() {
           return;
         }
         const data = snap.data();
+        if (data.players && !data.players.some((p) => p.id === playerId)) {
+          setRoomId(null);
+          setRoom(null);
+          setScreen("home");
+          setError("Zostałeś usunięty z pokoju przez hosta.");
+          return;
+        }
         setRoom(data);
         setScreen(data.status);
       },
@@ -3398,6 +3406,16 @@ export default function App() {
     setGameEndReward(null);
   }
 
+  async function kickPlayer(targetId) {
+    if (!isHost || !room || targetId === playerId) return;
+    try {
+      const ref = doc(db, "rooms", roomId);
+      await updateDoc(ref, { players: room.players.filter((p) => p.id !== targetId) });
+    } catch (e) {
+      setError("Nie udało się wyrzucić gracza: " + e.message);
+    }
+  }
+
   function goHome() {
     if (roomId) {
       leaveRoom();
@@ -3704,6 +3722,20 @@ export default function App() {
           >
             🟢 {onlinePlayers.length} online
           </button>
+          {roomId && (
+            <button
+              onClick={() => {
+                navigator.clipboard?.writeText(roomId).catch(() => {});
+                setError("");
+                setCopiedRoomCode(true);
+                setTimeout(() => setCopiedRoomCode(false), 1500);
+              }}
+              title="Kliknij, żeby skopiować"
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#12122a", border: "1px solid #f5c451", color: "var(--gold)", fontSize: 12, cursor: "pointer", fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1 }}
+            >
+              🔑 {copiedRoomCode ? "Skopiowano!" : roomId}
+            </button>
+          )}
           {user && myXp !== null && (
             <button
               onClick={screen === "home" ? openStats : undefined}
@@ -6244,6 +6276,16 @@ export default function App() {
                         lvl {levelFromXp(playerLevels[p.id]).level}
                       </span>
                     )}
+                    {isHost && p.id !== playerId && (
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`Wyrzucić gracza ${p.name} z pokoju?`)) kickPlayer(p.id);
+                        }}
+                        style={{ marginLeft: "auto", fontSize: 10, color: "var(--bad)", background: "none", border: "1px solid var(--bad)", borderRadius: 8, padding: "2px 7px" }}
+                      >
+                        Wyrzuć
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -6935,6 +6977,9 @@ export default function App() {
                 🏆 Wróć do turnieju
               </button>
             )}
+            <button onClick={leaveRoom} className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold" style={{ background: "#0c0c1c", border: "1px solid var(--muted)", color: "var(--muted)" }}>
+              <LogOut size={16} /> Opuść pokój
+            </button>
           </div>
         )}
 
