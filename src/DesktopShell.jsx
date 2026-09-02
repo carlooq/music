@@ -323,6 +323,79 @@ export function DesktopPlayerProfileModal({ profile, onClose, levelFromXp }) {
   );
 }
 
+
+function DesktopGameGuideModal({ onClose }) {
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') onClose?.();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
+  const modes = [
+    { icon: glTrening, title: 'Trening', text: 'Ćwicz układanie utworów na osi czasu bez presji rywalizacji.' },
+    { icon: glHitRush, title: 'Hit Rush', text: 'Szybki tryb solo na czas — poprawne odpowiedzi budują serię i wynik.' },
+    { icon: glPiosenka, title: 'Piosenka dnia', text: 'Jeden wspólny utwór każdego dnia i trzy szanse na punkty.' },
+    { icon: glPlaylista, title: 'Playlista dnia', text: 'Codzienny zestaw utworów z wynikiem porównywanym w rankingach.' },
+    { icon: glTurniej, title: 'Turniej', text: 'Rywalizacja o najlepszy wynik, miejsca w rankingu i nagrody.' },
+    { icon: glOsoba, title: 'Pokoje', text: 'Stwórz własny pokój, zaproś znajomych i grajcie razem.' },
+  ];
+
+  const systems = [
+    { icon: <AudioWaveform size={22} />, title: 'Oś czasu', text: 'Słuchasz fragmentu i umieszczasz utwór przed, pomiędzy lub za kartami, które już znasz.' },
+    { icon: <Star size={22} />, title: 'XP i poziom', text: 'Aktywność i wyniki rozwijają konto. Kolejne poziomy pokazują Twój postęp w grze.' },
+    { icon: <Disc3 size={22} />, title: 'Kolekcja kart', text: 'Odblokowujesz utwory o różnych rzadkościach — od Winylu po Diamentową Płytę.' },
+    { icon: <ShoppingCart size={22} />, title: 'Sklep i HITCOINY', text: 'HITCOINY wydajesz na paczki z kartami, które rozbudowują Twój album.' },
+    { icon: <Medal size={22} />, title: 'Osiągnięcia', text: 'Za konkretne cele otrzymujesz osiągnięcia, nagrody i kolejne powody do progresu.' },
+    { icon: <Crown size={22} />, title: 'Ranking i społeczność', text: 'Porównuj wyniki, przeglądaj profile graczy i sprawdzaj, kto jest aktualnie na szczycie.' },
+  ];
+
+  return (
+    <div className="desk-guide-backdrop" role="dialog" aria-modal="true" aria-label="Jak działa Hitsteriada?" onClick={onClose}>
+      <section className="desk-guide-modal" onClick={(event) => event.stopPropagation()}>
+        <button type="button" className="desk-guide-close" onClick={onClose} aria-label="Zamknij">×</button>
+        <header className="desk-guide-head">
+          <div className="desk-guide-kicker"><Sparkles size={16} /> PRZEWODNIK PO GRZE</div>
+          <h2>Jak działa <span>Hitsteriada?</span></h2>
+          <p>Posłuchaj fragmentu, podejmij decyzję i buduj własną muzyczną historię. Wybierz tryb, rozwijaj konto i kompletuj kolekcję.</p>
+        </header>
+
+        <section className="desk-guide-howto">
+          <div className="desk-guide-step"><strong>01</strong><span>ODSŁUCHAJ</span><p>Uruchom fragment utworu.</p></div>
+          <div className="desk-guide-step"><strong>02</strong><span>UMIEŚĆ</span><p>Wybierz miejsce na osi czasu.</p></div>
+          <div className="desk-guide-step"><strong>03</strong><span>ZDOBYWAJ</span><p>Rozwijaj konto, wyniki i kolekcję.</p></div>
+        </section>
+
+        <div className="desk-guide-section-title"><Gamepad2 size={18} /> TRYBY GRY</div>
+        <section className="desk-guide-mode-grid">
+          {modes.map((mode) => (
+            <article className="desk-guide-mode" key={mode.title}>
+              <img src={mode.icon} alt="" />
+              <div><h3>{mode.title}</h3><p>{mode.text}</p></div>
+            </article>
+          ))}
+        </section>
+
+        <div className="desk-guide-section-title"><Sparkles size={18} /> POSTĘP I SYSTEMY</div>
+        <section className="desk-guide-system-grid">
+          {systems.map((item) => (
+            <article className="desk-guide-system" key={item.title}>
+              <div className="desk-guide-system-icon">{item.icon}</div>
+              <div><h3>{item.title}</h3><p>{item.text}</p></div>
+            </article>
+          ))}
+        </section>
+
+        <footer className="desk-guide-footer">
+          <div><span>WSKAZÓWKA</span><strong>Na start wybierz Trening albo Piosenkę dnia.</strong></div>
+          <button type="button" className="desk-guide-done" onClick={onClose}>WSZYSTKO JASNE</button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
 export function DesktopHomeView(props) {
   const {
     user,
@@ -359,6 +432,7 @@ export function DesktopHomeView(props) {
   const accuracy = stats?.cardsTotal ? `${pct(stats.cardsCorrect || 0, stats.cardsTotal)}%` : '0%';
   const currentWeek = weeklySummary?.current || { title: 'Zagraj 3 gry', progressLabel: '0 / 3', progressPct: 0, reward: '+50 XP' };
   const todayClaimed = stats?.lastDailyHitcoinDate === props.todayKey;
+  const [showGuide, setShowGuide] = useState(false);
 
   return (
     <DesktopLayout
@@ -392,12 +466,14 @@ export function DesktopHomeView(props) {
         <div className="desk-hero-grid">
           <section className="desk-hero-left desk-panel cyan-glow">
             <div className="desk-panel-tag">GRAJ TERAZ</div>
-            <h1 className="desk-hero-title">Twój utwór. <span>Twoja zasada.</span></h1>
-            <p className="desk-hero-subtitle">Stwórz pokój lub dołącz do gry i baw się muzyką!</p>
+            <h1 className="desk-hero-title">Zagraj <span>po swojemu.</span></h1>
+            <p className="desk-hero-subtitle">Stwórz pokój lub dołącz do gry i baw się muzyką na własnych zasadach.</p>
             <div className="desk-room-card">
               <div className="desk-room-create">
                 <div className="desk-room-eyebrow">STWÓRZ POKÓJ</div>
-                <button className="desk-primary-cta" onClick={onCreateRoom}>STWÓRZ POKÓJ <Plus size={24} /></button>
+                <button className="desk-primary-cta" onClick={onCreateRoom}>
+                  <span>STWÓRZ POKÓJ</span><span className="desk-primary-plus"><Plus size={22} /></span>
+                </button>
                 <div className="desk-room-note">Ty wybierasz zasady. Zaproś znajomych!</div>
               </div>
               <div className="desk-room-divider">LUB</div>
@@ -409,6 +485,7 @@ export function DesktopHomeView(props) {
                     onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                     placeholder="Wpisz kod pokoju"
                     maxLength={6}
+                    aria-label="Kod pokoju"
                   />
                   <button className="desk-secondary-cta" onClick={() => onJoinRoom()}>DOŁĄCZ</button>
                 </div>
@@ -417,19 +494,24 @@ export function DesktopHomeView(props) {
             </div>
           </section>
 
-          <section className="desk-hero-right desk-panel pink-glow" style={{ backgroundImage: `linear-gradient(180deg, rgba(8,8,20,0.2), rgba(8,8,20,0.6)), url(${heroBanner})` }}>
-            <div className="desk-hero-right-copy">
-              <div className="desk-panel-tag">NOWOŚCI I WYDARZENIA</div>
-              <h2>Muzyka łączy.<br /><span>Hity zostają.</span></h2>
-              <p>Rywalizuj, odkrywaj, zdobywaj nagrody i wspinaj się na szczyt rankingu!</p>
-              <button type="button" className="desk-outline-btn" onClick={() => document.querySelector('.desk-modes-grid')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>DOWIEDZ SIĘ WIĘCEJ <ChevronRight size={18} /></button>
+          <section className="desk-hero-right desk-guide-card desk-panel pink-glow">
+            <div className="desk-hero-right-copy desk-guide-copy">
+              <div className="desk-panel-tag">POZNAJ HITSTERIADĘ</div>
+              <h2>Jak działa<br /><span>Hitsteriada?</span></h2>
+              <p>Poznaj tryby gry, zasady punktacji, kolekcję kart, sklep, osiągnięcia i system nagród.</p>
+              <button type="button" className="desk-outline-btn" onClick={() => setShowGuide(true)}>DOWIEDZ SIĘ WIĘCEJ <ChevronRight size={18} /></button>
             </div>
-            <div className="desk-hero-dots">
-              <span className="active" />
-              <span />
-              <span />
-              <span />
+            <div className="desk-guide-visual" aria-hidden="true">
+              <div className="desk-guide-orbit desk-guide-orbit-a" />
+              <div className="desk-guide-orbit desk-guide-orbit-b" />
+              <div className="desk-guide-core"><img src={logoImg} alt="" /></div>
+              <div className="desk-guide-float float-a"><img src={glTrening} alt="" /><span>TRYBY</span></div>
+              <div className="desk-guide-float float-b"><img src={glKolekcja} alt="" /><span>KARTY</span></div>
+              <div className="desk-guide-float float-c"><img src={glKorona} alt="" /><span>RANKING</span></div>
+              <div className="desk-guide-float float-d"><img src={glKoszyk} alt="" /><span>SKLEP</span></div>
+              <div className="desk-guide-wave">{Array.from({ length: 22 }).map((_, index) => <i key={index} style={{ '--bar': `${26 + ((index * 17) % 62)}%` }} />)}</div>
             </div>
+            <div className="desk-guide-mini-footer"><span>6 TRYBÓW</span><span>5 RZADKOŚCI</span><span>RANKINGI</span></div>
           </section>
         </div>
 
@@ -480,6 +562,7 @@ export function DesktopHomeView(props) {
         </div>
 
       </div>
+      {showGuide ? <DesktopGameGuideModal onClose={() => setShowGuide(false)} /> : null}
     </DesktopLayout>
   );
 }
