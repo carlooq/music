@@ -33,12 +33,6 @@ import glPlaylista from './assets/icons/gl-playlista.png';
 import glTrening from './assets/icons/gl-trening.png';
 import glKorona from './assets/icons/gl-korona.png';
 import glPrezent from './assets/icons/gl-prezent.png';
-import playingPanelFrame from './assets/icons/playing-panel-frame-v3.webp';
-import playingAudioButton from './assets/icons/playing-odtworz-btn.webp';
-import playingConfirmButton from './assets/icons/playing-confirm-btn.webp';
-import playingYearCard from './assets/icons/playing-year-card.webp';
-import timelineCardFrame from './assets/icons/timeline-card-frame-v3.webp';
-import timelineSlotFrame from './assets/icons/timeline-slot-frame.webp';
 
 function initials(label) {
   const raw = String(label || 'G').trim();
@@ -300,10 +294,19 @@ export function DesktopLobbyView({
 function DesktopVinyl({ spinning, progress = 0 }) {
   const safeProgress = Math.max(0, Math.min(100, progress * 100));
   return (
-    <div className={`dgv-turntable-frame ${spinning ? 'spinning' : ''}`} style={{ '--listen-progress': `${safeProgress}%` }}>
-      <img className="dgv-turntable-art" src={playingPanelFrame} alt="Neonowy gramofon" />
-      <div className="dgv-turntable-sheen" />
-      <div className="dgv-turntable-progress"><span /></div>
+    <div className={`dgv-v3-turntable ${spinning ? 'spinning' : ''}`} style={{ '--listen-progress': `${safeProgress}%` }}>
+      <div className="dgv-v3-deck-lines" />
+      <div className="dgv-v3-record-wrap">
+        <div className="dgv-v3-record">
+          <div className="dgv-v3-record-grooves" />
+          <div className="dgv-v3-record-label"><Music2 size={30} /></div>
+          <div className="dgv-v3-record-hole" />
+        </div>
+      </div>
+      <div className="dgv-v3-tonearm-base"><span /></div>
+      <div className="dgv-v3-tonearm"><span /></div>
+      <div className="dgv-v3-deck-mark"><small>HITSTERIADA</small><strong>AUDIO DECK 01</strong></div>
+      <div className="dgv-v3-deck-progress"><span /></div>
     </div>
   );
 }
@@ -315,8 +318,9 @@ function DesktopTimelineCard({ card, highlight, onClick }) {
       className={`dgv-timeline-card ${highlight || ''}`}
       onClick={onClick}
       title={`${card.title || ''} — ${card.artist || ''}`}
-      style={{ '--timeline-card-frame': `url(${timelineCardFrame})` }}
     >
+      <span className="dgv-timeline-corner tl" />
+      <span className="dgv-timeline-corner br" />
       <div className="dgv-timeline-year">{card.year}</div>
       <div className="dgv-timeline-title">{card.title || '—'}</div>
       <div className="dgv-timeline-artist">{card.artist || '—'}</div>
@@ -330,7 +334,6 @@ function DesktopSlot({ index, chosen, onPick }) {
       type="button"
       className={`dgv-slot ${chosen === index ? 'selected' : ''}`}
       onClick={() => onPick(index)}
-      style={{ '--timeline-slot-frame': `url(${timelineSlotFrame})` }}
       aria-label={`Umieść kartę w pozycji ${index + 1}`}
     >
       <span>+</span>
@@ -388,54 +391,71 @@ function ResultOverlay({ room, advanceCountdown }) {
     return next;
   })() : ownerTimeline;
   const placementGood = Boolean(result.bought || result.correct);
-  const headline = result.timedOut ? 'CZAS MINĄŁ' : result.bought ? 'KARTA ZDOBYTA' : placementGood ? 'TRAFIONE!' : 'NIE TYM RAZEM';
+  const headline = result.timedOut ? 'CZAS MINĄŁ' : result.bought ? 'KARTA ZDOBYTA' : placementGood ? 'DOBRE MIEJSCE!' : 'NIE TYM RAZEM';
   const subtitle = result.timedOut
     ? 'Nie udało się zatwierdzić miejsca przed końcem czasu.'
     : placementGood
-      ? 'Piosenka trafia na oś czasu.'
-      : 'Prawidłowy rok poznajesz teraz — kolejna runda już za chwilę.';
+      ? 'Rok pasuje do wybranego miejsca. Karta zostaje na osi czasu.'
+      : 'Prawidłowy rok jest już odkryty. Zapamiętaj go przed kolejną rundą.';
 
   return (
     <div className="dgv-result-overlay">
-      <div className={`dgv-result-card ${placementGood ? 'success' : 'failure'}`}>
-        <div className="dgv-result-kicker">{room.practiceMode ? 'TRENING' : `TURA: ${ownerName}`}</div>
-        <div className="dgv-result-status">
-          <div className="dgv-result-status-icon">{placementGood ? <Check size={38} /> : <X size={38} />}</div>
+      <div className={`dgv-result-card dgv-result-v3 ${placementGood ? 'success' : 'failure'}`}>
+        <div className="dgv-result-v3-topline">
           <div>
-            <h2>{headline}</h2>
-            <p>{subtitle}</p>
+            <span className="dgv-eyebrow">{room.practiceMode ? 'WYNIK TRENINGU' : `WYNIK TURY · ${ownerName}`}</span>
+            <div className="dgv-result-v3-statusline">
+              <div className="dgv-result-status-icon">{placementGood ? <Check size={30} /> : <X size={30} />}</div>
+              <div><h2>{headline}</h2><p>{subtitle}</p></div>
+            </div>
+          </div>
+          <div className="dgv-result-v3-next">
+            <span>{room.practiceMode ? 'KOLEJNY UTWÓR' : 'KOLEJNA TURA'}</span>
+            <strong>{advanceCountdown ?? 5}</strong>
           </div>
         </div>
 
-        <div className="dgv-result-main">
-          <div className="dgv-result-reveal" style={{ '--result-card-frame': `url(${playingYearCard})` }}>
-            <div className="artist">{result.card.artist}</div>
-            <div className="year">{result.card.year}</div>
-            <div className="title">{result.card.title}</div>
-          </div>
+        <div className="dgv-result-v3-main">
+          <section className="dgv-result-v3-song">
+            <span className="dgv-eyebrow">POPRAWNA ODPOWIEDŹ</span>
+            <div className="dgv-result-reveal">
+              <span className="dgv-result-card-notch left" />
+              <span className="dgv-result-card-notch right" />
+              <div className="year">{result.card.year}</div>
+              <div className="title">{result.card.title}</div>
+              <div className="artist">{result.card.artist}</div>
+            </div>
+          </section>
 
-          <div className="dgv-result-checks">
-            <div className={placementGood ? 'good' : 'bad'}>
-              <span>OŚ CZASU</span>
-              <strong>{placementGood ? 'POPRAWNIE' : 'BŁĘDNIE'}</strong>
-              {placementGood ? <Check /> : <X />}
+          <section className="dgv-result-v3-summary">
+            <div className={`dgv-result-v3-check ${placementGood ? 'good' : 'bad'}`}>
+              <div className="icon">{placementGood ? <Check size={24} /> : <X size={24} />}</div>
+              <div><span>OŚ CZASU</span><strong>{placementGood ? 'POPRAWNIE' : 'BŁĘDNE MIEJSCE'}</strong></div>
             </div>
             {result.tokenAwarded !== undefined ? (
-              <div className={result.tokenAwarded ? 'good' : 'bad'}>
-                <span>TYTUŁ I WYKONAWCA</span>
-                <strong>{result.tokenAwarded ? '+1 TOKEN' : 'BRAK TOKENA'}</strong>
-                {result.tokenAwarded ? <Check /> : <X />}
+              <div className={`dgv-result-v3-check ${result.tokenAwarded ? 'good' : 'bad'}`}>
+                <div className="icon">{result.tokenAwarded ? <Check size={24} /> : <X size={24} />}</div>
+                <div><span>TYTUŁ I WYKONAWCA</span><strong>{result.tokenAwarded ? '+1 TOKEN' : 'BRAK TOKENA'}</strong></div>
               </div>
-            ) : null}
-          </div>
+            ) : (
+              <div className="dgv-result-v3-check neutral">
+                <div className="icon"><Music2 size={23} /></div>
+                <div><span>TRYB SOLO</span><strong>LICZY SIĘ OŚ CZASU</strong></div>
+              </div>
+            )}
+            <div className="dgv-result-v3-hint">
+              <Sparkles size={17} />
+              <span>{placementGood ? 'Dobra robota — utrzymaj serię w następnej rundzie.' : `Zapamiętaj: ${result.card.artist} — ${result.card.title} (${result.card.year}).`}</span>
+            </div>
+          </section>
         </div>
 
         {displayCards.length ? (
-          <div className="dgv-result-timeline">
+          <section className="dgv-result-timeline dgv-result-v3-timeline">
             <div className="dgv-result-timeline-head">
               <div>
-                <div className="dgv-eyebrow">{room.practiceMode ? 'TWOJA OŚ CZASU' : `OŚ CZASU GRACZA ${ownerName}`}</div>
-                <strong>TAK WYGLĄDA OŚ PO TEJ RUNDZIE</strong>
+                <div className="dgv-eyebrow">{room.practiceMode ? 'TWOJA OŚ CZASU' : `OŚ CZASU · ${ownerName}`}</div>
+                <strong>PO TEJ RUNDZIE</strong>
               </div>
               <span>{ownerTimeline.length} / {room.target}</span>
             </div>
@@ -445,13 +465,8 @@ function ResultOverlay({ room, advanceCountdown }) {
                 return <DesktopTimelineCard key={card.__ghost ? 'ghost' : card.id || index} card={card} highlight={card.__ghost ? 'bad' : placed ? 'good' : ''} />;
               })}
             </div>
-          </div>
+          </section>
         ) : null}
-
-        <div className="dgv-next-player">
-          <span>{room.practiceMode ? 'KOLEJNY UTWÓR' : 'KOLEJNY GRACZ'}</span>
-          <strong>{advanceCountdown ?? 5}</strong>
-        </div>
       </div>
     </div>
   );
@@ -527,9 +542,11 @@ export function DesktopPlayingView({
   const practicePlayed = room.practiceMode ? (room.playedCards || []).filter((card) => card.playerId === playerId) : [];
   const practiceCorrect = practicePlayed.filter((card) => card.correct).length;
   const practiceWrong = practicePlayed.filter((card) => !card.correct).length;
+  const activeTimelineLength = (room.timelines?.[displayedPlayerId] || []).length;
+  const audioLeft = Math.max(0, Math.ceil(playCapSeconds - playElapsed));
 
   return (
-    <SessionBackground className="dgv-game">
+    <SessionBackground className="dgv-game dgv-game-v3">
       <div className="dgv-shell dgv-game-shell">
         <SessionHeader
           eyebrow={modeLabel}
@@ -539,19 +556,9 @@ export function DesktopPlayingView({
           right={screen === 'playing' ? <div className={`dgv-timer ${decisionLeft <= 10 ? 'danger' : ''}`}><Clock3 size={18} /> {decisionLeft}s</div> : null}
         />
 
-        <div className="dgv-game-grid">
-          <section className="dgv-audio-panel dgv-panel">
-            <div className="dgv-audio-topline">
-              <div>
-                <span className="dgv-eyebrow">{room.practiceMode ? 'AKTUALNY UTWÓR' : 'TURA GRACZA'}</span>
-                <strong>{turnName}</strong>
-                <small>{isMyTurn ? 'Posłuchaj fragmentu i wybierz miejsce na osi czasu.' : `Obserwujesz turę gracza ${turnPlayerName || '—'}.`}</small>
-              </div>
-              <div className="dgv-audio-status">
-                <div className="dgv-listen-meter"><span style={{ width: `${Math.min(100, (playElapsed / playCapSeconds) * 100)}%` }} /></div>
-                <b>{Math.max(0, Math.ceil(playCapSeconds - playElapsed))}s audio</b>
-              </div>
-            </div>
+        <div className="dgv-v3-game-grid">
+          <section className="dgv-panel dgv-v3-audio-panel">
+            <div className="dgv-v3-panel-label"><Disc3 size={16} /> ODSŁUCH UTWORU</div>
             <DesktopVinyl spinning={isPlaying} progress={playElapsed / playCapSeconds} />
             <div className="dgv-hidden-player">
               <iframe
@@ -562,13 +569,58 @@ export function DesktopPlayingView({
                 allow="autoplay; encrypted-media"
               />
             </div>
-            <button type="button" className="dgv-audio-button" onClick={onTogglePlay} style={{ '--audio-btn-art': `url(${playingAudioButton})` }}>
-              <Play size={20} fill="currentColor" />
-              <span>{isPlaying ? `GRA… ${Math.ceil(playCapSeconds - playElapsed)}s` : playElapsed >= playCapSeconds ? 'ODTWÓRZ PONOWNIE' : 'ODTWÓRZ DŹWIĘK'}</span>
-            </button>
+            <div className="dgv-v3-audio-footer">
+              <div className="dgv-v3-audio-time"><span>FRAGMENT</span><strong>{audioLeft}s</strong></div>
+              <button type="button" className="dgv-audio-button" onClick={onTogglePlay}>
+                <Play size={20} fill="currentColor" />
+                <span>{isPlaying ? 'ODTWARZANIE' : playElapsed >= playCapSeconds ? 'ODTWÓRZ PONOWNIE' : 'ODTWÓRZ DŹWIĘK'}</span>
+              </button>
+            </div>
           </section>
 
-          <aside className="dgv-game-side">
+          <section className="dgv-panel dgv-v3-placement-panel">
+            <div className="dgv-v3-placement-head">
+              <div>
+                <div className="dgv-eyebrow">OŚ CZASU</div>
+                <h2>{isMyTurn ? 'GDZIE PASUJE TEN UTWÓR?' : `OŚ GRACZA ${displayedPlayerName}`}</h2>
+                <p>{isMyTurn ? 'Kliknij + pomiędzy kartami. Rok poznasz dopiero po zatwierdzeniu.' : 'Podgląd aktualnie wybranej osi czasu.'}</p>
+              </div>
+              <div className="dgv-target-progress"><b>{activeTimelineLength}</b><span>/ {room.target}</span></div>
+            </div>
+
+            {screen === 'playing' && isMyTurn ? (
+              <>
+                <div className="dgv-v3-timeline-stage">
+                  <div className="dgv-timeline-row">
+                    <DesktopSlot index={0} chosen={chosenSlot} onPick={setChosenSlot} />
+                    {turnTimeline.map((card, index) => (
+                      <React.Fragment key={card.id || `${card.videoId}-${index}`}>
+                        <DesktopTimelineCard card={card} />
+                        <DesktopSlot index={index + 1} chosen={chosenSlot} onPick={setChosenSlot} />
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </div>
+                <div className="dgv-v3-placement-footer">
+                  <div className={`dgv-v3-slot-state ${chosenSlot !== null ? 'ready' : ''}`}>
+                    <span>{chosenSlot !== null ? 'POZYCJA WYBRANA' : 'WYBIERZ POZYCJĘ'}</span>
+                    <strong>{chosenSlot !== null ? `SLOT ${chosenSlot + 1}` : '—'}</strong>
+                  </div>
+                  <button type="button" className="dgv-confirm-button" onClick={onConfirmPlacement} disabled={chosenSlot === null || busy}>
+                    <span>ZATWIERDŹ MIEJSCE</span><ChevronRight size={22} />
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="dgv-v3-timeline-stage spectator-stage">
+                <div className="dgv-timeline-row spectator">
+                  {viewedTimeline.map((card, index) => <DesktopTimelineCard key={card.id || `${card.videoId}-${index}`} card={card} />)}
+                </div>
+              </div>
+            )}
+          </section>
+
+          <aside className="dgv-game-side dgv-v3-side">
             {screen === 'playing' && isMyTurn && !room.practiceMode ? (
               <GuessPanel
                 guessArtist={guessArtist}
@@ -601,20 +653,20 @@ export function DesktopPlayingView({
             ) : null}
 
             {room.practiceMode ? (
-              <section className="dgv-panel dgv-practice-progress-panel">
+              <section className="dgv-panel dgv-practice-progress-panel dgv-v3-progress-panel">
                 <div className="dgv-section-heading"><Zap size={18} /> POSTĘP TRENINGU</div>
                 <div className="dgv-practice-progress-main">
-                  <strong>{(room.timelines?.[playerId] || []).length}</strong><span>/ {room.target} kart na osi</span>
+                  <strong>{(room.timelines?.[playerId] || []).length}</strong><span>/ {room.target} kart</span>
                 </div>
                 <div className="dgv-practice-progress-bar"><span style={{ width: `${Math.min(100, ((room.timelines?.[playerId] || []).length / Math.max(1, room.target)) * 100)}%` }} /></div>
                 <div className="dgv-practice-mini-stats">
                   <div className="good"><Check size={18} /><span>Trafienia</span><strong>{practiceCorrect}</strong></div>
                   <div className="bad"><X size={18} /><span>Pomyłki</span><strong>{practiceWrong}</strong></div>
                 </div>
-                <p>Nie ma głosowania ani bonusowego zgadywania — liczy się wyłącznie poprawne miejsce na osi czasu.</p>
+                <div className="dgv-v3-tip"><Sparkles size={16} /> Liczy się tylko poprawne miejsce na osi czasu.</div>
               </section>
             ) : (
-              <section className="dgv-panel dgv-score-panel">
+              <section className="dgv-panel dgv-score-panel dgv-v3-score-panel">
                 <div className="dgv-section-heading"><Users size={18} /> GRACZE</div>
                 <div className="dgv-score-list">
                   {room.players.map((player) => (
@@ -635,38 +687,6 @@ export function DesktopPlayingView({
             )}
           </aside>
         </div>
-
-        <section className="dgv-timeline-panel dgv-panel">
-          <div className="dgv-timeline-heading">
-            <div>
-              <div className="dgv-eyebrow">OŚ CZASU</div>
-              <strong>{isMyTurn ? 'GDZIE UMIESZCZASZ TĘ PIOSENKĘ?' : `OŚ CZASU GRACZA ${displayedPlayerName}`}</strong>
-              <small>{isMyTurn ? 'Wybierz jeden z neonowych slotów + pomiędzy kartami.' : 'Podgląd aktualnie wybranej osi czasu.'}</small>
-            </div>
-            <div className="dgv-target-progress"><b>{(room.timelines?.[displayedPlayerId] || []).length}</b><span>/ {room.target}</span></div>
-          </div>
-
-          {screen === 'playing' && isMyTurn ? (
-            <>
-              <div className="dgv-timeline-row">
-                <DesktopSlot index={0} chosen={chosenSlot} onPick={setChosenSlot} />
-                {turnTimeline.map((card, index) => (
-                  <React.Fragment key={card.id || `${card.videoId}-${index}`}>
-                    <DesktopTimelineCard card={card} />
-                    <DesktopSlot index={index + 1} chosen={chosenSlot} onPick={setChosenSlot} />
-                  </React.Fragment>
-                ))}
-              </div>
-              <button type="button" className="dgv-confirm-button" onClick={onConfirmPlacement} disabled={chosenSlot === null || busy} style={{ '--confirm-btn-art': `url(${playingConfirmButton})` }}>
-                <span>ZATWIERDŹ MIEJSCE</span><ChevronRight size={22} />
-              </button>
-            </>
-          ) : (
-            <div className="dgv-timeline-row spectator">
-              {viewedTimeline.map((card, index) => <DesktopTimelineCard key={card.id || `${card.videoId}-${index}`} card={card} />)}
-            </div>
-          )}
-        </section>
       </div>
 
       {screen === 'roundResult' ? <ResultOverlay room={room} advanceCountdown={advanceCountdown} /> : null}
