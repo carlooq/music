@@ -383,7 +383,6 @@ export function DesktopStatsView(props) {
     onlinePlayers,
     levelInfo,
     songPoolSize,
-    onAlbum,
     totalAchievements,
     achievementClaimed,
     currentWeekly,
