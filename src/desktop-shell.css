@@ -1253,3 +1253,250 @@
   transform: none;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 0 40px rgba(16, 20, 52, 0.22);
 }
+
+/* ============================================================
+   DESKTOP V4 — functional polish + closer-to-mockup visual pass
+   ============================================================ */
+
+.desk-avatar-uploader {
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+}
+.desk-avatar-uploader > input { display: none; }
+.desk-avatar-uploader.busy { opacity: .55; pointer-events: none; }
+.desk-avatar-edit {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg,#ff5fc9,#4fd6ff);
+  color: white;
+  border: 2px solid #080b19;
+  font-size: 10px;
+  box-shadow: 0 0 12px rgba(79,214,255,.35);
+}
+
+/* CTA — sharper, more game-like bevel similar to mockup */
+.desk-primary-cta {
+  position: relative;
+  min-height: 76px;
+  border: 0;
+  border-radius: 0;
+  clip-path: polygon(18px 0, calc(100% - 28px) 0, 100% 24px, 100% calc(100% - 24px), calc(100% - 28px) 100%, 18px 100%, 0 calc(100% - 18px), 0 18px);
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.2), transparent 28%, transparent 72%, rgba(255,255,255,.18)),
+    linear-gradient(100deg,#d828f7 0%,#8b5cf6 48%,#4fd6ff 100%);
+  box-shadow: 0 0 28px rgba(213,40,247,.34), 0 0 38px rgba(79,214,255,.2);
+  text-shadow: 0 0 14px rgba(255,255,255,.2);
+  overflow: visible;
+}
+.desk-primary-cta::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  clip-path: inherit;
+  border: 1px solid rgba(255,255,255,.72);
+  pointer-events: none;
+  opacity: .75;
+}
+.desk-primary-cta::after {
+  content: '';
+  position: absolute;
+  left: 12%; right: 12%; bottom: -8px;
+  height: 14px;
+  background: linear-gradient(90deg,transparent,#ff5fc9,#4fd6ff,transparent);
+  filter: blur(10px);
+  opacity: .7;
+}
+.desk-primary-cta:hover { filter: brightness(1.12); transform: translateY(-2px); }
+
+/* Game mode tiles — stronger sci-fi frame, less plain dashboard card */
+.desk-mode-card {
+  --mode-accent: #4fd6ff;
+  min-height: 286px;
+  border: 1px solid transparent !important;
+  border-radius: 0 !important;
+  clip-path: polygon(14px 0, calc(100% - 20px) 0, 100% 18px, 100% calc(100% - 18px), calc(100% - 14px) 100%, 16px 100%, 0 calc(100% - 16px), 0 14px);
+  background:
+    linear-gradient(180deg, rgba(9,14,35,.97), rgba(7,8,23,.98)) padding-box,
+    linear-gradient(135deg, color-mix(in srgb,var(--mode-accent) 92%,white 8%), rgba(88,85,180,.22) 42%, color-mix(in srgb,var(--mode-accent) 70%,transparent)) border-box !important;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb,var(--mode-accent) 15%,transparent),
+    0 0 22px color-mix(in srgb,var(--mode-accent) 22%,transparent),
+    inset 0 0 28px rgba(50,56,130,.08) !important;
+  padding: 24px 20px 18px;
+}
+.desk-mode-card::before {
+  content:'';
+  position:absolute;
+  inset:0;
+  height:auto;
+  background:
+    linear-gradient(90deg, transparent 10%, color-mix(in srgb,var(--mode-accent) 85%,white 5%) 38%, color-mix(in srgb,var(--mode-accent) 85%,white 5%) 62%, transparent 90%) top/100% 2px no-repeat,
+    linear-gradient(180deg, color-mix(in srgb,var(--mode-accent) 7%,transparent), transparent 42%);
+  opacity:.95;
+  pointer-events:none;
+}
+.desk-mode-card::after {
+  content:'';
+  position:absolute;
+  left:15px;right:15px;bottom:10px;height:30px;
+  background: repeating-linear-gradient(90deg,color-mix(in srgb,var(--mode-accent) 72%,transparent) 0 3px,transparent 3px 7px);
+  clip-path: polygon(0 100%,0 78%,4% 55%,8% 82%,12% 34%,17% 76%,22% 48%,28% 92%,34% 54%,39% 74%,44% 27%,49% 83%,55% 48%,61% 72%,67% 35%,73% 88%,79% 51%,85% 78%,91% 42%,96% 70%,100% 58%,100% 100%);
+  opacity:.52;
+  filter: drop-shadow(0 0 5px var(--mode-accent));
+  pointer-events:none;
+}
+.desk-mode-icon {
+  width: 94px;
+  height: 94px;
+  align-self: center;
+  margin: 2px auto 13px;
+  filter: drop-shadow(0 0 14px var(--mode-accent)) drop-shadow(0 0 28px color-mix(in srgb,var(--mode-accent) 44%,transparent));
+}
+.desk-mode-title {
+  font-size: 44px;
+  line-height: .95;
+  text-align: center;
+  width: 100%;
+  text-shadow: 0 0 17px color-mix(in srgb,var(--mode-accent) 24%,transparent);
+}
+.desk-mode-desc {
+  min-height: 44px;
+  text-align: center;
+  font-size: 14px;
+  max-width: 95%;
+  margin: 0 auto;
+}
+.desk-mode-footer {
+  position: relative;
+  z-index: 2;
+  font-size: 12px;
+  padding-top: 10px;
+  margin-top: auto;
+}
+.desk-mode-arrow {
+  background: rgba(8,12,30,.78);
+  box-shadow: 0 0 14px color-mix(in srgb,var(--mode-accent) 20%,transparent);
+}
+.desk-mode-card:hover {
+  transform: translateY(-5px) scale(1.015);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb,var(--mode-accent) 30%,transparent),
+    0 0 34px color-mix(in srgb,var(--mode-accent) 38%,transparent),
+    0 18px 48px rgba(0,0,0,.32),
+    inset 0 0 36px color-mix(in srgb,var(--mode-accent) 9%,transparent) !important;
+}
+
+/* Progress tiles — smaller sibling of the mode-card language */
+.desk-stat-card {
+  --stat-accent:#4fd6ff;
+  min-height: 172px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb,var(--stat-accent) 44%,transparent) !important;
+  background:
+    radial-gradient(circle at 15% 15%,color-mix(in srgb,var(--stat-accent) 10%,transparent),transparent 36%),
+    linear-gradient(180deg,rgba(8,11,28,.96),rgba(7,8,20,.96));
+  box-shadow: inset 0 0 24px rgba(78,73,160,.05),0 0 18px color-mix(in srgb,var(--stat-accent) 9%,transparent);
+  overflow:hidden;
+  position:relative;
+}
+.desk-stat-card::before {
+  content:'';
+  position:absolute;
+  left:0;top:0;width:56%;height:2px;
+  background:linear-gradient(90deg,var(--stat-accent),transparent);
+  box-shadow:0 0 10px var(--stat-accent);
+}
+.desk-stat-card.cyan { --stat-accent:#4fd6ff; }
+.desk-stat-card.gold { --stat-accent:#f5c451; }
+.desk-stat-card.pink { --stat-accent:#ff5fc9; }
+.desk-stat-card.violet { --stat-accent:#a56bff; }
+.desk-stat-card:hover { transform:translateY(-4px); box-shadow:0 0 28px color-mix(in srgb,var(--stat-accent) 22%,transparent),0 14px 35px rgba(0,0,0,.28); }
+.desk-stat-card-action { border-color:color-mix(in srgb,var(--stat-accent) 28%,transparent); background:rgba(255,255,255,.015); }
+
+/* Weekly challenges: all 5, not a fake single challenge */
+.desk-stats-feature-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.desk-feature-card.clickable { cursor:pointer; transition:transform .17s ease,box-shadow .17s ease; }
+.desk-feature-card.clickable:hover { transform:translateY(-3px); box-shadow:0 0 26px rgba(98,116,255,.14); }
+.desk-weekly-panel { padding:22px; }
+.desk-weekly-head { display:flex;justify-content:space-between;gap:22px;align-items:flex-start;margin-bottom:18px; }
+.desk-weekly-head p { margin:4px 0 0;color:#a9a0bd;font-size:13px; }
+.desk-weekly-counter { font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:.06em;color:#6fe7ff;border:1px solid rgba(79,214,255,.28);border-radius:999px;padding:7px 13px;white-space:nowrap; }
+.desk-weekly-grid { display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px; }
+.desk-weekly-card { min-height:178px;border-radius:20px;padding:15px;background:linear-gradient(180deg,rgba(8,11,29,.9),rgba(7,8,20,.92));border:1px solid rgba(126,110,210,.23);display:flex;flex-direction:column;gap:10px; }
+.desk-weekly-card.ready { border-color:rgba(245,196,81,.52);box-shadow:0 0 20px rgba(245,196,81,.1); }
+.desk-weekly-card.claimed { border-color:rgba(42,245,152,.35);opacity:.72; }
+.desk-weekly-card-top { display:flex;justify-content:space-between;gap:8px;color:#a8a0bd;font-family:'Space Mono',monospace;font-size:9px; }
+.desk-weekly-index { color:#65e9ff; }
+.desk-weekly-title { font-family:'Bebas Neue',sans-serif;font-size:23px;line-height:1.04;min-height:50px; }
+.desk-weekly-card .desk-progress-bar { height:8px; }
+.desk-weekly-reward { color:#bdafd6;font-size:11px;margin-top:auto; }
+.desk-weekly-card button { min-height:34px;border-radius:10px;border:1px solid rgba(245,196,81,.5);background:rgba(245,196,81,.13);color:#ffdc86;font-family:'Bebas Neue',sans-serif;font-size:15px; }
+
+/* Collection always comes from live library; loading and pagination are explicit */
+.desk-library-loading { min-height:190px;display:flex;align-items:center;justify-content:center;gap:12px;color:#9ceeff;font-size:16px; }
+.desk-pagination { display:flex;align-items:center;justify-content:center;gap:16px;padding:10px 0 4px; }
+.desk-pagination span { font-family:'Space Mono',monospace;color:#aaa0bf;font-size:11px; }
+.desk-pagination button { min-height:40px;border-radius:12px;padding:0 16px;border:1px solid rgba(79,214,255,.28);background:rgba(7,10,24,.86);color:#5be6ff;font-family:'Bebas Neue',sans-serif;font-size:17px; }
+.desk-pagination button:disabled { opacity:.35; }
+
+/* Ranking avatars show actual uploaded photo */
+.desk-ranking-avatar { background-size:cover !important;background-position:center !important;box-shadow:0 0 15px rgba(79,214,255,.18); }
+
+/* Shop: equal visual height and aligned CTAs */
+.desk-pack-grid { align-items:stretch; }
+.desk-pack-card { min-height:520px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start; }
+.desk-pack-card>img { width:100%;height:245px;object-fit:contain;margin:0 auto 6px; }
+.desk-pack-title { min-height:48px;display:flex;align-items:center;justify-content:center; }
+.desk-pack-note { min-height:22px; }
+.desk-pack-price { min-height:38px; }
+.desk-pack-card>button { margin-top:auto;width:min(240px,90%); }
+
+/* Cleaner community CTA */
+.desk-community-card button { min-width:118px;letter-spacing:.04em; }
+
+/* Footer rebuilt in CSS — no stretched source image */
+.desk-footer-eq {
+  height:68px;
+  margin-top:2px;
+  border-radius:20px;
+  border:1px solid rgba(94,104,216,.22);
+  background:linear-gradient(180deg,rgba(7,10,25,.88),rgba(4,6,17,.94));
+  overflow:hidden;
+  opacity:1;
+  position:relative;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04);
+}
+.desk-footer-bars {
+  position:absolute;
+  left:22px;right:22px;bottom:9px;height:40px;
+  background:repeating-linear-gradient(90deg,#ff4fd2 0 4px,#8c5cff 4px 7px,#3ddcff 7px 11px,transparent 11px 15px);
+  clip-path:polygon(0 100%,0 72%,3% 46%,6% 88%,9% 24%,12% 64%,15% 39%,18% 82%,21% 50%,24% 16%,27% 73%,30% 42%,33% 88%,36% 55%,39% 28%,42% 69%,45% 35%,48% 80%,51% 26%,54% 61%,57% 43%,60% 89%,63% 34%,66% 75%,69% 48%,72% 17%,75% 65%,78% 38%,81% 81%,84% 52%,87% 29%,90% 70%,93% 44%,96% 84%,100% 58%,100% 100%);
+  opacity:.78;
+  filter:drop-shadow(0 0 7px rgba(163,85,255,.38));
+}
+.desk-footer-logo { z-index:2; }
+.desk-footer-logo::before { content:'';position:absolute;width:88px;height:50px;border-radius:50%;background:rgba(4,7,18,.82);filter:blur(3px); }
+.desk-footer-logo img { position:relative;width:58px;z-index:1; }
+
+/* Sidebar mini player should feel like a widget, not a broken footer fragment */
+.desk-mini-wave { background-image:none !important;background:linear-gradient(135deg,rgba(255,95,201,.24),rgba(79,214,255,.18));position:relative;overflow:hidden; }
+.desk-mini-wave::after { content:'♫';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#ff73db;font-size:20px;text-shadow:0 0 12px rgba(255,95,201,.55); }
+
+/* Stats layout cleanup */
+.desk-stats-mid-grid { align-items:stretch; }
+.desk-summary-panel,.desk-decade-panel { min-height:100%; }
+.desk-bestworst-grid { align-items:stretch; }
+.desk-bestworst-panel { min-height:248px; }
+
+@media (max-width:1700px) {
+  .desk-weekly-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .desk-weekly-card:nth-child(4),.desk-weekly-card:nth-child(5) { min-height:160px; }
+}

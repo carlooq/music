@@ -182,17 +182,28 @@ function DesktopLayout({ active, topRight, onHome, onRooms, onAlbum, onStats, on
   );
 }
 
-function HeaderBar({ onlineCount, level, xpText, musicCount, hitcoin, avatarUrl, username, onCommunity, onStats, onShop }) {
+function HeaderBar({ onlineCount, level, xpText, musicCount, hitcoin, avatarUrl, username, onCommunity, onStats, onShop, onAvatarUpload, avatarUploadBusy }) {
   return (
     <div className="desk-header-bar">
       <DesktopTopPill icon={<span className="desk-dot" />} accent="green" onClick={onCommunity}>{onlineCount} graczy online</DesktopTopPill>
       <DesktopTopPill icon={<Star size={16} />} accent="cyan" wide onClick={onStats}>LVL {level} <span className="desk-pill-sub">{xpText}</span></DesktopTopPill>
       <DesktopTopPill icon={<Music2 size={16} />} accent="pink" onClick={onStats}>{musicCount}</DesktopTopPill>
       <DesktopTopPill icon={<img src={iconHitcoin} alt="" className="desk-pill-coin" />} accent="gold" onClick={onShop}>{hitcoin}</DesktopTopPill>
-      <button type="button" className="desk-user-pill" onClick={onStats}>
-        <div className="desk-avatar" style={avatarUrl ? { backgroundImage: `url(${avatarUrl})` } : undefined}>{!avatarUrl ? initials(username) : null}</div>
-        <span>{username}</span>
-      </button>
+      {onAvatarUpload ? (
+        <label className={`desk-user-pill desk-avatar-uploader ${avatarUploadBusy ? 'busy' : ''}`} title="Kliknij, aby zmienić avatar">
+          <input type="file" accept="image/*" disabled={avatarUploadBusy} onChange={(e) => e.target.files?.[0] && onAvatarUpload(e.target.files[0])} />
+          <div className="desk-avatar" style={avatarUrl ? { backgroundImage: `url(${avatarUrl})` } : undefined}>
+            {!avatarUrl ? initials(username) : null}
+            <span className="desk-avatar-edit">✎</span>
+          </div>
+          <span>{username}</span>
+        </label>
+      ) : (
+        <button type="button" className="desk-user-pill" onClick={onStats}>
+          <div className="desk-avatar" style={avatarUrl ? { backgroundImage: `url(${avatarUrl})` } : undefined}>{!avatarUrl ? initials(username) : null}</div>
+          <span>{username}</span>
+        </button>
+      )}
       <button type="button" className="desk-gear-btn" onClick={onStats} title="Profil i statystyki"><Settings size={18} /></button>
     </div>
   );
@@ -257,6 +268,8 @@ export function DesktopHomeView(props) {
         onCommunity={onCommunity}
         onStats={onStats}
         onShop={onShop}
+        onAvatarUpload={props.onAvatarUpload}
+        avatarUploadBusy={props.avatarUploadBusy}
       />
 
       <div className="desk-main-stack">
@@ -341,7 +354,8 @@ export function DesktopHomeView(props) {
           </div>
         </div>
 
-        <div className="desk-footer-eq" style={{ backgroundImage: `url(${footerStrip})` }}>
+        <div className="desk-footer-eq">
+          <div className="desk-footer-bars" />
           <div className="desk-footer-logo"><img src={logoImg} alt="" /></div>
         </div>
       </div>
@@ -398,6 +412,8 @@ export function DesktopStatsView(props) {
     totalAchievements,
     achievementClaimed,
     currentWeekly,
+    weeklyChallenges = [],
+    onClaimWeeklyChallenge,
     decadeEntries,
     bestDecades,
     worstDecades,
@@ -436,6 +452,8 @@ export function DesktopStatsView(props) {
         onCommunity={onCommunity}
         onStats={onStats}
         onShop={onShop}
+        onAvatarUpload={props.onAvatarUpload}
+        avatarUploadBusy={props.avatarUploadBusy}
       />
 
       <div className="desk-main-stack">
@@ -455,22 +473,22 @@ export function DesktopStatsView(props) {
         </section>
 
         <div className="desk-stats-feature-grid">
-          <div className="desk-feature-card cyan">
+          <button className="desk-feature-card cyan clickable" onClick={props.onOpenDailyReward}>
             <div className="desk-feature-head"><Gift size={22} /> CODZIENNA NAGRODA</div>
             <div className="desk-feature-copy">
-              <div className="desk-feature-big">{stats?.lastDailyHitcoinDate === props.todayKey ? 'Odebrane' : 'Gotowa'}</div>
-              <div className="desk-feature-small">{stats?.lastDailyHitcoinDate === props.todayKey ? 'Wróć jutro po kolejną próbę' : 'Sprawdź koło nagród'}</div>
+              <div className="desk-feature-big">{stats?.lastDailyHitcoinDate === props.todayKey ? 'ODEBRANA' : 'GOTOWA'}</div>
+              <div className="desk-feature-small">{stats?.lastDailyHitcoinDate === props.todayKey ? 'Wróć jutro po kolejną próbę' : 'Kliknij i odbierz dzienny bonus'}</div>
             </div>
-          </div>
-          <div className="desk-feature-card gold">
+          </button>
+          <button className="desk-feature-card gold clickable" onClick={onAchievements}>
             <div className="desk-feature-head"><Trophy size={22} /> OSIĄGNIĘCIA</div>
             <div className="desk-feature-copy">
               <div className="desk-feature-big">{achievementClaimed} / {totalAchievements}</div>
               <div className="desk-feature-small">Odblokowanych osiągnięć</div>
               <ProgressBar value={Math.round((achievementClaimed / Math.max(1, totalAchievements)) * 100)} />
             </div>
-          </div>
-          <div className="desk-feature-card cyan">
+          </button>
+          <button className="desk-feature-card cyan clickable" onClick={onAlbum}>
             <div className="desk-feature-head"><Disc3 size={22} /> ALBUM</div>
             <div className="desk-feature-copy feature-row-right">
               <div>
@@ -479,16 +497,35 @@ export function DesktopStatsView(props) {
               </div>
               <img src={glKolekcja} alt="" className="desk-feature-art" />
             </div>
-          </div>
-          <div className="desk-feature-card green">
-            <div className="desk-feature-head"><CheckCircle2 size={22} /> WYZWANIE TYGODNIA</div>
-            <div className="desk-feature-copy">
-              <div className="desk-feature-big">{currentWeekly.title}</div>
-              <ProgressBar value={currentWeekly.progressPct || 0} />
-              <div className="desk-feature-small">{currentWeekly.progressLabel} • {currentWeekly.reward}</div>
-            </div>
-          </div>
+          </button>
         </div>
+
+        <section className="desk-weekly-panel desk-panel">
+          <div className="desk-weekly-head">
+            <div>
+              <div className="desk-section-label solo"><CalendarDays size={18} /> WYZWANIA TYGODNIA</div>
+              <p>Co tydzień losowanych jest dokładnie 5 zadań — każde z osobną nagrodą.</p>
+            </div>
+            <div className="desk-weekly-counter">{weeklyChallenges.filter((item) => item.claimed).length}/5 ODEBRANYCH</div>
+          </div>
+          <div className="desk-weekly-grid">
+            {weeklyChallenges.map((challenge) => {
+              const progressPct = challenge.target ? Math.min(100, Math.round(((challenge.progress || 0) / challenge.target) * 100)) : 0;
+              return (
+                <div key={challenge.id} className={`desk-weekly-card ${challenge.claimed ? 'claimed' : challenge.done ? 'ready' : ''}`}>
+                  <div className="desk-weekly-card-top">
+                    <span className="desk-weekly-index">#{weeklyChallenges.indexOf(challenge) + 1}</span>
+                    <span>{challenge.claimed ? '✓ ODEBRANE' : challenge.done ? 'GOTOWE' : `${Math.min(challenge.progress || 0, challenge.target || 0)}/${challenge.target || 0}`}</span>
+                  </div>
+                  <div className="desk-weekly-title">{challenge.desc}</div>
+                  <ProgressBar value={progressPct} />
+                  <div className="desk-weekly-reward">+{challenge.xp || 0} XP{challenge.hitcoin ? ` · +${challenge.hitcoin} HITCOIN` : ''}</div>
+                  {challenge.done && !challenge.claimed ? <button onClick={() => onClaimWeeklyChallenge?.(challenge.id)}>ODBIERZ NAGRODĘ</button> : null}
+                </div>
+              );
+            })}
+          </div>
+        </section>
 
         <div className="desk-stats-mid-grid">
           <section className="desk-summary-panel desk-panel">
@@ -621,7 +658,7 @@ function DesktopLeaderboardView({ common, leaderboard, sortBy, onSort }) {
               {leaderboard.map((player, index) => (
                 <div key={player.uid || index} className={`desk-ranking-row rank-${index + 1}`}>
                   <div className="desk-ranking-position">{index < 3 ? ['🥇','🥈','🥉'][index] : `#${index + 1}`}</div>
-                  <div className="desk-ranking-avatar">{initials(player.username || 'G')}</div>
+                  <div className="desk-ranking-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.username || 'G') : null}</div>
                   <div className="desk-ranking-user">
                     <strong>{player.username || 'Gracz'}</strong>
                     <span>LVL {player.xp ? Math.max(1, Math.floor(Math.sqrt(player.xp / 75)) + 1) : 1}</span>
@@ -639,9 +676,11 @@ function DesktopLeaderboardView({ common, leaderboard, sortBy, onSort }) {
   );
 }
 
-function DesktopCollectionView({ common, songs, stats }) {
+function DesktopCollectionView({ common, songs, stats, libraryLoading, songPoolSize }) {
   const [onlyOwned, setOnlyOwned] = useState(true);
   const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 72;
   const collection = stats?.cardCollection || {};
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -653,29 +692,48 @@ function DesktopCollectionView({ common, songs, stats }) {
     });
   }, [songs, collection, onlyOwned, query]);
 
+  useEffect(() => setPage(1), [onlyOwned, query, songs?.length]);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const visibleCards = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   return (
     <DesktopLayout active="collection" {...common}>
       <HeaderBar {...common.header} />
       <div className="desk-main-stack">
-        <DesktopSimpleHeader title="KOLEKCJA" subtitle={`Masz ${Object.keys(collection).length} unikalnych kart z ${songs?.length || 0} dostępnych utworów.`} icon={<Disc3 size={28} />} />
+        <DesktopSimpleHeader title="KOLEKCJA" subtitle={`Masz ${Object.keys(collection).length} unikalnych kart z ${songPoolSize || songs?.length || 0} utworów w aktualnej bazie.`} icon={<Disc3 size={28} />} />
         <section className="desk-collection-tools desk-panel">
           <div className="desk-search-wrap"><Search size={18} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Szukaj wykonawcy, tytułu lub roku" /></div>
           <button className={`desk-filter-chip ${onlyOwned ? 'active' : ''}`} onClick={() => setOnlyOwned((v) => !v)}>{onlyOwned ? 'TYLKO POSIADANE' : 'WSZYSTKIE KARTY'}</button>
         </section>
-        <div className="desk-card-collection-grid">
-          {filtered.slice(0, 72).map((song) => {
-            const owned = collection[song.id] || 0;
-            return (
-              <div key={song.id} className={`desk-song-card ${owned ? 'owned' : 'locked'}`}>
-                <div className="desk-song-card-year">{song.year || '—'}</div>
-                <div className="desk-song-card-title">{owned ? song.title : '???'}</div>
-                <div className="desk-song-card-artist">{owned ? song.artist : 'Nieodblokowana karta'}</div>
-                {owned > 1 ? <div className="desk-song-card-count">×{owned}</div> : null}
-                {!owned ? <div className="desk-song-card-lock">🔒</div> : null}
+        {libraryLoading ? (
+          <section className="desk-panel desk-library-loading"><Disc3 size={30} /> Ładuję aktualną bazę utworów z serwera…</section>
+        ) : filtered.length === 0 ? (
+          <section className="desk-panel desk-empty-state">Brak kart pasujących do wybranego filtra.</section>
+        ) : (
+          <>
+            <div className="desk-card-collection-grid">
+              {visibleCards.map((song) => {
+                const owned = collection[song.id] || 0;
+                return (
+                  <div key={song.id} className={`desk-song-card ${owned ? 'owned' : 'locked'}`}>
+                    <div className="desk-song-card-year">{song.year || '—'}</div>
+                    <div className="desk-song-card-title">{owned ? song.title : '???'}</div>
+                    <div className="desk-song-card-artist">{owned ? song.artist : 'Nieodblokowana karta'}</div>
+                    {owned > 1 ? <div className="desk-song-card-count">×{owned}</div> : null}
+                    {!owned ? <div className="desk-song-card-lock">🔒</div> : null}
+                  </div>
+                );
+              })}
+            </div>
+            {pageCount > 1 ? (
+              <div className="desk-pagination">
+                <button disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>← POPRZEDNIA</button>
+                <span>STRONA {page} / {pageCount}</span>
+                <button disabled={page >= pageCount} onClick={() => setPage((p) => Math.min(pageCount, p + 1))}>NASTĘPNA →</button>
               </div>
-            );
-          })}
-        </div>
+            ) : null}
+          </>
+        )}
       </div>
     </DesktopLayout>
   );
@@ -745,7 +803,7 @@ function DesktopCommunityView({ common, onlinePlayers, challengeSentTo, challeng
                   <div key={player.playerId || player.uid || index} className="desk-community-card">
                     <div className="desk-community-avatar">{initials(player.name || player.username || 'G')}</div>
                     <div className="desk-community-copy"><strong>{player.name || player.username || 'Gracz'}</strong><span>🟢 online</span></div>
-                    {player.uid ? <button disabled={challengeBusy || pending} onClick={() => onChallenge(player)}>{pending ? 'WYZWANIE WYSŁANE' : 'WYZWÓL 1V1'}</button> : null}
+                    {player.uid ? <button disabled={challengeBusy || pending} onClick={() => onChallenge(player)}>{pending ? 'WYZWANIE WYSŁANE' : 'WYZWIJ 1V1'}</button> : null}
                   </div>
                 );
               })}
@@ -812,8 +870,10 @@ export function DesktopAppView(props) {
       onCommunity: () => setSection('community'),
       onStats: () => setSection('stats'),
       onShop: () => setSection('shop'),
+      onAvatarUpload: props.onAvatarUpload,
+      avatarUploadBusy: props.avatarUploadBusy,
     },
-  }), [props.onlinePlayers.length, props.levelInfo.level, props.levelInfo.currentLevelXp, props.levelInfo.xpForNextLevel, props.stats, props.hitcoin, props.user]);
+  }), [props.onlinePlayers.length, props.levelInfo.level, props.levelInfo.currentLevelXp, props.levelInfo.xpForNextLevel, props.stats, props.hitcoin, props.user, props.onAvatarUpload, props.avatarUploadBusy]);
 
   const localHomeProps = {
     ...props,
@@ -830,7 +890,7 @@ export function DesktopAppView(props) {
   if (section === 'stats') return <DesktopStatsView {...props} {...common} />;
   if (section === 'achievements') return <DesktopAchievementsView common={common} progress={props.achievementProgress || []} onClaim={props.onClaimAchievement} />;
   if (section === 'ranking') return <DesktopLeaderboardView common={common} leaderboard={props.leaderboard} sortBy={props.leaderboardSort} onSort={props.onLoadLeaderboard} />;
-  if (section === 'collection') return <DesktopCollectionView common={common} songs={props.songs} stats={props.stats} />;
+  if (section === 'collection') return <DesktopCollectionView common={common} songs={props.songs} stats={props.stats} libraryLoading={props.libraryLoading} songPoolSize={props.songPoolSize} />;
   if (section === 'shop') return <DesktopShopView common={common} hitcoin={props.hitcoin} packConfigs={props.packConfigs} busy={props.packBusy} openResult={props.packOpenResult} onBuy={props.onBuyPack} onClearResult={props.onClearPackResult} />;
   if (section === 'community') return <DesktopCommunityView common={common} onlinePlayers={props.onlinePlayers} challengeSentTo={props.challengeSentTo} challengeBusy={props.challengeBusy} onChallenge={props.onChallenge} />;
   if (section === 'propose') return <DesktopProposeView common={common} draft={props.proposeDraft} setDraft={props.setProposeDraft} categories={props.categories} onToggleCategory={props.onToggleProposeCategory} onSubmit={props.onSubmitProposal} busy={props.proposeBusy} error={props.proposeError} success={props.proposeSuccess} />;

@@ -823,6 +823,18 @@ export default function App() {
   useEffect(() => {
     if ((screen === "lobby" && room?.hostId === playerId) || screen === "practiceSetup" || showAdminPanel) ensureLibraryLoaded();
   }, [screen, room?.hostId, playerId, showAdminPanel]);
+  useEffect(() => {
+    if (viewportWidth < 1280 || screen !== "home") return;
+    let cancelled = false;
+    getLiveLibraryPool()
+      .then((pool) => {
+        if (!cancelled && Array.isArray(pool) && pool.length) {
+          setLibrarySongs(pool);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [viewportWidth, screen]);
 
   const [playerLevels, setPlayerLevels] = useState({});
   useEffect(() => {
@@ -3560,7 +3572,8 @@ export default function App() {
         onlinePlayers={onlinePlayers}
         levelInfo={desktopLevelInfo}
         songPoolSize={desktopSongPoolSize}
-        songs={effectivePool}
+        songs={Array.isArray(librarySongs) ? librarySongs : []}
+        libraryLoading={librarySongs === null || librarySongs === undefined}
         hitcoin={myHitcoin ?? stats?.hitcoin ?? 0}
         todayKey={currentDayKey()}
         joinCode={joinCode}
@@ -3580,6 +3593,8 @@ export default function App() {
         achievementProgress={achievementProgress}
         onClaimAchievement={handleClaimAchievement}
         currentWeekly={desktopCurrentWeekly}
+        weeklyChallenges={desktopWeeklyChallenges}
+        onClaimWeeklyChallenge={handleClaimWeeklyChallengeReward}
         decadeEntries={desktopDecadeEntries}
         bestDecades={desktopBestDecades}
         worstDecades={desktopWorstDecades}
@@ -3591,8 +3606,13 @@ export default function App() {
         packOpenResult={packOpenResult}
         onBuyPack={buyPack}
         onClearPackResult={() => setPackOpenResult(null)}
+        onOpenDailyReward={() => {
+          if (stats?.lastDailyHitcoinDate !== currentDayKey()) setShowDailyWheel(true);
+        }}
         challengeSentTo={challengeSentTo}
         challengeBusy={challengeBusy}
+        onAvatarUpload={handleAvatarUpload}
+        avatarUploadBusy={avatarUploadBusy}
         onChallenge={handleSendChallenge}
         proposeDraft={proposeDraft}
         setProposeDraft={setProposeDraft}
