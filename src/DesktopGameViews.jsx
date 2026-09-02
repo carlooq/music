@@ -392,26 +392,14 @@ function ResultOverlay({ room, advanceCountdown }) {
   })() : ownerTimeline;
   const placementGood = Boolean(result.bought || result.correct);
   const headline = result.timedOut ? 'CZAS MINĄŁ' : result.bought ? 'KARTA ZDOBYTA' : placementGood ? 'DOBRE MIEJSCE!' : 'NIE TYM RAZEM';
-  const subtitle = result.timedOut
-    ? 'Nie udało się zatwierdzić miejsca przed końcem czasu.'
-    : placementGood
-      ? 'Rok pasuje do wybranego miejsca. Karta zostaje na osi czasu.'
-      : 'Prawidłowy rok jest już odkryty. Zapamiętaj go przed kolejną rundą.';
 
   return (
     <div className="dgv-result-overlay">
       <div className={`dgv-result-card dgv-result-v3 ${placementGood ? 'success' : 'failure'}`}>
         <div className="dgv-result-v3-topline">
-          <div>
-            <span className="dgv-eyebrow">{room.practiceMode ? 'WYNIK TRENINGU' : `WYNIK TURY · ${ownerName}`}</span>
-            <div className="dgv-result-v3-statusline">
-              <div className="dgv-result-status-icon">{placementGood ? <Check size={30} /> : <X size={30} />}</div>
-              <div><h2>{headline}</h2><p>{subtitle}</p></div>
-            </div>
-          </div>
-          <div className="dgv-result-v3-next">
-            <span>{room.practiceMode ? 'KOLEJNY UTWÓR' : 'KOLEJNA TURA'}</span>
-            <strong>{advanceCountdown ?? 5}</strong>
+          <div className="dgv-result-v3-statusline">
+            <div className="dgv-result-status-icon">{placementGood ? <Check size={30} /> : <X size={30} />}</div>
+            <h2>{headline}</h2>
           </div>
         </div>
 
@@ -448,6 +436,15 @@ function ResultOverlay({ room, advanceCountdown }) {
               <span>{placementGood ? 'Dobra robota — utrzymaj serię w następnej rundzie.' : `Zapamiętaj: ${result.card.artist} — ${result.card.title} (${result.card.year}).`}</span>
             </div>
           </section>
+        </div>
+
+        <div className="dgv-result-v3-countdown">
+          <div className="dgv-result-v3-countdown-label">
+            <Clock3 size={19} />
+            <span>{room.practiceMode ? 'KOLEJNY UTWÓR ZA' : 'KOLEJNA TURA ZA'}</span>
+          </div>
+          <strong>{advanceCountdown ?? 5}</strong>
+          <em>SEK.</em>
         </div>
 
         {displayCards.length ? (
