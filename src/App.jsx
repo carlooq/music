@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback, memo } from "react";
-import DesktopHome from "./DesktopHome.jsx";
 import {
   doc,
   setDoc,
@@ -91,6 +90,8 @@ import cardSrebroImg from "./assets/icons/card-srebro.webp";
 import cardZlotoImg from "./assets/icons/card-zlota.webp";
 import cardPlatynaImg from "./assets/icons/card-platynowa.webp";
 import cardDiamentImg from "./assets/icons/card-diamentowa.webp";
+import { DesktopHomeView, DesktopStatsView } from "./DesktopShell.jsx";
+import "./desktop-shell.css";
 
 // 👉 PODMIEŃ TO NA SWOJE WŁASNE HASŁO trybu admina
 const ADMIN_PASSWORD = "zmien-to-haslo-123";
@@ -597,6 +598,8 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  const [viewportWidth, setViewportWidth] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1600));
+
   const [target, setTarget] = useState(10);
   const [selectedCategories, setSelectedCategories] = useState(["wszystkie"]);
   const [practiceTarget, setPracticeTarget] = useState(15);
@@ -709,6 +712,13 @@ export default function App() {
   const [proposalEditDraft, setProposalEditDraft] = useState({});
 
   const playerId = user ? user.uid : guestId;
+
+  useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
 
   // odblokowanie dźwięku na iOS/Androidzie — musi się zdarzyć w reakcji na
   // prawdziwy dotyk/klik, więc łapiemy pierwszą taką interakcję w całej appce
@@ -3494,6 +3504,95 @@ export default function App() {
       ? [...room.timelines[displayedPlayerId]].sort((a, b) => a.year - b.year)
       : [];
 
+  const desktopLevelInfo = levelFromXp(stats?.xp || 0);
+  const desktopSongPoolSize = totalSongCount ?? effectivePool.length;
+  const achievementProgress = stats ? getAchievementProgress(stats, desktopLevelInfo.level) : [];
+  const desktopAchievementClaimed = achievementProgress.filter((item) => item.claimed).length;
+  const desktopWeeklyChallenges = stats ? getWeeklyChallenges(stats) : [];
+  const desktopCurrentWeekly = (() => {
+    const candidate = desktopWeeklyChallenges.find((item) => !item.claimed) || desktopWeeklyChallenges[0];
+    if (!candidate) return { title: 'Zagraj 3 gry', progressLabel: '0 / 3', progressPct: 0, reward: '+50 XP', achievementClaimed: desktopAchievementClaimed };
+    return {
+      title: candidate.desc,
+      progressLabel: `${Math.min(candidate.progress || 0, candidate.target || 0)} / ${candidate.target || 0}`,
+      progressPct: candidate.target ? Math.round(((candidate.progress || 0) / candidate.target) * 100) : 0,
+      reward: `+${candidate.xp || 0} XP${candidate.hitcoin ? ` +${candidate.hitcoin} 🪙` : ''}`,
+      achievementClaimed: desktopAchievementClaimed,
+    };
+  })();
+  const desktopDecadeEntries = stats?.decades
+    ? Object.entries(stats.decades).map(([label, value]) => ({
+        label,
+        correct: value.correct || 0,
+        total: value.total || 0,
+        pct: value.total ? Math.round((value.correct / value.total) * 100) : 0,
+      }))
+    : [];
+  const desktopDecadesWithGames = desktopDecadeEntries.filter((item) => item.total > 0);
+  const desktopBestDecades = [...desktopDecadesWithGames].sort((a, b) => b.pct - a.pct || a.label.localeCompare(b.label)).slice(0, 4);
+  const desktopWorstDecades = [...desktopDecadesWithGames].sort((a, b) => a.pct - b.pct || a.label.localeCompare(b.label)).slice(0, 4);
+  const useDesktopRedesign =
+    viewportWidth >= 1280 &&
+    screen === "home" &&
+    !showAchievements &&
+    !showLeaderboard &&
+    !showAdminPanel &&
+    !showAuthForm &&
+    !showProposals &&
+    !showDailyWheel &&
+    !showOnlineList &&
+    !showWeeklyChallenges &&
+    !showProposeForm &&
+    !showHitRushFaq &&
+    !hitRushMenuOpen;
+
+  if (useDesktopRedesign) {
+    const commonDesktopProps = {
+      user,
+      stats,
+      onlinePlayers,
+      levelInfo: desktopLevelInfo,
+      songPoolSize: desktopSongPoolSize,
+      totalAchievements: ACHIEVEMENTS.length,
+      onHome: goHome,
+      onAlbum: openAlbum,
+      onStats: () => openStats(),
+      onAchievements: () => { setShowStats(false); setShowAchievements(true); },
+      onLeaderboard: () => openLeaderboard(),
+      onShop: () => setScreen("packShop"),
+      onCommunity: () => setShowOnlineList(true),
+      todayKey: currentDayKey(),
+    };
+
+    return showStats ? (
+      <DesktopStatsView
+        {...commonDesktopProps}
+        achievementClaimed={desktopAchievementClaimed}
+        currentWeekly={desktopCurrentWeekly}
+        decadeEntries={desktopDecadeEntries}
+        bestDecades={desktopBestDecades}
+        worstDecades={desktopWorstDecades}
+      />
+    ) : (
+      <DesktopHomeView
+        {...commonDesktopProps}
+        joinCode={joinCode}
+        setJoinCode={setJoinCode}
+        onCreateRoom={createRoom}
+        onJoinRoom={joinRoom}
+        onPractice={() => setScreen("practiceSetup")}
+        onHitRush={() => setScreen("hitRushMenu")}
+        onDailySong={openDailySong}
+        onDailyPlaylist={openDailyPlaylistHub}
+        onTournament={activeTournament ? openTournamentHub : undefined}
+        onPropose={() => setShowProposeForm(true)}
+        activeTournament={activeTournament}
+        lastCompletedTournament={lastCompletedTournament}
+        weeklySummary={{ current: desktopCurrentWeekly, achievementClaimed: desktopAchievementClaimed }}
+      />
+    );
+  }
+
   return (
     <div
       className="min-h-screen w-full flex flex-col items-center"
@@ -3580,15 +3679,6 @@ export default function App() {
           transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
         input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,230,195,0.25); }
-
-        .hs-desktop-home-only { display: block; width: 100%; }
-        .hs-mobile-home-only { display: none; width: 100%; }
-        .hs-home-legacy-header { display: none !important; }
-        @media (max-width: 1023px) {
-          .hs-desktop-home-only { display: none !important; }
-          .hs-mobile-home-only { display: block !important; }
-          .hs-home-legacy-header { display: flex !important; }
-        }
 
         /* --- redesign strony głównej (hs = home screen) --- */
         .hs-wrap { position: relative; }
@@ -3706,8 +3796,8 @@ export default function App() {
 
 
 
-      <div className="w-full flex flex-col items-center hs-page" style={{ maxWidth: screen === "home" ? 1460 : 720 }}>
-        <div className={`w-full ${screen === "home" && !showStats && !showLeaderboard && !showAdminPanel && !showAchievements ? "hs-home-legacy-header" : ""}`} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, flexWrap: "wrap", position: "relative", zIndex: 1 }}>
+      <div className="w-full flex flex-col items-center hs-page" style={{ maxWidth: screen === "home" ? 1200 : 720 }}>
+        <div className="w-full" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, flexWrap: "wrap", position: "relative", zIndex: 1 }}>
           <button onClick={goHome} className="flex items-center gap-2" style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }} title="Strona główna">
             <img src={logoImg} alt="" style={{ height: 56 }} />
             <span
@@ -5095,7 +5185,6 @@ export default function App() {
 
         {screen === "home" && !showStats && !showLeaderboard && !showAdminPanel && !showAchievements && (
           <div className="w-full flex flex-col gap-5">
-            <div className="hs-mobile-home-only">
             {/* PASEK TOŻSAMOŚCI — kompaktowy, jedna linia zamiast całej formy */}
             <section
               className="w-full rounded-xl p-3 flex items-center justify-between gap-2 flex-wrap"
@@ -5162,43 +5251,7 @@ export default function App() {
                 </div>
               </section>
             )}
-            </div>
 
-            <div className="hs-desktop-home-only">
-              <DesktopHome
-                user={user}
-                stats={stats}
-                myXp={myXp}
-                myHitcoin={myHitcoin}
-                onlinePlayers={onlinePlayers}
-                totalSongCount={totalSongCount}
-                effectivePoolCount={effectivePool.length}
-                activeTournament={activeTournament}
-                lastCompletedTournament={lastCompletedTournament}
-                joinCode={joinCode}
-                setJoinCode={setJoinCode}
-                busy={busy}
-                dailyBusy={dailyBusy}
-                dailyPlaylistBusy={dailyPlaylistBusy}
-                tournamentBusy={tournamentBusy}
-                createRoom={createRoom}
-                joinRoom={joinRoom}
-                openStats={openStats}
-                openAlbum={openAlbum}
-                openLeaderboard={openLeaderboard}
-                openDailySong={openDailySong}
-                openDailyPlaylistHub={openDailyPlaylistHub}
-                openTournamentHub={openTournamentHub}
-                setScreen={setScreen}
-                setShowAchievements={setShowAchievements}
-                setShowOnlineList={setShowOnlineList}
-                setShowDailyWheel={setShowDailyWheel}
-                setShowProposeForm={setShowProposeForm}
-                setShowAuthForm={setShowAuthForm}
-              />
-            </div>
-
-            <div className="hs-mobile-home-only">
             {/* REDESIGN — hero + tryby gry + postęp, na realnych assetach i danych */}
             <div className="hs-wrap">
               <div className="hs-bg" />
@@ -5366,9 +5419,7 @@ export default function App() {
 
               </div>
             </div>
-            </div>
 
-            <div className="hs-mobile-home-only">
             {user && (
               <>
                 <button
@@ -5459,7 +5510,6 @@ export default function App() {
                 🔐 Tryb admina
               </button>
             )}
-            </div>
           </div>
         )}
 
