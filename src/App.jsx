@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, memo } from "react";
+import DesktopHome from "./DesktopHome.jsx";
 import {
   doc,
   setDoc,
@@ -3580,6 +3581,15 @@ export default function App() {
         }
         input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,230,195,0.25); }
 
+        .hs-desktop-home-only { display: block; width: 100%; }
+        .hs-mobile-home-only { display: none; width: 100%; }
+        .hs-home-legacy-header { display: none !important; }
+        @media (max-width: 1023px) {
+          .hs-desktop-home-only { display: none !important; }
+          .hs-mobile-home-only { display: block !important; }
+          .hs-home-legacy-header { display: flex !important; }
+        }
+
         /* --- redesign strony głównej (hs = home screen) --- */
         .hs-wrap { position: relative; }
         .hs-bg { content: ""; position: fixed; inset: 0; height: 100vh; background: url(${homeBg}) center top / cover no-repeat; opacity: 0.5; z-index: 0; pointer-events: none; -webkit-mask-image: linear-gradient(to bottom, black 45%, transparent 85%); mask-image: linear-gradient(to bottom, black 45%, transparent 85%); }
@@ -3696,8 +3706,8 @@ export default function App() {
 
 
 
-      <div className="w-full flex flex-col items-center hs-page" style={{ maxWidth: screen === "home" ? 1200 : 720 }}>
-        <div className="w-full" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, flexWrap: "wrap", position: "relative", zIndex: 1 }}>
+      <div className="w-full flex flex-col items-center hs-page" style={{ maxWidth: screen === "home" ? 1460 : 720 }}>
+        <div className={`w-full ${screen === "home" && !showStats && !showLeaderboard && !showAdminPanel && !showAchievements ? "hs-home-legacy-header" : ""}`} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, flexWrap: "wrap", position: "relative", zIndex: 1 }}>
           <button onClick={goHome} className="flex items-center gap-2" style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }} title="Strona główna">
             <img src={logoImg} alt="" style={{ height: 56 }} />
             <span
@@ -5085,6 +5095,7 @@ export default function App() {
 
         {screen === "home" && !showStats && !showLeaderboard && !showAdminPanel && !showAchievements && (
           <div className="w-full flex flex-col gap-5">
+            <div className="hs-mobile-home-only">
             {/* PASEK TOŻSAMOŚCI — kompaktowy, jedna linia zamiast całej formy */}
             <section
               className="w-full rounded-xl p-3 flex items-center justify-between gap-2 flex-wrap"
@@ -5151,7 +5162,43 @@ export default function App() {
                 </div>
               </section>
             )}
+            </div>
 
+            <div className="hs-desktop-home-only">
+              <DesktopHome
+                user={user}
+                stats={stats}
+                myXp={myXp}
+                myHitcoin={myHitcoin}
+                onlinePlayers={onlinePlayers}
+                totalSongCount={totalSongCount}
+                effectivePoolCount={effectivePool.length}
+                activeTournament={activeTournament}
+                lastCompletedTournament={lastCompletedTournament}
+                joinCode={joinCode}
+                setJoinCode={setJoinCode}
+                busy={busy}
+                dailyBusy={dailyBusy}
+                dailyPlaylistBusy={dailyPlaylistBusy}
+                tournamentBusy={tournamentBusy}
+                createRoom={createRoom}
+                joinRoom={joinRoom}
+                openStats={openStats}
+                openAlbum={openAlbum}
+                openLeaderboard={openLeaderboard}
+                openDailySong={openDailySong}
+                openDailyPlaylistHub={openDailyPlaylistHub}
+                openTournamentHub={openTournamentHub}
+                setScreen={setScreen}
+                setShowAchievements={setShowAchievements}
+                setShowOnlineList={setShowOnlineList}
+                setShowDailyWheel={setShowDailyWheel}
+                setShowProposeForm={setShowProposeForm}
+                setShowAuthForm={setShowAuthForm}
+              />
+            </div>
+
+            <div className="hs-mobile-home-only">
             {/* REDESIGN — hero + tryby gry + postęp, na realnych assetach i danych */}
             <div className="hs-wrap">
               <div className="hs-bg" />
@@ -5319,7 +5366,9 @@ export default function App() {
 
               </div>
             </div>
+            </div>
 
+            <div className="hs-mobile-home-only">
             {user && (
               <>
                 <button
@@ -5410,6 +5459,7 @@ export default function App() {
                 🔐 Tryb admina
               </button>
             )}
+            </div>
           </div>
         )}
 
