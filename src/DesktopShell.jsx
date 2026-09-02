@@ -177,7 +177,7 @@ function ProgressBar({ value = 0 }) {
   );
 }
 
-function SidebarNav({ active = 'home', onHome, onRooms, onAlbum, onStats, onAchievements, onLeaderboard, onShop, onCommunity }) {
+function SidebarNav({ active = 'home', onHome, onRooms, onAlbum, onStats, onAchievements, onLeaderboard, onShop, onCommunity, onAdmin, adminUnlocked = false }) {
   const items = [
     { key: 'home', label: 'GRAJ TERAZ', icon: <Gamepad2 size={20} />, onClick: onHome },
     { key: 'rooms', label: 'POKÓJ', icon: <DoorOpen size={20} />, onClick: onRooms || onHome },
@@ -217,11 +217,11 @@ function SidebarNav({ active = 'home', onHome, onRooms, onAlbum, onStats, onAchi
   );
 }
 
-function DesktopLayout({ active, topRight, onHome, onRooms, onAlbum, onStats, onAchievements, onLeaderboard, onShop, onCommunity, children }) {
+function DesktopLayout({ active, topRight, onHome, onRooms, onAlbum, onStats, onAchievements, onLeaderboard, onShop, onCommunity, onAdmin, adminUnlocked = false, children }) {
   return (
     <div className="desk-root" style={{ backgroundImage: `linear-gradient(180deg, rgba(3,6,19,0.70), rgba(3,6,19,0.94)), url(${homeBg})` }}>
       <div className="desk-shell">
-        <SidebarNav active={active} onHome={onHome} onRooms={onRooms} onAlbum={onAlbum} onStats={onStats} onAchievements={onAchievements} onLeaderboard={onLeaderboard} onShop={onShop} onCommunity={onCommunity} />
+        <SidebarNav active={active} onHome={onHome} onRooms={onRooms} onAlbum={onAlbum} onStats={onStats} onAchievements={onAchievements} onLeaderboard={onLeaderboard} onShop={onShop} onCommunity={onCommunity} onAdmin={onAdmin} adminUnlocked={adminUnlocked} />
         <div className="desk-content">{children}</div>
       </div>
       {topRight}
