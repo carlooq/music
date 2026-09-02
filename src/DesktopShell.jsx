@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Gamepad2,
   DoorOpen,
@@ -45,6 +45,12 @@ import glPrezent from './assets/icons/gl-prezent.png';
 import iconToken from './assets/icons/icon-token.png';
 import iconHitcoin from './assets/icons/icon-hitcoin.png';
 import iconZaproponuj from './assets/icons/zaproponuj.png';
+import packPodstawowa from './assets/icons/pack-podstawowa.webp';
+import packRozszerzona from './assets/icons/pack-rozszerzona.webp';
+import packPremium from './assets/icons/pack-premium.webp';
+import achDoOdebrania from './assets/icons/ach-doodebrania.png';
+import achOdebrane from './assets/icons/ach-odebrane.png';
+import achZablokowane from './assets/icons/ach-zablokowane.png';
 
 function pct(correct, total) {
   if (!total) return 0;
@@ -69,8 +75,9 @@ function sortDecades(entries = []) {
   });
 }
 
-function DesktopTopPill({ icon, children, accent = 'cyan', wide = false }) {
-  return <div className={`desk-pill ${accent} ${wide ? 'wide' : ''}`}>{icon}<span>{children}</span></div>;
+function DesktopTopPill({ icon, children, accent = 'cyan', wide = false, onClick }) {
+  const Tag = onClick ? 'button' : 'div';
+  return <Tag type={onClick ? 'button' : undefined} onClick={onClick} className={`desk-pill ${accent} ${wide ? 'wide' : ''} ${onClick ? 'clickable' : ''}`}>{icon}<span>{children}</span></Tag>;
 }
 
 function DesktopStatCard({ icon, label, value, note, accent = 'cyan', action, onClick }) {
@@ -88,23 +95,25 @@ function DesktopStatCard({ icon, label, value, note, accent = 'cyan', action, on
 }
 
 function DesktopModeCard({ icon, title, desc, accent = 'cyan', badge, footer, onClick }) {
+  const Tag = onClick ? 'button' : 'div';
   return (
-    <button className={`desk-mode-card ${accent}`} onClick={onClick}>
+    <Tag type={onClick ? 'button' : undefined} className={`desk-mode-card ${accent} ${onClick ? 'is-clickable' : ''}`} onClick={onClick}>
       {badge ? <div className="desk-mode-badge">{badge}</div> : null}
       <img src={icon} alt="" className="desk-mode-icon" />
       <div className="desk-mode-title">{title}</div>
       <div className="desk-mode-desc">{desc}</div>
       <div className="desk-mode-footer">
         <span>{footer}</span>
-        <div className="desk-mode-arrow"><ChevronRight size={18} /></div>
+        {onClick ? <div className="desk-mode-arrow"><ChevronRight size={18} /></div> : null}
       </div>
-    </button>
+    </Tag>
   );
 }
 
 function DesktopRailCard({ icon, title, value, desc, accent = 'violet', actionLabel, onClick, children }) {
+  const Tag = onClick ? 'button' : 'div';
   return (
-    <button className={`desk-rail-card ${accent}`} onClick={onClick}>
+    <Tag type={onClick ? 'button' : undefined} className={`desk-rail-card ${accent} ${onClick ? 'is-clickable' : ''}`} onClick={onClick}>
       <div className="desk-rail-icon-wrap">{typeof icon === 'string' ? <img src={icon} alt="" /> : icon}</div>
       <div className="desk-rail-copy">
         <div className="desk-rail-title">{title}</div>
@@ -112,8 +121,8 @@ function DesktopRailCard({ icon, title, value, desc, accent = 'violet', actionLa
         {desc ? <div className="desk-rail-desc">{desc}</div> : null}
         {children}
       </div>
-      {actionLabel ? <div className="desk-rail-action">{actionLabel}</div> : null}
-    </button>
+      {actionLabel && onClick ? <div className="desk-rail-action">{actionLabel}</div> : null}
+    </Tag>
   );
 }
 
@@ -125,10 +134,10 @@ function ProgressBar({ value = 0 }) {
   );
 }
 
-function SidebarNav({ active = 'home', onHome, onAlbum, onStats, onAchievements, onLeaderboard, onShop, onCommunity }) {
+function SidebarNav({ active = 'home', onHome, onRooms, onAlbum, onStats, onAchievements, onLeaderboard, onShop, onCommunity }) {
   const items = [
     { key: 'home', label: 'GRAJ TERAZ', icon: <Gamepad2 size={20} />, onClick: onHome },
-    { key: 'rooms', label: 'POKÓJ', icon: <DoorOpen size={20} />, onClick: onHome },
+    { key: 'rooms', label: 'POKÓJ', icon: <DoorOpen size={20} />, onClick: onRooms || onHome },
     { key: 'collection', label: 'KOLEKCJA', icon: <Disc3 size={20} />, onClick: onAlbum },
     { key: 'stats', label: 'STATYSTYKI', icon: <BarChart3 size={20} />, onClick: onStats },
     { key: 'achievements', label: 'OSIĄGNIĘCIA', icon: <Medal size={20} />, onClick: onAchievements },
@@ -138,9 +147,9 @@ function SidebarNav({ active = 'home', onHome, onAlbum, onStats, onAchievements,
   ];
   return (
     <aside className="desk-sidebar">
-      <div className="desk-brand">
+      <button type="button" className="desk-brand" onClick={onHome} title="Strona główna">
         <img src={logoImg} alt="Hitsteriada" />
-      </div>
+      </button>
       <div className="desk-sidebar-nav">
         {items.map((item) => (
           <button key={item.key} className={`desk-nav-item ${active === item.key ? 'active' : ''}`} onClick={item.onClick}>
@@ -155,17 +164,17 @@ function SidebarNav({ active = 'home', onHome, onAlbum, onStats, onAchievements,
           <div className="desk-mini-title">Hitsteriada Mix</div>
           <div className="desk-mini-artist">Game soundtrack</div>
         </div>
-        <button className="desk-mini-play"><Play size={18} /></button>
+        <div className="desk-mini-play"><Play size={18} /></div>
       </div>
     </aside>
   );
 }
 
-function DesktopLayout({ active, topRight, onHome, onAlbum, onStats, onAchievements, onLeaderboard, onShop, onCommunity, children }) {
+function DesktopLayout({ active, topRight, onHome, onRooms, onAlbum, onStats, onAchievements, onLeaderboard, onShop, onCommunity, children }) {
   return (
     <div className="desk-root" style={{ backgroundImage: `linear-gradient(180deg, rgba(3,6,19,0.70), rgba(3,6,19,0.94)), url(${homeBg})` }}>
       <div className="desk-shell">
-        <SidebarNav active={active} onHome={onHome} onAlbum={onAlbum} onStats={onStats} onAchievements={onAchievements} onLeaderboard={onLeaderboard} onShop={onShop} onCommunity={onCommunity} />
+        <SidebarNav active={active} onHome={onHome} onRooms={onRooms} onAlbum={onAlbum} onStats={onStats} onAchievements={onAchievements} onLeaderboard={onLeaderboard} onShop={onShop} onCommunity={onCommunity} />
         <div className="desk-content">{children}</div>
       </div>
       {topRight}
@@ -173,18 +182,18 @@ function DesktopLayout({ active, topRight, onHome, onAlbum, onStats, onAchieveme
   );
 }
 
-function HeaderBar({ onlineCount, level, xpText, musicCount, hitcoin, avatarUrl, username }) {
+function HeaderBar({ onlineCount, level, xpText, musicCount, hitcoin, avatarUrl, username, onCommunity, onStats, onShop }) {
   return (
     <div className="desk-header-bar">
-      <DesktopTopPill icon={<span className="desk-dot" />} accent="green">{onlineCount} graczy online</DesktopTopPill>
-      <DesktopTopPill icon={<Star size={16} />} accent="cyan" wide>LVL {level} <span className="desk-pill-sub">{xpText}</span></DesktopTopPill>
-      <DesktopTopPill icon={<Music2 size={16} />} accent="pink">{musicCount}</DesktopTopPill>
-      <DesktopTopPill icon={<img src={iconHitcoin} alt="" className="desk-pill-coin" />} accent="gold">{hitcoin}</DesktopTopPill>
-      <div className="desk-user-pill">
+      <DesktopTopPill icon={<span className="desk-dot" />} accent="green" onClick={onCommunity}>{onlineCount} graczy online</DesktopTopPill>
+      <DesktopTopPill icon={<Star size={16} />} accent="cyan" wide onClick={onStats}>LVL {level} <span className="desk-pill-sub">{xpText}</span></DesktopTopPill>
+      <DesktopTopPill icon={<Music2 size={16} />} accent="pink" onClick={onStats}>{musicCount}</DesktopTopPill>
+      <DesktopTopPill icon={<img src={iconHitcoin} alt="" className="desk-pill-coin" />} accent="gold" onClick={onShop}>{hitcoin}</DesktopTopPill>
+      <button type="button" className="desk-user-pill" onClick={onStats}>
         <div className="desk-avatar" style={avatarUrl ? { backgroundImage: `url(${avatarUrl})` } : undefined}>{!avatarUrl ? initials(username) : null}</div>
         <span>{username}</span>
-      </div>
-      <button className="desk-gear-btn"><Settings size={18} /></button>
+      </button>
+      <button type="button" className="desk-gear-btn" onClick={onStats} title="Profil i statystyki"><Settings size={18} /></button>
     </div>
   );
 }
@@ -219,7 +228,7 @@ export function DesktopHomeView(props) {
     totalAchievements,
   } = props;
 
-  const username = user?.username || 'Gracz';
+  const username = props.playerName || user?.displayName || user?.username || 'Gracz';
   const collectionCount = Object.keys(stats?.cardCollection || {}).length;
   const winRate = stats?.gamesPlayed ? `${pct(stats.gamesWon || 0, stats.gamesPlayed)}%` : '0%';
   const accuracy = stats?.cardsTotal ? `${pct(stats.cardsCorrect || 0, stats.cardsTotal)}%` : '0%';
@@ -242,9 +251,12 @@ export function DesktopHomeView(props) {
         level={levelInfo.level}
         xpText={`${levelInfo.currentLevelXp} / ${levelInfo.xpForNextLevel} XP`}
         musicCount={formatCompact(stats?.heardSongs?.length || 0)}
-        hitcoin={formatCompact(stats?.hitcoin ?? 0)}
+        hitcoin={formatCompact(props.hitcoin ?? stats?.hitcoin ?? 0)}
         avatarUrl={stats?.avatarUrl}
         username={username}
+        onCommunity={onCommunity}
+        onStats={onStats}
+        onShop={onShop}
       />
 
       <div className="desk-main-stack">
@@ -281,7 +293,7 @@ export function DesktopHomeView(props) {
               <div className="desk-panel-tag">NOWOŚCI I WYDARZENIA</div>
               <h2>Muzyka łączy.<br /><span>Hity zostają.</span></h2>
               <p>Rywalizuj, odkrywaj, zdobywaj nagrody i wspinaj się na szczyt rankingu!</p>
-              <button className="desk-outline-btn">DOWIEDZ SIĘ WIĘCEJ <ChevronRight size={18} /></button>
+              <button type="button" className="desk-outline-btn" onClick={() => document.querySelector('.desk-modes-grid')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>DOWIEDZ SIĘ WIĘCEJ <ChevronRight size={18} /></button>
             </div>
             <div className="desk-hero-dots">
               <span className="active" />
@@ -316,7 +328,7 @@ export function DesktopHomeView(props) {
 
           <div className="desk-right-rail">
             <DesktopRailCard icon={<Flame size={20} />} title="PASSA" value={`${stats?.longestStreak || 0}`} desc="najlepsza seria trafień" accent="pink" />
-            <DesktopRailCard icon={glPrezent} title="NAGRODA DNIA" value={todayClaimed ? 'ODEBRANA' : 'GOTOWA'} desc={todayClaimed ? 'Wróć jutro po następną próbę.' : 'Odbierz darmową nagrodę'} accent="cyan" actionLabel={todayClaimed ? '' : 'ODBIERZ'} />
+            <DesktopRailCard icon={glPrezent} title="NAGRODA DNIA" value={todayClaimed ? 'ODEBRANA' : 'GOTOWA'} desc={todayClaimed ? 'Wróć jutro po następną próbę.' : 'Nagroda czeka w panelu statystyk.'} accent="cyan" />
             <DesktopRailCard icon={iconZaproponuj} title="ZAPROPONUJ UTWÓR" value="Masz pomysł na hit?" desc="Zgłoś utwór społeczności!" accent="violet" actionLabel="OTWÓRZ" onClick={onPropose} />
             <DesktopRailCard icon={<Users size={20} />} title="ZNAJOMI ONLINE" value={`${onlinePlayers.length} aktywnych`} desc={onlinePlayers.length ? 'Dołącz do społeczności' : 'Nikt poza Tobą nie gra w tej chwili.'} accent="cyan">
               <div className="desk-online-row">
@@ -398,7 +410,7 @@ export function DesktopStatsView(props) {
     onCommunity,
   } = props;
 
-  const username = user?.username || 'Gracz';
+  const username = props.playerName || user?.displayName || user?.username || 'Gracz';
   const progressPct = levelInfo.xpForNextLevel ? Math.round((levelInfo.currentLevelXp / levelInfo.xpForNextLevel) * 100) : 0;
   const collectionCount = Object.keys(stats?.cardCollection || {}).length;
 
@@ -418,9 +430,12 @@ export function DesktopStatsView(props) {
         level={levelInfo.level}
         xpText={`${levelInfo.currentLevelXp} / ${levelInfo.xpForNextLevel} XP`}
         musicCount={formatCompact(stats?.heardSongs?.length || 0)}
-        hitcoin={formatCompact(stats?.hitcoin ?? 0)}
+        hitcoin={formatCompact(props.hitcoin ?? stats?.hitcoin ?? 0)}
         avatarUrl={stats?.avatarUrl}
         username={username}
+        onCommunity={onCommunity}
+        onStats={onStats}
+        onShop={onShop}
       />
 
       <div className="desk-main-stack">
@@ -517,4 +532,307 @@ export function DesktopStatsView(props) {
       </div>
     </DesktopLayout>
   );
+}
+
+function DesktopSimpleHeader({ title, subtitle, icon }) {
+  return (
+    <div className="desk-page-heading">
+      <div className="desk-page-heading-icon">{icon}</div>
+      <div>
+        <h1>{title}</h1>
+        {subtitle ? <p>{subtitle}</p> : null}
+      </div>
+    </div>
+  );
+}
+
+function DesktopAchievementsView({ common, progress, onClaim }) {
+  const groups = useMemo(() => {
+    const map = new Map();
+    (progress || []).forEach((item) => {
+      if (!map.has(item.category)) map.set(item.category, []);
+      map.get(item.category).push(item);
+    });
+    return Array.from(map.entries());
+  }, [progress]);
+
+  return (
+    <DesktopLayout active="achievements" {...common}>
+      <HeaderBar {...common.header} />
+      <div className="desk-main-stack">
+        <DesktopSimpleHeader title="OSIĄGNIĘCIA" subtitle="Odblokowuj kolejne cele, odbieraj XP i rozwijaj swój profil gracza." icon={<Medal size={28} />} />
+        <section className="desk-achievement-summary desk-panel">
+          <div>
+            <div className="desk-achievement-big">{progress.filter((x) => x.claimed).length} / {progress.length}</div>
+            <div className="desk-achievement-caption">odebranych osiągnięć</div>
+          </div>
+          <ProgressBar value={Math.round((progress.filter((x) => x.claimed).length / Math.max(1, progress.length)) * 100)} />
+        </section>
+        <div className="desk-achievement-groups">
+          {groups.map(([category, items]) => (
+            <section key={category} className="desk-achievement-group desk-panel">
+              <div className="desk-section-label solo"><Sparkles size={16} /> {category.toUpperCase()}</div>
+              <div className="desk-achievement-grid">
+                {items.map((item) => {
+                  const icon = item.claimed ? achOdebrane : item.qualifies ? achDoOdebrania : achZablokowane;
+                  const status = item.claimed ? 'ODEBRANE' : item.qualifies ? 'DO ODEBRANIA' : 'ZABLOKOWANE';
+                  return (
+                    <div key={item.id} className={`desk-achievement-card ${item.claimed ? 'claimed' : item.qualifies ? 'ready' : 'locked'}`}>
+                      <img src={icon} alt="" />
+                      <div className="desk-achievement-card-copy">
+                        <div className="desk-achievement-card-title">{item.name}</div>
+                        <div className="desk-achievement-card-desc">{item.desc}</div>
+                        <div className="desk-achievement-card-meta">+{item.xp} XP • {status}</div>
+                      </div>
+                      {item.qualifies && !item.claimed ? (
+                        <button className="desk-achievement-claim" onClick={() => onClaim(item)}>ODBIERZ</button>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+        </div>
+      </div>
+    </DesktopLayout>
+  );
+}
+
+function DesktopLeaderboardView({ common, leaderboard, sortBy, onSort }) {
+  useEffect(() => {
+    if (!leaderboard) onSort(sortBy || 'gamesWon');
+  }, []); // intentional: load once on entry
+
+  return (
+    <DesktopLayout active="ranking" {...common}>
+      <HeaderBar {...common.header} />
+      <div className="desk-main-stack">
+        <DesktopSimpleHeader title="RANKING" subtitle="Porównaj wyniki z innymi graczami i walcz o najwyższe miejsca." icon={<Crown size={28} />} />
+        <section className="desk-ranking-panel desk-panel">
+          <div className="desk-ranking-tabs">
+            <button className={sortBy === 'gamesWon' ? 'active' : ''} onClick={() => onSort('gamesWon')}>WYGRANE</button>
+            <button className={sortBy === 'guessesCorrect' ? 'active' : ''} onClick={() => onSort('guessesCorrect')}>ZGADYWANIE</button>
+          </div>
+          {!leaderboard ? (
+            <div className="desk-loading">Wczytuję ranking…</div>
+          ) : (
+            <div className="desk-ranking-list">
+              {leaderboard.map((player, index) => (
+                <div key={player.uid || index} className={`desk-ranking-row rank-${index + 1}`}>
+                  <div className="desk-ranking-position">{index < 3 ? ['🥇','🥈','🥉'][index] : `#${index + 1}`}</div>
+                  <div className="desk-ranking-avatar">{initials(player.username || 'G')}</div>
+                  <div className="desk-ranking-user">
+                    <strong>{player.username || 'Gracz'}</strong>
+                    <span>LVL {player.xp ? Math.max(1, Math.floor(Math.sqrt(player.xp / 75)) + 1) : 1}</span>
+                  </div>
+                  <div className="desk-ranking-score">
+                    {sortBy === 'gamesWon' ? `${formatCompact(player.gamesWon || 0)} wygranych` : `${formatCompact(player.guessesCorrect || 0)} trafień`}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    </DesktopLayout>
+  );
+}
+
+function DesktopCollectionView({ common, songs, stats }) {
+  const [onlyOwned, setOnlyOwned] = useState(true);
+  const [query, setQuery] = useState('');
+  const collection = stats?.cardCollection || {};
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return (songs || []).filter((song) => {
+      const owned = !!collection[song.id];
+      if (onlyOwned && !owned) return false;
+      if (!q) return true;
+      return `${song.artist || ''} ${song.title || ''} ${song.year || ''}`.toLowerCase().includes(q);
+    });
+  }, [songs, collection, onlyOwned, query]);
+
+  return (
+    <DesktopLayout active="collection" {...common}>
+      <HeaderBar {...common.header} />
+      <div className="desk-main-stack">
+        <DesktopSimpleHeader title="KOLEKCJA" subtitle={`Masz ${Object.keys(collection).length} unikalnych kart z ${songs?.length || 0} dostępnych utworów.`} icon={<Disc3 size={28} />} />
+        <section className="desk-collection-tools desk-panel">
+          <div className="desk-search-wrap"><Search size={18} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Szukaj wykonawcy, tytułu lub roku" /></div>
+          <button className={`desk-filter-chip ${onlyOwned ? 'active' : ''}`} onClick={() => setOnlyOwned((v) => !v)}>{onlyOwned ? 'TYLKO POSIADANE' : 'WSZYSTKIE KARTY'}</button>
+        </section>
+        <div className="desk-card-collection-grid">
+          {filtered.slice(0, 72).map((song) => {
+            const owned = collection[song.id] || 0;
+            return (
+              <div key={song.id} className={`desk-song-card ${owned ? 'owned' : 'locked'}`}>
+                <div className="desk-song-card-year">{song.year || '—'}</div>
+                <div className="desk-song-card-title">{owned ? song.title : '???'}</div>
+                <div className="desk-song-card-artist">{owned ? song.artist : 'Nieodblokowana karta'}</div>
+                {owned > 1 ? <div className="desk-song-card-count">×{owned}</div> : null}
+                {!owned ? <div className="desk-song-card-lock">🔒</div> : null}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </DesktopLayout>
+  );
+}
+
+function DesktopShopView({ common, hitcoin, packConfigs, busy, openResult, onBuy, onClearResult }) {
+  const packs = [
+    { key: '50', title: 'PODSTAWOWA', img: packPodstawowa, accent: 'cyan' },
+    { key: '75', title: 'ROZSZERZONA', img: packRozszerzona, accent: 'violet' },
+    { key: '100', title: 'PREMIUM', img: packPremium, accent: 'gold' },
+  ];
+
+  return (
+    <DesktopLayout active="shop" {...common}>
+      <HeaderBar {...common.header} />
+      <div className="desk-main-stack">
+        <DesktopSimpleHeader title="SKLEP" subtitle={`Saldo: ${formatCompact(hitcoin)} HITCOIN. Kupuj paczki i rozbudowuj album.`} icon={<ShoppingCart size={28} />} />
+        {openResult?.length ? (
+          <section className="desk-shop-result desk-panel">
+            <div className="desk-section-label solo">OTWARTA PACZKA</div>
+            <div className="desk-shop-result-grid">
+              {openResult.map((item, index) => (
+                <div key={`${item.song?.id || index}`} className="desk-shop-result-card">
+                  <div className="desk-song-card-year">{item.song?.year || '—'}</div>
+                  <div className="desk-song-card-title">{item.song?.title || 'Karta'}</div>
+                  <div className="desk-song-card-artist">{item.song?.artist || ''}</div>
+                </div>
+              ))}
+            </div>
+            <button className="desk-primary-small" onClick={onClearResult}>WRÓĆ DO PACZEK</button>
+          </section>
+        ) : (
+          <div className="desk-pack-grid">
+            {packs.map((pack) => {
+              const cfg = packConfigs?.[pack.key] || {};
+              const canBuy = Number(hitcoin || 0) >= Number(cfg.price || 0);
+              return (
+                <div key={pack.key} className={`desk-pack-card ${pack.accent}`}>
+                  <img src={pack.img} alt={pack.title} />
+                  <div className="desk-pack-title">{pack.title}</div>
+                  <div className="desk-pack-note">{cfg.cards || '?'} kart w paczce</div>
+                  <div className="desk-pack-price"><img src={iconHitcoin} alt="" /> {cfg.price || 0}</div>
+                  <button disabled={busy || !canBuy} onClick={() => onBuy(pack.key)}>{canBuy ? 'KUP PACZKĘ' : 'ZA MAŁO HITCOINÓW'}</button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </DesktopLayout>
+  );
+}
+
+function DesktopCommunityView({ common, onlinePlayers, challengeSentTo, challengeBusy, onChallenge }) {
+  return (
+    <DesktopLayout active="community" {...common}>
+      <HeaderBar {...common.header} />
+      <div className="desk-main-stack">
+        <DesktopSimpleHeader title="SPOŁECZNOŚĆ" subtitle="Zobacz kto jest online i wyzwij znajomego na pojedynek 1v1." icon={<Users size={28} />} />
+        <section className="desk-community-panel desk-panel">
+          <div className="desk-section-label solo">GRACZE ONLINE</div>
+          {onlinePlayers.length === 0 ? <div className="desk-empty-state">Nikt inny nie jest teraz online.</div> : (
+            <div className="desk-community-grid">
+              {onlinePlayers.map((player, index) => {
+                const pending = challengeSentTo?.uid === player.uid;
+                return (
+                  <div key={player.playerId || player.uid || index} className="desk-community-card">
+                    <div className="desk-community-avatar">{initials(player.name || player.username || 'G')}</div>
+                    <div className="desk-community-copy"><strong>{player.name || player.username || 'Gracz'}</strong><span>🟢 online</span></div>
+                    {player.uid ? <button disabled={challengeBusy || pending} onClick={() => onChallenge(player)}>{pending ? 'WYZWANIE WYSŁANE' : 'WYZWÓL 1V1'}</button> : null}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </div>
+    </DesktopLayout>
+  );
+}
+
+function DesktopProposeView({ common, draft, setDraft, categories, onToggleCategory, onSubmit, busy, error, success }) {
+  return (
+    <DesktopLayout active="home" {...common}>
+      <HeaderBar {...common.header} />
+      <div className="desk-main-stack">
+        <DesktopSimpleHeader title="ZAPROPONUJ UTWÓR" subtitle="Masz pomysł na hit, którego brakuje w bazie? Wyślij propozycję do akceptacji." icon={<Music2 size={28} />} />
+        <section className="desk-propose-panel desk-panel">
+          {success ? (
+            <div className="desk-success-state"><CheckCircle2 size={44} /> Dzięki! Propozycja czeka na zatwierdzenie.</div>
+          ) : (
+            <div className="desk-propose-form">
+              <label><span>WYKONAWCA</span><input value={draft.artist} onChange={(e) => setDraft({ ...draft, artist: e.target.value })} placeholder="np. Queen" /></label>
+              <label><span>TYTUŁ</span><input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="np. Don't Stop Me Now" /></label>
+              <label className="wide"><span>LINK YOUTUBE</span><input value={draft.url} onChange={(e) => setDraft({ ...draft, url: e.target.value })} placeholder="https://youtube.com/..." /></label>
+              <label><span>ROK</span><input type="number" value={draft.year} onChange={(e) => setDraft({ ...draft, year: e.target.value })} placeholder="1978" /></label>
+              <div className="desk-propose-categories wide">
+                <span>KATEGORIE</span>
+                <div>{categories.map((cat) => <button type="button" key={cat.slug} className={draft.categories.includes(cat.slug) ? 'active' : ''} onClick={() => onToggleCategory(cat.slug)}>{cat.label}</button>)}</div>
+              </div>
+              {error ? <div className="desk-form-error wide">{error}</div> : null}
+              <div className="desk-propose-submit wide"><button disabled={busy} onClick={onSubmit}>{busy ? 'WYSYŁANIE…' : 'WYŚLIJ PROPOZYCJĘ'}</button></div>
+            </div>
+          )}
+        </section>
+      </div>
+    </DesktopLayout>
+  );
+}
+
+export function DesktopAppView(props) {
+  const [section, setSection] = useState('home');
+
+  const common = useMemo(() => ({
+    onHome: () => setSection('home'),
+    onRooms: () => {
+      setSection('home');
+      setTimeout(() => document.querySelector('.desk-room-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
+    },
+    onAlbum: () => setSection('collection'),
+    onStats: () => setSection('stats'),
+    onAchievements: () => setSection('achievements'),
+    onLeaderboard: () => setSection('ranking'),
+    onShop: () => setSection('shop'),
+    onCommunity: () => setSection('community'),
+    header: {
+      onlineCount: props.onlinePlayers.length,
+      level: props.levelInfo.level,
+      xpText: `${props.levelInfo.currentLevelXp} / ${props.levelInfo.xpForNextLevel} XP`,
+      musicCount: formatCompact(props.stats?.heardSongs?.length || 0),
+      hitcoin: formatCompact(props.hitcoin || 0),
+      avatarUrl: props.stats?.avatarUrl,
+      username: props.playerName || props.user?.displayName || props.user?.username || 'Gracz',
+      onCommunity: () => setSection('community'),
+      onStats: () => setSection('stats'),
+      onShop: () => setSection('shop'),
+    },
+  }), [props.onlinePlayers.length, props.levelInfo.level, props.levelInfo.currentLevelXp, props.levelInfo.xpForNextLevel, props.stats, props.hitcoin, props.user]);
+
+  const localHomeProps = {
+    ...props,
+    onHome: common.onHome,
+    onAlbum: common.onAlbum,
+    onStats: common.onStats,
+    onAchievements: common.onAchievements,
+    onLeaderboard: common.onLeaderboard,
+    onShop: common.onShop,
+    onCommunity: common.onCommunity,
+    onPropose: () => setSection('propose'),
+  };
+
+  if (section === 'stats') return <DesktopStatsView {...props} {...common} />;
+  if (section === 'achievements') return <DesktopAchievementsView common={common} progress={props.achievementProgress || []} onClaim={props.onClaimAchievement} />;
+  if (section === 'ranking') return <DesktopLeaderboardView common={common} leaderboard={props.leaderboard} sortBy={props.leaderboardSort} onSort={props.onLoadLeaderboard} />;
+  if (section === 'collection') return <DesktopCollectionView common={common} songs={props.songs} stats={props.stats} />;
+  if (section === 'shop') return <DesktopShopView common={common} hitcoin={props.hitcoin} packConfigs={props.packConfigs} busy={props.packBusy} openResult={props.packOpenResult} onBuy={props.onBuyPack} onClearResult={props.onClearPackResult} />;
+  if (section === 'community') return <DesktopCommunityView common={common} onlinePlayers={props.onlinePlayers} challengeSentTo={props.challengeSentTo} challengeBusy={props.challengeBusy} onChallenge={props.onChallenge} />;
+  if (section === 'propose') return <DesktopProposeView common={common} draft={props.proposeDraft} setDraft={props.setProposeDraft} categories={props.categories} onToggleCategory={props.onToggleProposeCategory} onSubmit={props.onSubmitProposal} busy={props.proposeBusy} error={props.proposeError} success={props.proposeSuccess} />;
+  return <DesktopHomeView {...localHomeProps} />;
 }

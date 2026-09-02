@@ -90,7 +90,7 @@ import cardSrebroImg from "./assets/icons/card-srebro.webp";
 import cardZlotoImg from "./assets/icons/card-zlota.webp";
 import cardPlatynaImg from "./assets/icons/card-platynowa.webp";
 import cardDiamentImg from "./assets/icons/card-diamentowa.webp";
-import { DesktopHomeView, DesktopStatsView } from "./DesktopShell.jsx";
+import { DesktopAppView } from "./DesktopShell.jsx";
 import "./desktop-shell.css";
 
 // 👉 PODMIEŃ TO NA SWOJE WŁASNE HASŁO trybu admina
@@ -3531,51 +3531,38 @@ export default function App() {
   const desktopDecadesWithGames = desktopDecadeEntries.filter((item) => item.total > 0);
   const desktopBestDecades = [...desktopDecadesWithGames].sort((a, b) => b.pct - a.pct || a.label.localeCompare(b.label)).slice(0, 4);
   const desktopWorstDecades = [...desktopDecadesWithGames].sort((a, b) => a.pct - b.pct || a.label.localeCompare(b.label)).slice(0, 4);
-  const useDesktopRedesign =
-    viewportWidth >= 1280 &&
-    screen === "home" &&
-    !showAchievements &&
-    !showLeaderboard &&
-    !showAdminPanel &&
-    !showAuthForm &&
-    !showProposals &&
-    !showDailyWheel &&
-    !showOnlineList &&
-    !showWeeklyChallenges &&
-    !showProposeForm &&
-    !showHitRushFaq &&
-    !hitRushMenuOpen;
+  const useDesktopRedesign = viewportWidth >= 1280 && screen === "home";
+
+  async function loadDesktopLeaderboard(sortBy = "gamesWon") {
+    setLeaderboardSort(sortBy);
+    setLeaderboard(null);
+    try {
+      const list = await getLeaderboard(10, sortBy);
+      setLeaderboard(list);
+    } catch (e) {
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        const list = await getLeaderboard(10, sortBy);
+        setLeaderboard(list);
+      } catch (e2) {
+        setLeaderboard([]);
+        setError("Nie udało się wczytać rankingu: " + e2.message);
+      }
+    }
+  }
 
   if (useDesktopRedesign) {
-    const commonDesktopProps = {
-      user,
-      stats,
-      onlinePlayers,
-      levelInfo: desktopLevelInfo,
-      songPoolSize: desktopSongPoolSize,
-      totalAchievements: ACHIEVEMENTS.length,
-      onHome: goHome,
-      onAlbum: openAlbum,
-      onStats: () => openStats(),
-      onAchievements: () => { setShowStats(false); setShowAchievements(true); },
-      onLeaderboard: () => openLeaderboard(),
-      onShop: () => setScreen("packShop"),
-      onCommunity: () => setShowOnlineList(true),
-      todayKey: currentDayKey(),
-    };
-
-    return showStats ? (
-      <DesktopStatsView
-        {...commonDesktopProps}
-        achievementClaimed={desktopAchievementClaimed}
-        currentWeekly={desktopCurrentWeekly}
-        decadeEntries={desktopDecadeEntries}
-        bestDecades={desktopBestDecades}
-        worstDecades={desktopWorstDecades}
-      />
-    ) : (
-      <DesktopHomeView
-        {...commonDesktopProps}
+    return (
+      <DesktopAppView
+        user={user}
+        playerName={name.trim() || user?.displayName || "Gracz"}
+        stats={stats}
+        onlinePlayers={onlinePlayers}
+        levelInfo={desktopLevelInfo}
+        songPoolSize={desktopSongPoolSize}
+        songs={effectivePool}
+        hitcoin={myHitcoin ?? stats?.hitcoin ?? 0}
+        todayKey={currentDayKey()}
         joinCode={joinCode}
         setJoinCode={setJoinCode}
         onCreateRoom={createRoom}
@@ -3585,10 +3572,36 @@ export default function App() {
         onDailySong={openDailySong}
         onDailyPlaylist={openDailyPlaylistHub}
         onTournament={activeTournament ? openTournamentHub : undefined}
-        onPropose={() => setShowProposeForm(true)}
         activeTournament={activeTournament}
         lastCompletedTournament={lastCompletedTournament}
         weeklySummary={{ current: desktopCurrentWeekly, achievementClaimed: desktopAchievementClaimed }}
+        totalAchievements={ACHIEVEMENTS.length}
+        achievementClaimed={desktopAchievementClaimed}
+        achievementProgress={achievementProgress}
+        onClaimAchievement={handleClaimAchievement}
+        currentWeekly={desktopCurrentWeekly}
+        decadeEntries={desktopDecadeEntries}
+        bestDecades={desktopBestDecades}
+        worstDecades={desktopWorstDecades}
+        leaderboard={leaderboard}
+        leaderboardSort={leaderboardSort}
+        onLoadLeaderboard={loadDesktopLeaderboard}
+        packConfigs={PACKS}
+        packBusy={packShopBusy}
+        packOpenResult={packOpenResult}
+        onBuyPack={buyPack}
+        onClearPackResult={() => setPackOpenResult(null)}
+        challengeSentTo={challengeSentTo}
+        challengeBusy={challengeBusy}
+        onChallenge={handleSendChallenge}
+        proposeDraft={proposeDraft}
+        setProposeDraft={setProposeDraft}
+        categories={CATEGORIES}
+        onToggleProposeCategory={toggleProposeCategory}
+        onSubmitProposal={handleSubmitProposal}
+        proposeBusy={proposeBusy}
+        proposeError={proposeError}
+        proposeSuccess={proposeSuccess}
       />
     );
   }
