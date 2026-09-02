@@ -1772,3 +1772,53 @@
   .desk-album-card-grid { grid-template-columns: repeat(6,minmax(0,1fr)); }
   .desk-album-rarity-summary { grid-template-columns: repeat(3,minmax(0,1fr)); }
 }
+
+/* v4.1 — admin entry + artists in stats */
+.desk-admin-entry {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 16px;
+  border: 1px solid rgba(139, 92, 246, 0.28);
+  background: rgba(8, 10, 28, 0.8);
+  color: #9f96bc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 15px;
+  letter-spacing: .08em;
+  transition: 160ms ease;
+}
+.desk-admin-entry:hover,
+.desk-admin-entry.unlocked {
+  color: #d9c9ff;
+  border-color: rgba(165, 107, 255, 0.55);
+  box-shadow: 0 0 18px rgba(139, 92, 246, 0.12);
+  background: rgba(20, 13, 45, 0.88);
+}
+.artist-performance-grid { align-items: stretch; }
+.desk-artist-performance-list { display: flex; flex-direction: column; gap: 10px; }
+.desk-artist-performance-row {
+  min-height: 64px;
+  display: grid;
+  grid-template-columns: 38px minmax(150px, 1.25fr) minmax(120px, 1fr) 54px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 15px;
+  background: rgba(6, 9, 24, 0.62);
+  border: 1px solid rgba(255,255,255,.07);
+}
+.desk-artist-performance-row.green { border-color: rgba(42,245,152,.16); }
+.desk-artist-performance-row.pink { border-color: rgba(255,95,201,.16); }
+.desk-artist-rank { font-family:'Bebas Neue',sans-serif; font-size:20px; color:#8d85aa; }
+.desk-artist-copy { min-width:0; display:flex; flex-direction:column; gap:3px; }
+.desk-artist-copy strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; color:#f6f2ff; }
+.desk-artist-copy span { font-size:10px; color:#8f88a8; }
+.desk-artist-meter { height:7px; border-radius:99px; overflow:hidden; background:rgba(255,255,255,.07); }
+.desk-artist-meter > div { height:100%; border-radius:inherit; background:linear-gradient(90deg,#2af598,#4fd6ff); }
+.desk-artist-performance-row.pink .desk-artist-meter > div { background:linear-gradient(90deg,#ff3868,#ff5fc9); }
+.desk-artist-percent { font-family:'Space Mono',monospace; font-size:12px; text-align:right; color:#2af598; }
+.desk-artist-performance-row.pink .desk-artist-percent { color:#ff5fc9; }
+.desk-empty-performance { padding:18px; border-radius:14px; color:#8f88a8; background:rgba(6,9,24,.5); font-size:12px; }

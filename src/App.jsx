@@ -3543,7 +3543,8 @@ export default function App() {
   const desktopDecadesWithGames = desktopDecadeEntries.filter((item) => item.total > 0);
   const desktopBestDecades = [...desktopDecadesWithGames].sort((a, b) => b.pct - a.pct || a.label.localeCompare(b.label)).slice(0, 4);
   const desktopWorstDecades = [...desktopDecadesWithGames].sort((a, b) => a.pct - b.pct || a.label.localeCompare(b.label)).slice(0, 4);
-  const useDesktopRedesign = viewportWidth >= 1280 && screen === "home";
+  const desktopArtistPerformance = stats ? topArtists(stats, 5, 2) : { best: [], worst: [] };
+  const useDesktopRedesign = viewportWidth >= 1280 && screen === "home" && !showAdminPanel && !showAdminLogin;
 
   async function loadDesktopLeaderboard(sortBy = "gamesWon") {
     setLeaderboardSort(sortBy);
@@ -3598,6 +3599,8 @@ export default function App() {
         decadeEntries={desktopDecadeEntries}
         bestDecades={desktopBestDecades}
         worstDecades={desktopWorstDecades}
+        bestArtists={desktopArtistPerformance.best}
+        worstArtists={desktopArtistPerformance.worst}
         leaderboard={leaderboard}
         leaderboardSort={leaderboardSort}
         onLoadLeaderboard={loadDesktopLeaderboard}
@@ -3613,6 +3616,11 @@ export default function App() {
         challengeBusy={challengeBusy}
         onAvatarUpload={handleAvatarUpload}
         avatarUploadBusy={avatarUploadBusy}
+        adminUnlocked={adminUnlocked}
+        onAdmin={() => {
+          if (adminUnlocked) setShowAdminPanel(true);
+          else setShowAdminLogin(true);
+        }}
         onChallenge={handleSendChallenge}
         proposeDraft={proposeDraft}
         setProposeDraft={setProposeDraft}

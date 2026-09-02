@@ -201,6 +201,10 @@ function SidebarNav({ active = 'home', onHome, onRooms, onAlbum, onStats, onAchi
           </button>
         ))}
       </div>
+      <button type="button" className={`desk-admin-entry ${adminUnlocked ? 'unlocked' : ''}`} onClick={onAdmin}>
+        <Settings size={18} />
+        <span>{adminUnlocked ? 'PANEL ADMINA' : 'TRYB ADMINA'}</span>
+      </button>
       <div className="desk-mini-player">
         <div className="desk-mini-wave" style={{ backgroundImage: `url(${footerStrip})` }} />
         <div className="desk-mini-meta">
@@ -299,6 +303,8 @@ export function DesktopHomeView(props) {
       onLeaderboard={onLeaderboard}
       onShop={onShop}
       onCommunity={onCommunity}
+      onAdmin={props.onAdmin}
+      adminUnlocked={props.adminUnlocked}
     >
       <HeaderBar
         onlineCount={onlinePlayers.length}
@@ -385,7 +391,7 @@ export function DesktopHomeView(props) {
           <div className="desk-right-rail">
             <DesktopRailCard icon={<Flame size={20} />} title="PASSA" value={`${stats?.longestStreak || 0}`} desc="najlepsza seria trafień" accent="pink" />
             <DesktopRailCard icon={glPrezent} title="NAGRODA DNIA" value={todayClaimed ? 'ODEBRANA' : 'GOTOWA'} desc={todayClaimed ? 'Wróć jutro po następną próbę.' : 'Nagroda czeka w panelu statystyk.'} accent="cyan" />
-            <DesktopRailCard icon={iconZaproponuj} title="ZAPROPONUJ UTWÓR" value="Masz pomysł na hit?" desc="Zgłoś utwór społeczności!" accent="violet" actionLabel="OTWÓRZ" onClick={onPropose} />
+            <DesktopRailCard icon={iconZaproponuj} title="ZAPROPONUJ UTWÓR" value="Masz pomysł na hit?" desc="Zgłoś utwór społeczności!" accent="violet" onClick={onPropose} />
             <DesktopRailCard icon={<Users size={20} />} title="ZNAJOMI ONLINE" value={`${onlinePlayers.length} aktywnych`} desc={onlinePlayers.length ? 'Dołącz do społeczności' : 'Nikt poza Tobą nie gra w tej chwili.'} accent="cyan">
               <div className="desk-online-row">
                 {onlinePlayers.slice(0, 5).map((player, index) => (
@@ -397,10 +403,6 @@ export function DesktopHomeView(props) {
           </div>
         </div>
 
-        <div className="desk-footer-eq">
-          <div className="desk-footer-bars" />
-          <div className="desk-footer-logo"><img src={logoImg} alt="" /></div>
-        </div>
       </div>
     </DesktopLayout>
   );
@@ -458,8 +460,8 @@ export function DesktopStatsView(props) {
     weeklyChallenges = [],
     onClaimWeeklyChallenge,
     decadeEntries,
-    bestDecades,
-    worstDecades,
+    bestArtists = [],
+    worstArtists = [],
     onHome,
     onAlbum,
     onStats,
@@ -483,6 +485,8 @@ export function DesktopStatsView(props) {
       onLeaderboard={onLeaderboard}
       onShop={onShop}
       onCommunity={onCommunity}
+      onAdmin={props.onAdmin}
+      adminUnlocked={props.adminUnlocked}
     >
       <HeaderBar
         onlineCount={onlinePlayers.length}
@@ -595,17 +599,37 @@ export function DesktopStatsView(props) {
           </section>
         </div>
 
-        <div className="desk-bestworst-grid">
+        <div className="desk-bestworst-grid artist-performance-grid">
           <section className="desk-bestworst-panel green">
-            <div className="desk-bestworst-title"><Crown size={20} /> NAJLEPIEJ ZGADUJESZ</div>
-            <div className="desk-circle-row">
-              {bestDecades.map((item) => <DecadeCircle key={item.label} item={item} accent="green" />)}
+            <div className="desk-bestworst-title"><Crown size={20} /> NAJLEPIEJ ZGADUJESZ — TOP 5 WYKONAWCÓW</div>
+            <div className="desk-artist-performance-list">
+              {bestArtists.length ? bestArtists.map((artist, index) => (
+                <div key={`${artist.name}-${index}`} className="desk-artist-performance-row green">
+                  <div className="desk-artist-rank">#{index + 1}</div>
+                  <div className="desk-artist-copy">
+                    <strong>{artist.name}</strong>
+                    <span>{artist.correct}/{artist.total} poprawnych odpowiedzi</span>
+                  </div>
+                  <div className="desk-artist-meter"><div style={{ width: `${Math.round((artist.pct || 0) * 100)}%` }} /></div>
+                  <div className="desk-artist-percent">{Math.round((artist.pct || 0) * 100)}%</div>
+                </div>
+              )) : <div className="desk-empty-performance">Za mało danych — wykonawca pojawi się po co najmniej 2 próbach.</div>}
             </div>
           </section>
           <section className="desk-bestworst-panel pink">
-            <div className="desk-bestworst-title"><Flame size={20} /> NAJGORZEJ ZGADUJESZ</div>
-            <div className="desk-circle-row">
-              {worstDecades.map((item) => <DecadeCircle key={item.label} item={item} accent="pink" />)}
+            <div className="desk-bestworst-title"><Flame size={20} /> NAJGORZEJ ZGADUJESZ — TOP 5 WYKONAWCÓW</div>
+            <div className="desk-artist-performance-list">
+              {worstArtists.length ? worstArtists.map((artist, index) => (
+                <div key={`${artist.name}-${index}`} className="desk-artist-performance-row pink">
+                  <div className="desk-artist-rank">#{index + 1}</div>
+                  <div className="desk-artist-copy">
+                    <strong>{artist.name}</strong>
+                    <span>{artist.correct}/{artist.total} poprawnych odpowiedzi</span>
+                  </div>
+                  <div className="desk-artist-meter"><div style={{ width: `${Math.round((artist.pct || 0) * 100)}%` }} /></div>
+                  <div className="desk-artist-percent">{Math.round((artist.pct || 0) * 100)}%</div>
+                </div>
+              )) : <div className="desk-empty-performance">Za mało danych — wykonawca pojawi się po co najmniej 2 próbach.</div>}
             </div>
           </section>
         </div>
@@ -950,6 +974,8 @@ export function DesktopAppView(props) {
     onLeaderboard: () => setSection('ranking'),
     onShop: () => setSection('shop'),
     onCommunity: () => setSection('community'),
+    onAdmin: props.onAdmin,
+    adminUnlocked: props.adminUnlocked,
     header: {
       onlineCount: props.onlinePlayers.length,
       level: props.levelInfo.level,
@@ -964,7 +990,7 @@ export function DesktopAppView(props) {
       onAvatarUpload: props.onAvatarUpload,
       avatarUploadBusy: props.avatarUploadBusy,
     },
-  }), [props.onlinePlayers.length, props.levelInfo.level, props.levelInfo.currentLevelXp, props.levelInfo.xpForNextLevel, props.stats, props.hitcoin, props.user, props.onAvatarUpload, props.avatarUploadBusy]);
+  }), [props.onlinePlayers.length, props.levelInfo.level, props.levelInfo.currentLevelXp, props.levelInfo.xpForNextLevel, props.stats, props.hitcoin, props.user, props.onAvatarUpload, props.avatarUploadBusy, props.onAdmin, props.adminUnlocked]);
 
   const localHomeProps = {
     ...props,
