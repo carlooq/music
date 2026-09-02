@@ -1367,3 +1367,32 @@
   .dgv-daily-song-audio,.dgv-daily-song-guess { min-height:590px; }
   .dgv-daily-song-guess h1 { font-size:54px; }
 }
+
+
+/* v3.3 — daily song: always-visible primary play action */
+.dgv-daily-song-audio .dgv-v3-audio-footer {
+  margin-top: 16px;
+  grid-template-columns: 88px minmax(0,1fr);
+  gap: 12px;
+}
+.dgv-daily-song-audio .dgv-audio-button.dgv-daily-song-play {
+  width: 100%;
+  min-width: 0;
+  min-height: 62px;
+  margin: 0;
+  border: 1px solid rgba(104, 238, 255, .82);
+  border-radius: 14px;
+  clip-path: polygon(12px 0, calc(100% - 12px) 0, 100% 12px, 100% calc(100% - 12px), calc(100% - 12px) 100%, 12px 100%, 0 calc(100% - 12px), 0 12px);
+  background: linear-gradient(100deg, #39e7ff 0%, #49bdff 56%, #8b71ff 100%);
+  background-image: none;
+  color: #06111d;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 24px;
+  letter-spacing: .045em;
+  box-shadow: 0 0 28px rgba(55, 215, 255, .22), inset 0 1px 0 rgba(255,255,255,.48);
+  filter: none;
+}
+.dgv-daily-song-audio .dgv-audio-button.dgv-daily-song-play:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 36px rgba(55, 215, 255, .32), inset 0 1px 0 rgba(255,255,255,.55);
+}

@@ -2117,15 +2117,23 @@ export default function App() {
     })();
   }, [screen, room?.tournamentMode, toMillis(room?.expireAt), user, playerId]);
 
+  async function loadHeadToHeadStats() {
+    if (!user) return;
+    setH2hExpanded(null);
+    try {
+      const rows = await fetchHeadToHeadOpponents(user.uid);
+      setH2hOpponents(rows || []);
+    } catch {
+      setH2hOpponents([]);
+    }
+  }
+
   async function openStats() {
     if (!user) return;
     const s = await getStats(user.uid);
     setStats(s);
     setShowStats(true);
-    setH2hExpanded(null);
-    fetchHeadToHeadOpponents(user.uid)
-      .then(setH2hOpponents)
-      .catch(() => setH2hOpponents([]));
+    loadHeadToHeadStats();
     getSongCount().then((c) => c !== null && setTotalSongCount(c));
   }
 
@@ -2172,11 +2180,47 @@ export default function App() {
   async function viewPlayerProfile(p) {
     if (!p?.uid) return;
     const s = await getStats(p.uid);
-    // Dociągamy żywą bibliotekę (nie effectivePool, które przy pierwszej wizycie
-    // w appce cicho spada do starej wbudowanej listy bez przypisanej rzadkości) -
-    // potrzebna do policzenia "ile ogółem" utworów jest w każdej rzadkości.
-    getLiveLibraryPool();
-    setViewingPlayer({ uid: p.uid, username: p.username || p.name || s?.username || "Gracz", stats: s });
+
+    // Profil pokazuje prawdziwy stan kolekcji względem aktualnej biblioteki,
+    // dlatego liczymy dostępne karty z żywej bazy, a nie ze starego fallbacku.
+    let livePool = [];
+    try {
+      livePool = await getLiveLibraryPool();
+    } catch {
+      livePool = Array.isArray(librarySongs) ? librarySongs : [];
+    }
+
+    const rarityKeys = ["winyl", "srebrna", "zlota", "platynowa", "diamentowa"];
+    const collection = s?.cardCollection || {};
+    const totalsByRarity = Object.fromEntries(rarityKeys.map((key) => [key, 0]));
+    const ownedFromCollection = Object.fromEntries(rarityKeys.map((key) => [key, 0]));
+    (livePool || []).forEach((song) => {
+      const rarity = effectiveRarity(song);
+      if (totalsByRarity[rarity] === undefined) totalsByRarity[rarity] = 0;
+      if (ownedFromCollection[rarity] === undefined) ownedFromCollection[rarity] = 0;
+      totalsByRarity[rarity] += 1;
+      if (collection[song.id]) ownedFromCollection[rarity] += 1;
+    });
+
+    const storedOwnedByRarity = s?.cardsByRarity || {};
+    const byRarity = Object.fromEntries(rarityKeys.map((key) => [key, {
+      owned: (livePool || []).length ? Number(ownedFromCollection[key] || 0) : Number(storedOwnedByRarity[key] || 0),
+      total: Number(totalsByRarity[key] || 0),
+    }]));
+    const uniqueOwned = Object.keys(collection).length;
+    const totalCopies = Object.values(collection).reduce((sum, count) => sum + Number(count || 0), 0);
+
+    setViewingPlayer({
+      uid: p.uid,
+      username: p.username || p.name || s?.username || "Gracz",
+      stats: s,
+      collectionSummary: {
+        byRarity,
+        uniqueOwned,
+        totalCopies,
+        totalAvailable: (livePool || []).length,
+      },
+    });
   }
 
   async function handleSpinDailyWheel() {
@@ -4552,6 +4596,10 @@ export default function App() {
         worstDecades={desktopWorstDecades}
         bestArtists={desktopArtistPerformance.best}
         worstArtists={desktopArtistPerformance.worst}
+        h2hOpponents={h2hOpponents}
+        h2hExpanded={h2hExpanded}
+        onLoadHeadToHead={loadHeadToHeadStats}
+        onToggleHeadToHead={(opponentId) => setH2hExpanded((current) => current === opponentId ? null : opponentId)}
         leaderboard={leaderboard}
         leaderboardSort={leaderboardSort}
         leaderboardPosition={leaderboardPosition}

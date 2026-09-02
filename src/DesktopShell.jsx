@@ -263,6 +263,11 @@ export function DesktopPlayerProfileModal({ profile, onClose, levelFromXp }) {
   const winRate = playerStats.gamesPlayed ? Math.round(((playerStats.gamesWon || 0) / playerStats.gamesPlayed) * 100) : 0;
   const accuracy = playerStats.cardsTotal ? Math.round(((playerStats.cardsCorrect || 0) / playerStats.cardsTotal) * 100) : 0;
   const collectionCount = Object.keys(playerStats.cardCollection || {}).length;
+  const collectionSummary = profile.collectionSummary || {};
+  const raritySummary = collectionSummary.byRarity || {};
+  const collectionCopies = collectionSummary.totalCopies ?? Object.values(playerStats.cardCollection || {}).reduce((sum, count) => sum + Number(count || 0), 0);
+  const collectionUnique = collectionSummary.uniqueOwned ?? collectionCount;
+  const collectionAvailable = collectionSummary.totalAvailable ?? null;
   return (
     <div className="desk-profile-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
       <section className="desk-profile-modal" onClick={(event) => event.stopPropagation()}>
@@ -288,6 +293,31 @@ export function DesktopPlayerProfileModal({ profile, onClose, levelFromXp }) {
           <div><span>PLAYLISTA DNIA</span><strong>{formatCompact(playerStats.playlistTotalScore || 0)} pkt</strong></div>
           <div><span>HIT RUSH</span><strong>{formatCompact(playerStats.hitRushBestScore || 0)} pkt</strong></div>
         </div>
+
+        <section className="desk-profile-collection">
+          <div className="desk-profile-collection-head">
+            <div>
+              <span>KOLEKCJA KART</span>
+              <strong>{formatCompact(collectionUnique)}{collectionAvailable !== null ? ` / ${formatCompact(collectionAvailable)}` : ''} unikalnych</strong>
+            </div>
+            <div className="desk-profile-collection-total">
+              <span>ŁĄCZNIE KART</span>
+              <strong>{formatCompact(collectionCopies)}</strong>
+            </div>
+          </div>
+          <div className="desk-profile-rarity-grid">
+            {DESKTOP_RARITY_ORDER.map((rarity) => {
+              const info = DESKTOP_RARITY_INFO[rarity];
+              const summary = raritySummary[rarity] || { owned: Number(playerStats.cardsByRarity?.[rarity] || 0), total: 0 };
+              return (
+                <div key={rarity} className={`desk-profile-rarity rarity-${rarity}`} style={{ '--rarity-color': info.color }}>
+                  <span className="desk-profile-rarity-dot" />
+                  <div><small>{info.label.toUpperCase()}</small><strong>{formatCompact(summary.owned)} / {summary.total ? formatCompact(summary.total) : '—'}</strong></div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
       </section>
     </div>
   );
@@ -508,6 +538,10 @@ export function DesktopStatsView(props) {
     decadeEntries,
     bestArtists = [],
     worstArtists = [],
+    h2hOpponents,
+    h2hExpanded,
+    onToggleHeadToHead,
+    onViewProfile,
     onHome,
     onAlbum,
     onStats,
@@ -679,6 +713,56 @@ export function DesktopStatsView(props) {
             </div>
           </section>
         </div>
+
+        <section className="desk-h2h-panel desk-panel">
+          <div className="desk-h2h-head">
+            <div>
+              <div className="desk-section-label solo"><Gamepad2 size={18} /> POJEDYNKI 1V1</div>
+              <p>Liczą się tylko gry rozegrane dokładnie we dwójkę.</p>
+            </div>
+            <div className="desk-h2h-total">{(h2hOpponents || []).reduce((sum, duel) => sum + Number(duel.gamesPlayed || 0), 0)} GIER</div>
+          </div>
+          {h2hOpponents == null ? (
+            <div className="desk-h2h-empty">Wczytuję historię pojedynków…</div>
+          ) : h2hOpponents.length === 0 ? (
+            <div className="desk-h2h-empty">Nie masz jeszcze rozegranego pojedynku 1v1.</div>
+          ) : (
+            <div className="desk-h2h-list">
+              {h2hOpponents.map((duel) => {
+                const opponentId = duel.uids?.find((id) => id !== user?.uid);
+                const opponentName = duel.names?.[opponentId] || 'Gracz';
+                const myWins = Number(duel.wins?.[user?.uid] || 0);
+                const opponentWins = Number(duel.wins?.[opponentId] || 0);
+                const expanded = h2hExpanded === opponentId;
+                const myGuessPct = duel.guessesAttempted?.[user?.uid] ? pct(duel.guessesCorrect?.[user?.uid] || 0, duel.guessesAttempted[user.uid]) : null;
+                const opponentGuessPct = duel.guessesAttempted?.[opponentId] ? pct(duel.guessesCorrect?.[opponentId] || 0, duel.guessesAttempted[opponentId]) : null;
+                const myPlacePct = duel.placementTotal?.[user?.uid] ? pct(duel.placementCorrect?.[user?.uid] || 0, duel.placementTotal[user.uid]) : null;
+                const opponentPlacePct = duel.placementTotal?.[opponentId] ? pct(duel.placementCorrect?.[opponentId] || 0, duel.placementTotal[opponentId]) : null;
+                const myDecisionCount = Number(duel.decisionCount?.[user?.uid] || 0);
+                const opponentDecisionCount = Number(duel.decisionCount?.[opponentId] || 0);
+                const myAvgSpeed = myDecisionCount ? Math.round(Number(duel.decisionTimeSumMs?.[user.uid] || 0) / myDecisionCount / 1000) : null;
+                const opponentAvgSpeed = opponentDecisionCount ? Math.round(Number(duel.decisionTimeSumMs?.[opponentId] || 0) / opponentDecisionCount / 1000) : null;
+                return (
+                  <article key={opponentId || opponentName} className={`desk-h2h-row ${expanded ? 'expanded' : ''}`}>
+                    <button type="button" className="desk-h2h-row-main" onClick={() => onToggleHeadToHead?.(opponentId)}>
+                      <div className="desk-h2h-versus"><span>VS</span><strong>{opponentName}</strong><small>{duel.gamesPlayed || 0} gier</small></div>
+                      <div className="desk-h2h-score"><span>TWÓJ BILANS</span><strong>{myWins} : {opponentWins}</strong></div>
+                      <ChevronRight size={20} className="desk-h2h-chevron" />
+                    </button>
+                    {expanded ? (
+                      <div className="desk-h2h-details">
+                        <div><span>ZGADYWANIE</span><strong>{myGuessPct ?? '—'}% <small>vs</small> {opponentGuessPct ?? '—'}%</strong></div>
+                        <div><span>OŚ CZASU</span><strong>{myPlacePct ?? '—'}% <small>vs</small> {opponentPlacePct ?? '—'}%</strong></div>
+                        <div><span>ŚR. DECYZJA</span><strong>{myAvgSpeed ?? '—'}s <small>vs</small> {opponentAvgSpeed ?? '—'}s</strong></div>
+                        {opponentId ? <button type="button" onClick={() => onViewProfile?.({ uid: opponentId, username: opponentName })}>ZOBACZ PROFIL</button> : null}
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
       </div>
     </DesktopLayout>
   );
@@ -1017,7 +1101,10 @@ export function DesktopAppView(props) {
       setTimeout(() => document.querySelector('.desk-room-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
     },
     onAlbum: () => setSection('collection'),
-    onStats: () => setSection('stats'),
+    onStats: () => {
+      setSection('stats');
+      props.onLoadHeadToHead?.();
+    },
     onAchievements: () => setSection('achievements'),
     onLeaderboard: () => setSection('ranking'),
     onShop: () => setSection('shop'),
@@ -1033,12 +1120,15 @@ export function DesktopAppView(props) {
       avatarUrl: props.stats?.avatarUrl,
       username: props.playerName || props.user?.displayName || props.user?.username || 'Gracz',
       onCommunity: () => setSection('community'),
-      onStats: () => setSection('stats'),
+      onStats: () => {
+        setSection('stats');
+        props.onLoadHeadToHead?.();
+      },
       onShop: () => setSection('shop'),
       onAvatarUpload: props.onAvatarUpload,
       avatarUploadBusy: props.avatarUploadBusy,
     },
-  }), [props.onlinePlayers.length, props.levelInfo.level, props.levelInfo.currentLevelXp, props.levelInfo.xpForNextLevel, props.stats, props.hitcoin, props.user, props.onAvatarUpload, props.avatarUploadBusy, props.onAdmin, props.adminUnlocked]);
+  }), [props.onlinePlayers.length, props.levelInfo.level, props.levelInfo.currentLevelXp, props.levelInfo.xpForNextLevel, props.stats, props.hitcoin, props.user, props.onAvatarUpload, props.avatarUploadBusy, props.onAdmin, props.adminUnlocked, props.onLoadHeadToHead]);
 
   const localHomeProps = {
     ...props,

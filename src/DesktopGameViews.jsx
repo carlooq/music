@@ -842,7 +842,7 @@ export function DesktopDailySongView({
               </div>
               <div className="dgv-v3-audio-footer">
                 <div className="dgv-v3-audio-time"><span>FRAGMENT</span><strong>{audioLeft}s</strong></div>
-                <button type="button" className="dgv-audio-button" onClick={onTogglePlay}><Play size={20} fill="currentColor" /><span>{isPlaying ? 'ODTWARZANIE' : playElapsed >= playCapSeconds ? 'ODTWÓRZ PONOWNIE' : 'ODTWÓRZ DŹWIĘK'}</span></button>
+                <button type="button" className="dgv-audio-button dgv-daily-song-play" onClick={onTogglePlay}><Play size={20} fill="currentColor" /><span>{isPlaying ? 'ODTWARZANIE' : playElapsed >= playCapSeconds ? 'ODTWÓRZ PONOWNIE' : 'ODTWÓRZ TERAZ'}</span></button>
               </div>
             </section>
             <section className="dgv-panel dgv-daily-song-guess">
