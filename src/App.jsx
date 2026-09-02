@@ -48,8 +48,6 @@ import iconToken from "./assets/icons/icon-token.png";
 import heroBanner from "./assets/home/hero-banner.webp";
 import homeBg from "./assets/home/bg.jpg";
 import footerStrip from "./assets/home/footer-strip.webp";
-import heroDesktopGenerated from "./assets/home/hero-desktop-generated.png";
-import heroMobileGenerated from "./assets/home/hero-mobile-generated.png";
 import glTrening from "./assets/icons/gl-trening.png";
 import glHitRush from "./assets/icons/gl-hitrush.png";
 import hitrushFrameRef from "./assets/icons/hitrush-frame-ref.webp";
@@ -222,16 +220,12 @@ const SlotButton = memo(function SlotButton({ index, chosen, onPick, label }) {
       onClick={() => onPick(index)}
       className="slot-btn rounded-lg flex items-center justify-center"
       style={{
-        width: 30,
-        height: 40,
-        background: chosen === index ? "var(--accent)" : "rgba(10,18,32,0.92)",
-        color: chosen === index ? "#08111f" : "#57d8ff",
-        border: `1px solid ${chosen === index ? "var(--accent)" : "rgba(79,214,255,0.45)"}` ,
-        boxShadow: chosen === index ? "0 0 16px rgba(0,230,195,0.35)" : "0 0 14px rgba(79,214,255,0.18)",
-        fontSize: 18,
-        lineHeight: 1,
-        userSelect: "none",
-        WebkitUserSelect: "none",
+        width: 34,
+        height: 60,
+        background: chosen === index ? "var(--accent)" : "var(--surface2)",
+        color: chosen === index ? "#1a1428" : "var(--muted)",
+        border: "1px dashed #4a3f6b",
+        fontSize: 16,
       }}
       title={label}
     >
@@ -242,15 +236,12 @@ const SlotButton = memo(function SlotButton({ index, chosen, onPick, label }) {
 
 const TimelineCard = memo(function TimelineCard({ year, title, artist, onHold, onRelease, highlight }) {
   const timerRef = useRef(null);
-  const start = (e) => {
-    e?.preventDefault?.();
-    if (timerRef.current) clearTimeout(timerRef.current);
+  const start = () => {
     timerRef.current = setTimeout(() => {
       onHold && onHold({ year, title, artist });
     }, 350);
   };
-  const cancel = (e) => {
-    e?.preventDefault?.();
+  const cancel = () => {
     if (timerRef.current) clearTimeout(timerRef.current);
     onRelease && onRelease();
   };
@@ -261,7 +252,6 @@ const TimelineCard = memo(function TimelineCard({ year, title, artist, onHold, o
       onMouseLeave={cancel}
       onTouchStart={start}
       onTouchEnd={cancel}
-      onContextMenu={(e) => e.preventDefault()}
       className="rounded-lg flex flex-col items-center justify-center text-center px-3 select-none"
       style={{
         width: 92,
@@ -271,14 +261,11 @@ const TimelineCard = memo(function TimelineCard({ year, title, artist, onHold, o
         boxShadow: highlight ? `0 0 12px -2px ${highlight}` : undefined,
         cursor: "pointer",
         touchAction: "manipulation",
-        userSelect: "none",
-        WebkitUserSelect: "none",
-        WebkitTouchCallout: "none",
       }}
     >
       <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: "var(--accent)" }}>{year}</span>
-      <span style={{ fontSize: 9, color: "var(--muted)", lineHeight: 1.1, marginTop: 2, maxWidth: "100%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-        {artist}
+      <span style={{ fontSize: 9, color: "var(--muted)", lineHeight: 1.1, marginTop: 2 }}>
+        {artist.length > 14 ? artist.slice(0, 13) + "…" : artist}
       </span>
     </div>
   );
@@ -3595,122 +3582,90 @@ export default function App() {
 
         /* --- redesign strony głównej (hs = home screen) --- */
         .hs-wrap { position: relative; }
-        .hs-bg { content: ""; position: fixed; inset: 0; height: 100vh; background: url(${homeBg}) center top / cover no-repeat; opacity: 0.55; z-index: 0; pointer-events: none; -webkit-mask-image: linear-gradient(to bottom, black 58%, transparent 92%); mask-image: linear-gradient(to bottom, black 58%, transparent 92%); }
-        .hs-content { position: relative; z-index: 1; }
-        .hs-home-desktop { display: block; position: relative; z-index: 1; }
-        .hs-home-mobile { display: none; position: relative; z-index: 1; }
-        .hs-home-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
-        .hs-logo-btn { display: flex; align-items: center; gap: 12px; background: none; border: none; padding: 0; cursor: pointer; }
-        .hs-logo-btn img { height: 58px; flex-shrink: 0; }
-        .hs-brand { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 1px; background: linear-gradient(90deg, #ff5fc9 0%, #8b7dff 45%, #77dcff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 10px rgba(255,95,201,0.35)); }
-        .hs-header-pills { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
-        .hs-pill { min-height: 48px; border-radius: 999px; border: 1px solid rgba(130,130,220,0.32); background: rgba(6,8,22,0.82); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04), 0 0 24px rgba(91,71,178,0.18); display: inline-flex; align-items: center; gap: 10px; padding: 0 16px; color: #dce8ff; }
-        .hs-pill.accent { border-color: rgba(79,214,255,0.6); box-shadow: 0 0 22px rgba(79,214,255,0.16); }
-        .hs-pill.gold { border-color: rgba(245,196,81,0.65); box-shadow: 0 0 22px rgba(245,196,81,0.14); }
-        .hs-pill.green { border-color: rgba(42,245,152,0.58); box-shadow: 0 0 22px rgba(42,245,152,0.14); }
-        .hs-pill.pink { border-color: rgba(255,95,201,0.55); box-shadow: 0 0 22px rgba(255,95,201,0.16); }
-        .hs-pill-value { font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 0.5px; }
-        .hs-profile-pill { min-width: 74px; justify-content: center; padding-right: 10px; }
-        .hs-profile-avatar { width: 42px; height: 42px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.35); background: linear-gradient(135deg,#ff5fc9,#4f8cff); background-size: cover; background-position: center; box-shadow: 0 0 18px rgba(255,95,201,0.22); }
-        .hs-desktop-grid { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 18px; align-items: start; }
-        .hs-main-column { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
-        .hs-side-column { display: flex; flex-direction: column; gap: 14px; }
-        .hs-hero-grid { display: grid; grid-template-columns: minmax(0, 1.03fr) minmax(360px, 0.97fr); gap: 18px; }
-        .hs-panel { position: relative; overflow: hidden; border-radius: 24px; background: linear-gradient(180deg, rgba(10, 12, 32, 0.97), rgba(5, 8, 24, 0.94)); border: 1px solid rgba(93, 111, 255, 0.35); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04), 0 0 32px rgba(108,78,255,0.14); }
-        .hs-panel::before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at top right, rgba(255,95,201,0.12), transparent 42%), radial-gradient(circle at bottom left, rgba(79,214,255,0.12), transparent 38%); pointer-events: none; }
-        .hs-hero-left { padding: 24px 26px; min-height: 262px; display: flex; flex-direction: column; justify-content: space-between; }
-        .hs-eyebrow { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #c69cff; margin-bottom: 8px; font-weight: 700; }
-        .hs-h1 { font-family: 'Bebas Neue', sans-serif; font-size: 58px; margin: 0 0 8px; line-height: 0.95; }
-        .hs-h1 span { color: #4fd6ff; }
-        .hs-sub { color: #cfd5eb; font-size: 15px; margin: 0; max-width: 520px; }
-        .hs-create-split { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 16px; margin-top: 18px; align-items: end; }
-        .hs-create-block { padding: 18px; border-radius: 18px; background: rgba(10,14,35,0.72); border: 1px solid rgba(77,114,255,0.28); }
-        .hs-micro-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.8px; color: #8ca2d9; margin-bottom: 10px; }
-        .hs-btn-wrap { position: relative; height: 72px; width: 100%; }
-        .hs-cut { clip-path: polygon(16px 0, calc(100% - 16px) 0, 100% 16px, 100% calc(100% - 16px), calc(100% - 16px) 100%, 16px 100%, 0 calc(100% - 16px), 0 16px); }
-        .hs-glow { position: absolute; inset: -10px; border-radius: 24px; background: linear-gradient(90deg,#ff38d2,#985eff,#2b95ff); filter: blur(24px); opacity: 0.7; }
-        .hs-rim { position: absolute; inset: 0; background: linear-gradient(90deg,#ff92f2,#ab8fff,#7ae7ff); }
-        .hs-fillbtn { position: absolute; inset: 2px; background: linear-gradient(90deg,#c60ee0,#783dff,#0f9cff); transition: filter 0.15s ease; overflow: hidden; }
-        .hs-fillbtn::after { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 56%; background: linear-gradient(180deg, rgba(255,255,255,0.35), rgba(255,255,255,0)); }
-        .hs-btn-wrap:hover .hs-fillbtn { filter: brightness(1.12); }
-        .hs-btnlabel { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 12px; font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 0.8px; z-index: 3; color: #fff; text-shadow: 0 0 14px rgba(255,255,255,0.16); }
-        .hs-helper-text { font-size: 12px; color: #9ea8cb; margin-top: 10px; }
-        .hs-join-row { display: flex; gap: 10px; align-items: stretch; }
-        .hs-input { height: 50px; border-radius: 14px !important; background: rgba(10,13,31,0.92) !important; border: 1.2px solid rgba(79,214,255,0.55) !important; color: #fff; font-size: 14px; }
+        .hs-bg { content: ""; position: fixed; inset: 0; height: 100vh; background: url(${homeBg}) center top / cover no-repeat; opacity: 0.5; z-index: 0; pointer-events: none; -webkit-mask-image: linear-gradient(to bottom, black 45%, transparent 85%); mask-image: linear-gradient(to bottom, black 45%, transparent 85%); }
+        .hs-content { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 16px; }
+        .hs-hero-grid { display: grid; grid-template-columns: 1fr 1.1fr; gap: 16px; }
+        .hs-hero-left {
+          border-radius: 18px; background: #100a1cdd; border: 1px solid rgba(180,120,255,0.5);
+          box-shadow: 0 0 40px rgba(139,92,246,0.35); padding: 22px 26px; display: flex; flex-direction: column; justify-content: center;
+        }
+        .hs-hero-right {
+          position: relative; border-radius: 18px; overflow: hidden;
+          background: #100a1c url(${heroBanner}) center / 100% 100% no-repeat;
+          aspect-ratio: 1738 / 905; padding: 26px; display: flex; flex-direction: column; justify-content: center;
+        }
+        .hs-eyebrow { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: #b98bff; margin-bottom: 6px; font-weight: 700; }
+        .hs-h1 { font-family: 'Bebas Neue', sans-serif; font-size: 30px; margin: 0 0 6px; line-height: 1.1; }
+        .hs-h1 span { color: var(--accent3); }
+        .hs-sub { color: #b8b8d0; font-size: 12px; margin: 0 0 16px; }
+        .hs-btn-wrap { position: relative; height: 52px; max-width: 280px; }
+        .hs-cut { clip-path: polygon(15px 0, calc(100% - 15px) 0, 100% 15px, 100% calc(100% - 15px), calc(100% - 15px) 100%, 15px 100%, 0 calc(100% - 15px), 0 15px); }
+        .hs-glow { position: absolute; inset: -4px; border-radius: 16px; background: linear-gradient(90deg,#ee17f8,#7d1de8,#2a68f9); filter: blur(20px); opacity: 0.65; }
+        .hs-rim { position: absolute; inset: 0; background: linear-gradient(90deg,#ff8bf0,#b18bff,#7fd4ff); }
+        .hs-fillbtn { position: absolute; inset: 1.5px; background: linear-gradient(90deg,#c60ee0,#5d0dd0,#0e4ce8); transition: filter 0.15s ease; overflow: hidden; }
+        .hs-fillbtn::after { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 55%; background: linear-gradient(180deg, rgba(255,255,255,0.4), rgba(255,255,255,0) 100%); }
+        .hs-btn-wrap:hover .hs-fillbtn { filter: brightness(1.15); }
+        .hs-btnlabel { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px; font-family: 'Bebas Neue', sans-serif; font-size: 17px; letter-spacing: 0.5px; z-index: 3; color: #fff; }
+        .hs-join-row { display: flex; gap: 8px; margin-top: 18px; }
+        .hs-input {
+          height: 38px; border-radius: 0 !important; background: #0e0e22 !important;
+          border: 1.3px solid rgba(79,214,255,0.6) !important; color: #fff; font-size: 12px;
+          clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
+        }
         .hs-input:focus { border-color: #4fd6ff !important; }
-        .hs-join-btn { height: 50px; padding: 0 18px; border-radius: 14px; border: 1px solid rgba(79,214,255,0.65); cursor: pointer; font-size: 13px; font-weight: 800; letter-spacing: 0.6px; color: #4fd6ff; white-space: nowrap; background: rgba(79,214,255,0.12); text-transform: uppercase; transition: background 0.15s ease, transform 0.15s ease; }
-        .hs-join-btn:hover { background: rgba(79,214,255,0.2); transform: translateY(-1px); }
-        .hs-hero-art { min-height: 262px; padding: 24px 24px 22px; display: flex; flex-direction: column; justify-content: flex-end; background: linear-gradient(180deg, rgba(7,9,24,0.4), rgba(7,9,24,0.65)), url(${heroDesktopGenerated}) center / cover no-repeat; border-color: rgba(255,95,201,0.42); box-shadow: 0 0 32px rgba(255,95,201,0.16); }
-        .hs-hero-art h2 { font-family: 'Bebas Neue', sans-serif; font-size: 40px; line-height: 0.95; margin: 0 0 8px; max-width: 260px; text-shadow: 0 0 16px rgba(0,0,0,0.4); }
-        .hs-hero-art p { font-size: 14px; line-height: 1.45; color: #dde5ff; max-width: 250px; margin: 0 0 16px; }
-        .hs-inline-cta { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; border: 1px solid rgba(255,95,201,0.5); background: rgba(18,10,34,0.72); color: #ffd7fa; border-radius: 999px; padding: 9px 14px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; }
-        .hs-section-box { padding: 16px 0 0; }
-        .hs-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
-        .hs-section-head p { margin: 0; font-size: 11px; color: #a7b2d8; letter-spacing: 1.8px; text-transform: uppercase; }
-        .hs-tiles-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
-        .hs-tile-slot { position: relative; min-height: 196px; }
-        .hs-tile-glow { position: absolute; inset: -10px; filter: blur(18px); opacity: 0.45; border-radius: 22px; z-index: 0; }
-        .hs-tile-rim { position: absolute; inset: 0; z-index: 1; border-radius: 22px; }
-        .hs-tile { position: absolute; inset: 1px; z-index: 2; border: none; border-radius: 21px; padding: 18px 16px; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; text-align: left; gap: 12px; background: linear-gradient(180deg, rgba(8,10,26,0.97), rgba(10,8,30,0.94)); cursor: pointer; overflow: hidden; }
-        .hs-tile::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 34px; background: linear-gradient(180deg, transparent, rgba(255,255,255,0.04)); }
-        .hs-tile img.hs-icon { height: 58px; filter: drop-shadow(0 0 12px rgba(255,255,255,0.16)); }
-        .hs-tile .hs-t { font-family: 'Bebas Neue', sans-serif; font-size: 28px; line-height: 0.95; letter-spacing: 0.4px; color: #fff; position: relative; z-index: 1; }
-        .hs-tile .hs-d { font-size: 12px; line-height: 1.4; color: #a9b0d0; position: relative; z-index: 1; }
-        .hs-tile-slot.cyan .hs-tile-glow, .hs-tile-slot.cyan .hs-tile-rim { background: linear-gradient(135deg, rgba(79,214,255,0.75), rgba(55,114,255,0.35)); }
-        .hs-tile-slot.pink .hs-tile-glow, .hs-tile-slot.pink .hs-tile-rim { background: linear-gradient(135deg, rgba(255,95,201,0.78), rgba(125,54,255,0.38)); }
-        .hs-tile-slot.violet .hs-tile-glow, .hs-tile-slot.violet .hs-tile-rim { background: linear-gradient(135deg, rgba(165,107,255,0.82), rgba(79,125,255,0.36)); }
-        .hs-tile-slot.gold .hs-tile-glow, .hs-tile-slot.gold .hs-tile-rim { background: linear-gradient(135deg, rgba(245,196,81,0.82), rgba(255,138,0,0.36)); }
-        .hs-tile-slot.gold .hs-t { color: #ffd677; }
-        .hs-tile-slot.green .hs-tile-glow, .hs-tile-slot.green .hs-tile-rim { background: linear-gradient(135deg, rgba(42,245,152,0.8), rgba(79,214,255,0.34)); }
-        .hs-tile-slot.green .hs-t { color: #95ffcb; }
-        .hs-badge { position: absolute; top: -10px; left: 18px; background: linear-gradient(90deg,#f5c451,#ffb020); color: #3a2400; font-size: 9px; font-weight: 900; letter-spacing: 0.4px; padding: 4px 10px; border-radius: 999px; white-space: nowrap; z-index: 2; box-shadow: 0 0 16px rgba(245,196,81,0.25); }
-        .hs-arrow { position: absolute; right: 14px; bottom: 14px; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 900; background: rgba(255,255,255,0.05); border: 1px solid currentColor; z-index: 1; }
-        .hs-side-card { border-radius: 18px; background: rgba(11, 13, 33, 0.9); border: 1px solid rgba(109,95,201,0.28); padding: 16px; display: flex; align-items: center; gap: 12px; overflow: hidden; position: relative; }
-        .hs-side-card::before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at top right, rgba(255,95,201,0.08), transparent 42%), radial-gradient(circle at bottom left, rgba(79,214,255,0.08), transparent 40%); pointer-events: none; }
-        .hs-side-card > * { position: relative; z-index: 1; }
-        .hs-side-stat { display: flex; flex-direction: column; gap: 6px; }
-        .hs-side-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1.6px; color: #9aabdc; }
-        .hs-side-big { font-family: 'Bebas Neue', sans-serif; font-size: 38px; line-height: 0.9; }
-        .hs-side-button { margin-left: auto; border-radius: 12px; border: 1px solid rgba(79,214,255,0.55); background: rgba(79,214,255,0.12); color: #4fd6ff; font-weight: 700; padding: 8px 12px; font-size: 12px; }
-        .hs-side-list { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
-        .hs-friend-pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px 10px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.03); color: #dce7ff; font-size: 12px; }
-        .hs-stats-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
-        .hs-stat-tile { border-radius: 18px; padding: 16px 14px; min-height: 92px; background: rgba(12, 12, 28, 0.92); border: 1.5px solid; display: flex; align-items: center; gap: 12px; text-align: left; overflow: hidden; position: relative; }
-        .hs-stat-tile::before { content: ""; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(255,255,255,0.06), transparent 48%); pointer-events: none; }
-        .hs-stat-tile img { height: 32px; flex-shrink: 0; filter: drop-shadow(0 0 8px rgba(255,255,255,0.16)); }
-        .hs-stat-tile .hs-lbl { font-size: 10px; color: #a4afd8; text-transform: uppercase; letter-spacing: 0.8px; }
-        .hs-stat-tile .hs-val { font-size: 20px; font-weight: 800; font-family: 'Bebas Neue', sans-serif; }
-        .hs-stat-tile button, .hs-stat-tile div { position: relative; z-index: 1; }
-        .hs-xp-bar { width: 82px; height: 7px; border-radius: 999px; background: rgba(255,255,255,0.12); overflow: hidden; display: inline-block; vertical-align: middle; }
-        .hs-xp-bar > div { height: 100%; background: linear-gradient(90deg,#4fd6ff,#ae67ff); }
-        .hs-footer-full { width: 100%; height: 78px; background: url(${footerStrip}) center / contain no-repeat; margin-top: 4px; }
-
-        .hs-mobile-shell { display: flex; flex-direction: column; gap: 14px; }
-        .hs-mobile-header { display: flex; flex-direction: column; gap: 12px; }
-        .hs-mobile-pills { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-        .hs-mobile-pills .hs-pill { min-height: 44px; padding: 0 14px; justify-content: center; }
-        .hs-mobile-hero { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
-        .hs-mobile-hero-art { min-height: 174px; border-radius: 18px; border: 1px solid rgba(255,95,201,0.35); background: linear-gradient(180deg, rgba(7,9,24,0.35), rgba(7,9,24,0.66)), url(${heroMobileGenerated}) center / cover no-repeat; padding: 18px; display: flex; flex-direction: column; justify-content: flex-end; box-shadow: 0 0 26px rgba(255,95,201,0.14); }
-        .hs-mobile-hero-art h3 { font-family: 'Bebas Neue', sans-serif; font-size: 32px; line-height: 0.95; margin: 0 0 6px; }
-        .hs-mobile-hero-art p { font-size: 13px; line-height: 1.45; color: #d9e5ff; margin: 0; max-width: 240px; }
-        .hs-mobile-create { display: grid; gap: 12px; }
-        .hs-mobile-create .hs-btn-wrap { height: 62px; }
-        .hs-mobile-create .hs-btnlabel { font-size: 24px; }
-        .hs-mobile-create .hs-join-row { flex-direction: row; }
-        .hs-mobile-mode-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-        .hs-mobile-mode-grid .hs-tile-slot { min-height: 156px; }
-        .hs-mobile-mode-grid .hs-tile .hs-t { font-size: 23px; }
-        .hs-mobile-mode-grid .hs-tile img.hs-icon { height: 52px; }
-        .hs-mobile-stack { display: flex; flex-direction: column; gap: 12px; }
+        .hs-join-btn {
+          height: 38px; padding: 0 16px; border: 1.3px solid #4fd6ff; cursor: pointer;
+          font-size: 12px; font-weight: 800; letter-spacing: 0.3px; color: #4fd6ff; white-space: nowrap;
+          background: rgba(79,214,255,0.1);
+          clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
+        }
+        .hs-join-btn:hover { background: rgba(79,214,255,0.2); }
+        .hs-tiles-row { display: flex; align-items: stretch; gap: 12px; flex-wrap: wrap; }
+        .hs-tile-slot { position: relative; flex: 1; min-width: 140px; height: 104px; }
+        .hs-tile-glow { position: absolute; inset: -8px; filter: blur(16px); opacity: 0.55; border-radius: 12px; z-index: 0; }
+        .hs-tile-rim {
+          position: absolute; inset: 0; z-index: 1;
+          clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px), 0 14px);
+        }
+        .hs-tile {
+          position: absolute; inset: 1.5px; z-index: 2; border: none; padding: 10px 8px;
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          text-align: center; gap: 4px; background: #0c0c1c;
+          clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px), 0 14px);
+        }
+        .hs-tile img.hs-icon { height: 58px; }
+        .hs-tile .hs-t { font-family: 'Bebas Neue', sans-serif; font-size: 15px; letter-spacing: 0.5px; color: #fff; }
+        .hs-tile .hs-d { font-size: 10px; color: #9d9db8; }
+        .hs-tile-slot.cyan .hs-tile-glow, .hs-tile-slot.cyan .hs-tile-rim { background: #4fd6ff; }
+        .hs-tile-slot.pink .hs-tile-glow, .hs-tile-slot.pink .hs-tile-rim { background: #ff5fc9; }
+        .hs-tile-slot.violet .hs-tile-glow, .hs-tile-slot.violet .hs-tile-rim { background: #a56bff; }
+        .hs-tile-slot.gold .hs-tile-glow, .hs-tile-slot.gold .hs-tile-rim { background: #f5c451; }
+        .hs-tile-slot.gold .hs-t { color: #ffcf6b; }
+        .hs-tile-slot.green .hs-tile-glow, .hs-tile-slot.green .hs-tile-rim { background: #2af598; }
+        .hs-tile-slot.green .hs-t { color: #7dffc4; }
+        .hs-badge {
+          position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+          background: linear-gradient(90deg,#f5c451,#ffb020); color: #3a2400; font-size: 8px; font-weight: 900;
+          letter-spacing: 0.4px; padding: 2px 9px; border-radius: 999px; white-space: nowrap; z-index: 2;
+        }
+        .hs-arrow {
+          position: absolute; bottom: 8px; right: 8px; width: 24px; height: 24px; border-radius: 50%;
+          display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900;
+          background: rgba(255,255,255,0.06); border: 1px solid currentColor;
+        }
+        .hs-side-card { border-radius: 12px; background: #0c0c1cdd; border: 1px solid #2a2a4a; padding: 12px 14px; display: flex; align-items: center; gap: 12px; }
+        .hs-stats-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+        .hs-stat-tile {
+          border-radius: 10px; padding: 12px 12px; min-height: 78px; background: #0c0c1cdd;
+          border: 1.5px solid; display: flex; align-items: center; gap: 10px; text-align: left;
+        }
+        .hs-stat-tile img { height: 30px; flex-shrink: 0; }
+        .hs-stat-tile .hs-lbl { font-size: 10px; color: #9d9db8; text-transform: uppercase; letter-spacing: 0.5px; }
+        .hs-stat-tile .hs-val { font-size: 17px; font-weight: 800; font-family: 'Bebas Neue', sans-serif; }
+        .hs-xp-bar { width: 42px; height: 5px; border-radius: 4px; background: rgba(255,255,255,0.15); overflow: hidden; display: inline-block; vertical-align: middle; }
+        .hs-xp-bar > div { height: 100%; background: linear-gradient(90deg,#4f8cff,#8b5cf6); }
 
         .hs-bottom-nav { display: none; }
-        @media (max-width: 980px) {
-          .hs-home-desktop { display: none; }
-          .hs-home-mobile { display: block; }
-          .hs-page { padding-bottom: 76px; }
-          .hs-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-          .hs-side-card { padding: 14px; }
-        }
         @media (max-width: 860px) {
           .hs-bottom-nav {
             display: flex; justify-content: space-around; align-items: center;
@@ -3724,20 +3679,24 @@ export default function App() {
           .hs-nav-item.active img { filter: none; }
           .hs-nav-item.active span { color: #ff5fc9; }
           .hs-nav-item.active::after { content: ""; position: absolute; bottom: -8px; width: 22px; height: 3px; border-radius: 2px; background: linear-gradient(90deg,#ff5fc9,#4f8cff); left: 50%; transform: translateX(-50%); }
+          .hs-page { padding-bottom: 70px; }
         }
-        @media (min-width: 981px) and (max-width: 1240px) {
-          .hs-desktop-grid { grid-template-columns: 1fr; }
-          .hs-side-column { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-          .hs-tiles-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-          .hs-stats-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .hs-footer-full { width: 100%; height: 78px; background: url(${footerStrip}) center / contain no-repeat; margin-top: 4px; }
+
+        @media (max-width: 860px) {
           .hs-hero-grid { grid-template-columns: 1fr; }
+          .hs-hero-right { aspect-ratio: auto; min-height: 170px; }
+          .hs-stats-grid { grid-template-columns: repeat(2, 1fr); }
+          .hs-tiles-row { flex-wrap: wrap; }
+          .hs-tile-slot { min-width: calc(50% - 6px); flex: 0 0 calc(50% - 6px); height: 118px; }
+          .hs-tile img.hs-icon { height: 54px; }
+          .hs-h1 { font-size: 24px; }
         }
-            `}</style>
+      `}</style>
 
 
 
-      <div className="w-full flex flex-col items-center hs-page" style={{ maxWidth: screen === "home" ? 1360 : 720 }}>
-        {!(screen === "home" && !showStats && !showLeaderboard && !showAdminPanel && !showAchievements) && (
+      <div className="w-full flex flex-col items-center hs-page" style={{ maxWidth: screen === "home" ? 1200 : 720 }}>
         <div className="w-full" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, flexWrap: "wrap", position: "relative", zIndex: 1 }}>
           <button onClick={goHome} className="flex items-center gap-2" style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }} title="Strona główna">
             <img src={logoImg} alt="" style={{ height: 56 }} />
@@ -3818,7 +3777,6 @@ export default function App() {
             />
           )}
         </div>
-        )}
 
         {showOnlineList && (
           <div className="w-full rounded-xl p-3 mb-6" style={{ background: "var(--surface2)", maxWidth: 340 }}>
@@ -5194,435 +5152,170 @@ export default function App() {
               </section>
             )}
 
-            {/* REDESIGN — dwa niezależne widoki home: desktop + mobile */}
+            {/* REDESIGN — hero + tryby gry + postęp, na realnych assetach i danych */}
             <div className="hs-wrap">
               <div className="hs-bg" />
               <div className="hs-content">
 
-                <div className="hs-home-desktop">
-                  <div className="hs-home-header">
-                    <button onClick={goHome} className="hs-logo-btn" title="Strona główna">
-                      <img src={logoImg} alt="" />
-                      <span className="hs-brand">HITSTERIADA</span>
-                    </button>
-                    <div className="hs-header-pills">
-                      <button onClick={() => setShowOnlineList((v) => !v)} className="hs-pill green">
-                        <span>🟢</span>
-                        <span>{onlinePlayers.length} graczy online</span>
+                {/* HERO */}
+                <div className="hs-hero-grid">
+                  <div className="hs-hero-left">
+                    <div className="hs-eyebrow">⟡ Graj teraz</div>
+                    <h1 className="hs-h1">Twój utwór. <span>Twoja zasada.</span></h1>
+                    <p className="hs-sub">Stwórz pokój lub dołącz do gry i baw się muzyką!</p>
+                    <div className="hs-btn-wrap">
+                      <button
+                        onClick={createRoom}
+                        disabled={busy}
+                        style={{ position: "absolute", inset: 0, background: "none", border: "none", cursor: "pointer", padding: 0, zIndex: 4 }}
+                        aria-label="Stwórz pokój"
+                      />
+                      <div className="hs-glow" />
+                      <div className="hs-rim hs-cut" />
+                      <div className="hs-fillbtn hs-cut" />
+                      <div className="hs-btnlabel">STWÓRZ POKÓJ</div>
+                    </div>
+                    <div className="hs-join-row">
+                      <input
+                        type="text"
+                        value={joinCode}
+                        onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                        placeholder="KOD POKOJU"
+                        maxLength={4}
+                        className="hs-input flex-1"
+                        style={{ textAlign: "center", fontSize: 13, letterSpacing: 2 }}
+                      />
+                      <button onClick={() => joinRoom()} disabled={busy} className="hs-join-btn">
+                        Dołącz
                       </button>
-                      {user && myXp !== null && (
-                        <button onClick={openStats} className="hs-pill accent">
-                          <span>⭐</span>
-                          <span className="hs-pill-value">LVL {levelFromXp(myXp).level}</span>
-                          <span className="hs-xp-bar"><div style={{ width: `${Math.round((levelFromXp(myXp).currentLevelXp / levelFromXp(myXp).xpForNextLevel) * 100)}%` }} /></span>
-                        </button>
-                      )}
-                      {user && stats && (
-                        <button onClick={openStats} className="hs-pill pink">
-                          <span>♪</span>
-                          <span className="hs-pill-value">{stats.guessesCorrect || 0}</span>
-                        </button>
-                      )}
-                      {user && myHitcoin !== null && (
-                        <button onClick={() => setScreen("packShop")} className="hs-pill gold">
-                          <img src={iconHitcoin} alt="" style={{ height: 16 }} />
-                          <span className="hs-pill-value">{myHitcoin}</span>
-                        </button>
-                      )}
-                      {user && (
-                        <button onClick={openStats} className="hs-pill hs-profile-pill">
-                          <div className="hs-profile-avatar" style={{ backgroundImage: stats?.avatarUrl ? `url(${stats.avatarUrl})` : undefined }} />
-                        </button>
-                      )}
                     </div>
                   </div>
-
-                  <div className="hs-desktop-grid">
-                    <div className="hs-main-column">
-                      <div className="hs-hero-grid">
-                        <section className="hs-panel hs-hero-left">
-                          <div>
-                            <div className="hs-eyebrow">⟡ Graj teraz</div>
-                            <h1 className="hs-h1">Twój utwór. <span>Twoja zasada.</span></h1>
-                            <p className="hs-sub">Stwórz pokój lub dołącz do gry i baw się muzyką w dopracowanym neonowym lobby.</p>
-                          </div>
-
-                          <div className="hs-create-split">
-                            <div className="hs-create-block">
-                              <div className="hs-micro-label">Stwórz pokój</div>
-                              <div className="hs-btn-wrap">
-                                <button
-                                  onClick={createRoom}
-                                  disabled={busy}
-                                  style={{ position: "absolute", inset: 0, background: "none", border: "none", cursor: "pointer", padding: 0, zIndex: 4 }}
-                                  aria-label="Stwórz pokój"
-                                />
-                                <div className="hs-glow" />
-                                <div className="hs-rim hs-cut" />
-                                <div className="hs-fillbtn hs-cut" />
-                                <div className="hs-btnlabel">STWÓRZ POKÓJ</div>
-                              </div>
-                              <div className="hs-helper-text">Ty wybierasz zasady. Zaproś znajomych i ruszaj do gry.</div>
-                            </div>
-
-                            <div className="hs-create-block">
-                              <div className="hs-micro-label">Dołącz do pokoju</div>
-                              <div className="hs-join-row">
-                                <input
-                                  type="text"
-                                  value={joinCode}
-                                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                                  placeholder="Wpisz kod pokoju"
-                                  maxLength={4}
-                                  className="hs-input flex-1"
-                                  style={{ textAlign: "center", letterSpacing: 3 }}
-                                />
-                                <button onClick={() => joinRoom()} disabled={busy} className="hs-join-btn">Dołącz</button>
-                              </div>
-                              <div className="hs-helper-text">Masz kod od znajomego? Wskakuj od razu do rozgrywki.</div>
-                            </div>
-                          </div>
-                        </section>
-
-                        <section className="hs-panel hs-hero-art">
-                          <div className="hs-eyebrow">Nowości i wydarzenia</div>
-                          <h2>Muzyka łączy.<br /><span style={{ color: "#4fd6ff" }}>Hity zostają.</span></h2>
-                          <p>Rywalizuj, odkrywaj, zdobywaj nagrody i wspinaj się na szczyt rankingu z dopracowanym klimatem arcade sci-fi.</p>
-                          <span className="hs-inline-cta">Profesjonalny game feel ✦</span>
-                        </section>
-                      </div>
-
-                      <section className="hs-section-box">
-                        <div className="hs-section-head">
-                          <p>Tryby gry</p>
-                        </div>
-                        <div className="hs-tiles-row">
-                          <div className="hs-tile-slot cyan">
-                            <div className="hs-tile-glow" />
-                            <div className="hs-tile-rim" />
-                            <button onClick={() => setScreen("practiceSetup")} className="hs-tile">
-                              <img className="hs-icon" src={glTrening} alt="" />
-                              <div>
-                                <div className="hs-t">TRENING</div>
-                                <div className="hs-d">Ćwicz i poznawaj kategorie we własnym tempie.</div>
-                              </div>
-                              <div className="hs-arrow" style={{ color: "#4fd6ff" }}>›</div>
-                            </button>
-                          </div>
-
-                          <div className="hs-tile-slot green">
-                            <div className="hs-tile-glow" />
-                            <div className="hs-tile-rim" />
-                            <button onClick={() => setScreen("hitRushMenu")} className="hs-tile">
-                              <img className="hs-icon" src={glHitRush} alt="" />
-                              <div>
-                                <div className="hs-t">HIT RUSH</div>
-                                <div className="hs-d">Szybki tryb solo z presją czasu i combem.</div>
-                              </div>
-                              <div className="hs-arrow" style={{ color: "#2af598" }}>›</div>
-                            </button>
-                          </div>
-
-                          <div className="hs-tile-slot pink">
-                            <div className="hs-tile-glow" />
-                            <div className="hs-tile-rim" />
-                            <button onClick={user ? openDailySong : () => setShowAuthForm(true)} disabled={user ? dailyBusy : false} className="hs-tile">
-                              <img className="hs-icon" src={glPiosenka} alt="" />
-                              <div>
-                                <div className="hs-t">PIOSENKA DNIA</div>
-                                <div className="hs-d">{user ? "Jedna piosenka dziennie dla wszystkich." : "Zaloguj się, aby odblokować codzienną grę."}</div>
-                              </div>
-                              <div className="hs-arrow" style={{ color: "#ff5fc9" }}>›</div>
-                            </button>
-                          </div>
-
-                          <div className="hs-tile-slot violet">
-                            <div className="hs-tile-glow" />
-                            <div className="hs-tile-rim" />
-                            <button onClick={user ? openDailyPlaylistHub : () => setShowAuthForm(true)} disabled={user ? dailyPlaylistBusy : false} className="hs-tile">
-                              <img className="hs-icon" src={glPlaylista} alt="" />
-                              <div>
-                                <div className="hs-t">PLAYLISTA DNIA</div>
-                                <div className="hs-d">{user ? "Codzienna playlista i porównanie z innymi." : "Dostępne po zalogowaniu."}</div>
-                              </div>
-                              <div className="hs-arrow" style={{ color: "#a56bff" }}>›</div>
-                            </button>
-                          </div>
-
-                          <div className="hs-tile-slot gold">
-                            <div className="hs-tile-glow" />
-                            <div className="hs-tile-rim" />
-                            <div className="hs-badge">★ PREMIUM</div>
-                            <button onClick={activeTournament ? openTournamentHub : undefined} disabled={tournamentBusy} className="hs-tile" style={{ cursor: activeTournament ? "pointer" : "default" }}>
-                              <img className="hs-icon" src={glTurniej} alt="" />
-                              <div>
-                                <div className="hs-t">TURNIEJ</div>
-                                <div className="hs-d">
-                                  {activeTournament
-                                    ? activeTournament.status === "signup"
-                                      ? `${activeTournament.signups.length}/${activeTournament.maxPlayers} zapisanych`
-                                      : "Turniej trwa — sprawdź drabinkę!"
-                                    : lastCompletedTournament
-                                    ? `Wygrał: ${lastCompletedTournament.signups?.find((p) => p.uid === lastCompletedTournament.winnerUid)?.name || "?"}`
-                                    : "Wkrótce pierwszy turniej!"}
-                                </div>
-                              </div>
-                              <div className="hs-arrow" style={{ color: "#f5c451" }}>›</div>
-                            </button>
-                          </div>
-                        </div>
-                      </section>
-
-                      {user && stats && (
-                        <section className="hs-section-box">
-                          <div className="hs-section-head">
-                            <p>Twój postęp</p>
-                          </div>
-                          <div className="hs-stats-grid">
-                            <button onClick={openAlbum} className="hs-stat-tile" style={{ borderColor: "#4fd6ff", boxShadow: "0 0 20px rgba(79,214,255,0.28)" }}>
-                              <img src={glKolekcja} alt="" />
-                              <div><div className="hs-lbl">Kolekcja</div><div className="hs-val">{Object.keys(stats.cardCollection || {}).length}/{totalSongCount ?? effectivePool.length}</div></div>
-                            </button>
-                            <button onClick={() => setShowAchievements(true)} className="hs-stat-tile" style={{ borderColor: "#a56bff", boxShadow: "0 0 20px rgba(165,107,255,0.28)" }}>
-                              <img src={glMedal} alt="" />
-                              <div><div className="hs-lbl">Osiągnięcia</div><div className="hs-val">{getAchievementProgress(stats, levelFromXp(stats.xp).level).filter((a) => a.qualifies).length}/{ACHIEVEMENTS.length}</div></div>
-                            </button>
-                            <button onClick={openStats} className="hs-stat-tile" style={{ borderColor: "#4fd6ff", boxShadow: "0 0 20px rgba(79,214,255,0.28)" }}>
-                              <img src={glStatystyki} alt="" />
-                              <div><div className="hs-lbl">Skuteczność</div><div className="hs-val">{stats.gamesPlayed ? Math.round(((stats.gamesWon || 0) / stats.gamesPlayed) * 100) + "%" : "—"}</div></div>
-                            </button>
-                            <button onClick={() => openLeaderboard()} className="hs-stat-tile" style={{ borderColor: "#f5c451", boxShadow: "0 0 20px rgba(245,196,81,0.28)" }}>
-                              <img src={glKorona} alt="" />
-                              <div><div className="hs-lbl">Ranking</div><div className="hs-val">TOP 10</div></div>
-                            </button>
-                            <button onClick={() => setScreen("packShop")} className="hs-stat-tile" style={{ borderColor: "#4fe0c0", boxShadow: "0 0 20px rgba(79,224,192,0.28)" }}>
-                              <img src={glKoszyk} alt="" />
-                              <div><div className="hs-lbl">Sklep</div><div className="hs-val">Nowe!</div></div>
-                            </button>
-                            <button onClick={() => setShowOnlineList((v) => !v)} className="hs-stat-tile" style={{ borderColor: "#ff5fc9", boxShadow: "0 0 20px rgba(255,95,201,0.28)" }}>
-                              <img src={glOsoba} alt="" />
-                              <div><div className="hs-lbl">Społeczność</div><div className="hs-val">{onlinePlayers.length}</div></div>
-                            </button>
-                          </div>
-                        </section>
-                      )}
-
-                      <div className="hs-footer-full" />
-                    </div>
-
-                    <aside className="hs-side-column">
-                      {user && stats ? (
-                        <>
-                          <div className="hs-side-card">
-                            <img src={glKorona} alt="" style={{ height: 34 }} />
-                            <div className="hs-side-stat">
-                              <div className="hs-side-title">Twój rekord</div>
-                              <div className="hs-side-big" style={{ color: "#f5c451" }}>{stats.longestGuessStreak || 0}</div>
-                              <div style={{ fontSize: 12, color: "var(--muted)" }}>Najdłuższa seria trafień z rzędu.</div>
-                            </div>
-                          </div>
-
-                          <button
-                            onClick={() => {
-                              if (stats.lastDailyHitcoinDate === currentDayKey()) return;
-                              setShowDailyWheel(true);
-                            }}
-                            className="hs-side-card"
-                            style={{ textAlign: "left", cursor: stats.lastDailyHitcoinDate === currentDayKey() ? "default" : "pointer" }}
-                          >
-                            <img src={glPrezent} alt="" style={{ height: 36 }} />
-                            <div style={{ flex: 1 }}>
-                              <div className="hs-side-title">Nagroda dnia</div>
-                              <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4 }}>
-                                {stats.lastDailyHitcoinDate === currentDayKey() ? "Odebrana" : "Koło nagród czeka"}
-                              </div>
-                              <div style={{ fontSize: 12, color: "var(--muted)" }}>{stats.lastDailyHitcoinDate === currentDayKey() ? "Wróć jutro po następną próbę." : "Kliknij i odbierz dzienny bonus."}</div>
-                            </div>
-                            {stats.lastDailyHitcoinDate !== currentDayKey() && <span className="hs-side-button">Odbierz</span>}
-                          </button>
-
-                          <div className="hs-side-card" style={{ display: "block" }}>
-                            <div className="hs-side-title">Znajomi online</div>
-                            <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8 }}>{onlinePlayers.length} aktywnych graczy</div>
-                            <div className="hs-side-list">
-                              {onlinePlayers.slice(0, 5).map((p) => (
-                                <span key={p.playerId} className="hs-friend-pill">🟢 {p.name}</span>
-                              ))}
-                              {onlinePlayers.length === 0 && <span style={{ fontSize: 12, color: "var(--muted)" }}>Nikt poza Tobą nie gra w tej chwili.</span>}
-                              {onlinePlayers.length > 5 && <span className="hs-friend-pill">+{onlinePlayers.length - 5}</span>}
-                            </div>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="hs-side-card" style={{ display: "block" }}>
-                          <div className="hs-side-title">Konto gracza</div>
-                          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, marginBottom: 6 }}>Zaloguj się</div>
-                          <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.55 }}>Odblokujesz statystyki, osiągnięcia, codzienne tryby i pełny progres konta.</div>
-                        </div>
-                      )}
-                    </aside>
+                  <div className="hs-hero-right">
+                    <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, margin: "0 0 6px", maxWidth: 220 }}>
+                      Muzyka łączy.<br /><span style={{ color: "#4fd6ff" }}>Hity zostają.</span>
+                    </h2>
+                    <p style={{ fontSize: 12, color: "#d8d8ea", maxWidth: 220, margin: 0 }}>Rywalizuj, odkrywaj, zdobywaj i wspinaj się na szczyt rankingu!</p>
                   </div>
                 </div>
 
-                <div className="hs-home-mobile">
-                  <div className="hs-mobile-shell">
-                    <div className="hs-mobile-header">
-                      <button onClick={goHome} className="hs-logo-btn" title="Strona główna">
-                        <img src={logoImg} alt="" style={{ height: 46 }} />
-                        <span className="hs-brand" style={{ fontSize: 24 }}>HITSTERIADA</span>
+                {/* TRYBY GRY + karty boczne */}
+                <div>
+                  <p style={{ color: "var(--muted)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Tryby gry</p>
+                  <div className="hs-tiles-row">
+                    <div className="hs-tile-slot cyan">
+                      <div className="hs-tile-glow" />
+                      <div className="hs-tile-rim" />
+                      <button onClick={() => setScreen("practiceSetup")} className="hs-tile">
+                        <img className="hs-icon" src={glTrening} alt="" />
+                        <div className="hs-t">TRENING</div>
+                        <div className="hs-arrow" style={{ color: "#4fd6ff" }}>›</div>
                       </button>
-
-                      <div className="hs-mobile-pills">
-                        <button onClick={() => setShowOnlineList((v) => !v)} className="hs-pill green">🟢 {onlinePlayers.length} online</button>
-                        {user && myXp !== null ? (
-                          <button onClick={openStats} className="hs-pill accent">⭐ LVL {levelFromXp(myXp).level}</button>
-                        ) : (
-                          <div className="hs-pill pink">♪ Gra muzyczna</div>
-                        )}
-                        {user && stats ? (
-                          <button onClick={openStats} className="hs-pill pink">♪ {stats.guessesCorrect || 0}</button>
-                        ) : (
-                          <div className="hs-pill accent">⚡ Arcade UI</div>
-                        )}
-                        {user && myHitcoin !== null ? (
-                          <button onClick={() => setScreen("packShop")} className="hs-pill gold"><img src={iconHitcoin} alt="" style={{ height: 15 }} /> {myHitcoin}</button>
-                        ) : (
-                          <div className="hs-pill gold">🎵 Neon lobby</div>
-                        )}
-                      </div>
                     </div>
-
-                    <section className="hs-panel hs-mobile-hero">
-                      <div>
-                        <div className="hs-eyebrow">⟡ Graj teraz</div>
-                        <h1 className="hs-h1" style={{ fontSize: 42, marginBottom: 6 }}>Twój utwór.<br /><span>Twoja zasada.</span></h1>
-                        <p className="hs-sub" style={{ fontSize: 13 }}>Szybkie wejście do gry, codzienne tryby i neonowy klimat w wersji mobile.</p>
+                    <div className="hs-tile-slot green">
+                      <div className="hs-tile-glow" />
+                      <div className="hs-tile-rim" />
+                      <button onClick={() => setScreen("hitRushMenu")} className="hs-tile">
+                        <img className="hs-icon" src={glHitRush} alt="" />
+                        <div className="hs-t">HIT RUSH</div>
+                        <div className="hs-arrow" style={{ color: "#2af598" }}>›</div>
+                      </button>
+                    </div>
+                    {user && (
+                      <div className="hs-tile-slot pink">
+                        <div className="hs-tile-glow" />
+                        <div className="hs-tile-rim" />
+                        <button onClick={openDailySong} disabled={dailyBusy} className="hs-tile">
+                          <img className="hs-icon" src={glPiosenka} alt="" />
+                          <div className="hs-t">PIOSENKA DNIA</div>
+                          <div className="hs-arrow" style={{ color: "#ff5fc9" }}>›</div>
+                        </button>
                       </div>
-
-                      <div className="hs-mobile-hero-art">
-                        <h3>Muzyka łączy.<br /><span style={{ color: "#4fd6ff" }}>Hity zostają.</span></h3>
-                        <p>Rywalizuj solo lub ze znajomymi i odblokowuj kolejne nagrody.</p>
-                      </div>
-
-                      <div className="hs-mobile-create">
-                        <div className="hs-btn-wrap">
-                          <button
-                            onClick={createRoom}
-                            disabled={busy}
-                            style={{ position: "absolute", inset: 0, background: "none", border: "none", cursor: "pointer", padding: 0, zIndex: 4 }}
-                            aria-label="Stwórz pokój"
-                          />
-                          <div className="hs-glow" />
-                          <div className="hs-rim hs-cut" />
-                          <div className="hs-fillbtn hs-cut" />
-                          <div className="hs-btnlabel">STWÓRZ POKÓJ</div>
-                        </div>
-                        <div className="hs-join-row">
-                          <input
-                            type="text"
-                            value={joinCode}
-                            onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                            placeholder="KOD"
-                            maxLength={4}
-                            className="hs-input flex-1"
-                            style={{ textAlign: "center", letterSpacing: 3 }}
-                          />
-                          <button onClick={() => joinRoom()} disabled={busy} className="hs-join-btn">Dołącz</button>
-                        </div>
-                      </div>
-                    </section>
-
-                    <section className="hs-section-box">
-                      <div className="hs-section-head"><p>Tryby gry</p></div>
-                      <div className="hs-mobile-mode-grid">
-                        <div className="hs-tile-slot cyan">
-                          <div className="hs-tile-glow" />
-                          <div className="hs-tile-rim" />
-                          <button onClick={() => setScreen("practiceSetup")} className="hs-tile">
-                            <img className="hs-icon" src={glTrening} alt="" />
-                            <div><div className="hs-t">TRENING</div><div className="hs-d">Ćwicz i poznawaj kategorie.</div></div>
-                            <div className="hs-arrow" style={{ color: "#4fd6ff" }}>›</div>
-                          </button>
-                        </div>
-                        <div className="hs-tile-slot green">
-                          <div className="hs-tile-glow" />
-                          <div className="hs-tile-rim" />
-                          <button onClick={() => setScreen("hitRushMenu")} className="hs-tile">
-                            <img className="hs-icon" src={glHitRush} alt="" />
-                            <div><div className="hs-t">HIT RUSH</div><div className="hs-d">Szybki tryb solo.</div></div>
-                            <div className="hs-arrow" style={{ color: "#2af598" }}>›</div>
-                          </button>
-                        </div>
-                        <div className="hs-tile-slot pink">
-                          <div className="hs-tile-glow" />
-                          <div className="hs-tile-rim" />
-                          <button onClick={user ? openDailySong : () => setShowAuthForm(true)} disabled={user ? dailyBusy : false} className="hs-tile">
-                            <img className="hs-icon" src={glPiosenka} alt="" />
-                            <div><div className="hs-t">PIOSENKA DNIA</div><div className="hs-d">{user ? "Jedna dla wszystkich." : "Odblokuj logowaniem."}</div></div>
-                            <div className="hs-arrow" style={{ color: "#ff5fc9" }}>›</div>
-                          </button>
-                        </div>
-                        <div className="hs-tile-slot violet">
-                          <div className="hs-tile-glow" />
-                          <div className="hs-tile-rim" />
-                          <button onClick={user ? openDailyPlaylistHub : () => setShowAuthForm(true)} disabled={user ? dailyPlaylistBusy : false} className="hs-tile">
-                            <img className="hs-icon" src={glPlaylista} alt="" />
-                            <div><div className="hs-t">PLAYLISTA DNIA</div><div className="hs-d">Dzienne wyzwanie listy.</div></div>
-                            <div className="hs-arrow" style={{ color: "#a56bff" }}>›</div>
-                          </button>
-                        </div>
-                        <div className="hs-tile-slot gold" style={{ gridColumn: "1 / -1" }}>
-                          <div className="hs-tile-glow" />
-                          <div className="hs-tile-rim" />
-                          <div className="hs-badge">★ PREMIUM</div>
-                          <button onClick={activeTournament ? openTournamentHub : undefined} disabled={tournamentBusy} className="hs-tile">
-                            <img className="hs-icon" src={glTurniej} alt="" />
-                            <div><div className="hs-t">TURNIEJ</div><div className="hs-d">{activeTournament ? "Drabinka i rywalizacja na żywo." : "Wkrótce pierwszy turniej!"}</div></div>
-                            <div className="hs-arrow" style={{ color: "#f5c451" }}>›</div>
-                          </button>
-                        </div>
-                      </div>
-                    </section>
-
-                    {user && stats && (
-                      <section className="hs-section-box">
-                        <div className="hs-section-head"><p>Twój postęp</p></div>
-                        <div className="hs-stats-grid">
-                          <button onClick={openAlbum} className="hs-stat-tile" style={{ borderColor: "#4fd6ff", boxShadow: "0 0 18px rgba(79,214,255,0.25)" }}><img src={glKolekcja} alt="" /><div><div className="hs-lbl">Kolekcja</div><div className="hs-val">{Object.keys(stats.cardCollection || {}).length}</div></div></button>
-                          <button onClick={() => setShowAchievements(true)} className="hs-stat-tile" style={{ borderColor: "#a56bff", boxShadow: "0 0 18px rgba(165,107,255,0.25)" }}><img src={glMedal} alt="" /><div><div className="hs-lbl">Osiągnięcia</div><div className="hs-val">{getAchievementProgress(stats, levelFromXp(stats.xp).level).filter((a) => a.qualifies).length}</div></div></button>
-                          <button onClick={openStats} className="hs-stat-tile" style={{ borderColor: "#4fd6ff", boxShadow: "0 0 18px rgba(79,214,255,0.25)" }}><img src={glStatystyki} alt="" /><div><div className="hs-lbl">Skuteczność</div><div className="hs-val">{stats.gamesPlayed ? Math.round(((stats.gamesWon || 0) / stats.gamesPlayed) * 100) + "%" : "—"}</div></div></button>
-                          <button onClick={() => openLeaderboard()} className="hs-stat-tile" style={{ borderColor: "#f5c451", boxShadow: "0 0 18px rgba(245,196,81,0.25)" }}><img src={glKorona} alt="" /><div><div className="hs-lbl">Ranking</div><div className="hs-val">TOP 10</div></div></button>
-                          <button onClick={() => setScreen("packShop")} className="hs-stat-tile" style={{ borderColor: "#4fe0c0", boxShadow: "0 0 18px rgba(79,224,192,0.25)" }}><img src={glKoszyk} alt="" /><div><div className="hs-lbl">Sklep</div><div className="hs-val">Nowe!</div></div></button>
-                          <button onClick={() => setShowOnlineList((v) => !v)} className="hs-stat-tile" style={{ borderColor: "#ff5fc9", boxShadow: "0 0 18px rgba(255,95,201,0.25)" }}><img src={glOsoba} alt="" /><div><div className="hs-lbl">Społeczność</div><div className="hs-val">{onlinePlayers.length}</div></div></button>
-                        </div>
-                      </section>
                     )}
-
-                    <div className="hs-mobile-stack">
-                      {user && stats && (
-                        <div className="hs-side-card">
-                          <img src={glPrezent} alt="" style={{ height: 34 }} />
-                          <div style={{ flex: 1 }}>
-                            <div className="hs-side-title">Nagroda dnia</div>
-                            <div style={{ fontSize: 14, fontWeight: 800 }}>{stats.lastDailyHitcoinDate === currentDayKey() ? "Odebrana" : "Czeka na Ciebie"}</div>
-                            <div style={{ fontSize: 12, color: "var(--muted)" }}>{stats.lastDailyHitcoinDate === currentDayKey() ? "Wróć jutro po bonus." : "Zakliknij po dzienny bonus."}</div>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="hs-side-card">
-                        <img src={glOsoba} alt="" style={{ height: 34 }} />
-                        <div style={{ flex: 1 }}>
-                          <div className="hs-side-title">Społeczność</div>
-                          <div style={{ fontSize: 14, fontWeight: 800 }}>{onlinePlayers.length} graczy online</div>
-                          <div style={{ fontSize: 12, color: "var(--muted)" }}>Dołącz do znajomych i zakładaj pokoje prywatne.</div>
-                        </div>
+                    {user && (
+                      <div className="hs-tile-slot violet">
+                        <div className="hs-tile-glow" />
+                        <div className="hs-tile-rim" />
+                        <button onClick={openDailyPlaylistHub} disabled={dailyPlaylistBusy} className="hs-tile">
+                          <img className="hs-icon" src={glPlaylista} alt="" />
+                          <div className="hs-t">PLAYLISTA DNIA</div>
+                          <div className="hs-arrow" style={{ color: "#a56bff" }}>›</div>
+                        </button>
                       </div>
+                    )}
+                    <div className="hs-tile-slot gold">
+                      <div className="hs-tile-glow" />
+                      <div className="hs-tile-rim" />
+                      <div className="hs-badge">★ PREMIUM</div>
+                      <button onClick={activeTournament ? openTournamentHub : undefined} disabled={tournamentBusy} className="hs-tile" style={{ cursor: activeTournament ? "pointer" : "default" }}>
+                        <img className="hs-icon" src={glTurniej} alt="" />
+                        <div className="hs-t">TURNIEJ</div>
+                        <div className="hs-d">
+                          {activeTournament
+                            ? activeTournament.status === "signup"
+                              ? `${activeTournament.signups.length}/${activeTournament.maxPlayers} zapisanych`
+                              : "trwa!"
+                            : lastCompletedTournament
+                            ? `Wygrał: ${lastCompletedTournament.signups?.find((p) => p.uid === lastCompletedTournament.winnerUid)?.name || "?"} · wkrótce kolejny!`
+                            : "Wkrótce pierwszy turniej!"}
+                        </div>
+                        <div className="hs-arrow" style={{ color: "#f5c451" }}>›</div>
+                      </button>
                     </div>
-
-                    <div className="hs-footer-full" />
                   </div>
                 </div>
+
+                {user && stats && (
+                  <button
+                    onClick={() => {
+                      if (stats.lastDailyHitcoinDate === currentDayKey()) return;
+                      setShowDailyWheel(true);
+                    }}
+                    className="hs-side-card"
+                    style={{ width: "100%", textAlign: "left" }}
+                  >
+                    <img src={glPrezent} alt="" style={{ height: 34, filter: "drop-shadow(0 0 8px rgba(79,224,192,0.4))" }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>NAGRODA DNIA</div>
+                      <div style={{ fontSize: 11, color: "var(--muted)" }}>{stats.lastDailyHitcoinDate === currentDayKey() ? "Odebrane — wróć jutro" : "Kliknij, żeby zakręcić kołem"}</div>
+                    </div>
+                    {stats.lastDailyHitcoinDate !== currentDayKey() && (
+                      <span style={{ borderRadius: 8, border: "1px solid #4fe0c0", color: "#4fe0c0", fontSize: 11, padding: "6px 12px", fontWeight: 700 }}>🎡</span>
+                    )}
+                  </button>
+                )}
+
+                {/* TWÓJ POSTĘP */}
+                {user && stats && (
+                  <div>
+                    <p style={{ color: "var(--muted)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Twój postęp</p>
+                    <div className="hs-stats-grid">
+                      <button onClick={openAlbum} className="hs-stat-tile" style={{ borderColor: "#4fd6ff", boxShadow: "0 0 20px rgba(79,214,255,0.5)" }}>
+                        <img src={glKolekcja} alt="" />
+                        <div><div className="hs-lbl">Kolekcja</div><div className="hs-val">{Object.keys(stats.cardCollection || {}).length}/{totalSongCount ?? effectivePool.length}</div></div>
+                      </button>
+                      <button onClick={() => setShowAchievements(true)} className="hs-stat-tile" style={{ borderColor: "#a56bff", boxShadow: "0 0 20px rgba(165,107,255,0.5)" }}>
+                        <img src={glMedal} alt="" />
+                        <div><div className="hs-lbl">Osiągnięcia</div><div className="hs-val">{getAchievementProgress(stats, levelFromXp(stats.xp).level).filter((a) => a.qualifies).length}/{ACHIEVEMENTS.length}</div></div>
+                      </button>
+                      <button onClick={openStats} className="hs-stat-tile" style={{ borderColor: "#4fd6ff", boxShadow: "0 0 20px rgba(79,214,255,0.5)" }}>
+                        <img src={glStatystyki} alt="" />
+                        <div><div className="hs-lbl">Statystyki</div><div className="hs-val">{stats.gamesPlayed ? Math.round(((stats.gamesWon || 0) / stats.gamesPlayed) * 100) + "%" : "—"}</div></div>
+                      </button>
+                      <button onClick={() => openLeaderboard()} className="hs-stat-tile" style={{ borderColor: "#f5c451", boxShadow: "0 0 20px rgba(245,196,81,0.5)" }}>
+                        <img src={glKorona} alt="" />
+                        <div><div className="hs-lbl">Ranking</div><div className="hs-val">TOP 10</div></div>
+                      </button>
+                      <button onClick={() => setScreen("packShop")} className="hs-stat-tile" style={{ borderColor: "#4fe0c0", boxShadow: "0 0 20px rgba(79,224,192,0.5)" }}>
+                        <img src={glKoszyk} alt="" />
+                        <div><div className="hs-lbl">Sklep</div><div className="hs-val">Nowe!</div></div>
+                      </button>
+                      <button onClick={() => setShowOnlineList((v) => !v)} className="hs-stat-tile" style={{ borderColor: "#ff5fc9", boxShadow: "0 0 20px rgba(255,95,201,0.5)" }}>
+                        <img src={glOsoba} alt="" />
+                        <div><div className="hs-lbl">Społeczność</div><div className="hs-val">{onlinePlayers.length}</div></div>
+                      </button>
+                    </div>
+                  </div>
+                )}
 
               </div>
             </div>
