@@ -33,6 +33,7 @@ import glPlaylista from './assets/icons/gl-playlista.png';
 import glTrening from './assets/icons/gl-trening.png';
 import glKorona from './assets/icons/gl-korona.png';
 import glPrezent from './assets/icons/gl-prezent.png';
+import { DesktopPlayerProfileModal } from './DesktopShell.jsx';
 
 function initials(label) {
   const raw = String(label || 'G').trim();
@@ -68,7 +69,7 @@ function SessionHeader({ eyebrow, title, right, onBack, backLabel = 'Wróć' }) 
 function PlayerBadge({ player, hostId, myId, level, active, score, tokenCount, onClick, onKick, canKick }) {
   return (
     <button type="button" className={`dgv-player-badge ${active ? 'active' : ''}`} onClick={onClick}>
-      <div className="dgv-player-avatar">{initials(player.name)}</div>
+      <div className="dgv-player-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.name) : null}</div>
       <div className="dgv-player-copy">
         <div className="dgv-player-name">
           {player.name}
@@ -420,17 +421,12 @@ function ResultOverlay({ room, advanceCountdown }) {
               <div className="icon">{placementGood ? <Check size={24} /> : <X size={24} />}</div>
               <div><span>OŚ CZASU</span><strong>{placementGood ? 'POPRAWNIE' : 'BŁĘDNE MIEJSCE'}</strong></div>
             </div>
-            {result.tokenAwarded !== undefined ? (
+            {!room.practiceMode && !room.dailyPlaylistMode && result.tokenAwarded !== undefined ? (
               <div className={`dgv-result-v3-check ${result.tokenAwarded ? 'good' : 'bad'}`}>
                 <div className="icon">{result.tokenAwarded ? <Check size={24} /> : <X size={24} />}</div>
                 <div><span>TYTUŁ I WYKONAWCA</span><strong>{result.tokenAwarded ? '+1 TOKEN' : 'BRAK TOKENA'}</strong></div>
               </div>
-            ) : (
-              <div className="dgv-result-v3-check neutral">
-                <div className="icon"><Music2 size={23} /></div>
-                <div><span>TRYB SOLO</span><strong>LICZY SIĘ OŚ CZASU</strong></div>
-              </div>
-            )}
+            ) : null}
             <div className="dgv-result-v3-hint">
               <Sparkles size={17} />
               <span>{placementGood ? 'Dobra robota — utrzymaj serię w następnej rundzie.' : `Zapamiętaj: ${result.card.artist} — ${result.card.title} (${result.card.year}).`}</span>
@@ -747,20 +743,20 @@ export function DesktopOpenerView({
   );
 }
 
-function RankingList({ title, icon, rows, value, empty, accent = 'cyan' }) {
+function RankingList({ title, icon, rows, value, empty, accent = 'cyan', onViewProfile }) {
   return (
     <section className={`dgv-panel dgv-ranking-card ${accent}`}>
       <div className="dgv-section-heading">{icon} {title}</div>
       {rows.length === 0 ? <div className="dgv-ranking-empty">{empty}</div> : (
         <div className="dgv-ranking-list">
           {rows.map((row, index) => (
-            <div key={row.key || `${row.name}-${index}`} className={index < 3 ? `podium p${index + 1}` : ''}>
+            <button type="button" key={row.key || `${row.name}-${index}`} className={index < 3 ? `podium p${index + 1}` : ''} onClick={() => row.uid && onViewProfile?.(row)}>
               <span className="place">#{index + 1}</span>
-              <span className="avatar">{initials(row.name)}</span>
+              <span className="avatar" style={row.avatarUrl ? { backgroundImage: `url(${row.avatarUrl})` } : undefined}>{!row.avatarUrl ? initials(row.name) : null}</span>
               <span className="name">{row.name}</span>
               {row.note ? <span className="note">{row.note}</span> : null}
               <strong>{value(row)}</strong>
-            </div>
+            </button>
           ))}
         </div>
       )}
@@ -768,7 +764,7 @@ function RankingList({ title, icon, rows, value, empty, accent = 'cyan' }) {
   );
 }
 
-export function DesktopDailyPlaylistHubView({ alreadyPlayed, dailyBoard, weeklyBoard, allTimeBoard, busy, onStart, onHome }) {
+export function DesktopDailyPlaylistHubView({ alreadyPlayed, dailyBoard, weeklyBoard, allTimeBoard, busy, onStart, onHome, onViewProfile, viewingPlayer, onCloseProfile, levelFromXp }) {
   const dailyRows = dailyBoard.map((item) => ({ key: item.uid, name: item.name, ...item }));
   const weeklyRows = weeklyBoard.map((item) => ({ key: item.uid, name: item.name, note: `${item.gamesPlayed || 0} gier`, ...item }));
   const allRows = allTimeBoard.map((item) => ({ key: item.uid, name: item.username || item.name, note: `${item.playlistGamesPlayed || 0} gier`, ...item }));
@@ -793,9 +789,9 @@ export function DesktopDailyPlaylistHubView({ alreadyPlayed, dailyBoard, weeklyB
         </section>
 
         <div className="dgv-rankings-grid">
-          <RankingList title="RANKING DNIA" icon={<Trophy size={18} />} rows={dailyRows} value={(row) => `${row.score} / 10`} empty="Nikt jeszcze dziś nie zagrał." accent="cyan" />
-          <RankingList title="RANKING TYGODNIA" icon={<Crown size={18} />} rows={weeklyRows} value={(row) => `${row.score} pkt`} empty="Brak wyników w tym tygodniu." accent="gold" />
-          <RankingList title="WSZECH CZASÓW" icon={<Flame size={18} />} rows={allRows} value={(row) => `${row.playlistTotalScore || 0} pkt`} empty="Brak wyników." accent="pink" />
+          <RankingList title="RANKING DNIA" icon={<Trophy size={18} />} rows={dailyRows} value={(row) => `${row.score} / 10`} empty="Nikt jeszcze dziś nie zagrał." accent="cyan" onViewProfile={onViewProfile} />
+          <RankingList title="RANKING TYGODNIA" icon={<Crown size={18} />} rows={weeklyRows} value={(row) => `${row.score} pkt`} empty="Brak wyników w tym tygodniu." accent="gold" onViewProfile={onViewProfile} />
+          <RankingList title="WSZECH CZASÓW" icon={<Flame size={18} />} rows={allRows} value={(row) => `${row.playlistTotalScore || 0} pkt`} empty="Brak wyników." accent="pink" onViewProfile={onViewProfile} />
         </div>
 
         <section className="dgv-daily-rewards dgv-panel">
@@ -804,6 +800,86 @@ export function DesktopDailyPlaylistHubView({ alreadyPlayed, dailyBoard, weeklyB
           <div><Trophy size={30} /><span>3. MIEJSCE</span><strong>+100 XP</strong></div>
           <p>Nagrody tygodniowe są przyznawane automatycznie na początku kolejnego tygodnia.</p>
         </section>
+      </div>
+      <DesktopPlayerProfileModal profile={viewingPlayer} onClose={onCloseProfile} levelFromXp={levelFromXp} />
+    </SessionBackground>
+  );
+}
+
+
+export function DesktopDailySongView({
+  song,
+  alreadyPlayed,
+  result,
+  isPlaying,
+  playElapsed,
+  playCapSeconds,
+  iframeRef,
+  onTogglePlay,
+  guessArtist,
+  setGuessArtist,
+  guessTitle,
+  setGuessTitle,
+  guessYear,
+  setGuessYear,
+  busy,
+  onSubmit,
+  onHome,
+}) {
+  const audioLeft = Math.max(0, Math.ceil(playCapSeconds - playElapsed));
+  const score = result?.score ?? 0;
+  return (
+    <SessionBackground className="dgv-daily-song-page">
+      <div className="dgv-shell">
+        <SessionHeader eyebrow="CODZIENNE WYZWANIE" title="PIOSENKA DNIA" onBack={onHome} backLabel="Strona główna" />
+        {!alreadyPlayed ? (
+          <div className="dgv-daily-song-grid">
+            <section className="dgv-panel dgv-daily-song-audio">
+              <div className="dgv-section-heading"><Disc3 size={18} /> DZISIEJSZY UTWÓR</div>
+              <DesktopVinyl spinning={isPlaying} progress={playElapsed / playCapSeconds} />
+              <div className="dgv-hidden-player">
+                <iframe key={`daily-${song.videoId}`} ref={iframeRef} title="daily-player-desktop" src={`https://www.youtube.com/embed/${song.videoId}?enablejsapi=1&autoplay=1&mute=1&start=${song.startSeconds}&controls=0&modestbranding=1&rel=0`} allow="autoplay; encrypted-media" />
+              </div>
+              <div className="dgv-v3-audio-footer">
+                <div className="dgv-v3-audio-time"><span>FRAGMENT</span><strong>{audioLeft}s</strong></div>
+                <button type="button" className="dgv-audio-button" onClick={onTogglePlay}><Play size={20} fill="currentColor" /><span>{isPlaying ? 'ODTWARZANIE' : playElapsed >= playCapSeconds ? 'ODTWÓRZ PONOWNIE' : 'ODTWÓRZ DŹWIĘK'}</span></button>
+              </div>
+            </section>
+            <section className="dgv-panel dgv-daily-song-guess">
+              <div className="dgv-eyebrow">JEDNA PRÓBA DZIENNIE</div>
+              <h1>CO TO ZA UTWÓR?</h1>
+              <p>Podaj wykonawcę, tytuł i rok wydania. Możesz zostawić puste pole, jeśli nie znasz odpowiedzi.</p>
+              <div className="dgv-daily-song-fields">
+                <label><span>WYKONAWCA</span><input value={guessArtist} onChange={(e) => setGuessArtist(e.target.value)} placeholder="np. Queen" /></label>
+                <label><span>TYTUŁ</span><input value={guessTitle} onChange={(e) => setGuessTitle(e.target.value)} placeholder="np. The Show Must Go On" /></label>
+                <label><span>ROK</span><input type="number" value={guessYear} onChange={(e) => setGuessYear(e.target.value)} placeholder="1991" /></label>
+              </div>
+              <div className="dgv-daily-song-scoring">
+                <div><strong>+1</strong><span>wykonawca</span></div><div><strong>+1</strong><span>tytuł</span></div><div><strong>+1</strong><span>rok</span></div>
+              </div>
+              <button type="button" className="dgv-confirm-button daily-song" onClick={onSubmit} disabled={busy}><span>{busy ? 'SPRAWDZAM…' : 'ZATWIERDŹ ODPOWIEDŹ'}</span><ChevronRight size={22} /></button>
+            </section>
+          </div>
+        ) : (
+          <section className={`dgv-panel dgv-daily-song-result ${score === 3 ? 'perfect' : score > 0 ? 'partial' : 'miss'}`}>
+            <div className="dgv-daily-song-result-head">
+              <div className="dgv-result-status-icon">{score === 3 ? <Trophy size={34} /> : score > 0 ? <Check size={34} /> : <X size={34} />}</div>
+              <div><span>TWÓJ DZISIEJSZY WYNIK</span><h1>{score} / 3</h1><p>{score === 3 ? 'KOMPLET! Wszystko trafione.' : score > 0 ? 'Część odpowiedzi była poprawna.' : 'Dziś bez punktu — jutro nowa szansa.'}</p></div>
+            </div>
+            <div className="dgv-daily-song-reveal">
+              <span>POPRAWNA ODPOWIEDŹ</span><strong>{song.year}</strong><h2>{song.title}</h2><p>{song.artist}</p>
+            </div>
+            <div className="dgv-daily-song-checks">
+              {[['WYKONAWCA', result?.guessArtist, result?.correctArtist], ['TYTUŁ', result?.guessTitle, result?.correctTitle], ['ROK', result?.guessYear, result?.correctYear]].map(([label, answer, ok]) => (
+                <div key={label} className={ok ? 'good' : 'bad'}><span>{ok ? <Check size={20} /> : <X size={20} />}</span><div><small>{label}</small><strong>{answer || '—'}</strong></div></div>
+              ))}
+            </div>
+            <div className="dgv-daily-song-rewards">
+              <span>🔥 Seria: <strong>{result?.streak ?? 0}</strong></span><span>XP: <strong>+{result?.xpEarned ?? 0}</strong></span><span>Wróć jutro po kolejny utwór.</span>
+            </div>
+            <button type="button" className="dgv-ghost-button large" onClick={onHome}><ArrowLeft size={18} /> STRONA GŁÓWNA</button>
+          </section>
+        )}
       </div>
     </SessionBackground>
   );

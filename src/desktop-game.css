@@ -1132,3 +1132,238 @@
   font-style:normal;
   letter-spacing:.12em;
 }
+
+/* v3.2 — profile avatars + Piosenka dnia desktop */
+.dgv-player-avatar,
+.dgv-ranking-list .avatar {
+  background-position:center;
+  background-size:cover;
+  background-repeat:no-repeat;
+}
+
+.dgv-ranking-list > button {
+  width:100%;
+  min-height:48px;
+  border-radius:13px;
+  border:1px solid transparent;
+  background:rgba(7,9,23,.64);
+  display:grid;
+  grid-template-columns:32px 34px minmax(0,1fr) auto auto;
+  gap:8px;
+  align-items:center;
+  padding:0 10px;
+  color:#f4f0ff;
+  font-size:12px;
+  text-align:left;
+  cursor:pointer;
+  transition:140ms ease;
+}
+.dgv-ranking-list > button:hover {
+  transform:translateY(-1px);
+  border-color:rgba(82,218,255,.34);
+  background:rgba(12,16,38,.86);
+  box-shadow:0 0 18px rgba(64,177,255,.08);
+}
+.dgv-ranking-list > button.p1 { border-color:rgba(245,196,81,.28); }
+.dgv-ranking-list > button.p2 { border-color:rgba(210,224,238,.18); }
+.dgv-ranking-list > button.p3 { border-color:rgba(205,131,87,.2); }
+.dgv-ranking-list .avatar { background-position:center; background-size:cover; background-repeat:no-repeat; }
+
+.dgv-result-v3-summary:has(.dgv-result-v3-check:only-child) {
+  align-content:center;
+}
+
+.dgv-daily-song-page .dgv-shell { width:min(1580px,calc(100vw - 70px)); }
+.dgv-daily-song-grid {
+  display:grid;
+  grid-template-columns:minmax(420px,.88fr) minmax(560px,1.12fr);
+  gap:22px;
+  align-items:stretch;
+}
+.dgv-daily-song-audio,
+.dgv-daily-song-guess {
+  min-height:650px;
+}
+.dgv-daily-song-audio {
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  padding:24px;
+}
+.dgv-daily-song-audio .dgv-v3-turntable {
+  width:min(440px,92%);
+  margin:20px auto 8px;
+  flex:1;
+}
+.dgv-daily-song-audio .dgv-v3-audio-footer { margin-top:auto; }
+.dgv-daily-song-guess {
+  padding:38px 42px;
+  position:relative;
+  overflow:hidden;
+  border-color:rgba(255,80,205,.28);
+  background:
+    radial-gradient(circle at 90% 10%,rgba(255,73,210,.11),transparent 30%),
+    radial-gradient(circle at 10% 95%,rgba(55,212,255,.08),transparent 34%),
+    rgba(5,8,24,.90);
+}
+.dgv-daily-song-guess:before {
+  content:'';
+  position:absolute;
+  top:0;left:42px;right:42px;height:2px;
+  background:linear-gradient(90deg,transparent,#48e4ff,#8e68ff,#f050d2,transparent);
+  box-shadow:0 0 18px rgba(104,115,255,.3);
+}
+.dgv-daily-song-guess h1 {
+  margin:12px 0 8px;
+  font-family:'Bebas Neue',sans-serif;
+  font-size:62px;
+  line-height:.96;
+  letter-spacing:.01em;
+  color:#fff;
+}
+.dgv-daily-song-guess > p {
+  max-width:650px;
+  margin:0 0 30px;
+  color:#9b95aa;
+  font-size:13px;
+  line-height:1.55;
+}
+.dgv-daily-song-fields { display:grid; gap:14px; }
+.dgv-daily-song-fields label { display:flex; flex-direction:column; gap:7px; }
+.dgv-daily-song-fields label span {
+  font-family:'Space Mono',monospace;
+  font-size:9px;
+  letter-spacing:.16em;
+  color:#8f89a4;
+}
+.dgv-daily-song-fields input {
+  width:100%;
+  height:58px;
+  border-radius:14px;
+  border:1px solid rgba(85,205,255,.22);
+  background:rgba(5,9,27,.82);
+  color:#fff;
+  padding:0 17px;
+  outline:none;
+  font-size:15px;
+}
+.dgv-daily-song-fields input:focus {
+  border-color:#55e0ff;
+  box-shadow:0 0 20px rgba(78,211,255,.09);
+}
+.dgv-daily-song-scoring {
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
+  margin:20px 0;
+}
+.dgv-daily-song-scoring > div {
+  min-height:74px;
+  border:1px solid rgba(132,106,255,.18);
+  border-radius:14px;
+  background:rgba(10,12,32,.72);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+}
+.dgv-daily-song-scoring strong {
+  font-family:'Bebas Neue',sans-serif;
+  font-size:30px;
+  color:#55e4ff;
+}
+.dgv-daily-song-scoring span { color:#aaa3b7; font-size:11px; }
+.dgv-confirm-button.daily-song { width:100%; min-height:66px; margin-top:8px; }
+
+.dgv-daily-song-result {
+  width:min(1180px,100%);
+  margin:40px auto 0;
+  padding:34px;
+  border-color:rgba(104,108,220,.34);
+}
+.dgv-daily-song-result.perfect { border-color:rgba(42,245,152,.36); box-shadow:0 0 48px rgba(42,245,152,.08); }
+.dgv-daily-song-result.miss { border-color:rgba(255,74,125,.28); }
+.dgv-daily-song-result-head {
+  display:flex;
+  align-items:center;
+  gap:18px;
+  padding-bottom:24px;
+  border-bottom:1px solid rgba(255,255,255,.07);
+}
+.dgv-daily-song-result-head > div:last-child > span {
+  font-family:'Space Mono',monospace;
+  font-size:9px;
+  letter-spacing:.16em;
+  color:#8e88a2;
+}
+.dgv-daily-song-result-head h1 {
+  font-family:'Bebas Neue',sans-serif;
+  font-size:54px;
+  line-height:.9;
+  margin:7px 0 4px;
+  color:#fff;
+}
+.dgv-daily-song-result-head p { margin:0; color:#aaa4b7; font-size:12px; }
+.dgv-daily-song-reveal {
+  margin-top:24px;
+  min-height:230px;
+  border:1px solid rgba(110,97,224,.33);
+  border-radius:18px;
+  background:radial-gradient(circle at 50% 30%,rgba(105,76,230,.18),transparent 48%),rgba(7,10,29,.85);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  padding:24px;
+}
+.dgv-daily-song-reveal > span { font-family:'Space Mono',monospace; font-size:9px; letter-spacing:.17em; color:#8d87a2; }
+.dgv-daily-song-reveal > strong {
+  margin:9px 0 2px;
+  font-family:'Bebas Neue',sans-serif;
+  font-size:70px;
+  line-height:.95;
+  background:linear-gradient(180deg,#59e8ff,#7a8dff 56%,#e96cff);
+  -webkit-background-clip:text;
+  color:transparent;
+}
+.dgv-daily-song-reveal h2 { margin:5px 0 3px; font-size:24px; color:#fff; }
+.dgv-daily-song-reveal p { margin:0; color:#b4adc1; font-size:13px; }
+.dgv-daily-song-checks { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:18px; }
+.dgv-daily-song-checks > div {
+  min-height:78px;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  border-radius:14px;
+  padding:13px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(7,9,24,.72);
+}
+.dgv-daily-song-checks > div.good { border-color:rgba(42,245,152,.23); }
+.dgv-daily-song-checks > div.bad { border-color:rgba(255,72,122,.23); }
+.dgv-daily-song-checks > div > span { width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center; }
+.dgv-daily-song-checks .good > span { background:rgba(42,245,152,.11); color:#2af598; }
+.dgv-daily-song-checks .bad > span { background:rgba(255,72,122,.10); color:#ff527d; }
+.dgv-daily-song-checks small { display:block; color:#817b91; font-family:'Space Mono',monospace; font-size:8px; letter-spacing:.12em; margin-bottom:4px; }
+.dgv-daily-song-checks strong { display:block; max-width:250px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#f4f1fa; font-size:12px; }
+.dgv-daily-song-rewards {
+  margin:16px 0;
+  min-height:54px;
+  border-radius:14px;
+  border:1px solid rgba(82,215,255,.17);
+  background:rgba(5,9,25,.66);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:28px;
+  color:#9d97ab;
+  font-size:11px;
+}
+.dgv-daily-song-rewards strong { color:#5ee7ff; }
+
+@media (max-width:1450px) {
+  .dgv-daily-song-grid { grid-template-columns:minmax(370px,.86fr) minmax(500px,1.14fr); }
+  .dgv-daily-song-audio,.dgv-daily-song-guess { min-height:590px; }
+  .dgv-daily-song-guess h1 { font-size:54px; }
+}

@@ -15,7 +15,7 @@ import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
 import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId, fuzzyMatch } from "./utils.js";
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
-import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, awardXp, xpForLevel, levelFromXp, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag, getWeeklyChallenges, bumpWeeklyChallengeProgress, claimWeeklyChallenge } from "./stats.js";
+import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, getLeaderboardPosition, awardXp, xpForLevel, levelFromXp, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag, getWeeklyChallenges, bumpWeeklyChallengeProgress, claimWeeklyChallenge } from "./stats.js";
 import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss, incrementSongPlayCount, getSongCount, migrateRarityForExistingSongs } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
 import { heartbeat, clearPresence, getOnlinePlayers } from "./presence.js";
@@ -100,6 +100,7 @@ import {
   DesktopPracticeResultView,
   DesktopDailyPlaylistHubView,
   DesktopDailyPlaylistResultView,
+  DesktopDailySongView,
 } from "./DesktopGameViews.jsx";
 import "./desktop-game.css";
 
@@ -659,6 +660,7 @@ export default function App() {
   const [leaderboardSort, setLeaderboardSort] = useState("gamesWon"); // "gamesWon" | "guessesCorrect"
   const [viewingPlayer, setViewingPlayer] = useState(null); // { uid, username, stats }
   const [leaderboard, setLeaderboard] = useState(null);
+  const [leaderboardPosition, setLeaderboardPosition] = useState(null);
 
   const [librarySongs, setLibrarySongs] = useState(null); // null = jeszcze nie sprawdzono
   const [showAdminLogin, setShowAdminLogin] = useState(false);
@@ -851,11 +853,13 @@ export default function App() {
     if (screen !== "lobby" || !room?.players) return;
     const authedPlayers = room.players.filter((p) => p.authed);
     Promise.all(
-      authedPlayers.map((p) =>
-        getStats(p.id)
+      authedPlayers.map((p) => {
+        const statsUid = p.uid || (p.id === playerId ? user?.uid : null);
+        if (!statsUid) return Promise.resolve([p.id, 0]);
+        return getStats(statsUid)
           .then((s) => [p.id, s?.xp || 0])
-          .catch(() => [p.id, 0])
-      )
+          .catch(() => [p.id, 0]);
+      })
     ).then((entries) => {
       setPlayerLevels((prev) => ({ ...prev, ...Object.fromEntries(entries) }));
     });
@@ -865,8 +869,8 @@ export default function App() {
   useEffect(() => {
     if (!playerId) return;
     const displayName = name || user?.displayName || "Gracz";
-    heartbeat(playerId, displayName, user?.uid);
-    const id = setInterval(() => heartbeat(playerId, displayName, user?.uid), 25000);
+    heartbeat(playerId, displayName, user?.uid, stats?.avatarUrl || null);
+    const id = setInterval(() => heartbeat(playerId, displayName, user?.uid, stats?.avatarUrl || null), 25000);
     const clear = () => clearPresence(playerId);
     window.addEventListener("beforeunload", clear);
     return () => {
@@ -874,7 +878,7 @@ export default function App() {
       window.removeEventListener("beforeunload", clear);
       clear();
     };
-  }, [playerId, user?.uid]);
+  }, [playerId, user?.uid, stats?.avatarUrl]);
 
   useEffect(() => {
     getOnlinePlayers().then(setOnlinePlayers);
@@ -1029,13 +1033,34 @@ export default function App() {
       const s = await getStats(user.uid);
       const alreadyPlayed = s?.dailyLastResult?.dayKey === dayKey;
       setDailyAlreadyPlayed(alreadyPlayed);
-      setDailyResult(alreadyPlayed ? s.dailyLastResult : null);
+      setDailyResult(alreadyPlayed ? {
+        ...s.dailyLastResult,
+        streak: s?.dailyStreak || 0,
+        xpEarned: 10 + Number(s?.dailyLastResult?.score || 0) * 15,
+      } : null);
       setShowDailySong(true);
     } catch (e) {
       setError("Nie udało się wczytać Piosenki dnia: " + e.message);
     } finally {
       setDailyBusy(false);
     }
+  }
+
+  async function enrichPlayerRows(rows = []) {
+    return Promise.all((rows || []).map(async (row) => {
+      if (!row?.uid) return row;
+      try {
+        const profileStats = await getStats(row.uid);
+        return {
+          ...row,
+          avatarUrl: row.avatarUrl || profileStats?.avatarUrl || null,
+          username: row.username || profileStats?.username || row.name || "Gracz",
+          xp: row.xp ?? profileStats?.xp ?? 0,
+        };
+      } catch (e) {
+        return row;
+      }
+    }));
   }
 
   async function openDailyPlaylistHub() {
@@ -1055,9 +1080,14 @@ export default function App() {
         fetchAllTimePlaylistLeaderboard(10),
       ]);
       setDailyPlaylistAlreadyPlayed(already);
-      setDailyPlaylistDailyBoard(daily);
-      setDailyPlaylistWeeklyBoard(weekly);
-      setDailyPlaylistAllTimeBoard(allTime);
+      const [dailyWithProfiles, weeklyWithProfiles, allTimeWithProfiles] = await Promise.all([
+        enrichPlayerRows(daily),
+        enrichPlayerRows(weekly),
+        enrichPlayerRows(allTime),
+      ]);
+      setDailyPlaylistDailyBoard(dailyWithProfiles);
+      setDailyPlaylistWeeklyBoard(weeklyWithProfiles);
+      setDailyPlaylistAllTimeBoard(allTimeWithProfiles);
       setScreen("dailyPlaylistHub");
     } catch (e) {
       setError("Nie udało się wczytać Playlisty dnia: " + e.message);
@@ -1076,7 +1106,7 @@ export default function App() {
       const code = generateRoomCode();
       const ref = doc(db, "rooms", code);
       const deck = dailyPlaylistSongs;
-      const me = { id: playerId, name: name.trim() || user.displayName || "Gracz", authed: true };
+      const me = { id: playerId, uid: user.uid, name: name.trim() || user.displayName || "Gracz", authed: true, avatarUrl: stats?.avatarUrl || null };
       await setDoc(ref, {
         code,
         hostId: playerId,
@@ -1214,7 +1244,7 @@ export default function App() {
       const code = generateRoomCode();
       const ref = doc(db, "rooms", code);
       const deck = match.playlist;
-      const me = { id: playerId, name: name.trim() || user.displayName || "Gracz", authed: true };
+      const me = { id: playerId, uid: user.uid, name: name.trim() || user.displayName || "Gracz", authed: true, avatarUrl: stats?.avatarUrl || null };
       await setDoc(ref, {
         code,
         hostId: playerId,
@@ -1815,6 +1845,18 @@ export default function App() {
     return () => unsub();
   }, []);
 
+  useEffect(() => {
+    if (!user?.uid) {
+      setLeaderboardPosition(null);
+      return;
+    }
+    let cancelled = false;
+    getLeaderboardPosition(user.uid, "gamesWon")
+      .then((position) => { if (!cancelled) setLeaderboardPosition(position); })
+      .catch(() => { if (!cancelled) setLeaderboardPosition(null); });
+    return () => { cancelled = true; };
+  }, [user?.uid, stats?.gamesWon]);
+
   async function handleAuthSubmit() {
     if (!authUsername.trim() || !authPassword) {
       setAuthError("Podaj login i hasło.");
@@ -2128,12 +2170,13 @@ export default function App() {
   }
 
   async function viewPlayerProfile(p) {
+    if (!p?.uid) return;
     const s = await getStats(p.uid);
     // Dociągamy żywą bibliotekę (nie effectivePool, które przy pierwszej wizycie
     // w appce cicho spada do starej wbudowanej listy bez przypisanej rzadkości) -
     // potrzebna do policzenia "ile ogółem" utworów jest w każdej rzadkości.
     getLiveLibraryPool();
-    setViewingPlayer({ uid: p.uid, username: p.username, stats: s });
+    setViewingPlayer({ uid: p.uid, username: p.username || p.name || s?.username || "Gracz", stats: s });
   }
 
   async function handleSpinDailyWheel() {
@@ -2336,7 +2379,7 @@ export default function App() {
         processHitRushWeeklyRewardsIfNeeded().catch((e) => console.error("Błąd rozliczania nagród tygodniowych Hit Rush:", e));
       }
       const list = await fetchHitRushLeaderboard(period);
-      setHitRushLeaderboard(list);
+      setHitRushLeaderboard(await enrichPlayerRows(list));
     } catch (e) {
       console.error(`Błąd ładowania rankingu Hit Rush (${period}):`, e);
       setHitRushLeaderboard([]);
@@ -2620,7 +2663,7 @@ export default function App() {
         hostId: playerId,
         target: 10,
         status: "lobby",
-        players: [{ id: playerId, name: name.trim(), authed: !!user }],
+        players: [{ id: playerId, uid: user?.uid || null, name: name.trim(), authed: !!user, avatarUrl: stats?.avatarUrl || null }],
         deck: [],
         deckIndex: 0,
         currentPlayerId: null,
@@ -2652,7 +2695,7 @@ export default function App() {
       hostId: playerId,
       target: 10,
       status: "lobby",
-      players: [{ id: playerId, name: name.trim() || user?.displayName || "Gracz", authed: !!user }],
+      players: [{ id: playerId, uid: user?.uid || null, name: name.trim() || user?.displayName || "Gracz", authed: !!user, avatarUrl: stats?.avatarUrl || null }],
       deck: [],
       deckIndex: 0,
       currentPlayerId: null,
@@ -2690,7 +2733,7 @@ export default function App() {
       const code = generateRoomCode();
       const ref = doc(db, "rooms", code);
       const deck = shuffle(pool).slice(0, needed);
-      const me = { id: playerId, name: name.trim() || user?.displayName || "Gracz", authed: !!user };
+      const me = { id: playerId, uid: user?.uid || null, name: name.trim() || user?.displayName || "Gracz", authed: !!user, avatarUrl: stats?.avatarUrl || null };
       await setDoc(ref, {
         code,
         hostId: playerId,
@@ -2747,7 +2790,7 @@ export default function App() {
         const data = snap.data();
         const already = data.players.some((p) => p.id === playerId);
         if (!already) {
-          tx.update(ref, { players: [...data.players, { id: playerId, name: name.trim(), authed: !!user }] });
+          tx.update(ref, { players: [...data.players, { id: playerId, uid: user?.uid || null, name: name.trim(), authed: !!user, avatarUrl: stats?.avatarUrl || null }] });
         }
       });
       setRoomId(code);
@@ -4272,6 +4315,30 @@ export default function App() {
   const useDesktopSessionViews = viewportWidth >= 1280;
   const useDesktopRedesign = viewportWidth >= 1280 && screen === "home";
 
+  if (useDesktopSessionViews && screen === "home" && showDailySong && dailySong) {
+    return (
+      <DesktopDailySongView
+        song={dailySong}
+        alreadyPlayed={dailyAlreadyPlayed}
+        result={dailyResult}
+        isPlaying={dailyIsPlaying}
+        playElapsed={dailyPlayElapsed}
+        playCapSeconds={PLAY_CAP_SECONDS}
+        iframeRef={dailyIframeRef}
+        onTogglePlay={toggleDailyPlay}
+        guessArtist={dailyGuessArtist}
+        setGuessArtist={setDailyGuessArtist}
+        guessTitle={dailyGuessTitle}
+        setGuessTitle={setDailyGuessTitle}
+        guessYear={dailyGuessYear}
+        setGuessYear={setDailyGuessYear}
+        busy={dailyBusy}
+        onSubmit={submitDailyGuess}
+        onHome={closeDailySong}
+      />
+    );
+  }
+
   if (useDesktopSessionViews && screen === "practiceSetup") {
     return (
       <DesktopPracticeSetupView
@@ -4298,6 +4365,10 @@ export default function App() {
         busy={busy || dailyPlaylistBusy}
         onStart={startDailyPlaylistGame}
         onHome={() => setScreen("home")}
+        onViewProfile={viewPlayerProfile}
+        viewingPlayer={viewingPlayer}
+        onCloseProfile={() => setViewingPlayer(null)}
+        levelFromXp={levelFromXp}
       />
     );
   }
@@ -4483,7 +4554,12 @@ export default function App() {
         worstArtists={desktopArtistPerformance.worst}
         leaderboard={leaderboard}
         leaderboardSort={leaderboardSort}
+        leaderboardPosition={leaderboardPosition}
         onLoadLeaderboard={loadDesktopLeaderboard}
+        viewingPlayer={viewingPlayer}
+        onViewProfile={viewPlayerProfile}
+        onCloseProfile={() => setViewingPlayer(null)}
+        levelFromXp={levelFromXp}
         packConfigs={PACKS}
         packBusy={packShopBusy}
         packOpenResult={packOpenResult}
@@ -6578,6 +6654,9 @@ export default function App() {
                     <div key={entry.uid} className="flex items-center justify-between text-sm" style={{ padding: "6px 4px", borderBottom: "1px solid #1a1428" }}>
                       <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{ width: 24, textAlign: "center" }}>{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}</span>
+                        <span style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, background: entry.avatarUrl ? `url(${entry.avatarUrl}) center/cover no-repeat` : "linear-gradient(135deg,#9a47ff,#32d8ff)", border: "1px solid rgba(255,255,255,.22)" }}>
+                          {!entry.avatarUrl ? (entry.name || "G").slice(0, 1).toUpperCase() : null}
+                        </span>
                         {entry.name}
                       </span>
                       <span style={{ color: "var(--gold)", fontWeight: "bold" }}>{entry.score} pkt</span>

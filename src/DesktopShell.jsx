@@ -256,6 +256,43 @@ function HeaderBar({ onlineCount, level, xpText, musicCount, hitcoin, avatarUrl,
   );
 }
 
+export function DesktopPlayerProfileModal({ profile, onClose, levelFromXp }) {
+  if (!profile) return null;
+  const playerStats = profile.stats || {};
+  const levelInfo = levelFromXp ? levelFromXp(playerStats.xp || 0) : null;
+  const winRate = playerStats.gamesPlayed ? Math.round(((playerStats.gamesWon || 0) / playerStats.gamesPlayed) * 100) : 0;
+  const accuracy = playerStats.cardsTotal ? Math.round(((playerStats.cardsCorrect || 0) / playerStats.cardsTotal) * 100) : 0;
+  const collectionCount = Object.keys(playerStats.cardCollection || {}).length;
+  return (
+    <div className="desk-profile-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+      <section className="desk-profile-modal" onClick={(event) => event.stopPropagation()}>
+        <button type="button" className="desk-profile-close" onClick={onClose}>×</button>
+        <div className="desk-profile-head">
+          <div className="desk-profile-avatar" style={playerStats.avatarUrl ? { backgroundImage: `url(${playerStats.avatarUrl})` } : undefined}>{!playerStats.avatarUrl ? initials(profile.username || 'G') : null}</div>
+          <div>
+            <span>PROFIL GRACZA</span>
+            <h2>{profile.username || playerStats.username || 'Gracz'}</h2>
+            <p>{levelInfo ? `LVL ${levelInfo.level} · ${playerStats.xp || 0} XP` : `${playerStats.xp || 0} XP`}</p>
+          </div>
+        </div>
+        <div className="desk-profile-metrics">
+          <div><span>ROZEGRANE</span><strong>{formatCompact(playerStats.gamesPlayed || 0)}</strong></div>
+          <div><span>WYGRANE</span><strong>{formatCompact(playerStats.gamesWon || 0)}</strong></div>
+          <div><span>% WYGRANYCH</span><strong>{winRate}%</strong></div>
+          <div><span>TRAFNOŚĆ KART</span><strong>{accuracy}%</strong></div>
+          <div><span>REKORDOWA SERIA</span><strong>{formatCompact(playerStats.longestStreak || 0)}</strong></div>
+          <div><span>KOLEKCJA</span><strong>{formatCompact(collectionCount)}</strong></div>
+        </div>
+        <div className="desk-profile-secondary">
+          <div><span>ZGADNIĘTE TYTUŁY / WYKONAWCY</span><strong>{formatCompact(playerStats.guessesCorrect || 0)}</strong></div>
+          <div><span>PLAYLISTA DNIA</span><strong>{formatCompact(playerStats.playlistTotalScore || 0)} pkt</strong></div>
+          <div><span>HIT RUSH</span><strong>{formatCompact(playerStats.hitRushBestScore || 0)} pkt</strong></div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function DesktopHomeView(props) {
   const {
     user,
@@ -382,7 +419,7 @@ export function DesktopHomeView(props) {
               <DesktopStatCard icon={glKolekcja} label="KOLEKCJA" value={`${collectionCount}/${songPoolSize}`} note="Utworów odblokowanych" action="ZOBACZ KOLEKCJĘ" onClick={onAlbum} />
               <DesktopStatCard icon={glMedal} label="OSIĄGNIĘCIA" value={`${weeklySummary?.achievementClaimed || 0}/${totalAchievements}`} note="Odblokowanych" action="ZOBACZ OSIĄGNIĘCIA" onClick={onAchievements} />
               <DesktopStatCard icon={glStatystyki} label="STATYSTYKI" value={winRate} note="Śr. dokładność" action="ZOBACZ STATYSTYKI" onClick={onStats} />
-              <DesktopStatCard icon={glKorona} label="RANKING" value={`#${formatCompact(stats?.bestRank || 1248)}`} note="Twoja pozycja" accent="gold" action="ZOBACZ RANKING" onClick={onLeaderboard} />
+              <DesktopStatCard icon={glKorona} label="RANKING" value={props.leaderboardPosition ? `#${formatCompact(props.leaderboardPosition)}` : "—"} note="Twoja pozycja" accent="gold" action="ZOBACZ RANKING" onClick={onLeaderboard} />
               <DesktopStatCard icon={glKoszyk} label="SKLEP" value="Nowe przedmioty!" note="Sprawdź oferty i odblokuj" accent="cyan" action="PRZEJDŹ DO SKLEPU" onClick={onShop} />
               <DesktopStatCard icon={glOsoba} label="SPOŁECZNOŚĆ" value={`${onlinePlayers.length}`} note="Graczy online" accent="pink" action="ZOBACZ SPOŁECZNOŚĆ" onClick={onCommunity} />
             </div>
@@ -395,7 +432,16 @@ export function DesktopHomeView(props) {
             <DesktopRailCard icon={<Users size={20} />} title="ZNAJOMI ONLINE" value={`${onlinePlayers.length} aktywnych`} desc={onlinePlayers.length ? 'Dołącz do społeczności' : 'Nikt poza Tobą nie gra w tej chwili.'} accent="cyan">
               <div className="desk-online-row">
                 {onlinePlayers.slice(0, 5).map((player, index) => (
-                  <div key={player.id || player.uid || index} className="desk-online-avatar">{initials(player.username || player.name || 'G')}</div>
+                  <button
+                    type="button"
+                    key={player.id || player.uid || index}
+                    className="desk-online-avatar"
+                    style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}
+                    onClick={() => player.uid && props.onViewProfile?.(player)}
+                    title={player.uid ? `Profil: ${player.name || player.username || 'Gracz'}` : (player.name || 'Gracz')}
+                  >
+                    {!player.avatarUrl ? initials(player.username || player.name || 'G') : null}
+                  </button>
                 ))}
                 {onlinePlayers.length > 5 ? <div className="desk-online-avatar more">+{onlinePlayers.length - 5}</div> : null}
               </div>
@@ -703,7 +749,7 @@ function DesktopAchievementsView({ common, progress, onClaim }) {
   );
 }
 
-function DesktopLeaderboardView({ common, leaderboard, sortBy, onSort }) {
+function DesktopLeaderboardView({ common, leaderboard, sortBy, onSort, onViewProfile }) {
   useEffect(() => {
     if (!leaderboard) onSort(sortBy || 'gamesWon');
   }, []); // intentional: load once on entry
@@ -723,17 +769,17 @@ function DesktopLeaderboardView({ common, leaderboard, sortBy, onSort }) {
           ) : (
             <div className="desk-ranking-list">
               {leaderboard.map((player, index) => (
-                <div key={player.uid || index} className={`desk-ranking-row rank-${index + 1}`}>
+                <button type="button" key={player.uid || index} className={`desk-ranking-row rank-${index + 1}`} onClick={() => player.uid && onViewProfile?.(player)}>
                   <div className="desk-ranking-position">{index < 3 ? ['🥇','🥈','🥉'][index] : `#${index + 1}`}</div>
                   <div className="desk-ranking-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.username || 'G') : null}</div>
                   <div className="desk-ranking-user">
                     <strong>{player.username || 'Gracz'}</strong>
-                    <span>LVL {player.xp ? Math.max(1, Math.floor(Math.sqrt(player.xp / 75)) + 1) : 1}</span>
+                    <span>LVL {player.xp ? Math.max(1, Math.floor(Math.sqrt(player.xp / 75)) + 1) : 1} · kliknij profil</span>
                   </div>
                   <div className="desk-ranking-score">
                     {sortBy === 'gamesWon' ? `${formatCompact(player.gamesWon || 0)} wygranych` : `${formatCompact(player.guessesCorrect || 0)} trafień`}
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -902,7 +948,7 @@ function DesktopShopView({ common, hitcoin, packConfigs, busy, openResult, onBuy
   );
 }
 
-function DesktopCommunityView({ common, onlinePlayers, challengeSentTo, challengeBusy, onChallenge }) {
+function DesktopCommunityView({ common, onlinePlayers, challengeSentTo, challengeBusy, onChallenge, onViewProfile }) {
   return (
     <DesktopLayout active="community" {...common}>
       <HeaderBar {...common.header} />
@@ -916,8 +962,10 @@ function DesktopCommunityView({ common, onlinePlayers, challengeSentTo, challeng
                 const pending = challengeSentTo?.uid === player.uid;
                 return (
                   <div key={player.playerId || player.uid || index} className="desk-community-card">
-                    <div className="desk-community-avatar">{initials(player.name || player.username || 'G')}</div>
-                    <div className="desk-community-copy"><strong>{player.name || player.username || 'Gracz'}</strong><span>🟢 online</span></div>
+                    <button type="button" className="desk-community-profile" disabled={!player.uid} onClick={() => player.uid && onViewProfile?.(player)}>
+                      <div className="desk-community-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.name || player.username || 'G') : null}</div>
+                      <div className="desk-community-copy"><strong>{player.name || player.username || 'Gracz'}</strong><span>🟢 online · {player.uid ? 'zobacz profil' : 'gość'}</span></div>
+                    </button>
                     {player.uid ? <button disabled={challengeBusy || pending} onClick={() => onChallenge(player)}>{pending ? 'WYZWANIE WYSŁANE' : 'WYZWIJ 1V1'}</button> : null}
                   </div>
                 );
@@ -1004,12 +1052,20 @@ export function DesktopAppView(props) {
     onPropose: () => setSection('propose'),
   };
 
-  if (section === 'stats') return <DesktopStatsView {...props} {...common} />;
-  if (section === 'achievements') return <DesktopAchievementsView common={common} progress={props.achievementProgress || []} onClaim={props.onClaimAchievement} />;
-  if (section === 'ranking') return <DesktopLeaderboardView common={common} leaderboard={props.leaderboard} sortBy={props.leaderboardSort} onSort={props.onLoadLeaderboard} />;
-  if (section === 'collection') return <DesktopCollectionView common={common} songs={props.songs} stats={props.stats} libraryLoading={props.libraryLoading} songPoolSize={props.songPoolSize} />;
-  if (section === 'shop') return <DesktopShopView common={common} hitcoin={props.hitcoin} packConfigs={props.packConfigs} busy={props.packBusy} openResult={props.packOpenResult} onBuy={props.onBuyPack} onClearResult={props.onClearPackResult} />;
-  if (section === 'community') return <DesktopCommunityView common={common} onlinePlayers={props.onlinePlayers} challengeSentTo={props.challengeSentTo} challengeBusy={props.challengeBusy} onChallenge={props.onChallenge} />;
-  if (section === 'propose') return <DesktopProposeView common={common} draft={props.proposeDraft} setDraft={props.setProposeDraft} categories={props.categories} onToggleCategory={props.onToggleProposeCategory} onSubmit={props.onSubmitProposal} busy={props.proposeBusy} error={props.proposeError} success={props.proposeSuccess} />;
-  return <DesktopHomeView {...localHomeProps} />;
+  let view;
+  if (section === 'stats') view = <DesktopStatsView {...props} {...common} />;
+  else if (section === 'achievements') view = <DesktopAchievementsView common={common} progress={props.achievementProgress || []} onClaim={props.onClaimAchievement} />;
+  else if (section === 'ranking') view = <DesktopLeaderboardView common={common} leaderboard={props.leaderboard} sortBy={props.leaderboardSort} onSort={props.onLoadLeaderboard} onViewProfile={props.onViewProfile} />;
+  else if (section === 'collection') view = <DesktopCollectionView common={common} songs={props.songs} stats={props.stats} libraryLoading={props.libraryLoading} songPoolSize={props.songPoolSize} />;
+  else if (section === 'shop') view = <DesktopShopView common={common} hitcoin={props.hitcoin} packConfigs={props.packConfigs} busy={props.packBusy} openResult={props.packOpenResult} onBuy={props.onBuyPack} onClearResult={props.onClearPackResult} />;
+  else if (section === 'community') view = <DesktopCommunityView common={common} onlinePlayers={props.onlinePlayers} challengeSentTo={props.challengeSentTo} challengeBusy={props.challengeBusy} onChallenge={props.onChallenge} onViewProfile={props.onViewProfile} />;
+  else if (section === 'propose') view = <DesktopProposeView common={common} draft={props.proposeDraft} setDraft={props.setProposeDraft} categories={props.categories} onToggleCategory={props.onToggleProposeCategory} onSubmit={props.onSubmitProposal} busy={props.proposeBusy} error={props.proposeError} success={props.proposeSuccess} />;
+  else view = <DesktopHomeView {...localHomeProps} />;
+
+  return (
+    <>
+      {view}
+      <DesktopPlayerProfileModal profile={props.viewingPlayer} onClose={props.onCloseProfile} levelFromXp={props.levelFromXp} />
+    </>
+  );
 }

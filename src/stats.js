@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, updateDoc, increment, arrayUnion, collection, query, orderBy, limit, getDocs, runTransaction } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, increment, arrayUnion, collection, query, orderBy, limit, getDocs, runTransaction, where } from "firebase/firestore";
 import { db } from "./firebase-config.js";
 
 export function decadeLabel(year) {
@@ -308,6 +308,18 @@ export async function getLeaderboard(count = 10, sortBy = "gamesWon") {
   const q = query(collection(db, "userStats"), orderBy(sortBy, "desc"), limit(count));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+}
+
+// Rzeczywista pozycja gracza w rankingu. Liczymy ilu graczy ma wynik
+// większy od bieżącego użytkownika, więc remis daje tę samą pozycję.
+export async function getLeaderboardPosition(uid, sortBy = "gamesWon") {
+  if (!uid) return null;
+  const ownSnap = await getDoc(doc(db, "userStats", uid));
+  if (!ownSnap.exists()) return null;
+  const ownValue = Number(ownSnap.data()?.[sortBy] || 0);
+  const q = query(collection(db, "userStats"), where(sortBy, ">", ownValue));
+  const higher = await getDocs(q);
+  return higher.size + 1;
 }
 
 // ============================================================

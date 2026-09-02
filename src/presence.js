@@ -6,10 +6,10 @@ const COLLECTION = "presence";
 // Każdy klient odświeża swój wpis co jakiś czas, dopóki appka jest otwarta.
 // `uid` (jeśli zalogowany) jest potrzebne, żeby wiedzieć kogo można wyzwać
 // na pojedynek 1v1 (wymaga konta z obu stron).
-export async function heartbeat(playerId, name, uid) {
+export async function heartbeat(playerId, name, uid, avatarUrl = null) {
   try {
     const ref = doc(db, COLLECTION, playerId);
-    await setDoc(ref, { name: name || "Gracz", lastSeen: serverTimestamp(), uid: uid || null });
+    await setDoc(ref, { name: name || "Gracz", lastSeen: serverTimestamp(), uid: uid || null, avatarUrl: avatarUrl || null });
   } catch (e) {
     // ciche niepowodzenie — licznik online to funkcja poglądowa, nie krytyczna
   }
