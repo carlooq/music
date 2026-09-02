@@ -92,6 +92,14 @@ import cardPlatynaImg from "./assets/icons/card-platynowa.webp";
 import cardDiamentImg from "./assets/icons/card-diamentowa.webp";
 import { DesktopAppView } from "./DesktopShell.jsx";
 import "./desktop-shell.css";
+import {
+  DesktopLobbyView,
+  DesktopOpenerView,
+  DesktopPlayingView,
+  DesktopDailyPlaylistHubView,
+  DesktopDailyPlaylistResultView,
+} from "./DesktopGameViews.jsx";
+import "./desktop-game.css";
 
 // 👉 PODMIEŃ TO NA SWOJE WŁASNE HASŁO trybu admina
 const ADMIN_PASSWORD = "zmien-to-haslo-123";
@@ -3544,7 +3552,131 @@ export default function App() {
   const desktopBestDecades = [...desktopDecadesWithGames].sort((a, b) => b.pct - a.pct || a.label.localeCompare(b.label)).slice(0, 4);
   const desktopWorstDecades = [...desktopDecadesWithGames].sort((a, b) => a.pct - b.pct || a.label.localeCompare(b.label)).slice(0, 4);
   const desktopArtistPerformance = stats ? topArtists(stats, 5, 2) : { best: [], worst: [] };
+  const useDesktopSessionViews = viewportWidth >= 1280;
   const useDesktopRedesign = viewportWidth >= 1280 && screen === "home" && !showAdminPanel && !showAdminLogin;
+
+  if (useDesktopSessionViews && screen === "dailyPlaylistHub") {
+    return (
+      <DesktopDailyPlaylistHubView
+        alreadyPlayed={dailyPlaylistAlreadyPlayed}
+        dailyBoard={dailyPlaylistDailyBoard}
+        weeklyBoard={dailyPlaylistWeeklyBoard}
+        allTimeBoard={dailyPlaylistAllTimeBoard}
+        busy={busy || dailyPlaylistBusy}
+        onStart={startDailyPlaylistGame}
+        onHome={() => setScreen("home")}
+      />
+    );
+  }
+
+  if (useDesktopSessionViews && screen === "lobby" && room) {
+    return (
+      <DesktopLobbyView
+        room={room}
+        roomId={roomId}
+        playerId={playerId}
+        isHost={isHost}
+        copied={copied}
+        onCopy={copyCode}
+        onLeave={leaveRoom}
+        target={target}
+        setTarget={setTarget}
+        selectedCategories={selectedCategories}
+        categories={CATEGORIES}
+        onToggleCategory={toggleCategory}
+        songPool={effectivePool}
+        busy={busy}
+        onStart={beginGame}
+        onKick={(player) => {
+          if (window.confirm(`Wyrzucić gracza ${player.name} z pokoju?`)) kickPlayer(player.id);
+        }}
+        playerLevels={playerLevels}
+        levelFromXp={levelFromXp}
+      />
+    );
+  }
+
+  if (useDesktopSessionViews && screen === "opener" && room?.openerCard) {
+    return (
+      <DesktopOpenerView
+        room={room}
+        openerPhase={openerPhase}
+        openerCountdownNum={openerCountdownNum}
+        isPlaying={isPlaying}
+        playElapsed={playElapsed}
+        playCapSeconds={PLAY_CAP_SECONDS}
+        iframeRef={iframeRef}
+        onTogglePlay={togglePlay}
+        openerLockedOut={openerLockedOut}
+        setOpenerLockedOut={setOpenerLockedOut}
+        onAnswer={answerOpener}
+        openerRevealCountdown={openerRevealCountdown}
+        onLeave={leaveRoom}
+      />
+    );
+  }
+
+  if (
+    useDesktopSessionViews &&
+    (screen === "playing" || screen === "voting" || screen === "roundResult") &&
+    room?.currentCard
+  ) {
+    return (
+      <DesktopPlayingView
+        screen={screen}
+        room={room}
+        playerId={playerId}
+        isMyTurn={isMyTurn}
+        turnPlayerName={turnPlayerName}
+        decisionLeft={decisionLeft}
+        playElapsed={playElapsed}
+        playCapSeconds={PLAY_CAP_SECONDS}
+        isPlaying={isPlaying}
+        iframeRef={iframeRef}
+        onTogglePlay={togglePlay}
+        guessArtist={guessArtist}
+        setGuessArtist={setGuessArtist}
+        guessTitle={guessTitle}
+        setGuessTitle={setGuessTitle}
+        onSwapSong={swapSong}
+        onBuyCard={buyCard}
+        swapCost={SWAP_SONG_TOKENS}
+        buyCost={BUY_CARD_TOKENS}
+        chosenSlot={chosenSlot}
+        setChosenSlot={setChosenSlot}
+        turnTimeline={turnTimeline}
+        viewedTimeline={viewedTimeline}
+        displayedPlayerId={displayedPlayerId}
+        displayedPlayerName={displayedPlayerName}
+        setViewedPlayerId={setViewedPlayerId}
+        onConfirmPlacement={confirmPlacement}
+        busy={busy}
+        playerLevels={playerLevels}
+        levelFromXp={levelFromXp}
+        votingCountdown={votingCountdown}
+        onVote={castVote}
+        advanceCountdown={advanceCountdown}
+        onLeave={leaveRoom}
+        chatInput={chatInput}
+        setChatInput={setChatInput}
+        onSendChat={sendChatMessage}
+      />
+    );
+  }
+
+  if (useDesktopSessionViews && screen === "gameover" && room?.dailyPlaylistMode) {
+    return (
+      <DesktopDailyPlaylistResultView
+        room={room}
+        playerId={playerId}
+        onBackToRankings={() => {
+          leaveRoom();
+          setTimeout(() => openDailyPlaylistHub(), 80);
+        }}
+        onLeave={leaveRoom}
+      />
+    );
+  }
 
   async function loadDesktopLeaderboard(sortBy = "gamesWon") {
     setLeaderboardSort(sortBy);
