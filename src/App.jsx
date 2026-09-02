@@ -96,6 +96,8 @@ import {
   DesktopLobbyView,
   DesktopOpenerView,
   DesktopPlayingView,
+  DesktopPracticeSetupView,
+  DesktopPracticeResultView,
   DesktopDailyPlaylistHubView,
   DesktopDailyPlaylistResultView,
 } from "./DesktopGameViews.jsx";
@@ -3555,6 +3557,22 @@ export default function App() {
   const useDesktopSessionViews = viewportWidth >= 1280;
   const useDesktopRedesign = viewportWidth >= 1280 && screen === "home" && !showAdminPanel && !showAdminLogin;
 
+  if (useDesktopSessionViews && screen === "practiceSetup") {
+    return (
+      <DesktopPracticeSetupView
+        practiceTarget={practiceTarget}
+        setPracticeTarget={setPracticeTarget}
+        selectedCategories={selectedCategories}
+        categories={CATEGORIES}
+        onToggleCategory={toggleCategory}
+        songPool={effectivePool}
+        busy={busy}
+        onStart={startPractice}
+        onHome={() => setScreen("home")}
+      />
+    );
+  }
+
   if (useDesktopSessionViews && screen === "dailyPlaylistHub") {
     return (
       <DesktopDailyPlaylistHubView
@@ -3660,6 +3678,20 @@ export default function App() {
         chatInput={chatInput}
         setChatInput={setChatInput}
         onSendChat={sendChatMessage}
+      />
+    );
+  }
+
+  if (useDesktopSessionViews && screen === "gameover" && room?.practiceMode) {
+    return (
+      <DesktopPracticeResultView
+        room={room}
+        playerId={playerId}
+        onAgain={() => {
+          leaveRoom();
+          setTimeout(() => setScreen("practiceSetup"), 80);
+        }}
+        onHome={leaveRoom}
       />
     );
   }

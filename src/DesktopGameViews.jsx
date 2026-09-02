@@ -30,6 +30,7 @@ import homeBg from './assets/home/bg.jpg';
 import heroBanner from './assets/home/hero-banner.webp';
 import iconToken from './assets/icons/icon-token.png';
 import glPlaylista from './assets/icons/gl-playlista.png';
+import glTrening from './assets/icons/gl-trening.png';
 import glKorona from './assets/icons/gl-korona.png';
 import glPrezent from './assets/icons/gl-prezent.png';
 
@@ -90,6 +91,81 @@ function PlayerBadge({ player, hostId, myId, level, active, score, tokenCount, o
         >WYRZUĆ</span>
       ) : null}
     </button>
+  );
+}
+
+
+export function DesktopPracticeSetupView({
+  practiceTarget,
+  setPracticeTarget,
+  selectedCategories,
+  categories,
+  onToggleCategory,
+  songPool,
+  busy,
+  onStart,
+  onHome,
+}) {
+  const activeFilter = !selectedCategories.includes('wszystkie') && selectedCategories.length > 0;
+  const normalized = (values) => (values || []).map((v) => String(v || '').trim().toLowerCase());
+  const playableCount = activeFilter
+    ? songPool.filter((song) => normalized(song.categories).some((c) => selectedCategories.includes(c))).length
+    : songPool.filter((song) => !normalized(song.categories).includes('religijne')).length;
+
+  return (
+    <SessionBackground className="dgv-practice-setup">
+      <div className="dgv-shell">
+        <SessionHeader eyebrow="TRYB SOLO" title="TRENING" onBack={onHome} backLabel="Strona główna" />
+
+        <section className="dgv-practice-hero dgv-panel">
+          <div className="dgv-practice-hero-copy">
+            <img src={glTrening} alt="" />
+            <div>
+              <div className="dgv-eyebrow">TRENING BEZ PRESJI</div>
+              <h1>ĆWICZ OŚ CZASU.<br /><span>BIJ WŁASNY WYNIK.</span></h1>
+              <p>Grasz solo. Słuchasz utworu, wybierasz jego miejsce na osi czasu i od razu przechodzisz do kolejnej karty.</p>
+            </div>
+          </div>
+          <div className="dgv-practice-hero-stats">
+            <div><strong>{playableCount}</strong><span>utworów w puli</span></div>
+            <div><strong>{practiceTarget || 15}</strong><span>kart do zebrania</span></div>
+          </div>
+        </section>
+
+        <div className="dgv-practice-grid">
+          <section className="dgv-panel dgv-practice-target-panel">
+            <div className="dgv-section-heading"><Gamepad2 size={19} /> CEL TRENINGU</div>
+            <p className="dgv-practice-lead">Ile poprawnie ułożonych kart chcesz zebrać, aby zakończyć sesję?</p>
+            <div className="dgv-practice-target-value">{practiceTarget || 15}</div>
+            <div className="dgv-stepper large">
+              <button type="button" onClick={() => setPracticeTarget(Math.max(1, Number(practiceTarget || 1) - 1))}>−</button>
+              <input type="number" min="1" value={practiceTarget} onChange={(e) => setPracticeTarget(e.target.value === '' ? '' : parseInt(e.target.value, 10))} />
+              <button type="button" onClick={() => setPracticeTarget(Number(practiceTarget || 0) + 1)}>+</button>
+            </div>
+            <div className="dgv-practice-tip"><Sparkles size={16} /> Na start polecam 10–15 kart. Dłuższy trening daje większą oś czasu i trudniejsze decyzje.</div>
+          </section>
+
+          <section className="dgv-panel dgv-practice-categories-panel">
+            <div className="dgv-section-heading"><Music2 size={19} /> KATEGORIE</div>
+            <p className="dgv-practice-lead">Wybierz repertuar. „Wszystkie” pomija kategorię Religijne — możesz ją włączyć ręcznie.</p>
+            <div className="dgv-category-grid practice">
+              {[{ slug: 'wszystkie', label: 'Wszystkie' }, ...categories].map((category) => {
+                const active = selectedCategories.includes(category.slug);
+                return <button type="button" key={category.slug} className={active ? 'active' : ''} onClick={() => onToggleCategory(category.slug)}>{category.label}</button>;
+              })}
+            </div>
+            <div className="dgv-library-info"><Music2 size={17} /> Do treningu pasuje teraz <strong>{playableCount}</strong> utworów.</div>
+          </section>
+        </div>
+
+        <section className="dgv-practice-startbar dgv-panel">
+          <div><span className="dgv-eyebrow">GOTOWY?</span><strong>{practiceTarget || 15} kart · {playableCount} utworów w puli</strong></div>
+          <button type="button" className="dgv-start-button practice" disabled={busy || !practiceTarget || playableCount < Number(practiceTarget || 15) + 7} onClick={onStart}>
+            <Play size={22} fill="currentColor" /> ROZPOCZNIJ TRENING <ChevronRight size={22} />
+          </button>
+        </section>
+      </div>
+    </SessionBackground>
   );
 }
 
@@ -293,7 +369,7 @@ function ResultOverlay({ room, advanceCountdown }) {
   return (
     <div className="dgv-result-overlay">
       <div className="dgv-result-card">
-        <div className="dgv-result-player">{ownerName}</div>
+        <div className="dgv-result-player">{room.practiceMode ? 'TRENING' : ownerName}</div>
         <div className="dgv-result-checks">
           <div className={result.bought || result.correct ? 'good' : 'bad'}><span>OŚ CZASU</span>{result.bought || result.correct ? <Check /> : <X />}</div>
           {result.tokenAwarded !== undefined ? <div className={result.tokenAwarded ? 'good' : 'bad'}><span>TYTUŁ I WYKONAWCA</span>{result.tokenAwarded ? <Check /> : <X />}</div> : null}
@@ -305,7 +381,7 @@ function ResultOverlay({ room, advanceCountdown }) {
         </div>
         {displayCards.length ? (
           <div className="dgv-result-timeline">
-            <div className="dgv-eyebrow">OŚ CZASU GRACZA {ownerName}</div>
+            <div className="dgv-eyebrow">{room.practiceMode ? 'TWOJA OŚ CZASU' : `OŚ CZASU GRACZA ${ownerName}`}</div>
             <div className="dgv-timeline-row compact">
               {displayCards.map((card, index) => {
                 const placed = !card.__ghost && result.correct && card.videoId === result.card.videoId && card.year === result.card.year;
@@ -314,7 +390,7 @@ function ResultOverlay({ room, advanceCountdown }) {
             </div>
           </div>
         ) : null}
-        <div className="dgv-next-player">Kolejny gracz za <strong>{advanceCountdown ?? 5}</strong>…</div>
+        <div className="dgv-next-player">{room.practiceMode ? 'Kolejny utwór' : 'Kolejny gracz'} za <strong>{advanceCountdown ?? 5}</strong>…</div>
       </div>
     </div>
   );
@@ -386,7 +462,10 @@ export function DesktopPlayingView({
   const [chatOpen, setChatOpen] = useState(false);
   const modeLabel = room.dailyPlaylistMode ? 'PLAYLISTA DNIA' : room.practiceMode ? 'TRENING' : room.tournamentMode ? 'TURNIEJ' : 'ROZGRYWKA';
   const currentTokens = room.tokens?.[playerId] || 0;
-  const turnName = isMyTurn ? 'TWOJA KOLEJ!' : turnPlayerName || 'TURA GRACZA';
+  const turnName = room.practiceMode ? 'TRENING SOLO' : isMyTurn ? 'TWOJA KOLEJ!' : turnPlayerName || 'TURA GRACZA';
+  const practicePlayed = room.practiceMode ? (room.playedCards || []).filter((card) => card.playerId === playerId) : [];
+  const practiceCorrect = practicePlayed.filter((card) => card.correct).length;
+  const practiceWrong = practicePlayed.filter((card) => !card.correct).length;
 
   return (
     <SessionBackground className="dgv-game">
@@ -402,7 +481,7 @@ export function DesktopPlayingView({
         <div className="dgv-game-grid">
           <section className="dgv-audio-panel dgv-panel">
             <div className="dgv-audio-topline">
-              <div><span className="dgv-eyebrow">TURA GRACZA</span><strong>{turnName}</strong></div>
+              <div><span className="dgv-eyebrow">{room.practiceMode ? 'AKTUALNY UTWÓR' : 'TURA GRACZA'}</span><strong>{turnName}</strong></div>
               <div className="dgv-listen-meter"><span style={{ width: `${Math.min(100, (playElapsed / playCapSeconds) * 100)}%` }} /></div>
             </div>
             <DesktopVinyl spinning={isPlaying} progress={playElapsed / playCapSeconds} />
@@ -450,24 +529,39 @@ export function DesktopPlayingView({
               />
             ) : null}
 
-            <section className="dgv-panel dgv-score-panel">
-              <div className="dgv-section-heading"><Users size={18} /> GRACZE</div>
-              <div className="dgv-score-list">
-                {room.players.map((player) => (
-                  <PlayerBadge
-                    key={player.id}
-                    player={player}
-                    hostId={room.hostId}
-                    myId={playerId}
-                    active={displayedPlayerId === player.id}
-                    score={(room.timelines?.[player.id] || []).length}
-                    tokenCount={room.tokens?.[player.id] || 0}
-                    level={player.authed && playerLevels[player.id] !== undefined ? levelFromXp(playerLevels[player.id]).level : null}
-                    onClick={() => setViewedPlayerId(player.id)}
-                  />
-                ))}
-              </div>
-            </section>
+            {room.practiceMode ? (
+              <section className="dgv-panel dgv-practice-progress-panel">
+                <div className="dgv-section-heading"><Zap size={18} /> POSTĘP TRENINGU</div>
+                <div className="dgv-practice-progress-main">
+                  <strong>{(room.timelines?.[playerId] || []).length}</strong><span>/ {room.target} kart na osi</span>
+                </div>
+                <div className="dgv-practice-progress-bar"><span style={{ width: `${Math.min(100, ((room.timelines?.[playerId] || []).length / Math.max(1, room.target)) * 100)}%` }} /></div>
+                <div className="dgv-practice-mini-stats">
+                  <div className="good"><Check size={18} /><span>Trafienia</span><strong>{practiceCorrect}</strong></div>
+                  <div className="bad"><X size={18} /><span>Pomyłki</span><strong>{practiceWrong}</strong></div>
+                </div>
+                <p>Nie ma głosowania ani bonusowego zgadywania — liczy się wyłącznie poprawne miejsce na osi czasu.</p>
+              </section>
+            ) : (
+              <section className="dgv-panel dgv-score-panel">
+                <div className="dgv-section-heading"><Users size={18} /> GRACZE</div>
+                <div className="dgv-score-list">
+                  {room.players.map((player) => (
+                    <PlayerBadge
+                      key={player.id}
+                      player={player}
+                      hostId={room.hostId}
+                      myId={playerId}
+                      active={displayedPlayerId === player.id}
+                      score={(room.timelines?.[player.id] || []).length}
+                      tokenCount={room.tokens?.[player.id] || 0}
+                      level={player.authed && playerLevels[player.id] !== undefined ? levelFromXp(playerLevels[player.id]).level : null}
+                      onClick={() => setViewedPlayerId(player.id)}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
           </aside>
         </div>
 
@@ -502,7 +596,7 @@ export function DesktopPlayingView({
       </div>
 
       {screen === 'roundResult' ? <ResultOverlay room={room} advanceCountdown={advanceCountdown} /> : null}
-      <ChatDrawer open={chatOpen} setOpen={setChatOpen} messages={room.messages || []} playerId={playerId} chatInput={chatInput} setChatInput={setChatInput} onSend={onSendChat} />
+      {!room.practiceMode ? <ChatDrawer open={chatOpen} setOpen={setChatOpen} messages={room.messages || []} playerId={playerId} chatInput={chatInput} setChatInput={setChatInput} onSend={onSendChat} /> : null}
     </SessionBackground>
   );
 }
@@ -619,6 +713,61 @@ export function DesktopDailyPlaylistHubView({ alreadyPlayed, dailyBoard, weeklyB
           <div><Trophy size={30} /><span>3. MIEJSCE</span><strong>+100 XP</strong></div>
           <p>Nagrody tygodniowe są przyznawane automatycznie na początku kolejnego tygodnia.</p>
         </section>
+      </div>
+    </SessionBackground>
+  );
+}
+
+
+export function DesktopPracticeResultView({ room, playerId, onAgain, onHome }) {
+  const timeline = [...(room.timelines?.[playerId] || [])].sort((a, b) => a.year - b.year);
+  const played = (room.playedCards || []).filter((card) => card.playerId === playerId);
+  const correct = played.filter((card) => card.correct).length;
+  const wrong = played.filter((card) => !card.correct).length;
+
+  return (
+    <SessionBackground className="dgv-practice-result-page">
+      <div className="dgv-shell">
+        <SessionHeader eyebrow="TRYB SOLO" title="TRENING UKOŃCZONY" onBack={onHome} backLabel="Strona główna" />
+        <section className="dgv-practice-result-hero dgv-panel">
+          <img src={glTrening} alt="" />
+          <div>
+            <div className="dgv-eyebrow">CEL OSIĄGNIĘTY</div>
+            <h1>{timeline.length} <span>KART</span></h1>
+            <p>Zbudowałeś pełną oś czasu. Sprawdź przebieg sesji albo rozpocznij kolejny trening z innymi kategoriami.</p>
+          </div>
+          <div className="dgv-practice-result-stats">
+            <div className="good"><Check size={22} /><strong>{correct}</strong><span>trafień</span></div>
+            <div className="bad"><X size={22} /><strong>{wrong}</strong><span>pomyłek</span></div>
+          </div>
+        </section>
+
+        <section className="dgv-panel dgv-practice-final-timeline">
+          <div className="dgv-section-heading"><Music2 size={18} /> TWOJA OŚ CZASU</div>
+          <div className="dgv-final-years">
+            {timeline.map((card, index) => <span key={card.id || `${card.videoId}-${index}`}>{card.year}</span>)}
+          </div>
+        </section>
+
+        {played.length ? (
+          <section className="dgv-panel dgv-practice-history">
+            <div className="dgv-section-heading"><Headphones size={18} /> OSTATNIE UTWORY</div>
+            <div className="dgv-practice-history-list">
+              {played.slice(-10).reverse().map((card, index) => (
+                <div key={`${card.videoId || index}-${index}`} className={card.correct ? 'correct' : 'wrong'}>
+                  <span>{card.correct ? <Check size={17} /> : <X size={17} />}</span>
+                  <div><strong>{card.artist || '—'}</strong><small>{card.title || '—'}</small></div>
+                  <b>{card.year}</b>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <div className="dgv-practice-result-actions">
+          <button type="button" className="dgv-start-button" onClick={onAgain}><RotateCcw size={20} /> NOWY TRENING</button>
+          <button type="button" className="dgv-ghost-button large" onClick={onHome}><ArrowLeft size={18} /> STRONA GŁÓWNA</button>
+        </div>
       </div>
     </SessionBackground>
   );
