@@ -1361,6 +1361,7 @@ export default function App() {
     if (adminPasswordInput === ADMIN_PASSWORD) {
       setAdminUnlocked(true);
       setShowAdminLogin(false);
+      setShowAdminPanel(true);
       setAdminError("");
       setAdminPasswordInput("");
       loadProposals();
@@ -3554,8 +3555,722 @@ export default function App() {
   const desktopBestDecades = [...desktopDecadesWithGames].sort((a, b) => b.pct - a.pct || a.label.localeCompare(b.label)).slice(0, 4);
   const desktopWorstDecades = [...desktopDecadesWithGames].sort((a, b) => a.pct - b.pct || a.label.localeCompare(b.label)).slice(0, 4);
   const desktopArtistPerformance = stats ? topArtists(stats, 5, 2) : { best: [], worst: [] };
+
+  const adminPanelContent = showAdminPanel ? (
+          <div className="w-full flex flex-col gap-5">
+            <div className="flex items-center justify-between">
+              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24 }}>PANEL ADMINA</h2>
+              <button onClick={() => setShowAdminPanel(false)} className="text-xs" style={{ color: "var(--muted)" }}>
+                ← Wróć
+              </button>
+            </div>
+
+            <button
+              onClick={() => {
+                setShowProposals((v) => !v);
+                if (!proposals) loadProposals();
+              }}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold"
+              style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
+            >
+              💡 Propozycje utworów od graczy {proposals ? `(${proposals.length})` : ""}
+            </button>
+
+            {showProposals && (
+              <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+                {!proposals ? (
+                  <p style={{ fontSize: 12, color: "var(--muted)" }}>Ładowanie…</p>
+                ) : proposals.length === 0 ? (
+                  <p style={{ fontSize: 12, color: "var(--muted)" }}>Brak oczekujących propozycji.</p>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {proposals.map((p) => (
+                      <div key={p.id} className="rounded-lg p-3" style={{ background: "var(--surface2)" }}>
+                        {proposalEditingId === p.id ? (
+                          <div className="flex flex-col gap-2">
+                            <div className="flex gap-2 flex-wrap">
+                              <input type="text" value={proposalEditDraft.artist} onChange={(e) => setProposalEditDraft({ ...proposalEditDraft, artist: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
+                              <input type="text" value={proposalEditDraft.title} onChange={(e) => setProposalEditDraft({ ...proposalEditDraft, title: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
+                            </div>
+                            <input type="text" value={proposalEditDraft.url} onChange={(e) => setProposalEditDraft({ ...proposalEditDraft, url: e.target.value })} placeholder="Link YouTube" />
+                            <div className="flex gap-2 flex-wrap">
+                              <input type="number" value={proposalEditDraft.year} onChange={(e) => setProposalEditDraft({ ...proposalEditDraft, year: e.target.value })} style={{ width: 90 }} />
+                              <input type="text" value={proposalEditDraft.categoriesText} onChange={(e) => setProposalEditDraft({ ...proposalEditDraft, categoriesText: e.target.value })} placeholder="kategorie;po;średniku" className="flex-1" style={{ minWidth: 140 }} />
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => handleSaveProposalEdit(p.id)} disabled={adminBusy} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: "var(--good)", color: "#0d1f1a" }}>
+                                <Save size={12} /> Zapisz
+                              </button>
+                              <button onClick={() => setProposalEditingId(null)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs" style={{ border: "1px solid #33294f", color: "var(--muted)" }}>
+                                <X size={12} /> Anuluj
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div>
+                              <p style={{ fontSize: 13 }}>
+                                <strong>{p.artist}</strong> — {p.title} ({p.year})
+                              </p>
+                              <p style={{ fontSize: 10, color: "var(--muted)" }}>
+                                {(p.categories || []).join(", ")} · zgłosił: {p.submittedBy}
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => handleAcceptProposal(p)} disabled={adminBusy} style={{ color: "var(--good)" }} title="Akceptuj">
+                                <Check size={18} />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setProposalEditingId(p.id);
+                                  setProposalEditDraft({
+                                    artist: p.artist,
+                                    title: p.title,
+                                    year: p.year,
+                                    url: `https://www.youtube.com/watch?v=${p.videoId}`,
+                                    videoId: p.videoId,
+                                    categoriesText: (p.categories || []).join(";"),
+                                  });
+                                }}
+                                style={{ color: "var(--accent)" }}
+                                title="Edytuj"
+                              >
+                                <Pencil size={16} />
+                              </button>
+                              <button onClick={() => handleRejectProposal(p.id)} disabled={adminBusy} style={{ color: "var(--bad)" }} title="Odrzuć">
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {(!librarySongs || librarySongs.length === 0) && (
+              <section className="w-full rounded-2xl p-4" style={{ background: "rgba(231,178,76,0.1)", border: "1px solid var(--accent)" }}>
+                <p style={{ fontSize: 12, marginBottom: 8 }}>
+                  Baza w Firestore jest pusta — gra korzysta teraz z wbudowanej listy ({REAL_SONGS.length} utworów), której nie da się edytować na żywo.
+                  Wgraj ją do bazy jednym kliknięciem, żeby móc dalej edytować bezpośrednio w appce:
+                </p>
+                <button
+                  onClick={handleMigrate}
+                  disabled={adminBusy}
+                  className="px-4 py-2 rounded-lg text-sm font-bold"
+                  style={{ background: "var(--accent)", color: "#1a1428" }}
+                >
+                  {migrateProgress ? `Wgrywanie… ${migrateProgress.done}/${migrateProgress.total}` : "Wgraj wbudowaną listę do bazy"}
+                </button>
+              </section>
+            )}
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🧹 Sprzątanie pokojów</p>
+              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
+                Usuwa zakończone gry (starsze niż 1h od końca), porzucone/nieukończone pokoje (starsze niż 24h) i sesje treningowe (starsze niż 3h). Bardzo stare pokoje sprzed tej funkcji usuwa, jeśli mają ponad 7 dni. Nie rusza statystyk graczy — te żyją osobno.
+              </p>
+              <button
+                onClick={handleCleanupRooms}
+                disabled={cleanupBusy}
+                className="px-4 py-2 rounded-lg text-sm font-bold"
+                style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
+              >
+                {cleanupBusy
+                  ? cleanupProgress
+                    ? `Usuwanie… ${cleanupProgress.done}/${cleanupProgress.total}`
+                    : "Sprawdzam pokoje…"
+                  : "Wyczyść stare pokoje"}
+              </button>
+              {cleanupResult && (
+                <p style={{ fontSize: 12, marginTop: 8, color: "var(--good)" }}>
+                  ✓ Usunięto {cleanupResult.deleted} z {cleanupResult.totalRooms} sprawdzonych pokojów.
+                </p>
+              )}
+            </section>
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>
+                🚨 Zgłoszone uszkodzone linki
+              </p>
+              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
+                Gra sama wykrywa, gdy YouTube nie może wczytać filmu (usunięty/prywatny/wyłączone osadzanie), automatycznie losuje nową kartę i zapisuje to tutaj do przejrzenia.
+              </p>
+              <button
+                onClick={() => {
+                  setShowBrokenLinkReports((v) => !v);
+                  if (!brokenLinkReports) loadBrokenLinkReports();
+                }}
+                className="px-4 py-2 rounded-lg text-sm font-bold"
+                style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
+              >
+                {showBrokenLinkReports ? "Ukryj" : "Pokaż zgłoszenia"} {brokenLinkReports ? `(${brokenLinkReports.length})` : ""}
+              </button>
+              {showBrokenLinkReports && (
+                <div className="flex flex-col gap-2 mt-3">
+                  {!brokenLinkReports ? (
+                    <p style={{ fontSize: 12, color: "var(--muted)" }}>Ładowanie…</p>
+                  ) : brokenLinkReports.length === 0 ? (
+                    <p style={{ fontSize: 12, color: "var(--muted)" }}>Brak zgłoszeń — nic nie zawiodło (jeszcze 🙂).</p>
+                  ) : (
+                    brokenLinkReports.map((r) => (
+                      <div key={r.id} className="rounded-lg p-3" style={{ background: "var(--surface2)" }}>
+                        {brokenLinkEditingId === r.id ? (
+                          <div className="flex flex-col gap-2">
+                            <div className="flex gap-2 flex-wrap">
+                              <input type="text" value={brokenLinkEditDraft.artist} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, artist: e.target.value })} className="flex-1" style={{ minWidth: 100 }} placeholder="Wykonawca" />
+                              <input type="text" value={brokenLinkEditDraft.title} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, title: e.target.value })} className="flex-1" style={{ minWidth: 100 }} placeholder="Tytuł" />
+                            </div>
+                            <input type="text" value={brokenLinkEditDraft.url} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, url: e.target.value })} placeholder="Nowy link YouTube" />
+                            <div className="flex gap-2 flex-wrap">
+                              <input type="number" value={brokenLinkEditDraft.year} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, year: e.target.value })} style={{ width: 90 }} placeholder="Rok" />
+                              <input type="text" value={brokenLinkEditDraft.categoriesText} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, categoriesText: e.target.value })} placeholder="kategorie;po;średniku" className="flex-1" style={{ minWidth: 140 }} />
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => handleSaveBrokenLinkEdit(r)} disabled={brokenLinkBusy} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: "var(--good)", color: "#0d1f1a" }}>
+                                <Save size={12} /> Zapisz (odrzuci zgłoszenie)
+                              </button>
+                              <button onClick={() => setBrokenLinkEditingId(null)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs" style={{ border: "1px solid #33294f", color: "var(--muted)" }}>
+                                <X size={12} /> Anuluj
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div>
+                            <p style={{ fontSize: 13 }}>
+                              <strong>{r.artist}</strong> — {r.title} {r.year ? `(${r.year})` : ""}
+                            </p>
+                            <a
+                              href={`https://www.youtube.com/watch?v=${r.videoId}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ fontSize: 10, color: "var(--accent)" }}
+                            >
+                              sprawdź na YouTube ↗
+                            </a>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                setBrokenLinkEditingId(r.id);
+                                setBrokenLinkEditDraft({
+                                  artist: r.artist,
+                                  title: r.title,
+                                  year: r.year || "",
+                                  url: `https://www.youtube.com/watch?v=${r.videoId}`,
+                                  categoriesText: "",
+                                });
+                              }}
+                              style={{ color: "var(--accent)" }}
+                              title="Edytuj link"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`Na pewno usunąć "${r.artist} — ${r.title}" z bazy? Tego nie da się cofnąć.`)) handleDeleteBrokenSong(r);
+                              }}
+                              disabled={brokenLinkBusy}
+                              style={{ color: "var(--bad)" }}
+                              title="Usuń z bazy"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                            <button onClick={() => handleDismissBrokenLink(r.id)} disabled={brokenLinkBusy} style={{ color: "var(--muted)" }} title="Odrzuć zgłoszenie">
+                              <X size={16} />
+                            </button>
+                          </div>
+                        </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </section>
+
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🃏 Rzadkość kart</p>
+              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
+                Utwory dodane od teraz dostają rzadkość automatycznie. Ten przycisk jednorazowo uzupełnia ją utworom, które trafiły do bazy ZANIM istniał system kart.
+              </p>
+              <button
+                onClick={async () => {
+                  setRarityMigrateBusy(true);
+                  setRarityMigrateProgress(null);
+                  try {
+                    const pool = await fetchAllSongsFromDb();
+                    const result = await migrateRarityForExistingSongs(pool, (done, total) => setRarityMigrateProgress({ done, total }));
+                    setRarityMigrateProgress({ done: result.updated, total: result.total, finished: true });
+                    const fresh = await fetchAllSongsFromDb();
+                    setLibrarySongs(fresh);
+                    saveLibraryCache(fresh);
+                  } catch (e) {
+                    setError("Błąd migracji rzadkości: " + e.message);
+                  } finally {
+                    setRarityMigrateBusy(false);
+                  }
+                }}
+                disabled={rarityMigrateBusy}
+                className="px-4 py-2 rounded-lg text-sm font-bold"
+                style={{ background: "var(--surface2)", border: "1px solid var(--gold)", color: "var(--gold)" }}
+              >
+                {rarityMigrateBusy ? "Uzupełniam…" : "Uzupełnij brakującą rzadkość"}
+              </button>
+              {rarityMigrateProgress && (
+                <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>
+                  {rarityMigrateProgress.finished
+                    ? `Gotowe — uzupełniono ${rarityMigrateProgress.total} utworów.`
+                    : `${rarityMigrateProgress.done}/${rarityMigrateProgress.total}...`}
+                </p>
+              )}
+            </section>
+
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🏆 Turniej</p>
+              {activeTournament ? (
+                <div className="flex flex-col gap-2">
+                  <p style={{ fontSize: 13 }}>
+                    Aktywny turniej: {activeTournament.status === "signup" ? `zapisy (${activeTournament.signups.length}/${activeTournament.maxPlayers})` : activeTournament.status === "active" ? "w trakcie" : "zakończony"}
+                  </p>
+                  {activeTournament.status === "signup" && (
+                    <button
+                      onClick={async () => {
+                        if (!window.confirm("Anulować turniej? Nikt nie zapłacił jeszcze wpisowego, więc nic nie trzeba zwracać.")) return;
+                        await cancelTournament(activeTournament.id);
+                        setActiveTournament(null);
+                      }}
+                      className="px-4 py-2 rounded-lg text-sm font-bold self-start"
+                      style={{ background: "var(--surface2)", border: "1px solid var(--bad)", color: "var(--bad)" }}
+                    >
+                      Anuluj turniej
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs uppercase" style={{ color: "var(--muted)" }}>Liczba graczy</label>
+                  <select value={adminNewTournament.maxPlayers} onChange={(e) => setAdminNewTournament({ ...adminNewTournament, maxPlayers: e.target.value })}>
+                    <option value="4">4 graczy</option>
+                    <option value="8">8 graczy</option>
+                  </select>
+                  <label className="text-xs uppercase" style={{ color: "var(--muted)", marginTop: 4 }}>Wpisowe (XP)</label>
+                  <input
+                    type="number"
+                    value={adminNewTournament.entryFee}
+                    onChange={(e) => setAdminNewTournament({ ...adminNewTournament, entryFee: e.target.value })}
+                  />
+                  <button
+                    onClick={async () => {
+                      try {
+                        const id = await createTournament("playlist_duel", parseInt(adminNewTournament.maxPlayers, 10), parseInt(adminNewTournament.entryFee, 10), user.uid);
+                        setActiveTournament(await fetchTournament(id));
+                      } catch (e) {
+                        setError("Błąd tworzenia turnieju: " + e.message);
+                      }
+                    }}
+                    className="px-4 py-2 rounded-lg text-sm font-bold mt-2"
+                    style={{ background: "var(--gold)", color: "#1a1428" }}
+                  >
+                    Stwórz turniej
+                  </button>
+                </div>
+              )}
+            </section>
+
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🔥 Najczęściej grane utwory</p>
+              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
+                Licznik zlicza tylko karty, które faktycznie padły w prawdziwej rozgrywce (nie Treningu) — losowanie, które zostało zaraz zastąpione (np. zepsuty link), się nie liczy.
+              </p>
+              <button
+                onClick={async () => {
+                  setMostPlayedBusy(true);
+                  try {
+                    const fresh = await fetchAllSongsFromDb();
+                    const sorted = fresh.filter((s) => s.timesPlayed > 0).sort((a, b) => (b.timesPlayed || 0) - (a.timesPlayed || 0));
+                    setMostPlayedSongs(sorted.slice(0, 20));
+                  } catch (e) {
+                    setError("Błąd pobierania rankingu: " + e.message);
+                  } finally {
+                    setMostPlayedBusy(false);
+                  }
+                }}
+                disabled={mostPlayedBusy}
+                className="px-4 py-2 rounded-lg text-sm font-bold"
+                style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
+              >
+                {mostPlayedBusy ? "Wczytuję…" : "Pokaż ranking"}
+              </button>
+              {mostPlayedSongs && (
+                <div className="flex flex-col gap-1 mt-3">
+                  {mostPlayedSongs.length === 0 ? (
+                    <p style={{ color: "var(--muted)", fontSize: 12 }}>Brak jeszcze danych — licznik zacznie się zapełniać od teraz.</p>
+                  ) : (
+                    mostPlayedSongs.map((s) => (
+                      <div key={s.id} className="flex items-center justify-between text-sm">
+                        <span>
+                          {s.artist} — {s.title}
+                        </span>
+                        <span style={{ color: "var(--accent)" }}>{s.timesPlayed}×</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </section>
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(255,95,201,0.4)", boxShadow: "0 0 22px rgba(255,95,201,0.15)" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🔬 Analiza puli losowania</p>
+              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
+                Sprawdza, czy losowanie faktycznie korzysta z całej biblioteki, czy jakaś jej część nigdy (albo prawie nigdy) nie wypada.
+                Pokazuje pełną listę utworów od najrzadziej granych — przejrzyj ją i sprawdź, czy skupiają się tam akurat starsze utwory.
+              </p>
+              <button
+                onClick={handleAnalyzePool}
+                disabled={poolAnalysisBusy}
+                className="px-4 py-2 rounded-lg text-sm font-bold"
+                style={{ background: "var(--surface2)", border: "1px solid #ff5fc9", color: "#ff5fc9" }}
+              >
+                {poolAnalysisBusy ? "Analizuję…" : "Analizuj pulę"}
+              </button>
+              {poolAnalysis && (
+                <div className="mt-3 flex flex-col gap-3">
+                  <div className="flex flex-wrap gap-3">
+                    <div className="rounded-lg px-3 py-2" style={{ background: "var(--surface2)" }}>
+                      <p style={{ fontSize: 18, fontWeight: "bold" }}>{poolAnalysis.total}</p>
+                      <p style={{ fontSize: 10, color: "var(--muted)" }}>UTWORÓW W BAZIE</p>
+                    </div>
+                    <div className="rounded-lg px-3 py-2" style={{ background: "var(--surface2)" }}>
+                      <p style={{ fontSize: 18, fontWeight: "bold", color: poolAnalysis.neverPlayedPct > 50 ? "var(--bad)" : "var(--text)" }}>
+                        {poolAnalysis.neverPlayed} ({poolAnalysis.neverPlayedPct}%)
+                      </p>
+                      <p style={{ fontSize: 10, color: "var(--muted)" }}>NIGDY NIE WYPADŁO</p>
+                    </div>
+                    <div className="rounded-lg px-3 py-2" style={{ background: "var(--surface2)" }}>
+                      <p style={{ fontSize: 18, fontWeight: "bold" }}>{poolAnalysis.totalPlays}</p>
+                      <p style={{ fontSize: 10, color: "var(--muted)" }}>WSZYSTKICH ODTWORZEŃ</p>
+                    </div>
+                    <div className="rounded-lg px-3 py-2" style={{ background: "var(--surface2)" }}>
+                      <p style={{ fontSize: 18, fontWeight: "bold" }}>{poolAnalysis.avgPlays}</p>
+                      <p style={{ fontSize: 10, color: "var(--muted)" }}>ŚREDNIO/UTWÓR</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowLeastPlayed((v) => !v)}
+                    className="px-3 py-2 rounded-lg text-xs font-bold self-start"
+                    style={{ background: "var(--surface2)", border: "1px solid #ff5fc9", color: "#ff5fc9" }}
+                  >
+                    {showLeastPlayed ? "Ukryj" : "Pokaż"} 60 najrzadziej granych
+                  </button>
+                  <div>
+                    <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 6 }}>Dla porównania — 15 NAJCZĘŚCIEJ granych:</p>
+                    <div className="flex flex-col gap-1">
+                      {poolAnalysis.mostPlayed.map((s) => (
+                        <div key={s.id} className="flex items-center justify-between text-xs" style={{ padding: "3px 0", borderBottom: "1px solid #1a1428" }}>
+                          <span>
+                            {s.artist} — {s.title}
+                            {s.addedAt ? (
+                              <span style={{ color: "var(--muted)" }}> · dodano {new Date(s.addedAt).toLocaleDateString("pl-PL")}</span>
+                            ) : (
+                              <span style={{ color: "var(--muted)", fontStyle: "italic" }}> · starszy wpis</span>
+                            )}
+                          </span>
+                          <span style={{ color: "var(--good)" }}>{s.timesPlayed || 0}×</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {showLeastPlayed && (
+                    <div className="flex flex-col gap-1" style={{ maxHeight: 400, overflowY: "auto" }}>
+                      {poolAnalysis.leastPlayed.map((s) => (
+                        <div key={s.id} className="flex items-center justify-between text-xs" style={{ padding: "3px 0", borderBottom: "1px solid #1a1428" }}>
+                          <span>
+                            {s.artist} — {s.title} <span style={{ color: "var(--muted)" }}>({s.year})</span>
+                            {s.addedAt ? (
+                              <span style={{ color: "var(--muted)" }}> · dodano {new Date(s.addedAt).toLocaleDateString("pl-PL")}</span>
+                            ) : (
+                              <span style={{ color: "var(--muted)", fontStyle: "italic" }}> · data dodania nieznana (starszy wpis)</span>
+                            )}
+                          </span>
+                          <span style={{ color: (s.timesPlayed || 0) === 0 ? "var(--bad)" : "var(--muted)" }}>{s.timesPlayed || 0}×</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>📤 Eksportuj bazę do CSV</p>
+              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
+                Pobiera całą bibliotekę ({effectivePool.length} utworów) w tym samym formacie, co import poniżej — przydatne jako kopia zapasowa.
+              </p>
+              <button
+                onClick={handleExportCsv}
+                className="px-4 py-2 rounded-lg text-sm font-bold"
+                style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
+              >
+                Pobierz CSV
+              </button>
+            </section>
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(255,95,201,0.4)", boxShadow: "0 0 22px rgba(255,95,201,0.15)" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🔁 Znajdź duplikaty</p>
+              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
+                Ten sam utwór dodany do bazy dwa razy (np. ręcznie i przez propozycję) ma podwójną szansę na wylosowanie w każdej talii —
+                niewidoczne "faworyzowanie" niektórych piosenek. Skanuje pełną bibliotekę i pokazuje, co się powtarza; usuwanie zrób ręcznie
+                poniżej (przycisk 🗑 przy utworze), żeby na pewno zostawić właściwą kopię.
+              </p>
+              <button
+                onClick={handleFindDuplicates}
+                disabled={duplicateScanBusy}
+                className="px-4 py-2 rounded-lg text-sm font-bold"
+                style={{ background: "var(--surface2)", border: "1px solid #ff5fc9", color: "#ff5fc9" }}
+              >
+                {duplicateScanBusy ? "Skanuję..." : "Skanuj bibliotekę"}
+              </button>
+              {duplicateSongs !== null && (
+                <div className="mt-3 flex flex-col gap-2">
+                  {duplicateSongs.length === 0 ? (
+                    <p style={{ fontSize: 12, color: "var(--good)" }}>✓ Brak duplikatów — każdy utwór jest w bazie tylko raz.</p>
+                  ) : (
+                    <>
+                      <p style={{ fontSize: 12, color: "#ff5fc9", fontWeight: "bold" }}>
+                        Znaleziono {duplicateSongs.length} zduplikowanych utworów ({duplicateSongs.reduce((sum, g) => sum + g.length - 1, 0)} nadmiarowych kopii):
+                      </p>
+                      {duplicateSongs.map((group) => (
+                        <div key={group[0].videoId} className="rounded-lg p-2" style={{ background: "var(--surface2)" }}>
+                          <p style={{ fontSize: 12, fontWeight: "bold" }}>
+                            {group[0].artist} – {group.map((s) => s.title).join(" / ")} ({group.length}×)
+                          </p>
+                          <p style={{ fontSize: 10, color: "var(--muted)" }}>videoId: {group[0].videoId}</p>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {group.map((s) => (
+                              <button
+                                key={s.id}
+                                onClick={async () => {
+                                  await handleAdminDelete(s.id);
+                                  setDuplicateSongs((prev) =>
+                                    prev
+                                      .map((g) => g.filter((x) => x.id !== s.id))
+                                      .filter((g) => g.length > 1)
+                                  );
+                                }}
+                                className="px-2 py-1 rounded text-xs"
+                                style={{ background: "var(--surface)", border: "1px solid var(--bad)", color: "var(--bad)" }}
+                              >
+                                🗑 usuń "{s.title}" ({s.year})
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
+            </section>
+
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>📥 Import z CSV (masowo)</p>
+              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
+                Format wierszy: <code>url;wykonawca;tytuł;rok;kategorie;po;średniku</code>. Duplikaty (po linku YouTube) są pomijane automatycznie.
+              </p>
+              <input type="file" accept=".csv,text/csv" onChange={handleImportFilePick} style={{ fontSize: 12, marginBottom: 8 }} />
+              <textarea
+                rows={5}
+                value={importCsvText}
+                onChange={(e) => setImportCsvText(e.target.value)}
+                placeholder="Wklej tu zawartość pliku CSV, albo wybierz plik powyżej…"
+                className="w-full"
+              />
+              <button
+                onClick={handleImportCsv}
+                disabled={importBusy || !importCsvText.trim()}
+                className="mt-2 px-4 py-2 rounded-lg text-sm font-bold"
+                style={{ background: "var(--good)", color: "#0d1f1a" }}
+              >
+                {importBusy
+                  ? migrateProgress
+                    ? `Importowanie… ${migrateProgress.done}/${migrateProgress.total}`
+                    : "Sprawdzam duplikaty…"
+                  : "Importuj do bazy"}
+              </button>
+              {importResult && (
+                <p style={{ fontSize: 12, marginTop: 8, color: "var(--good)" }}>
+                  ✓ Dodano {importResult.added} nowych utworów. Pominięto: {importResult.skippedDup} duplikatów, {importResult.skippedBad} błędnych wierszy (z {importResult.totalRows} w pliku).
+                </p>
+              )}
+            </section>
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>Dodaj nowy utwór</p>
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2 flex-wrap">
+                  <input type="text" placeholder="Wykonawca" value={adminNewSong.artist} onChange={(e) => setAdminNewSong({ ...adminNewSong, artist: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
+                  <input type="text" placeholder="Tytuł" value={adminNewSong.title} onChange={(e) => setAdminNewSong({ ...adminNewSong, title: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
+                </div>
+                <input type="text" placeholder="Link YouTube" value={adminNewSong.url} onChange={(e) => setAdminNewSong({ ...adminNewSong, url: e.target.value })} />
+                <div className="flex gap-2 flex-wrap">
+                  <input type="number" placeholder="Rok" value={adminNewSong.year} onChange={(e) => setAdminNewSong({ ...adminNewSong, year: e.target.value })} style={{ width: 90 }} />
+                  <input type="text" placeholder="kategorie;po;średniku" value={adminNewSong.categories} onChange={(e) => setAdminNewSong({ ...adminNewSong, categories: e.target.value })} className="flex-1" style={{ minWidth: 140 }} />
+                </div>
+                <button onClick={handleAdminAdd} disabled={adminBusy} className="px-4 py-2 rounded-lg text-sm font-bold" style={{ background: "var(--good)", color: "#0d1f1a" }}>
+                  + Dodaj
+                </button>
+              </div>
+            </section>
+
+            <div className="flex items-center gap-2">
+              <Search size={16} color="var(--muted)" />
+              <input type="text" value={adminSearch} onChange={(e) => setAdminSearch(e.target.value)} placeholder="Szukaj po wykonawcy lub tytule…" className="flex-1" />
+            </div>
+
+            <p style={{ fontSize: 11, color: "var(--muted)" }}>
+              {librarySongs ? `${librarySongs.length} utworów w bazie` : "Ładowanie…"}
+            </p>
+
+            {(() => {
+              const filtered = (librarySongs || [])
+                .filter((s) => {
+                  const q = adminSearch.trim().toLowerCase();
+                  if (!q) return true;
+                  return s.artist.toLowerCase().includes(q) || s.title.toLowerCase().includes(q);
+                })
+                .sort((a, b) => a.artist.localeCompare(b.artist) || a.title.localeCompare(b.title));
+              const totalPages = Math.max(1, Math.ceil(filtered.length / ADMIN_PAGE_SIZE));
+              const page = Math.min(adminPage, totalPages);
+              const pageItems = filtered.slice((page - 1) * ADMIN_PAGE_SIZE, page * ADMIN_PAGE_SIZE);
+
+              return (
+                <>
+                  <p style={{ fontSize: 11, color: "var(--muted)" }}>
+                    {filtered.length} wyników — strona {page}/{totalPages}
+                  </p>
+
+                  <div className="flex flex-col gap-2">
+                    {pageItems.map((s) => (
+                      <div key={s.id} className="rounded-lg p-3" style={{ background: "var(--surface2)" }}>
+                        {adminEditingId === s.id ? (
+                          <div className="flex flex-col gap-2">
+                            <div className="flex gap-2 flex-wrap">
+                              <input type="text" value={adminEditDraft.artist} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, artist: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
+                              <input type="text" value={adminEditDraft.title} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, title: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
+                            </div>
+                            <input type="text" value={adminEditDraft.url} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, url: e.target.value })} placeholder="Link YouTube" />
+                            <div className="flex gap-2 flex-wrap">
+                              <input type="number" value={adminEditDraft.year} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, year: e.target.value })} style={{ width: 90 }} />
+                              <input type="text" value={adminEditDraft.categoriesText} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, categoriesText: e.target.value })} placeholder="kategorie;po;średniku" className="flex-1" style={{ minWidth: 140 }} />
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => handleAdminSave(s.id)} disabled={adminBusy} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: "var(--good)", color: "#0d1f1a" }}>
+                                <Save size={12} /> Zapisz
+                              </button>
+                              <button onClick={() => setAdminEditingId(null)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs" style={{ border: "1px solid #33294f", color: "var(--muted)" }}>
+                                <X size={12} /> Anuluj
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div>
+                              <p style={{ fontSize: 13 }}>
+                                <strong>{s.artist}</strong> — {s.title} ({s.year})
+                              </p>
+                              <p style={{ fontSize: 10, color: "var(--muted)" }}>
+                                {(s.categories || []).join(", ") || "brak kategorii"}
+                                {" · "}
+                                <span style={{ color: RARITY_INFO[effectiveRarity(s)].color }}>{RARITY_INFO[effectiveRarity(s)].label}</span>
+                              </p>
+                            </div>
+                            <div className="flex gap-2 items-center">
+                              <button
+                                onClick={async () => {
+                                  const newVal = !s.isDiamond;
+                                  await updateSongInDb(s.id, { isDiamond: newVal });
+                                  const base = librarySongs && librarySongs.length > 0 ? librarySongs : await fetchAllSongsFromDb();
+                                  const next = base.map((x) => (x.id === s.id ? { ...x, isDiamond: newVal } : x));
+                                  setLibrarySongs(next);
+                                  saveLibraryCache(next);
+                                }}
+                                title={s.isDiamond ? "Cofnij Diament" : "Ustaw jako Diament"}
+                                style={{ color: s.isDiamond ? "#7dffef" : "var(--muted)", fontSize: 16 }}
+                              >
+                                💎
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setAdminEditingId(s.id);
+                                  setAdminEditDraft({
+                                    artist: s.artist,
+                                    title: s.title,
+                                    year: s.year,
+                                    url: `https://www.youtube.com/watch?v=${s.videoId}`,
+                                    categoriesText: (s.categories || []).join(";"),
+                                  });
+                                }}
+                                style={{ color: "var(--accent)" }}
+                              >
+                                <Pencil size={16} />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (window.confirm(`Na pewno usunąć "${s.artist} — ${s.title}"? Tego nie da się cofnąć.`)) handleAdminDelete(s.id);
+                                }}
+                                disabled={adminBusy}
+                                style={{ color: "var(--bad)" }}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-2 flex-wrap mt-2">
+                      <button
+                        onClick={() => setAdminPage((p) => Math.max(1, p - 1))}
+                        disabled={page <= 1}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold"
+                        style={{ background: page <= 1 ? "#231d38" : "var(--surface2)", color: page <= 1 ? "var(--muted)" : "var(--text)", border: "1px solid #33294f" }}
+                      >
+                        ← Poprzednia
+                      </button>
+                      <span style={{ fontSize: 12, color: "var(--muted)" }}>
+                        Strona {page} / {totalPages}
+                      </span>
+                      <button
+                        onClick={() => setAdminPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={page >= totalPages}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold"
+                        style={{ background: page >= totalPages ? "#231d38" : "var(--surface2)", color: page >= totalPages ? "var(--muted)" : "var(--text)", border: "1px solid #33294f" }}
+                      >
+                        Następna →
+                      </button>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+
+  ) : null;
+
   const useDesktopSessionViews = viewportWidth >= 1280;
-  const useDesktopRedesign = viewportWidth >= 1280 && screen === "home" && !showAdminPanel && !showAdminLogin;
+  const useDesktopRedesign = viewportWidth >= 1280 && screen === "home";
 
   if (useDesktopSessionViews && screen === "practiceSetup") {
     return (
@@ -3730,6 +4445,7 @@ export default function App() {
 
   if (useDesktopRedesign) {
     return (
+      <>
       <DesktopAppView
         user={user}
         playerName={name.trim() || user?.displayName || "Gracz"}
@@ -3795,6 +4511,45 @@ export default function App() {
         proposeError={proposeError}
         proposeSuccess={proposeSuccess}
       />
+
+      {showAdminLogin ? (
+        <div className="desk-admin-modal-backdrop" role="dialog" aria-modal="true" aria-label="Logowanie administratora">
+          <div className="desk-admin-login-card">
+            <div className="desk-admin-modal-eyebrow">TRYB ADMINISTRATORA</div>
+            <h2>PANEL ADMINA</h2>
+            <p>Podaj hasło administratora, aby otworzyć panel bez opuszczania nowego interfejsu.</p>
+            <input
+              autoFocus
+              type="password"
+              value={adminPasswordInput}
+              onChange={(e) => setAdminPasswordInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && unlockAdmin()}
+              placeholder="Hasło admina"
+            />
+            {adminError ? <div className="desk-admin-login-error">{adminError}</div> : null}
+            <div className="desk-admin-login-actions">
+              <button type="button" className="ghost" onClick={() => { setShowAdminLogin(false); setAdminError(""); }}>ANULUJ</button>
+              <button type="button" className="primary" onClick={unlockAdmin}>OTWÓRZ PANEL</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showAdminPanel ? (
+        <div className="desk-admin-modal-backdrop admin-panel" role="dialog" aria-modal="true" aria-label="Panel administratora">
+          <div
+            className="desk-admin-modal-card"
+            style={{
+              '--bg': '#05060d', '--surface': 'rgba(12,12,28,0.98)', '--surface2': 'rgba(18,18,42,0.98)',
+              '--accent': '#4fd6ff', '--accent2': '#8b5cf6', '--accent3': '#ff5fc9', '--gold': '#f5c451',
+              '--text': '#f2edff', '--muted': '#8f879f', '--good': '#2af598', '--bad': '#ff3868'
+            }}
+          >
+            {adminPanelContent}
+          </div>
+        </div>
+      ) : null}
+      </>
     );
   }
 
@@ -4676,717 +5431,7 @@ export default function App() {
           </div>
         )}
 
-        {screen === "home" && showAdminPanel && (
-          <div className="w-full flex flex-col gap-5">
-            <div className="flex items-center justify-between">
-              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24 }}>PANEL ADMINA</h2>
-              <button onClick={() => setShowAdminPanel(false)} className="text-xs" style={{ color: "var(--muted)" }}>
-                ← Wróć
-              </button>
-            </div>
-
-            <button
-              onClick={() => {
-                setShowProposals((v) => !v);
-                if (!proposals) loadProposals();
-              }}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold"
-              style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
-            >
-              💡 Propozycje utworów od graczy {proposals ? `(${proposals.length})` : ""}
-            </button>
-
-            {showProposals && (
-              <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
-                {!proposals ? (
-                  <p style={{ fontSize: 12, color: "var(--muted)" }}>Ładowanie…</p>
-                ) : proposals.length === 0 ? (
-                  <p style={{ fontSize: 12, color: "var(--muted)" }}>Brak oczekujących propozycji.</p>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {proposals.map((p) => (
-                      <div key={p.id} className="rounded-lg p-3" style={{ background: "var(--surface2)" }}>
-                        {proposalEditingId === p.id ? (
-                          <div className="flex flex-col gap-2">
-                            <div className="flex gap-2 flex-wrap">
-                              <input type="text" value={proposalEditDraft.artist} onChange={(e) => setProposalEditDraft({ ...proposalEditDraft, artist: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
-                              <input type="text" value={proposalEditDraft.title} onChange={(e) => setProposalEditDraft({ ...proposalEditDraft, title: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
-                            </div>
-                            <input type="text" value={proposalEditDraft.url} onChange={(e) => setProposalEditDraft({ ...proposalEditDraft, url: e.target.value })} placeholder="Link YouTube" />
-                            <div className="flex gap-2 flex-wrap">
-                              <input type="number" value={proposalEditDraft.year} onChange={(e) => setProposalEditDraft({ ...proposalEditDraft, year: e.target.value })} style={{ width: 90 }} />
-                              <input type="text" value={proposalEditDraft.categoriesText} onChange={(e) => setProposalEditDraft({ ...proposalEditDraft, categoriesText: e.target.value })} placeholder="kategorie;po;średniku" className="flex-1" style={{ minWidth: 140 }} />
-                            </div>
-                            <div className="flex gap-2">
-                              <button onClick={() => handleSaveProposalEdit(p.id)} disabled={adminBusy} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: "var(--good)", color: "#0d1f1a" }}>
-                                <Save size={12} /> Zapisz
-                              </button>
-                              <button onClick={() => setProposalEditingId(null)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs" style={{ border: "1px solid #33294f", color: "var(--muted)" }}>
-                                <X size={12} /> Anuluj
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-between gap-2 flex-wrap">
-                            <div>
-                              <p style={{ fontSize: 13 }}>
-                                <strong>{p.artist}</strong> — {p.title} ({p.year})
-                              </p>
-                              <p style={{ fontSize: 10, color: "var(--muted)" }}>
-                                {(p.categories || []).join(", ")} · zgłosił: {p.submittedBy}
-                              </p>
-                            </div>
-                            <div className="flex gap-2">
-                              <button onClick={() => handleAcceptProposal(p)} disabled={adminBusy} style={{ color: "var(--good)" }} title="Akceptuj">
-                                <Check size={18} />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setProposalEditingId(p.id);
-                                  setProposalEditDraft({
-                                    artist: p.artist,
-                                    title: p.title,
-                                    year: p.year,
-                                    url: `https://www.youtube.com/watch?v=${p.videoId}`,
-                                    videoId: p.videoId,
-                                    categoriesText: (p.categories || []).join(";"),
-                                  });
-                                }}
-                                style={{ color: "var(--accent)" }}
-                                title="Edytuj"
-                              >
-                                <Pencil size={16} />
-                              </button>
-                              <button onClick={() => handleRejectProposal(p.id)} disabled={adminBusy} style={{ color: "var(--bad)" }} title="Odrzuć">
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-            )}
-
-            {(!librarySongs || librarySongs.length === 0) && (
-              <section className="w-full rounded-2xl p-4" style={{ background: "rgba(231,178,76,0.1)", border: "1px solid var(--accent)" }}>
-                <p style={{ fontSize: 12, marginBottom: 8 }}>
-                  Baza w Firestore jest pusta — gra korzysta teraz z wbudowanej listy ({REAL_SONGS.length} utworów), której nie da się edytować na żywo.
-                  Wgraj ją do bazy jednym kliknięciem, żeby móc dalej edytować bezpośrednio w appce:
-                </p>
-                <button
-                  onClick={handleMigrate}
-                  disabled={adminBusy}
-                  className="px-4 py-2 rounded-lg text-sm font-bold"
-                  style={{ background: "var(--accent)", color: "#1a1428" }}
-                >
-                  {migrateProgress ? `Wgrywanie… ${migrateProgress.done}/${migrateProgress.total}` : "Wgraj wbudowaną listę do bazy"}
-                </button>
-              </section>
-            )}
-
-            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
-              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🧹 Sprzątanie pokojów</p>
-              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
-                Usuwa zakończone gry (starsze niż 1h od końca), porzucone/nieukończone pokoje (starsze niż 24h) i sesje treningowe (starsze niż 3h). Bardzo stare pokoje sprzed tej funkcji usuwa, jeśli mają ponad 7 dni. Nie rusza statystyk graczy — te żyją osobno.
-              </p>
-              <button
-                onClick={handleCleanupRooms}
-                disabled={cleanupBusy}
-                className="px-4 py-2 rounded-lg text-sm font-bold"
-                style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
-              >
-                {cleanupBusy
-                  ? cleanupProgress
-                    ? `Usuwanie… ${cleanupProgress.done}/${cleanupProgress.total}`
-                    : "Sprawdzam pokoje…"
-                  : "Wyczyść stare pokoje"}
-              </button>
-              {cleanupResult && (
-                <p style={{ fontSize: 12, marginTop: 8, color: "var(--good)" }}>
-                  ✓ Usunięto {cleanupResult.deleted} z {cleanupResult.totalRooms} sprawdzonych pokojów.
-                </p>
-              )}
-            </section>
-
-            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
-              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>
-                🚨 Zgłoszone uszkodzone linki
-              </p>
-              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
-                Gra sama wykrywa, gdy YouTube nie może wczytać filmu (usunięty/prywatny/wyłączone osadzanie), automatycznie losuje nową kartę i zapisuje to tutaj do przejrzenia.
-              </p>
-              <button
-                onClick={() => {
-                  setShowBrokenLinkReports((v) => !v);
-                  if (!brokenLinkReports) loadBrokenLinkReports();
-                }}
-                className="px-4 py-2 rounded-lg text-sm font-bold"
-                style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
-              >
-                {showBrokenLinkReports ? "Ukryj" : "Pokaż zgłoszenia"} {brokenLinkReports ? `(${brokenLinkReports.length})` : ""}
-              </button>
-              {showBrokenLinkReports && (
-                <div className="flex flex-col gap-2 mt-3">
-                  {!brokenLinkReports ? (
-                    <p style={{ fontSize: 12, color: "var(--muted)" }}>Ładowanie…</p>
-                  ) : brokenLinkReports.length === 0 ? (
-                    <p style={{ fontSize: 12, color: "var(--muted)" }}>Brak zgłoszeń — nic nie zawiodło (jeszcze 🙂).</p>
-                  ) : (
-                    brokenLinkReports.map((r) => (
-                      <div key={r.id} className="rounded-lg p-3" style={{ background: "var(--surface2)" }}>
-                        {brokenLinkEditingId === r.id ? (
-                          <div className="flex flex-col gap-2">
-                            <div className="flex gap-2 flex-wrap">
-                              <input type="text" value={brokenLinkEditDraft.artist} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, artist: e.target.value })} className="flex-1" style={{ minWidth: 100 }} placeholder="Wykonawca" />
-                              <input type="text" value={brokenLinkEditDraft.title} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, title: e.target.value })} className="flex-1" style={{ minWidth: 100 }} placeholder="Tytuł" />
-                            </div>
-                            <input type="text" value={brokenLinkEditDraft.url} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, url: e.target.value })} placeholder="Nowy link YouTube" />
-                            <div className="flex gap-2 flex-wrap">
-                              <input type="number" value={brokenLinkEditDraft.year} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, year: e.target.value })} style={{ width: 90 }} placeholder="Rok" />
-                              <input type="text" value={brokenLinkEditDraft.categoriesText} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, categoriesText: e.target.value })} placeholder="kategorie;po;średniku" className="flex-1" style={{ minWidth: 140 }} />
-                            </div>
-                            <div className="flex gap-2">
-                              <button onClick={() => handleSaveBrokenLinkEdit(r)} disabled={brokenLinkBusy} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: "var(--good)", color: "#0d1f1a" }}>
-                                <Save size={12} /> Zapisz (odrzuci zgłoszenie)
-                              </button>
-                              <button onClick={() => setBrokenLinkEditingId(null)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs" style={{ border: "1px solid #33294f", color: "var(--muted)" }}>
-                                <X size={12} /> Anuluj
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <div>
-                            <p style={{ fontSize: 13 }}>
-                              <strong>{r.artist}</strong> — {r.title} {r.year ? `(${r.year})` : ""}
-                            </p>
-                            <a
-                              href={`https://www.youtube.com/watch?v=${r.videoId}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{ fontSize: 10, color: "var(--accent)" }}
-                            >
-                              sprawdź na YouTube ↗
-                            </a>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => {
-                                setBrokenLinkEditingId(r.id);
-                                setBrokenLinkEditDraft({
-                                  artist: r.artist,
-                                  title: r.title,
-                                  year: r.year || "",
-                                  url: `https://www.youtube.com/watch?v=${r.videoId}`,
-                                  categoriesText: "",
-                                });
-                              }}
-                              style={{ color: "var(--accent)" }}
-                              title="Edytuj link"
-                            >
-                              <Pencil size={16} />
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (window.confirm(`Na pewno usunąć "${r.artist} — ${r.title}" z bazy? Tego nie da się cofnąć.`)) handleDeleteBrokenSong(r);
-                              }}
-                              disabled={brokenLinkBusy}
-                              style={{ color: "var(--bad)" }}
-                              title="Usuń z bazy"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                            <button onClick={() => handleDismissBrokenLink(r.id)} disabled={brokenLinkBusy} style={{ color: "var(--muted)" }} title="Odrzuć zgłoszenie">
-                              <X size={16} />
-                            </button>
-                          </div>
-                        </div>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </section>
-
-
-            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
-              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🃏 Rzadkość kart</p>
-              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
-                Utwory dodane od teraz dostają rzadkość automatycznie. Ten przycisk jednorazowo uzupełnia ją utworom, które trafiły do bazy ZANIM istniał system kart.
-              </p>
-              <button
-                onClick={async () => {
-                  setRarityMigrateBusy(true);
-                  setRarityMigrateProgress(null);
-                  try {
-                    const pool = await fetchAllSongsFromDb();
-                    const result = await migrateRarityForExistingSongs(pool, (done, total) => setRarityMigrateProgress({ done, total }));
-                    setRarityMigrateProgress({ done: result.updated, total: result.total, finished: true });
-                    const fresh = await fetchAllSongsFromDb();
-                    setLibrarySongs(fresh);
-                    saveLibraryCache(fresh);
-                  } catch (e) {
-                    setError("Błąd migracji rzadkości: " + e.message);
-                  } finally {
-                    setRarityMigrateBusy(false);
-                  }
-                }}
-                disabled={rarityMigrateBusy}
-                className="px-4 py-2 rounded-lg text-sm font-bold"
-                style={{ background: "var(--surface2)", border: "1px solid var(--gold)", color: "var(--gold)" }}
-              >
-                {rarityMigrateBusy ? "Uzupełniam…" : "Uzupełnij brakującą rzadkość"}
-              </button>
-              {rarityMigrateProgress && (
-                <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>
-                  {rarityMigrateProgress.finished
-                    ? `Gotowe — uzupełniono ${rarityMigrateProgress.total} utworów.`
-                    : `${rarityMigrateProgress.done}/${rarityMigrateProgress.total}...`}
-                </p>
-              )}
-            </section>
-
-
-            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
-              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🏆 Turniej</p>
-              {activeTournament ? (
-                <div className="flex flex-col gap-2">
-                  <p style={{ fontSize: 13 }}>
-                    Aktywny turniej: {activeTournament.status === "signup" ? `zapisy (${activeTournament.signups.length}/${activeTournament.maxPlayers})` : activeTournament.status === "active" ? "w trakcie" : "zakończony"}
-                  </p>
-                  {activeTournament.status === "signup" && (
-                    <button
-                      onClick={async () => {
-                        if (!window.confirm("Anulować turniej? Nikt nie zapłacił jeszcze wpisowego, więc nic nie trzeba zwracać.")) return;
-                        await cancelTournament(activeTournament.id);
-                        setActiveTournament(null);
-                      }}
-                      className="px-4 py-2 rounded-lg text-sm font-bold self-start"
-                      style={{ background: "var(--surface2)", border: "1px solid var(--bad)", color: "var(--bad)" }}
-                    >
-                      Anuluj turniej
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs uppercase" style={{ color: "var(--muted)" }}>Liczba graczy</label>
-                  <select value={adminNewTournament.maxPlayers} onChange={(e) => setAdminNewTournament({ ...adminNewTournament, maxPlayers: e.target.value })}>
-                    <option value="4">4 graczy</option>
-                    <option value="8">8 graczy</option>
-                  </select>
-                  <label className="text-xs uppercase" style={{ color: "var(--muted)", marginTop: 4 }}>Wpisowe (XP)</label>
-                  <input
-                    type="number"
-                    value={adminNewTournament.entryFee}
-                    onChange={(e) => setAdminNewTournament({ ...adminNewTournament, entryFee: e.target.value })}
-                  />
-                  <button
-                    onClick={async () => {
-                      try {
-                        const id = await createTournament("playlist_duel", parseInt(adminNewTournament.maxPlayers, 10), parseInt(adminNewTournament.entryFee, 10), user.uid);
-                        setActiveTournament(await fetchTournament(id));
-                      } catch (e) {
-                        setError("Błąd tworzenia turnieju: " + e.message);
-                      }
-                    }}
-                    className="px-4 py-2 rounded-lg text-sm font-bold mt-2"
-                    style={{ background: "var(--gold)", color: "#1a1428" }}
-                  >
-                    Stwórz turniej
-                  </button>
-                </div>
-              )}
-            </section>
-
-
-            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
-              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🔥 Najczęściej grane utwory</p>
-              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
-                Licznik zlicza tylko karty, które faktycznie padły w prawdziwej rozgrywce (nie Treningu) — losowanie, które zostało zaraz zastąpione (np. zepsuty link), się nie liczy.
-              </p>
-              <button
-                onClick={async () => {
-                  setMostPlayedBusy(true);
-                  try {
-                    const fresh = await fetchAllSongsFromDb();
-                    const sorted = fresh.filter((s) => s.timesPlayed > 0).sort((a, b) => (b.timesPlayed || 0) - (a.timesPlayed || 0));
-                    setMostPlayedSongs(sorted.slice(0, 20));
-                  } catch (e) {
-                    setError("Błąd pobierania rankingu: " + e.message);
-                  } finally {
-                    setMostPlayedBusy(false);
-                  }
-                }}
-                disabled={mostPlayedBusy}
-                className="px-4 py-2 rounded-lg text-sm font-bold"
-                style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
-              >
-                {mostPlayedBusy ? "Wczytuję…" : "Pokaż ranking"}
-              </button>
-              {mostPlayedSongs && (
-                <div className="flex flex-col gap-1 mt-3">
-                  {mostPlayedSongs.length === 0 ? (
-                    <p style={{ color: "var(--muted)", fontSize: 12 }}>Brak jeszcze danych — licznik zacznie się zapełniać od teraz.</p>
-                  ) : (
-                    mostPlayedSongs.map((s) => (
-                      <div key={s.id} className="flex items-center justify-between text-sm">
-                        <span>
-                          {s.artist} — {s.title}
-                        </span>
-                        <span style={{ color: "var(--accent)" }}>{s.timesPlayed}×</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </section>
-
-            <section className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(255,95,201,0.4)", boxShadow: "0 0 22px rgba(255,95,201,0.15)" }}>
-              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🔬 Analiza puli losowania</p>
-              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
-                Sprawdza, czy losowanie faktycznie korzysta z całej biblioteki, czy jakaś jej część nigdy (albo prawie nigdy) nie wypada.
-                Pokazuje pełną listę utworów od najrzadziej granych — przejrzyj ją i sprawdź, czy skupiają się tam akurat starsze utwory.
-              </p>
-              <button
-                onClick={handleAnalyzePool}
-                disabled={poolAnalysisBusy}
-                className="px-4 py-2 rounded-lg text-sm font-bold"
-                style={{ background: "var(--surface2)", border: "1px solid #ff5fc9", color: "#ff5fc9" }}
-              >
-                {poolAnalysisBusy ? "Analizuję…" : "Analizuj pulę"}
-              </button>
-              {poolAnalysis && (
-                <div className="mt-3 flex flex-col gap-3">
-                  <div className="flex flex-wrap gap-3">
-                    <div className="rounded-lg px-3 py-2" style={{ background: "var(--surface2)" }}>
-                      <p style={{ fontSize: 18, fontWeight: "bold" }}>{poolAnalysis.total}</p>
-                      <p style={{ fontSize: 10, color: "var(--muted)" }}>UTWORÓW W BAZIE</p>
-                    </div>
-                    <div className="rounded-lg px-3 py-2" style={{ background: "var(--surface2)" }}>
-                      <p style={{ fontSize: 18, fontWeight: "bold", color: poolAnalysis.neverPlayedPct > 50 ? "var(--bad)" : "var(--text)" }}>
-                        {poolAnalysis.neverPlayed} ({poolAnalysis.neverPlayedPct}%)
-                      </p>
-                      <p style={{ fontSize: 10, color: "var(--muted)" }}>NIGDY NIE WYPADŁO</p>
-                    </div>
-                    <div className="rounded-lg px-3 py-2" style={{ background: "var(--surface2)" }}>
-                      <p style={{ fontSize: 18, fontWeight: "bold" }}>{poolAnalysis.totalPlays}</p>
-                      <p style={{ fontSize: 10, color: "var(--muted)" }}>WSZYSTKICH ODTWORZEŃ</p>
-                    </div>
-                    <div className="rounded-lg px-3 py-2" style={{ background: "var(--surface2)" }}>
-                      <p style={{ fontSize: 18, fontWeight: "bold" }}>{poolAnalysis.avgPlays}</p>
-                      <p style={{ fontSize: 10, color: "var(--muted)" }}>ŚREDNIO/UTWÓR</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setShowLeastPlayed((v) => !v)}
-                    className="px-3 py-2 rounded-lg text-xs font-bold self-start"
-                    style={{ background: "var(--surface2)", border: "1px solid #ff5fc9", color: "#ff5fc9" }}
-                  >
-                    {showLeastPlayed ? "Ukryj" : "Pokaż"} 60 najrzadziej granych
-                  </button>
-                  <div>
-                    <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 6 }}>Dla porównania — 15 NAJCZĘŚCIEJ granych:</p>
-                    <div className="flex flex-col gap-1">
-                      {poolAnalysis.mostPlayed.map((s) => (
-                        <div key={s.id} className="flex items-center justify-between text-xs" style={{ padding: "3px 0", borderBottom: "1px solid #1a1428" }}>
-                          <span>
-                            {s.artist} — {s.title}
-                            {s.addedAt ? (
-                              <span style={{ color: "var(--muted)" }}> · dodano {new Date(s.addedAt).toLocaleDateString("pl-PL")}</span>
-                            ) : (
-                              <span style={{ color: "var(--muted)", fontStyle: "italic" }}> · starszy wpis</span>
-                            )}
-                          </span>
-                          <span style={{ color: "var(--good)" }}>{s.timesPlayed || 0}×</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  {showLeastPlayed && (
-                    <div className="flex flex-col gap-1" style={{ maxHeight: 400, overflowY: "auto" }}>
-                      {poolAnalysis.leastPlayed.map((s) => (
-                        <div key={s.id} className="flex items-center justify-between text-xs" style={{ padding: "3px 0", borderBottom: "1px solid #1a1428" }}>
-                          <span>
-                            {s.artist} — {s.title} <span style={{ color: "var(--muted)" }}>({s.year})</span>
-                            {s.addedAt ? (
-                              <span style={{ color: "var(--muted)" }}> · dodano {new Date(s.addedAt).toLocaleDateString("pl-PL")}</span>
-                            ) : (
-                              <span style={{ color: "var(--muted)", fontStyle: "italic" }}> · data dodania nieznana (starszy wpis)</span>
-                            )}
-                          </span>
-                          <span style={{ color: (s.timesPlayed || 0) === 0 ? "var(--bad)" : "var(--muted)" }}>{s.timesPlayed || 0}×</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </section>
-
-
-            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
-              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>📤 Eksportuj bazę do CSV</p>
-              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
-                Pobiera całą bibliotekę ({effectivePool.length} utworów) w tym samym formacie, co import poniżej — przydatne jako kopia zapasowa.
-              </p>
-              <button
-                onClick={handleExportCsv}
-                className="px-4 py-2 rounded-lg text-sm font-bold"
-                style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
-              >
-                Pobierz CSV
-              </button>
-            </section>
-
-            <section className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(255,95,201,0.4)", boxShadow: "0 0 22px rgba(255,95,201,0.15)" }}>
-              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🔁 Znajdź duplikaty</p>
-              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
-                Ten sam utwór dodany do bazy dwa razy (np. ręcznie i przez propozycję) ma podwójną szansę na wylosowanie w każdej talii —
-                niewidoczne "faworyzowanie" niektórych piosenek. Skanuje pełną bibliotekę i pokazuje, co się powtarza; usuwanie zrób ręcznie
-                poniżej (przycisk 🗑 przy utworze), żeby na pewno zostawić właściwą kopię.
-              </p>
-              <button
-                onClick={handleFindDuplicates}
-                disabled={duplicateScanBusy}
-                className="px-4 py-2 rounded-lg text-sm font-bold"
-                style={{ background: "var(--surface2)", border: "1px solid #ff5fc9", color: "#ff5fc9" }}
-              >
-                {duplicateScanBusy ? "Skanuję..." : "Skanuj bibliotekę"}
-              </button>
-              {duplicateSongs !== null && (
-                <div className="mt-3 flex flex-col gap-2">
-                  {duplicateSongs.length === 0 ? (
-                    <p style={{ fontSize: 12, color: "var(--good)" }}>✓ Brak duplikatów — każdy utwór jest w bazie tylko raz.</p>
-                  ) : (
-                    <>
-                      <p style={{ fontSize: 12, color: "#ff5fc9", fontWeight: "bold" }}>
-                        Znaleziono {duplicateSongs.length} zduplikowanych utworów ({duplicateSongs.reduce((sum, g) => sum + g.length - 1, 0)} nadmiarowych kopii):
-                      </p>
-                      {duplicateSongs.map((group) => (
-                        <div key={group[0].videoId} className="rounded-lg p-2" style={{ background: "var(--surface2)" }}>
-                          <p style={{ fontSize: 12, fontWeight: "bold" }}>
-                            {group[0].artist} – {group.map((s) => s.title).join(" / ")} ({group.length}×)
-                          </p>
-                          <p style={{ fontSize: 10, color: "var(--muted)" }}>videoId: {group[0].videoId}</p>
-                          <div className="flex flex-wrap gap-2 mt-1">
-                            {group.map((s) => (
-                              <button
-                                key={s.id}
-                                onClick={async () => {
-                                  await handleAdminDelete(s.id);
-                                  setDuplicateSongs((prev) =>
-                                    prev
-                                      .map((g) => g.filter((x) => x.id !== s.id))
-                                      .filter((g) => g.length > 1)
-                                  );
-                                }}
-                                className="px-2 py-1 rounded text-xs"
-                                style={{ background: "var(--surface)", border: "1px solid var(--bad)", color: "var(--bad)" }}
-                              >
-                                🗑 usuń "{s.title}" ({s.year})
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
-              )}
-            </section>
-
-
-            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
-              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>📥 Import z CSV (masowo)</p>
-              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
-                Format wierszy: <code>url;wykonawca;tytuł;rok;kategorie;po;średniku</code>. Duplikaty (po linku YouTube) są pomijane automatycznie.
-              </p>
-              <input type="file" accept=".csv,text/csv" onChange={handleImportFilePick} style={{ fontSize: 12, marginBottom: 8 }} />
-              <textarea
-                rows={5}
-                value={importCsvText}
-                onChange={(e) => setImportCsvText(e.target.value)}
-                placeholder="Wklej tu zawartość pliku CSV, albo wybierz plik powyżej…"
-                className="w-full"
-              />
-              <button
-                onClick={handleImportCsv}
-                disabled={importBusy || !importCsvText.trim()}
-                className="mt-2 px-4 py-2 rounded-lg text-sm font-bold"
-                style={{ background: "var(--good)", color: "#0d1f1a" }}
-              >
-                {importBusy
-                  ? migrateProgress
-                    ? `Importowanie… ${migrateProgress.done}/${migrateProgress.total}`
-                    : "Sprawdzam duplikaty…"
-                  : "Importuj do bazy"}
-              </button>
-              {importResult && (
-                <p style={{ fontSize: 12, marginTop: 8, color: "var(--good)" }}>
-                  ✓ Dodano {importResult.added} nowych utworów. Pominięto: {importResult.skippedDup} duplikatów, {importResult.skippedBad} błędnych wierszy (z {importResult.totalRows} w pliku).
-                </p>
-              )}
-            </section>
-
-            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
-              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>Dodaj nowy utwór</p>
-              <div className="flex flex-col gap-2">
-                <div className="flex gap-2 flex-wrap">
-                  <input type="text" placeholder="Wykonawca" value={adminNewSong.artist} onChange={(e) => setAdminNewSong({ ...adminNewSong, artist: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
-                  <input type="text" placeholder="Tytuł" value={adminNewSong.title} onChange={(e) => setAdminNewSong({ ...adminNewSong, title: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
-                </div>
-                <input type="text" placeholder="Link YouTube" value={adminNewSong.url} onChange={(e) => setAdminNewSong({ ...adminNewSong, url: e.target.value })} />
-                <div className="flex gap-2 flex-wrap">
-                  <input type="number" placeholder="Rok" value={adminNewSong.year} onChange={(e) => setAdminNewSong({ ...adminNewSong, year: e.target.value })} style={{ width: 90 }} />
-                  <input type="text" placeholder="kategorie;po;średniku" value={adminNewSong.categories} onChange={(e) => setAdminNewSong({ ...adminNewSong, categories: e.target.value })} className="flex-1" style={{ minWidth: 140 }} />
-                </div>
-                <button onClick={handleAdminAdd} disabled={adminBusy} className="px-4 py-2 rounded-lg text-sm font-bold" style={{ background: "var(--good)", color: "#0d1f1a" }}>
-                  + Dodaj
-                </button>
-              </div>
-            </section>
-
-            <div className="flex items-center gap-2">
-              <Search size={16} color="var(--muted)" />
-              <input type="text" value={adminSearch} onChange={(e) => setAdminSearch(e.target.value)} placeholder="Szukaj po wykonawcy lub tytule…" className="flex-1" />
-            </div>
-
-            <p style={{ fontSize: 11, color: "var(--muted)" }}>
-              {librarySongs ? `${librarySongs.length} utworów w bazie` : "Ładowanie…"}
-            </p>
-
-            {(() => {
-              const filtered = (librarySongs || [])
-                .filter((s) => {
-                  const q = adminSearch.trim().toLowerCase();
-                  if (!q) return true;
-                  return s.artist.toLowerCase().includes(q) || s.title.toLowerCase().includes(q);
-                })
-                .sort((a, b) => a.artist.localeCompare(b.artist) || a.title.localeCompare(b.title));
-              const totalPages = Math.max(1, Math.ceil(filtered.length / ADMIN_PAGE_SIZE));
-              const page = Math.min(adminPage, totalPages);
-              const pageItems = filtered.slice((page - 1) * ADMIN_PAGE_SIZE, page * ADMIN_PAGE_SIZE);
-
-              return (
-                <>
-                  <p style={{ fontSize: 11, color: "var(--muted)" }}>
-                    {filtered.length} wyników — strona {page}/{totalPages}
-                  </p>
-
-                  <div className="flex flex-col gap-2">
-                    {pageItems.map((s) => (
-                      <div key={s.id} className="rounded-lg p-3" style={{ background: "var(--surface2)" }}>
-                        {adminEditingId === s.id ? (
-                          <div className="flex flex-col gap-2">
-                            <div className="flex gap-2 flex-wrap">
-                              <input type="text" value={adminEditDraft.artist} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, artist: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
-                              <input type="text" value={adminEditDraft.title} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, title: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
-                            </div>
-                            <input type="text" value={adminEditDraft.url} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, url: e.target.value })} placeholder="Link YouTube" />
-                            <div className="flex gap-2 flex-wrap">
-                              <input type="number" value={adminEditDraft.year} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, year: e.target.value })} style={{ width: 90 }} />
-                              <input type="text" value={adminEditDraft.categoriesText} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, categoriesText: e.target.value })} placeholder="kategorie;po;średniku" className="flex-1" style={{ minWidth: 140 }} />
-                            </div>
-                            <div className="flex gap-2">
-                              <button onClick={() => handleAdminSave(s.id)} disabled={adminBusy} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: "var(--good)", color: "#0d1f1a" }}>
-                                <Save size={12} /> Zapisz
-                              </button>
-                              <button onClick={() => setAdminEditingId(null)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs" style={{ border: "1px solid #33294f", color: "var(--muted)" }}>
-                                <X size={12} /> Anuluj
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-between gap-2 flex-wrap">
-                            <div>
-                              <p style={{ fontSize: 13 }}>
-                                <strong>{s.artist}</strong> — {s.title} ({s.year})
-                              </p>
-                              <p style={{ fontSize: 10, color: "var(--muted)" }}>
-                                {(s.categories || []).join(", ") || "brak kategorii"}
-                                {" · "}
-                                <span style={{ color: RARITY_INFO[effectiveRarity(s)].color }}>{RARITY_INFO[effectiveRarity(s)].label}</span>
-                              </p>
-                            </div>
-                            <div className="flex gap-2 items-center">
-                              <button
-                                onClick={async () => {
-                                  const newVal = !s.isDiamond;
-                                  await updateSongInDb(s.id, { isDiamond: newVal });
-                                  const base = librarySongs && librarySongs.length > 0 ? librarySongs : await fetchAllSongsFromDb();
-                                  const next = base.map((x) => (x.id === s.id ? { ...x, isDiamond: newVal } : x));
-                                  setLibrarySongs(next);
-                                  saveLibraryCache(next);
-                                }}
-                                title={s.isDiamond ? "Cofnij Diament" : "Ustaw jako Diament"}
-                                style={{ color: s.isDiamond ? "#7dffef" : "var(--muted)", fontSize: 16 }}
-                              >
-                                💎
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setAdminEditingId(s.id);
-                                  setAdminEditDraft({
-                                    artist: s.artist,
-                                    title: s.title,
-                                    year: s.year,
-                                    url: `https://www.youtube.com/watch?v=${s.videoId}`,
-                                    categoriesText: (s.categories || []).join(";"),
-                                  });
-                                }}
-                                style={{ color: "var(--accent)" }}
-                              >
-                                <Pencil size={16} />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  if (window.confirm(`Na pewno usunąć "${s.artist} — ${s.title}"? Tego nie da się cofnąć.`)) handleAdminDelete(s.id);
-                                }}
-                                disabled={adminBusy}
-                                style={{ color: "var(--bad)" }}
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  {totalPages > 1 && (
-                    <div className="flex items-center justify-center gap-2 flex-wrap mt-2">
-                      <button
-                        onClick={() => setAdminPage((p) => Math.max(1, p - 1))}
-                        disabled={page <= 1}
-                        className="px-3 py-1.5 rounded-lg text-xs font-bold"
-                        style={{ background: page <= 1 ? "#231d38" : "var(--surface2)", color: page <= 1 ? "var(--muted)" : "var(--text)", border: "1px solid #33294f" }}
-                      >
-                        ← Poprzednia
-                      </button>
-                      <span style={{ fontSize: 12, color: "var(--muted)" }}>
-                        Strona {page} / {totalPages}
-                      </span>
-                      <button
-                        onClick={() => setAdminPage((p) => Math.min(totalPages, p + 1))}
-                        disabled={page >= totalPages}
-                        className="px-3 py-1.5 rounded-lg text-xs font-bold"
-                        style={{ background: page >= totalPages ? "#231d38" : "var(--surface2)", color: page >= totalPages ? "var(--muted)" : "var(--text)", border: "1px solid #33294f" }}
-                      >
-                        Następna →
-                      </button>
-                    </div>
-                  )}
-                </>
-              );
-            })()}
-          </div>
-        )}
+        {screen === "home" && adminPanelContent}
 
         {screen === "home" && !showStats && !showLeaderboard && !showAdminPanel && !showAchievements && (
           <div className="w-full flex flex-col gap-5">

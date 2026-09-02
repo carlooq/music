@@ -1822,3 +1822,51 @@
 .desk-artist-percent { font-family:'Space Mono',monospace; font-size:12px; text-align:right; color:#2af598; }
 .desk-artist-performance-row.pink .desk-artist-percent { color:#ff5fc9; }
 .desk-empty-performance { padding:18px; border-radius:14px; color:#8f88a8; background:rgba(6,9,24,.5); font-size:12px; }
+
+/* Admin stays inside the desktop shell instead of jumping back to legacy UI. */
+.desk-admin-modal-backdrop {
+  position:fixed;
+  inset:0;
+  z-index:500;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:28px;
+  background:rgba(2,4,14,.86);
+  backdrop-filter:blur(13px);
+}
+.desk-admin-login-card,
+.desk-admin-modal-card {
+  color:#f2edff;
+  background:linear-gradient(180deg,rgba(10,12,33,.985),rgba(5,7,20,.99));
+  border:1px solid rgba(79,214,255,.34);
+  box-shadow:0 0 65px rgba(42,113,205,.18),inset 0 0 45px rgba(53,102,190,.035);
+}
+.desk-admin-login-card {
+  width:min(470px,calc(100vw - 44px));
+  border-radius:24px;
+  padding:30px;
+}
+.desk-admin-modal-eyebrow { color:#59dfff; font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.17em; }
+.desk-admin-login-card h2 { font-family:'Bebas Neue',sans-serif; font-size:44px; line-height:1; margin:7px 0 8px; }
+.desk-admin-login-card p { color:#9992a9; font-size:12px; line-height:1.5; margin:0 0 18px; }
+.desk-admin-login-card input { width:100%; height:48px; border-radius:13px; padding:0 14px; color:#fff; background:#070b1e; border:1px solid rgba(86,207,255,.28); outline:none; }
+.desk-admin-login-card input:focus { border-color:#53ddff; box-shadow:0 0 18px rgba(79,214,255,.10); }
+.desk-admin-login-error { margin-top:9px; color:#ff6388; font-size:11px; }
+.desk-admin-login-actions { display:grid; grid-template-columns:1fr 1.35fr; gap:10px; margin-top:16px; }
+.desk-admin-login-actions button { min-height:45px; border-radius:12px; font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:.05em; }
+.desk-admin-login-actions .ghost { color:#b2aabc; border:1px solid rgba(135,126,170,.22); background:#0b0e22; }
+.desk-admin-login-actions .primary { color:#fff; border:1px solid rgba(255,255,255,.22); background:linear-gradient(90deg,#c42be6,#7959ff 55%,#30cfff); }
+.desk-admin-modal-backdrop.admin-panel { align-items:flex-start; overflow:auto; padding:30px; }
+.desk-admin-modal-card {
+  width:min(1480px,calc(100vw - 70px));
+  min-height:300px;
+  margin:auto;
+  border-radius:26px;
+  padding:26px;
+  font-family:'Space Mono',monospace;
+}
+.desk-admin-modal-card input,
+.desk-admin-modal-card select,
+.desk-admin-modal-card textarea { color:#f2edff; background:#090d21; border:1px solid rgba(108,101,172,.25); border-radius:10px; padding:8px 10px; }
+.desk-admin-modal-card button { cursor:pointer; }
