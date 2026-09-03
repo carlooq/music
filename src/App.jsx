@@ -16,7 +16,7 @@ import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId, fuzzyMatc
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
 import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, getLeaderboardPosition, awardXp, xpForLevel, levelFromXp, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag, getWeeklyChallenges, bumpWeeklyChallengeProgress, claimWeeklyChallenge } from "./stats.js";
-import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss, incrementSongPlayCount, getSongCount, migrateRarityForExistingSongs } from "./songsDb.js";
+import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss, incrementSongPlayCount, getSongCount } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
 import { heartbeat, clearPresence, getOnlinePlayers } from "./presence.js";
 import { sendDuelChallenge, listenForIncomingChallenge, listenForSentChallenges, acceptDuelChallenge, declineDuelChallenge, clearDuelChallenge, isChallengeStale } from "./duelInvites.js";
@@ -786,6 +786,7 @@ export default function App() {
   const [adminError, setAdminError] = useState("");
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [adminSearch, setAdminSearch] = useState("");
+  const [adminCategoryFilter, setAdminCategoryFilter] = useState("all");
   const [adminPage, setAdminPage] = useState(1);
   const ADMIN_PAGE_SIZE = 100;
   const [adminBusy, setAdminBusy] = useState(false);
@@ -817,8 +818,6 @@ export default function App() {
   const [cleanupResult, setCleanupResult] = useState(null);
   const [cleanupProgress, setCleanupProgress] = useState(null);
   const [brokenLinkReports, setBrokenLinkReports] = useState(null);
-  const [mostPlayedSongs, setMostPlayedSongs] = useState(null);
-  const [mostPlayedBusy, setMostPlayedBusy] = useState(false);
   const [poolAnalysis, setPoolAnalysis] = useState(null);
   const [poolAnalysisBusy, setPoolAnalysisBusy] = useState(false);
   const [showLeastPlayed, setShowLeastPlayed] = useState(false);
@@ -1115,8 +1114,6 @@ export default function App() {
   const [lastCompletedTournament, setLastCompletedTournament] = useState(null);
   const [tournamentBusy, setTournamentBusy] = useState(false);
   const [adminNewTournament, setAdminNewTournament] = useState({ maxPlayers: "4", entryFee: "200" });
-  const [rarityMigrateBusy, setRarityMigrateBusy] = useState(false);
-  const [rarityMigrateProgress, setRarityMigrateProgress] = useState(null);
   const [packShopBusy, setPackShopBusy] = useState(false);
   const [packOpenResult, setPackOpenResult] = useState(null);
   const [packRevealedIndices, setPackRevealedIndices] = useState(new Set());
@@ -1493,7 +1490,7 @@ export default function App() {
 
   useEffect(() => {
     setAdminPage(1);
-  }, [adminSearch]);
+  }, [adminSearch, adminCategoryFilter]);
 
   function refreshLibrary() {
     fetchAllSongsFromDb()
@@ -4047,8 +4044,8 @@ export default function App() {
   const desktopArtistPerformance = stats ? topArtists(stats, 5, 2) : { best: [], worst: [] };
 
   const adminPanelContent = showAdminPanel ? (
-          <div className="w-full flex flex-col gap-5">
-            <div className="flex items-center justify-between">
+          <div className="hit-admin-panel-content w-full flex flex-col gap-5">
+            <div className="hit-admin-header flex items-center justify-between">
               <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24 }}>PANEL ADMINA</h2>
               <button onClick={() => setShowAdminPanel(false)} className="text-xs" style={{ color: "var(--muted)" }}>
                 ← Wróć
@@ -4284,44 +4281,6 @@ export default function App() {
 
 
             <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
-              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🃏 Rzadkość kart</p>
-              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
-                Utwory dodane od teraz dostają rzadkość automatycznie. Ten przycisk jednorazowo uzupełnia ją utworom, które trafiły do bazy ZANIM istniał system kart.
-              </p>
-              <button
-                onClick={async () => {
-                  setRarityMigrateBusy(true);
-                  setRarityMigrateProgress(null);
-                  try {
-                    const pool = await fetchAllSongsFromDb();
-                    const result = await migrateRarityForExistingSongs(pool, (done, total) => setRarityMigrateProgress({ done, total }));
-                    setRarityMigrateProgress({ done: result.updated, total: result.total, finished: true });
-                    const fresh = await fetchAllSongsFromDb();
-                    setLibrarySongs(fresh);
-                    saveLibraryCache(fresh);
-                  } catch (e) {
-                    setError("Błąd migracji rzadkości: " + e.message);
-                  } finally {
-                    setRarityMigrateBusy(false);
-                  }
-                }}
-                disabled={rarityMigrateBusy}
-                className="px-4 py-2 rounded-lg text-sm font-bold"
-                style={{ background: "var(--surface2)", border: "1px solid var(--gold)", color: "var(--gold)" }}
-              >
-                {rarityMigrateBusy ? "Uzupełniam…" : "Uzupełnij brakującą rzadkość"}
-              </button>
-              {rarityMigrateProgress && (
-                <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>
-                  {rarityMigrateProgress.finished
-                    ? `Gotowe — uzupełniono ${rarityMigrateProgress.total} utworów.`
-                    : `${rarityMigrateProgress.done}/${rarityMigrateProgress.total}...`}
-                </p>
-              )}
-            </section>
-
-
-            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
               <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🏆 Turniej</p>
               {activeTournament ? (
                 <div className="flex flex-col gap-2">
@@ -4373,48 +4332,6 @@ export default function App() {
               )}
             </section>
 
-
-            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
-              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🔥 Najczęściej grane utwory</p>
-              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
-                Licznik zlicza tylko karty, które faktycznie padły w prawdziwej rozgrywce (nie Treningu) — losowanie, które zostało zaraz zastąpione (np. zepsuty link), się nie liczy.
-              </p>
-              <button
-                onClick={async () => {
-                  setMostPlayedBusy(true);
-                  try {
-                    const fresh = await fetchAllSongsFromDb();
-                    const sorted = fresh.filter((s) => s.timesPlayed > 0).sort((a, b) => (b.timesPlayed || 0) - (a.timesPlayed || 0));
-                    setMostPlayedSongs(sorted.slice(0, 20));
-                  } catch (e) {
-                    setError("Błąd pobierania rankingu: " + e.message);
-                  } finally {
-                    setMostPlayedBusy(false);
-                  }
-                }}
-                disabled={mostPlayedBusy}
-                className="px-4 py-2 rounded-lg text-sm font-bold"
-                style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
-              >
-                {mostPlayedBusy ? "Wczytuję…" : "Pokaż ranking"}
-              </button>
-              {mostPlayedSongs && (
-                <div className="flex flex-col gap-1 mt-3">
-                  {mostPlayedSongs.length === 0 ? (
-                    <p style={{ color: "var(--muted)", fontSize: 12 }}>Brak jeszcze danych — licznik zacznie się zapełniać od teraz.</p>
-                  ) : (
-                    mostPlayedSongs.map((s) => (
-                      <div key={s.id} className="flex items-center justify-between text-sm">
-                        <span>
-                          {s.artist} — {s.title}
-                        </span>
-                        <span style={{ color: "var(--accent)" }}>{s.timesPlayed}×</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </section>
 
             <section className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(255,95,201,0.4)", boxShadow: "0 0 22px rgba(255,95,201,0.15)" }}>
               <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🔬 Analiza puli losowania</p>
@@ -4621,23 +4538,47 @@ export default function App() {
               </div>
             </section>
 
-            <div className="flex items-center gap-2">
-              <Search size={16} color="var(--muted)" />
-              <input type="text" value={adminSearch} onChange={(e) => setAdminSearch(e.target.value)} placeholder="Szukaj po wykonawcy lub tytule…" className="flex-1" />
+            <div className="hit-admin-filterbar">
+              <label className="hit-admin-searchbox">
+                <Search size={16} color="var(--muted)" />
+                <input type="text" value={adminSearch} onChange={(e) => setAdminSearch(e.target.value)} placeholder="Szukaj po wykonawcy lub tytule…" />
+              </label>
+              <label className="hit-admin-category-filter">
+                <span>KATEGORIA</span>
+                <select value={adminCategoryFilter} onChange={(e) => setAdminCategoryFilter(e.target.value)}>
+                  <option value="all">Wszystkie kategorie</option>
+                  <option value="__none__">Bez kategorii</option>
+                  {Array.from(new Set([
+                    ...CATEGORIES.map((c) => c.slug),
+                    ...(librarySongs || []).flatMap((song) => normCategories(song.categories).filter(Boolean)),
+                  ])).sort((a, b) => a.localeCompare(b, "pl")).map((slug) => {
+                    const known = CATEGORIES.find((c) => c.slug === slug);
+                    return <option key={slug} value={slug}>{known?.label || slug}</option>;
+                  })}
+                </select>
+              </label>
             </div>
 
-            <p style={{ fontSize: 11, color: "var(--muted)" }}>
+            <p className="hit-admin-library-count" style={{ fontSize: 11, color: "var(--muted)" }}>
               {librarySongs ? `${librarySongs.length} utworów w bazie` : "Ładowanie…"}
             </p>
 
             {(() => {
               const filtered = (librarySongs || [])
                 .filter((s) => {
+                  const songCategories = normCategories(s.categories).filter(Boolean);
+                  const matchesCategory = adminCategoryFilter === "all"
+                    ? true
+                    : adminCategoryFilter === "__none__"
+                      ? songCategories.length === 0
+                      : songCategories.includes(adminCategoryFilter);
+                  if (!matchesCategory) return false;
+
                   const q = adminSearch.trim().toLowerCase();
                   if (!q) return true;
-                  return s.artist.toLowerCase().includes(q) || s.title.toLowerCase().includes(q);
+                  return (s.artist || "").toLowerCase().includes(q) || (s.title || "").toLowerCase().includes(q);
                 })
-                .sort((a, b) => a.artist.localeCompare(b.artist) || a.title.localeCompare(b.title));
+                .sort((a, b) => (a.artist || "").localeCompare(b.artist || "") || (a.title || "").localeCompare(b.title || ""));
               const totalPages = Math.max(1, Math.ceil(filtered.length / ADMIN_PAGE_SIZE));
               const page = Math.min(adminPage, totalPages);
               const pageItems = filtered.slice((page - 1) * ADMIN_PAGE_SIZE, page * ADMIN_PAGE_SIZE);

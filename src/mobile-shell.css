@@ -915,3 +915,102 @@
   .mob-rarity-reveal-fx * { animation:none !important; }
   .mob-rarity-reveal-fx { display:none; }
 }
+
+/* Admin panel v3.9 — mobile-first layout without changing admin logic. */
+.hit-admin-panel-content,
+.hit-admin-panel-content * { box-sizing: border-box; }
+.hit-admin-panel-content { min-width: 0; }
+
+.hit-admin-filterbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(220px, .9fr);
+  gap: 10px;
+  align-items: end;
+}
+.hit-admin-searchbox {
+  min-width: 0;
+  min-height: 44px;
+  display: grid;
+  grid-template-columns: 20px minmax(0,1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 0 11px;
+  border: 1px solid rgba(108,101,172,.25);
+  border-radius: 11px;
+  background: #090d21;
+}
+.hit-admin-searchbox input {
+  width: 100%;
+  min-width: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.hit-admin-category-filter { display:flex; flex-direction:column; gap:5px; min-width:0; }
+.hit-admin-category-filter > span {
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: .12em;
+}
+.hit-admin-category-filter select { width:100%; min-height:44px; }
+
+@media (max-width: 1279px) {
+  .desk-admin-modal-backdrop.admin-panel {
+    align-items: stretch;
+    padding: 0;
+    overflow: hidden;
+    background: rgba(2,4,14,.94);
+  }
+  .desk-admin-modal-card {
+    width: 100%;
+    max-width: none;
+    height: 100dvh;
+    min-height: 100dvh;
+    margin: 0;
+    padding: calc(12px + env(safe-area-inset-top)) 12px calc(18px + env(safe-area-inset-bottom));
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .hit-admin-panel-content { gap: 12px !important; width:100%; max-width:100%; }
+  .hit-admin-header {
+    position: sticky;
+    top: calc(-12px - env(safe-area-inset-top));
+    z-index: 12;
+    margin: calc(-12px - env(safe-area-inset-top)) -12px 0;
+    padding: calc(13px + env(safe-area-inset-top)) 13px 11px;
+    background: linear-gradient(180deg,rgba(5,7,20,.995) 78%,rgba(5,7,20,.94));
+    border-bottom: 1px solid rgba(79,214,255,.15);
+    backdrop-filter: blur(12px);
+  }
+  .hit-admin-header h2 { font-size: 30px !important; line-height:1; }
+  .hit-admin-header button { min-height: 36px; padding: 0 8px; }
+  .hit-admin-panel-content > section {
+    width: 100% !important;
+    min-width: 0;
+    padding: 12px !important;
+    border-radius: 15px !important;
+  }
+  .hit-admin-panel-content input,
+  .hit-admin-panel-content select,
+  .hit-admin-panel-content textarea {
+    max-width: 100%;
+    min-width: 0 !important;
+    font-size: 16px; /* prevents iOS zoom while editing admin data */
+  }
+  .hit-admin-panel-content textarea { width:100%; }
+  .hit-admin-filterbar { grid-template-columns: 1fr; gap: 8px; }
+  .hit-admin-library-count { margin-top: -2px; }
+  .hit-admin-panel-content button { max-width:100%; }
+}
+
+@media (max-width: 430px) {
+  .desk-admin-modal-card { padding-left: 9px; padding-right: 9px; }
+  .hit-admin-header { margin-left:-9px; margin-right:-9px; padding-left:10px; padding-right:10px; }
+  .hit-admin-panel-content > section { padding: 10px !important; border-radius: 13px !important; }
+}
