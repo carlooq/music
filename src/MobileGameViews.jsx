@@ -327,26 +327,6 @@ export function MobileOpenerView({ room, openerPhase, openerCountdownNum, isPlay
   );
 }
 
-function GuessSheet({ open, onClose, guessArtist, setGuessArtist, guessTitle, setGuessTitle, tokens, onSwap, onBuy, busy, swapCost, buyCost }) {
-  if (!open) return null;
-  return (
-    <div className="mgv-sheet-backdrop" onClick={onClose}>
-      <aside className="mgv-bottom-sheet" onClick={(event) => event.stopPropagation()}>
-        <div className="mgv-sheet-handle" />
-        <div className="mgv-sheet-head"><strong>BONUS: TYTUŁ I WYKONAWCA</strong><button type="button" onClick={onClose}><X size={19} /></button></div>
-        <p>Opcjonalne. Za zaakceptowaną odpowiedź możesz zdobyć token.</p>
-        <div className="mgv-sheet-token"><img src={iconToken} alt="" /> {tokens} TOKENÓW</div>
-        <input value={guessArtist} onChange={(event) => setGuessArtist(event.target.value)} placeholder="Wykonawca" />
-        <input value={guessTitle} onChange={(event) => setGuessTitle(event.target.value)} placeholder="Tytuł" />
-        <div className="mgv-utility-grid">
-          <button type="button" onClick={onSwap} disabled={busy || tokens < swapCost}><RotateCcw size={16} /> WYMIEŃ ({swapCost})</button>
-          <button type="button" onClick={onBuy} disabled={busy || tokens < buyCost}><Gift size={16} /> KUP KARTĘ ({buyCost})</button>
-        </div>
-      </aside>
-    </div>
-  );
-}
-
 function VotingCard({ isMyTurn, turnPlayerName, correctCard, pendingGuess, requiredApprovals, votesCount, votersCount, countdown, myVote, onVote, busy }) {
   return (
     <Panel className="mgv-voting-card" accent="pink">
@@ -393,8 +373,7 @@ function MobileRoundResult({ room, advanceCountdown }) {
 }
 
 export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayerName, decisionLeft, playElapsed, playCapSeconds, isPlaying, iframeRef, onTogglePlay, guessArtist, setGuessArtist, guessTitle, setGuessTitle, onSwapSong, onBuyCard, swapCost, buyCost, chosenSlot, setChosenSlot, turnTimeline, viewedTimeline, displayedPlayerId, displayedPlayerName, setViewedPlayerId, onConfirmPlacement, busy, playerLevels = {}, levelFromXp, votingCountdown, onVote, advanceCountdown, onLeave, chatInput, setChatInput, onSendChat }) {
-  const [guessOpen, setGuessOpen] = useState(false);
-  const [playersOpen, setPlayersOpen] = useState(false);
+  const [timelinePreviewId, setTimelinePreviewId] = useState(null);
   const [chatOpen, setChatOpen] = useState(false);
   const modeLabel = room.dailyPlaylistMode ? 'PLAYLISTA DNIA' : room.practiceMode ? 'TRENING' : room.tournamentMode ? 'TURNIEJ' : 'ROZGRYWKA';
   const currentTokens = room.tokens?.[playerId] || 0;
@@ -404,6 +383,10 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
   const practiceCorrect = practicePlayed.filter((card) => card.correct).length;
   const practiceWrong = practicePlayed.filter((card) => !card.correct).length;
   const activeTimelineLength = (room.timelines?.[displayedPlayerId] || []).length;
+  const timelinePreviewPlayer = timelinePreviewId ? room.players.find((player) => player.id === timelinePreviewId) : null;
+  const timelinePreviewCards = timelinePreviewId
+    ? [...(room.timelines?.[timelinePreviewId] || [])].sort((a, b) => a.year - b.year)
+    : [];
 
   return (
     <MobileSession className="mgv-playing-page">
@@ -432,12 +415,12 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
                   <div className="mgv-inline-guess">
                     <div className="mgv-inline-guess-head">
                       <div>
-                        <span className="mgv-eyebrow">BONUS · OPCJONALNIE</span>
-                        <strong>ZGADNIJ TYTUŁ I WYKONAWCĘ</strong>
+                        <span className="mgv-eyebrow">ODPOWIEDŹ</span>
+                        <strong>TYTUŁ I WYKONAWCA</strong>
                       </div>
                       <span className="mgv-inline-token"><img src={iconToken} alt="" /> {currentTokens}</span>
                     </div>
-                    <p>Wpisz odpowiedź przed zatwierdzeniem miejsca. Jeśli zostanie zaakceptowana, zdobywasz token.</p>
+                    <p>Wpisz odpowiedź przed zatwierdzeniem miejsca. Za poprawny tytuł i wykonawcę możesz zdobyć token.</p>
                     <div className="mgv-inline-guess-fields">
                       <label>
                         <span>WYKONAWCA</span>
@@ -460,6 +443,18 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
                         />
                       </label>
                     </div>
+                    <div className="mgv-token-actions">
+                      <button type="button" onClick={onSwapSong} disabled={busy || currentTokens < swapCost}>
+                        <RotateCcw size={17} />
+                        <span><strong>WYMIEŃ UTWÓR</strong><small>Losuje inny utwór do tej tury</small></span>
+                        <b><img src={iconToken} alt="" />{swapCost}</b>
+                      </button>
+                      <button type="button" onClick={onBuyCard} disabled={busy || currentTokens < buyCost}>
+                        <Gift size={17} />
+                        <span><strong>KUP KARTĘ W CIEMNO</strong><small>Dodaje kartę od razu do Twojej osi</small></span>
+                        <b><img src={iconToken} alt="" />{buyCost}</b>
+                      </button>
+                    </div>
                   </div>
                 ) : null}
                 <div className="mgv-selected-slot"><span>{chosenSlot !== null ? 'WYBRANO' : 'WYBIERZ + NA OSI'}</span><strong>{chosenSlot !== null ? `SLOT ${chosenSlot + 1}` : '—'}</strong></div>
@@ -478,25 +473,44 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
           <div className="mgv-progress"><span style={{ width: `${Math.min(100, ((room.timelines?.[playerId] || []).length / Math.max(1, room.target)) * 100)}%` }} /></div>
           <div className="mgv-mini-stats"><div className="good"><Check size={17} /><span>Trafienia</span><b>{practiceCorrect}</b></div><div className="bad"><X size={17} /><span>Pomyłki</span><b>{practiceWrong}</b></div></div>
         </Panel>
-      ) : (
-        <div className="mgv-game-tools">
-          <button type="button" onClick={() => setPlayersOpen(true)}><Users size={18} /><span>GRACZE</span><b>{room.players.length}</b></button>
-          {screen === 'playing' && isMyTurn ? <button type="button" onClick={() => setGuessOpen(true)}><Headphones size={18} /><span>BONUS</span><b><img src={iconToken} alt="" />{currentTokens}</b></button> : null}
-        </div>
-      )}
+      ) : null}
 
       {!room.practiceMode ? <MobileChat open={chatOpen} setOpen={setChatOpen} messages={room.messages || []} playerId={playerId} chatInput={chatInput} setChatInput={setChatInput} onSend={onSendChat} /> : null}
 
-      <GuessSheet open={guessOpen} onClose={() => setGuessOpen(false)} guessArtist={guessArtist} setGuessArtist={setGuessArtist} guessTitle={guessTitle} setGuessTitle={setGuessTitle} tokens={currentTokens} onSwap={onSwapSong} onBuy={onBuyCard} busy={busy} swapCost={swapCost} buyCost={buyCost} />
+      {!room.practiceMode ? (
+        <Panel className="mgv-live-players" accent="cyan">
+          <div className="mgv-live-players-head">
+            <div><span className="mgv-eyebrow">GRACZE</span><strong>PODGLĄD OSI CZASU</strong></div>
+            <small>Kliknij gracza</small>
+          </div>
+          <div className="mgv-player-table-head"><span>NICK</span><span>KARTY</span><span>TOKENY</span></div>
+          <div className="mgv-live-player-list">
+            {room.players.map((player) => {
+              const cardsCount = (room.timelines?.[player.id] || []).length;
+              const tokenCount = room.tokens?.[player.id] || 0;
+              const active = player.id === room.currentPlayerId;
+              return (
+                <button type="button" key={player.id} className={`mgv-live-player-row ${active ? 'turn' : ''} ${player.id === playerId ? 'me' : ''}`} onClick={() => { setViewedPlayerId(player.id); setTimelinePreviewId(player.id); }}>
+                  <span className="mgv-live-player-name">
+                    <span className="mgv-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.name) : null}</span>
+                    <span><strong>{player.name}</strong><small>{player.id === playerId ? 'TY' : active ? 'TERAZ GRA' : 'GRACZ'}</small></span>
+                  </span>
+                  <b className="mgv-live-player-cards">{cardsCount}<i>/</i>{room.target}</b>
+                  <b className="mgv-live-player-tokens"><img src={iconToken} alt="" />{tokenCount}</b>
+                </button>
+              );
+            })}
+          </div>
+        </Panel>
+      ) : null}
 
-      {playersOpen ? (
-        <div className="mgv-sheet-backdrop" onClick={() => setPlayersOpen(false)}>
-          <aside className="mgv-bottom-sheet" onClick={(event) => event.stopPropagation()}>
+      {timelinePreviewPlayer ? (
+        <div className="mgv-sheet-backdrop" onClick={() => setTimelinePreviewId(null)}>
+          <aside className="mgv-bottom-sheet mgv-timeline-preview-sheet" onClick={(event) => event.stopPropagation()}>
             <div className="mgv-sheet-handle" />
-            <div className="mgv-sheet-head"><strong>GRACZE</strong><button type="button" onClick={() => setPlayersOpen(false)}><X size={19} /></button></div>
-            <div className="mgv-player-list">
-              {room.players.map((player) => <PlayerRow key={player.id} player={player} hostId={room.hostId} myId={playerId} active={displayedPlayerId === player.id} score={(room.timelines?.[player.id] || []).length} tokenCount={room.tokens?.[player.id] || 0} level={player.authed && playerLevels[player.id] !== undefined ? levelFromXp(playerLevels[player.id]).level : null} onClick={() => { setViewedPlayerId(player.id); setPlayersOpen(false); }} />)}
-            </div>
+            <div className="mgv-sheet-head"><strong>OŚ CZASU · {timelinePreviewPlayer.name}</strong><button type="button" onClick={() => setTimelinePreviewId(null)}><X size={19} /></button></div>
+            <div className="mgv-timeline-preview-meta"><span><Music2 size={15} /> {timelinePreviewCards.length}/{room.target} KART</span><span><img src={iconToken} alt="" /> {room.tokens?.[timelinePreviewPlayer.id] || 0} TOKENÓW</span></div>
+            {timelinePreviewCards.length ? <MobileTimeline timeline={timelinePreviewCards} interactive={false} /> : <div className="mgv-empty-timeline">Ten gracz nie ma jeszcze kart na osi.</div>}
           </aside>
         </div>
       ) : null}
