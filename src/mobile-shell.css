@@ -682,3 +682,79 @@
   .desk-admin-modal-backdrop.admin-panel { padding:8px; }
   .desk-admin-modal-card { width:100%; max-width:none; min-height:calc(100dvh - 16px); margin:0; padding:13px; border-radius:18px; overflow:auto; }
 }
+
+/* Daily reward — mobile-first flow */
+.mob-daily-reward-banner {
+  width:100%; min-height:78px; padding:12px 12px; display:grid; grid-template-columns:42px minmax(0,1fr) auto; gap:10px; align-items:center;
+  border-radius:18px; color:#f7f3ff; text-align:left; cursor:pointer;
+  border:1px solid rgba(255,205,72,.28); background:linear-gradient(135deg,rgba(31,22,10,.94),rgba(11,11,31,.98) 54%,rgba(33,12,39,.94));
+  box-shadow:0 14px 34px rgba(0,0,0,.24),0 0 24px rgba(255,196,72,.08),inset 0 0 24px rgba(255,210,80,.025);
+}
+.mob-daily-reward-banner.ready { border-color:rgba(255,207,78,.42); box-shadow:0 14px 34px rgba(0,0,0,.24),0 0 28px rgba(255,196,72,.13),inset 0 0 24px rgba(255,210,80,.04); }
+.mob-daily-reward-banner.claimed { opacity:.76; border-color:rgba(91,229,255,.16); }
+.mob-daily-reward-icon { width:42px; height:42px; border-radius:14px; display:flex; align-items:center; justify-content:center; color:#ffd45d; border:1px solid rgba(255,210,77,.26); background:radial-gradient(circle at 35% 30%,rgba(255,215,92,.18),rgba(17,12,29,.9) 68%); box-shadow:0 0 18px rgba(255,199,73,.1); }
+.mob-daily-reward-copy { min-width:0; display:flex; flex-direction:column; }
+.mob-daily-reward-copy small { color:#7f7789; font-size:5px; letter-spacing:.16em; }
+.mob-daily-reward-copy strong { margin-top:2px; font-family:'Bebas Neue',sans-serif; font-size:22px; line-height:1; font-weight:400; color:#fff2c1; }
+.mob-daily-reward-copy em { margin-top:4px; color:#9a91a1; font-size:5.8px; font-style:normal; }
+.mob-daily-reward-action { min-width:52px; padding:7px 8px; border-radius:999px; color:#ffd45d; border:1px solid rgba(255,211,83,.28); background:rgba(255,205,66,.055); font-size:5px; font-weight:700; letter-spacing:.08em; text-align:center; }
+.mob-daily-reward-banner.claimed .mob-daily-reward-action { min-width:30px; color:#57e6ff; border-color:rgba(87,230,255,.2); background:rgba(87,230,255,.04); }
+.mob-stats-feature.reward { cursor:pointer; }
+.mob-stats-feature.reward:active { transform:translateY(1px); }
+
+.mob-reward-overlay {
+  position:fixed; inset:0; z-index:180; overflow-y:auto; overscroll-behavior:contain; padding:max(12px,env(safe-area-inset-top)) 12px max(18px,env(safe-area-inset-bottom));
+  background:radial-gradient(circle at 50% 14%,rgba(255,192,61,.12),transparent 30%),radial-gradient(circle at 18% 42%,rgba(65,223,255,.08),transparent 28%),rgba(3,4,13,.965);
+  color:#f8f4ff; font-family:'Space Mono',monospace;
+}
+.mob-reward-screen { width:min(100%,520px); min-height:100%; margin:0 auto; display:flex; flex-direction:column; gap:12px; }
+.mob-reward-topline { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:6px 2px 0; }
+.mob-reward-eyebrow { display:flex; align-items:center; gap:5px; color:#93899f; font-size:6px; letter-spacing:.16em; font-weight:700; }
+.mob-reward-eyebrow svg { color:#ffd45d; }
+.mob-reward-topline h2 { margin:3px 0 0; font-family:'Bebas Neue',sans-serif; font-size:38px; line-height:.9; font-weight:400; letter-spacing:.015em; color:#fff; }
+.mob-reward-topline h2 span { background:linear-gradient(90deg,#ffd55a,#ff9f59 48%,#ff5bc7); -webkit-background-clip:text; background-clip:text; color:transparent; filter:drop-shadow(0 0 12px rgba(255,194,70,.1)); }
+.mob-reward-close { width:38px; height:38px; flex:0 0 38px; padding:0; display:flex; align-items:center; justify-content:center; border-radius:13px; border:1px solid rgba(255,255,255,.09); background:rgba(10,12,29,.86); color:#8a8397; }
+.mob-reward-close:disabled { opacity:.35; }
+
+.mob-reward-status { min-height:58px; padding:10px 12px; border-radius:16px; display:grid; grid-template-columns:28px minmax(0,1fr); gap:8px; align-items:center; border:1px solid rgba(255,210,78,.24); background:linear-gradient(135deg,rgba(32,24,10,.76),rgba(10,11,29,.92)); }
+.mob-reward-status > svg { color:#ffd45a; }
+.mob-reward-status strong { display:block; color:#fff1b9; font-size:7px; letter-spacing:.08em; }
+.mob-reward-status span { display:block; margin-top:3px; color:#8e8797; font-size:5.5px; line-height:1.45; }
+.mob-reward-status.done { border-color:rgba(78,226,255,.18); background:linear-gradient(135deg,rgba(7,28,36,.76),rgba(10,11,29,.92)); }
+.mob-reward-status.done > svg,.mob-reward-status.done strong { color:#59e5ff; }
+
+.mob-reward-wheel-card { position:relative; min-height:304px; display:flex; align-items:center; justify-content:center; overflow:hidden; border-radius:24px; border:1px solid rgba(255,208,72,.22); background:radial-gradient(circle at 50% 44%,rgba(255,196,54,.105),transparent 46%),linear-gradient(165deg,rgba(17,16,36,.98),rgba(6,7,20,.99)); box-shadow:0 20px 52px rgba(0,0,0,.36),inset 0 0 50px rgba(255,206,72,.025); }
+.mob-reward-wheel-card::before,.mob-reward-wheel-card::after { content:''; position:absolute; width:80px; height:1px; top:16px; background:linear-gradient(90deg,transparent,#ffd45a); opacity:.38; }
+.mob-reward-wheel-card::before { left:16px; }.mob-reward-wheel-card::after { right:16px; transform:scaleX(-1); }
+.mob-reward-orbit { position:absolute; width:286px; height:286px; border-radius:50%; border:1px solid rgba(255,215,88,.09); box-shadow:0 0 48px rgba(255,194,64,.08),inset 0 0 38px rgba(83,217,255,.035); }
+.mob-reward-orbit::before,.mob-reward-orbit::after { content:''; position:absolute; inset:12px; border-radius:50%; border:1px dashed rgba(110,101,168,.1); }.mob-reward-orbit::after { inset:27px; border-style:solid; border-color:rgba(255,89,202,.055); }
+.mob-reward-wheel-wrap { position:relative; z-index:2; transform:scale(.94); transform-origin:center; }
+.mob-reward-spin-label { position:absolute; z-index:4; left:50%; bottom:12px; transform:translateX(-50%); display:flex; align-items:center; gap:6px; white-space:nowrap; padding:6px 10px; border-radius:999px; color:#ffd45a; border:1px solid rgba(255,211,77,.18); background:rgba(6,8,20,.82); font-size:5px; letter-spacing:.1em; }
+.mob-reward-spin-label span { width:6px; height:6px; border-radius:50%; background:#ffd45a; box-shadow:0 0 9px #ffd45a; animation:mob-reward-pulse .8s ease-in-out infinite alternate; }
+@keyframes mob-reward-pulse { to{ opacity:.35; transform:scale(.72); } }
+
+.mob-reward-claim { width:100%; min-height:52px; display:flex; align-items:center; justify-content:center; gap:8px; border:0; border-radius:16px; color:#100a19; background:linear-gradient(100deg,#ffd55b,#ffb747 47%,#ff68c9); box-shadow:0 9px 25px rgba(255,180,69,.16),0 0 26px rgba(255,89,200,.07); font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:.035em; cursor:pointer; }
+.mob-reward-claim:disabled { filter:saturate(.55); opacity:.7; cursor:default; }
+
+.mob-reward-won { padding:16px 14px; border-radius:20px; text-align:center; border:1px solid rgba(255,211,75,.3); background:linear-gradient(145deg,rgba(42,29,10,.93),rgba(13,10,31,.98) 62%,rgba(43,10,38,.9)); box-shadow:0 0 30px rgba(255,195,56,.09); animation:mob-card-pop .42s cubic-bezier(.2,.85,.25,1.1); }
+.mob-reward-won > span { display:block; color:#8c8290; font-size:5.5px; letter-spacing:.16em; }
+.mob-reward-won > strong { display:block; margin-top:4px; font-family:'Bebas Neue',sans-serif; font-size:36px; line-height:.95; font-weight:400; color:#ffd65b; text-shadow:0 0 18px rgba(255,207,72,.22); }
+.mob-reward-won > small,.mob-reward-won > p { display:block; margin:5px 0 0; color:#958c9a; font-size:6px; line-height:1.45; }
+.mob-reward-won > button { margin-top:12px; min-width:140px; min-height:40px; border:0; border-radius:13px; color:#120b19; background:linear-gradient(90deg,#52e4ff,#9e6dff 60%,#ff61c8); font-family:'Bebas Neue',sans-serif; font-size:19px; }
+.mob-reward-done-card { padding:13px; border-radius:18px; display:grid; grid-template-columns:36px minmax(0,1fr); gap:9px; align-items:center; border:1px solid rgba(84,225,255,.16); background:linear-gradient(145deg,rgba(7,27,38,.84),rgba(8,9,25,.97)); }
+.mob-reward-done-card > svg { color:#59e6ff; }
+.mob-reward-done-card strong { display:block; color:#68e9ff; font-size:7px; letter-spacing:.08em; }.mob-reward-done-card span { display:block; margin-top:3px; color:#80798a; font-size:5.5px; line-height:1.45; }
+
+.mob-reward-preview { padding:12px; border-radius:18px; border:1px solid rgba(109,112,190,.13); background:rgba(8,9,25,.72); }
+.mob-reward-preview-title { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px; }.mob-reward-preview-title span { color:#b9afbf; font-size:5.5px; letter-spacing:.1em; font-weight:700; }.mob-reward-preview-title small { color:#625d6e; font-size:4.7px; }
+.mob-reward-preview-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+.mob-reward-preview-grid > div { min-height:46px; padding:7px 6px; border-radius:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; border:1px solid color-mix(in srgb,var(--reward-tone) 18%,transparent); background:color-mix(in srgb,var(--reward-tone) 4%,rgba(7,8,22,.94)); }
+.mob-reward-preview-grid i { font-style:normal; color:var(--reward-tone); font-family:'Bebas Neue',sans-serif; font-size:13px; line-height:1; }.mob-reward-preview-grid strong { margin-top:4px; color:#aaa2af; font-size:4.6px; line-height:1.25; font-weight:700; }
+.mob-reward-footnote { display:flex; align-items:center; justify-content:center; gap:6px; padding-bottom:4px; color:#5f5a68; font-size:4.7px; letter-spacing:.08em; }.mob-reward-footnote strong { color:#847c8c; font-weight:700; }
+
+@media (max-width:360px) {
+  .mob-reward-topline h2 { font-size:34px; }
+  .mob-reward-wheel-wrap { transform:scale(.86); }
+  .mob-reward-wheel-card { min-height:286px; }
+  .mob-reward-preview-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}

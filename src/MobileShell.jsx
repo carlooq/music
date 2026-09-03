@@ -368,6 +368,20 @@ function MobileHomeView(props) {
 
       {user ? (
         <>
+          <button
+            type="button"
+            className={`mob-daily-reward-banner ${props.stats?.lastDailyHitcoinDate === props.todayKey ? 'claimed' : 'ready'}`}
+            onClick={props.onOpenDailyReward}
+          >
+            <span className="mob-daily-reward-icon"><Gift size={22} /></span>
+            <span className="mob-daily-reward-copy">
+              <small>BONUS DZIENNY</small>
+              <strong>CODZIENNA NAGRODA</strong>
+              <em>{props.stats?.lastDailyHitcoinDate === props.todayKey ? 'Odebrana — wróć jutro' : 'Gotowa do odebrania'}</em>
+            </span>
+            <span className="mob-daily-reward-action">{props.stats?.lastDailyHitcoinDate === props.todayKey ? '✓' : 'ODBIERZ'}</span>
+          </button>
+
           <section className="mob-section-block">
             <div className="mob-block-title"><BarChart3 size={15} /> TWÓJ POSTĘP</div>
             <div className="mob-progress-scroll">
@@ -425,9 +439,9 @@ function MobileStatsView(props) {
       </section>
 
       <div className="mob-stats-feature-grid">
-        <div className="mob-stats-feature cyan">
-          <Gift size={18} /><span>CODZIENNA NAGRODA</span><strong>{props.stats?.lastDailyHitcoinDate === props.todayKey ? 'ODEBRANA' : 'GOTOWA'}</strong><small>{props.stats?.lastDailyHitcoinDate === props.todayKey ? 'Wróć jutro' : 'Nagroda czeka'}</small>
-        </div>
+        <button type="button" className="mob-stats-feature cyan reward" onClick={props.onOpenDailyReward}>
+          <Gift size={18} /><span>CODZIENNA NAGRODA</span><strong>{props.stats?.lastDailyHitcoinDate === props.todayKey ? 'ODEBRANA' : 'GOTOWA'}</strong><small>{props.stats?.lastDailyHitcoinDate === props.todayKey ? 'Zobacz status' : 'Kliknij i odbierz'}</small>
+        </button>
         <button type="button" className="mob-stats-feature gold" onClick={() => props.onNavigate('achievements')}>
           <Trophy size={18} /><span>OSIĄGNIĘCIA</span><strong>{props.achievementClaimed || 0} / {props.totalAchievements || 0}</strong><small>Odebranych</small>
         </button>
@@ -885,6 +899,76 @@ function MobileProfileSheet({ profile, onClose, levelFromXp }) {
           </div>
         </div>
       </section>
+    </div>
+  );
+}
+
+export function MobileDailyRewardModal({ claimed, spinning, busy, result, rewards = [], wheel, onClaim, onClose }) {
+  const alreadyClaimed = claimed || result?.type === 'claimed';
+  const won = result && result.type !== 'claimed' ? result : null;
+  const previewRewards = rewards.filter((reward, index) => index < 6);
+
+  return (
+    <div className="mob-reward-overlay" role="dialog" aria-modal="true" aria-label="Codzienna nagroda">
+      <div className="mob-reward-screen">
+        <div className="mob-reward-topline">
+          <div>
+            <span className="mob-reward-eyebrow"><Sparkles size={12} /> BONUS DZIENNY</span>
+            <h2>CODZIENNA <span>NAGRODA</span></h2>
+          </div>
+          <button type="button" className="mob-reward-close" onClick={onClose} disabled={spinning} aria-label="Zamknij"><X size={20} /></button>
+        </div>
+
+        <div className={`mob-reward-status ${alreadyClaimed ? 'done' : 'ready'}`}>
+          {alreadyClaimed ? <CheckCircle2 size={16} /> : <Gift size={16} />}
+          <div>
+            <strong>{alreadyClaimed ? 'DZISIEJSZA NAGRODA ODEBRANA' : 'NAGRODA GOTOWA DO ODBIORU'}</strong>
+            <span>{alreadyClaimed ? 'Kolejne losowanie odblokuje się jutro.' : 'Jedno losowanie dziennie. Nagroda trafia od razu na konto.'}</span>
+          </div>
+        </div>
+
+        <section className="mob-reward-wheel-card">
+          <div className="mob-reward-orbit" />
+          <div className="mob-reward-wheel-wrap">{wheel}</div>
+          {spinning ? <div className="mob-reward-spin-label"><span /> LOSOWANIE NAGRODY...</div> : null}
+        </section>
+
+        {won ? (
+          <section className="mob-reward-won">
+            <span>WYGRAŁEŚ</span>
+            <strong>{won.label}</strong>
+            {won.sublabel ? <small>{won.sublabel}</small> : null}
+            {won.song ? <p>{won.song.artist} — {won.song.title}</p> : null}
+            <button type="button" onClick={onClose}>SUPER!</button>
+          </section>
+        ) : alreadyClaimed ? (
+          <section className="mob-reward-done-card">
+            <CheckCircle2 size={28} />
+            <div><strong>NA DZIŚ GOTOWE</strong><span>Wróć jutro po kolejną szansę na HITCOIN, XP, kartę lub 2× XP.</span></div>
+          </section>
+        ) : (
+          <button type="button" className="mob-reward-claim" onClick={onClaim} disabled={busy || spinning}>
+            <Gift size={18} />
+            <span>{spinning ? 'LOSOWANIE...' : busy ? 'PRZYGOTOWYWANIE...' : 'ODBIERZ NAGRODĘ'}</span>
+          </button>
+        )}
+
+        {!won ? (
+          <section className="mob-reward-preview">
+            <div className="mob-reward-preview-title"><span>W KOLE MOŻESZ TRAFIĆ</span><small>szanse pozostają niespodzianką</small></div>
+            <div className="mob-reward-preview-grid">
+              {previewRewards.map((reward) => (
+                <div key={reward.id} style={{ '--reward-tone': reward.color }}>
+                  <i>{reward.type === 'hitcoin' ? '🪙' : reward.type === 'xp' ? '★' : reward.type === 'card' ? '◆' : '×2'}</i>
+                  <strong>{reward.label}</strong>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <div className="mob-reward-footnote"><span>RESET</span><strong>CODZIENNIE O 00:00</strong></div>
+      </div>
     </div>
   );
 }

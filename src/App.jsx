@@ -91,7 +91,7 @@ import cardZlotoImg from "./assets/icons/card-zlota.webp";
 import cardPlatynaImg from "./assets/icons/card-platynowa.webp";
 import cardDiamentImg from "./assets/icons/card-diamentowa.webp";
 import { DesktopAppView } from "./DesktopShell.jsx";
-import { MobileAppView } from "./MobileShell.jsx";
+import { MobileAppView, MobileDailyRewardModal } from "./MobileShell.jsx";
 import {
   MobileLobbyView,
   MobileOpenerView,
@@ -2247,17 +2247,29 @@ export default function App() {
   }
 
   async function handleSpinDailyWheel() {
-    if (!user || !stats || dailyWheelBusy || dailyWheelSpinning) return;
+    if (!user || dailyWheelBusy || dailyWheelSpinning) return;
     const today = currentDayKey();
-    if (stats.lastDailyHitcoinDate === today) return;
+    if (stats?.lastDailyHitcoinDate === today) {
+      setDailyWheelResult({ id: "already-claimed", type: "claimed", label: "NAGRODA JUŻ ODEBRANA", sublabel: "Wróć jutro po kolejne losowanie." });
+      return;
+    }
     setDailyWheelBusy(true);
     setError("");
     try {
       const pool = await getLiveLibraryPool();
       const won = await claimDailyWheelReward(user.uid, today, pool);
       if (!won) {
+        // Stan mógł zmienić się na innym urządzeniu. Odświeżamy profil zamiast
+        // zostawiać użytkownika z przyciskiem, który pozornie nic nie robi.
+        const fresh = await getStats(user.uid).catch(() => null);
+        if (fresh) {
+          setStats(fresh);
+          setMyXp(fresh.xp || 0);
+          setMyHitcoin(fresh.hitcoin || 0);
+        }
+        setDailyWheelResult({ id: "already-claimed", type: "claimed", label: "NAGRODA JUŻ ODEBRANA", sublabel: "Wróć jutro po kolejne losowanie." });
         setDailyWheelBusy(false);
-        return; // ktoś/coś już odebrało dzisiejszą nagrodę w międzyczasie
+        return;
       }
       const seg =
         DAILY_WHEEL_SEGMENTS_WITH_ANGLES.find((s) => s.id === won.id) ||
@@ -2289,6 +2301,14 @@ export default function App() {
           }
           return next;
         });
+        // Firestore jest źródłem prawdy — ciche odświeżenie zabezpiecza też
+        // przypadek nagrody-karty i wszelkie przyszłe typy bonusów.
+        getStats(user.uid).then((fresh) => {
+          if (!fresh) return;
+          setStats(fresh);
+          setMyXp(fresh.xp || 0);
+          setMyHitcoin(fresh.hitcoin || 0);
+        }).catch(() => {});
         bumpWeeklyChallengeProgress(user.uid, "wheelSpins", 1).catch(() => {});
         if (won.type === "hitcoin") bumpWeeklyChallengeProgress(user.uid, "hitcoinEarned", won.amount).catch(() => {});
         if (won.type === "card") bumpWeeklyChallengeProgress(user.uid, "cardGoldPlus", 1).catch(() => {});
@@ -5134,7 +5154,8 @@ export default function App() {
         onBuyPack={buyPack}
         onClearPackResult={() => setPackOpenResult(null)}
         onOpenDailyReward={() => {
-          if (stats?.lastDailyHitcoinDate !== currentDayKey()) setShowDailyWheel(true);
+          setDailyWheelResult(null);
+          setShowDailyWheel(true);
         }}
         challengeSentTo={challengeSentTo}
         challengeBusy={challengeBusy}
@@ -5155,6 +5176,23 @@ export default function App() {
         proposeError={proposeError}
         proposeSuccess={proposeSuccess}
       />
+
+      {showDailyWheel ? (
+        <MobileDailyRewardModal
+          claimed={stats?.lastDailyHitcoinDate === currentDayKey()}
+          spinning={dailyWheelSpinning}
+          busy={dailyWheelBusy}
+          result={dailyWheelResult}
+          rewards={DAILY_REWARD_SEGMENTS}
+          wheel={<DailyWheel rotation={dailyWheelRotation} spinning={dailyWheelSpinning} />}
+          onClaim={handleSpinDailyWheel}
+          onClose={() => {
+            if (dailyWheelSpinning) return;
+            setShowDailyWheel(false);
+            setDailyWheelResult(null);
+          }}
+        />
+      ) : null}
 
       {showAdminLogin ? (
         <div className="desk-admin-modal-backdrop" role="dialog" aria-modal="true" aria-label="Logowanie administratora">
@@ -8027,75 +8065,92 @@ export default function App() {
       )}
 
       {showDailyWheel && (
-        <div
-          onClick={() => {
-            if (!dailyWheelSpinning) {
+        useMobileSessionViews ? (
+          <MobileDailyRewardModal
+            claimed={stats?.lastDailyHitcoinDate === currentDayKey()}
+            spinning={dailyWheelSpinning}
+            busy={dailyWheelBusy}
+            result={dailyWheelResult}
+            rewards={DAILY_REWARD_SEGMENTS}
+            wheel={<DailyWheel rotation={dailyWheelRotation} spinning={dailyWheelSpinning} />}
+            onClaim={handleSpinDailyWheel}
+            onClose={() => {
+              if (dailyWheelSpinning) return;
               setShowDailyWheel(false);
               setDailyWheelResult(null);
-            }
-          }}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.85)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 120,
-            padding: 20,
-          }}
-        >
+            }}
+          />
+        ) : (
           <div
-            onClick={(e) => e.stopPropagation()}
-            className="rounded-2xl p-6 flex flex-col items-center gap-5"
+            onClick={() => {
+              if (!dailyWheelSpinning) {
+                setShowDailyWheel(false);
+                setDailyWheelResult(null);
+              }
+            }}
             style={{
-              background: "#0c0c1c",
-              border: "1px solid rgba(245,196,81,0.5)",
-              boxShadow: "0 0 50px rgba(245,196,81,0.35)",
-              maxWidth: 340,
-              width: "100%",
-              animation: "scale-pop-in 0.3s ease",
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.85)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 120,
+              padding: 20,
             }}
           >
-            <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: "var(--gold)", textAlign: "center" }}>
-              🎡 NAGRODA DNIA
-            </h2>
-            <DailyWheel rotation={dailyWheelRotation} spinning={dailyWheelSpinning} />
-            {dailyWheelResult ? (
-              <div style={{ textAlign: "center", animation: "scale-pop-in 0.4s ease" }}>
-                <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 4 }}>Wygrałeś:</p>
-                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: "var(--gold)", textShadow: "0 0 16px rgba(245,196,81,0.6)" }}>
-                  {dailyWheelResult.label}
-                </p>
-                {dailyWheelResult.sublabel && <p style={{ fontSize: 12, color: "var(--muted)" }}>{dailyWheelResult.sublabel}</p>}
-                {dailyWheelResult.song && (
-                  <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
-                    {dailyWheelResult.song.artist} – {dailyWheelResult.song.title}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="rounded-2xl p-6 flex flex-col items-center gap-5"
+              style={{
+                background: "#0c0c1c",
+                border: "1px solid rgba(245,196,81,0.5)",
+                boxShadow: "0 0 50px rgba(245,196,81,0.35)",
+                maxWidth: 340,
+                width: "100%",
+                animation: "scale-pop-in 0.3s ease",
+              }}
+            >
+              <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: "var(--gold)", textAlign: "center" }}>
+                🎡 NAGRODA DNIA
+              </h2>
+              <DailyWheel rotation={dailyWheelRotation} spinning={dailyWheelSpinning} />
+              {dailyWheelResult ? (
+                <div style={{ textAlign: "center", animation: "scale-pop-in 0.4s ease" }}>
+                  <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 4 }}>Wygrałeś:</p>
+                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: "var(--gold)", textShadow: "0 0 16px rgba(245,196,81,0.6)" }}>
+                    {dailyWheelResult.label}
                   </p>
-                )}
+                  {dailyWheelResult.sublabel && <p style={{ fontSize: 12, color: "var(--muted)" }}>{dailyWheelResult.sublabel}</p>}
+                  {dailyWheelResult.song && (
+                    <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                      {dailyWheelResult.song.artist} – {dailyWheelResult.song.title}
+                    </p>
+                  )}
+                  <button
+                    onClick={() => {
+                      setShowDailyWheel(false);
+                      setDailyWheelResult(null);
+                    }}
+                    className="mt-4 px-6 py-2.5 rounded-xl text-sm font-bold btn-grad"
+                    style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+                  >
+                    Super!
+                  </button>
+                </div>
+              ) : (
                 <button
-                  onClick={() => {
-                    setShowDailyWheel(false);
-                    setDailyWheelResult(null);
-                  }}
-                  className="mt-4 px-6 py-2.5 rounded-xl text-sm font-bold btn-grad"
-                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+                  onClick={handleSpinDailyWheel}
+                  disabled={dailyWheelBusy || dailyWheelSpinning}
+                  className="px-8 py-3 rounded-xl text-base font-bold btn-grad"
+                  style={{ fontFamily: "'Bebas Neue', sans-serif", opacity: dailyWheelSpinning ? 0.7 : 1 }}
                 >
-                  Super!
+                  {dailyWheelSpinning ? "Losowanie..." : "ZAKRĘĆ!"}
                 </button>
-              </div>
-            ) : (
-              <button
-                onClick={handleSpinDailyWheel}
-                disabled={dailyWheelBusy || dailyWheelSpinning}
-                className="px-8 py-3 rounded-xl text-base font-bold btn-grad"
-                style={{ fontFamily: "'Bebas Neue', sans-serif", opacity: dailyWheelSpinning ? 0.7 : 1 }}
-              >
-                {dailyWheelSpinning ? "Losowanie..." : "ZAKRĘĆ!"}
-              </button>
-            )}
+              )}
+            </div>
           </div>
-        </div>
+        )
       )}
 
       {showHitRushFaq && (
