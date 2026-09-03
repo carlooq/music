@@ -4840,6 +4840,9 @@ export default function App() {
         packOpenResult={packOpenResult}
         onBuyPack={buyPack}
         onClearPackResult={() => setPackOpenResult(null)}
+        onOpenDailyReward={() => {
+          if (stats?.lastDailyHitcoinDate !== currentDayKey()) setShowDailyWheel(true);
+        }}
         challengeSentTo={challengeSentTo}
         challengeBusy={challengeBusy}
         onAvatarUpload={handleAvatarUpload}

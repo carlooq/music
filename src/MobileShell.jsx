@@ -15,6 +15,7 @@ import {
   Music2,
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
   Search,
   X,
   Camera,
@@ -49,6 +50,11 @@ import packPremium from './assets/icons/pack-premium.webp';
 import achDoOdebrania from './assets/icons/ach-doodebrania.png';
 import achOdebrane from './assets/icons/ach-odebrane.png';
 import achZablokowane from './assets/icons/ach-zablokowane.png';
+import cardWinylImg from './assets/icons/card-winyl.webp';
+import cardSrebroImg from './assets/icons/card-srebro.webp';
+import cardZlotoImg from './assets/icons/card-zlota.webp';
+import cardPlatynaImg from './assets/icons/card-platynowa.webp';
+import cardDiamentImg from './assets/icons/card-diamentowa.webp';
 import { effectiveRarity } from './cards.js';
 import './mobile-shell.css';
 
@@ -68,6 +74,32 @@ const MODE_TONES = {
   violet: '#9b6cff',
   gold: '#ffd04f',
 };
+
+const MOBILE_CARD_FRAMES = {
+  winyl: cardWinylImg,
+  srebrna: cardSrebroImg,
+  zlota: cardZlotoImg,
+  platynowa: cardPlatynaImg,
+  diamentowa: cardDiamentImg,
+};
+
+function MobileCollectibleCard({ song, count = 1, onClick, large = false }) {
+  const rarity = effectiveRarity(song);
+  const frame = MOBILE_CARD_FRAMES[rarity] || MOBILE_CARD_FRAMES.winyl;
+  const thumbUrl = song.videoId ? `https://img.youtube.com/vi/${song.videoId}/hqdefault.jpg` : null;
+  return (
+    <button type="button" className={`mob-collectible-card ${large ? 'large' : ''}`} onClick={onClick}>
+      <img className="mob-collectible-frame" src={frame} alt="" />
+      {thumbUrl ? <div className="mob-collectible-thumb"><img src={thumbUrl} alt="" /></div> : null}
+      <div className="mob-collectible-copy">
+        <strong className="mob-collectible-year">{song.year || '—'}</strong>
+        <span className="mob-collectible-artist">{song.artist || '—'}</span>
+        <span className="mob-collectible-title">{song.title || '—'}</span>
+      </div>
+      {count > 1 ? <b className="mob-collectible-count">×{count}</b> : null}
+    </button>
+  );
+}
 
 function compact(value) {
   return new Intl.NumberFormat('pl-PL').format(Number(value || 0));
@@ -343,57 +375,130 @@ function MobileHomeView(props) {
 }
 
 function MobileStatsView(props) {
-  const winRate = props.stats?.gamesPlayed ? `${pct(props.stats?.gamesWon, props.stats?.gamesPlayed)}%` : '—';
-  const cardAccuracy = props.stats?.cardsTotal ? `${pct(props.stats?.cardsCorrect, props.stats?.cardsTotal)}%` : '—';
+  const winRate = props.stats?.gamesPlayed ? `${pct(props.stats?.gamesWon, props.stats?.gamesPlayed)}%` : '0%';
+  const cardAccuracy = props.stats?.cardsTotal ? `${pct(props.stats?.cardsCorrect, props.stats?.cardsTotal)}%` : '0%';
   const xpPct = pct(props.levelInfo?.currentLevelXp, props.levelInfo?.xpForNextLevel);
   const challenges = props.weeklyChallenges || [];
+  const decades = [...(props.decadeEntries || [])].sort((a, b) => String(a.label).localeCompare(String(b.label), 'pl', { numeric: true }));
+  const bestArtists = props.bestArtists || [];
+  const worstArtists = props.worstArtists || [];
+  const collectionCount = Object.keys(props.stats?.cardCollection || {}).filter((id) => Number(props.stats?.cardCollection?.[id] || 0) > 0).length;
+  const [expandedDuel, setExpandedDuel] = useState(null);
+
+  useEffect(() => {
+    props.onLoadHeadToHead?.();
+  }, []); // load once when mobile statistics open
 
   return (
     <div className="mob-stack mob-inner-view">
-      <MobileSectionHeader title="STATYSTYKI" subtitle="Twój progres, skuteczność i wyzwania." icon={<BarChart3 size={24} />} onBack={() => props.onNavigate('home')} />
+      <MobileSectionHeader title="STATYSTYKI" subtitle="Pełny obraz Twojej gry, skuteczności i postępu." icon={<BarChart3 size={24} />} onBack={() => props.onNavigate('home')} />
+
       <section className="mob-level-card mob-panel">
         <div className="mob-level-card-top"><span>POZIOM {props.levelInfo?.level || 1}</span><b>{compact(props.levelInfo?.currentLevelXp)} / {compact(props.levelInfo?.xpForNextLevel)} XP</b></div>
         <div className="mob-big-progress"><i style={{ width: `${Math.min(100, xpPct)}%` }} /></div>
-        <small>Każda gra, osiągnięcie i wyzwanie przybliża Cię do kolejnego poziomu.</small>
+        <small>Jeszcze {Math.max(0, Number(props.levelInfo?.xpForNextLevel || 0) - Number(props.levelInfo?.currentLevelXp || 0))} XP do następnego poziomu.</small>
       </section>
-      <div className="mob-metric-grid">
-        <div className="mob-metric"><Gamepad2 size={18} /><strong>{compact(props.stats?.gamesPlayed)}</strong><span>Rozegrane gry</span></div>
-        <div className="mob-metric gold"><Trophy size={18} /><strong>{compact(props.stats?.gamesWon)}</strong><span>Wygrane</span></div>
-        <div className="mob-metric pink"><BarChart3 size={18} /><strong>{winRate}</strong><span>% wygranych</span></div>
-        <div className="mob-metric green"><Disc3 size={18} /><strong>{cardAccuracy}</strong><span>Trafność kart</span></div>
-        <div className="mob-metric violet"><Flame size={18} /><strong>{compact(props.stats?.longestStreak || props.stats?.longestGuessStreak)}</strong><span>Rekordowa seria</span></div>
-        <div className="mob-metric cyan"><Music2 size={18} /><strong>{compact(props.stats?.guessesCorrect)}</strong><span>Zgadnięte utwory</span></div>
+
+      <div className="mob-stats-feature-grid">
+        <div className="mob-stats-feature cyan">
+          <Gift size={18} /><span>CODZIENNA NAGRODA</span><strong>{props.stats?.lastDailyHitcoinDate === props.todayKey ? 'ODEBRANA' : 'GOTOWA'}</strong><small>{props.stats?.lastDailyHitcoinDate === props.todayKey ? 'Wróć jutro' : 'Nagroda czeka'}</small>
+        </div>
+        <button type="button" className="mob-stats-feature gold" onClick={() => props.onNavigate('achievements')}>
+          <Trophy size={18} /><span>OSIĄGNIĘCIA</span><strong>{props.achievementClaimed || 0} / {props.totalAchievements || 0}</strong><small>Odebranych</small>
+        </button>
+        <button type="button" className="mob-stats-feature cyan" onClick={() => props.onNavigate('collection')}>
+          <Disc3 size={18} /><span>ALBUM</span><strong>{compact(collectionCount)}</strong><small>unikalnych kart</small>
+        </button>
       </div>
 
       <section className="mob-panel mob-list-panel">
-        <div className="mob-panel-title"><Gift size={17} /> ZADANIA TYGODNIOWE</div>
+        <div className="mob-panel-title"><Gift size={17} /> WYZWANIA TYGODNIA <small>{challenges.filter((c) => c.claimed).length}/5 ODEBRANYCH</small></div>
         {challenges.length ? challenges.map((challenge, index) => {
           const progress = Number(challenge.progress || 0);
           const target = Number(challenge.target || 1);
           const progressPct = Math.min(100, pct(progress, target));
           const claimable = (challenge.done || challenge.completed) && !challenge.claimed;
           return (
-            <div className="mob-challenge-row" key={challenge.id || index}>
-              <div className="mob-challenge-copy"><strong>{challenge.title || challenge.name || 'Wyzwanie'}</strong><span>{challenge.progressLabel || `${Math.min(progress, target)} / ${target}`} · +{challenge.xp || 0} XP{challenge.hitcoin ? ` +${challenge.hitcoin} HITCOIN` : ''}</span></div>
+            <div className={`mob-challenge-row ${challenge.claimed ? 'claimed' : claimable ? 'ready' : ''}`} key={challenge.id || index}>
+              <div className="mob-challenge-number">#{index + 1}</div>
+              <div className="mob-challenge-copy"><strong>{challenge.desc || challenge.title || challenge.name || 'Wyzwanie'}</strong><span>{challenge.progressLabel || `${Math.min(progress, target)} / ${target}`} · +{challenge.xp || 0} XP{challenge.hitcoin ? ` +${challenge.hitcoin} HITCOIN` : ''}</span></div>
               <div className="mob-challenge-track"><i style={{ width: `${progressPct}%` }} /></div>
-              {claimable ? <button onClick={() => props.onClaimWeeklyChallenge?.(challenge.id)} type="button">ODBIERZ</button> : null}
+              {claimable ? <button onClick={() => props.onClaimWeeklyChallenge?.(challenge.id)} type="button">ODBIERZ</button> : challenge.claimed ? <small>✓ ODEBRANE</small> : null}
             </div>
           );
         }) : <div className="mob-empty">Brak aktywnych zadań tygodniowych.</div>}
       </section>
 
-      {props.h2hOpponents?.length ? (
-        <section className="mob-panel mob-list-panel">
-          <div className="mob-panel-title"><Users size={17} /> POJEDYNKI 1V1</div>
-          {props.h2hOpponents.slice(0, 8).map((opponent, index) => (
-            <button key={opponent.uid || opponent.id || index} className="mob-h2h-row" type="button" onClick={() => opponent.uid && props.onViewProfile?.(opponent)}>
-              <div className="mob-player-avatar" style={opponent.avatarUrl ? { backgroundImage: `url(${opponent.avatarUrl})` } : undefined}>{!opponent.avatarUrl ? initials(opponent.username || opponent.name) : null}</div>
-              <div><strong>{opponent.username || opponent.name || 'Gracz'}</strong><span>{opponent.games || opponent.total || 0} pojedynków</span></div>
-              <b>{opponent.wins ?? opponent.myWins ?? 0} : {opponent.losses ?? opponent.opponentWins ?? 0}</b>
-            </button>
-          ))}
+      <section className="mob-panel mob-stats-summary-panel">
+        <div className="mob-panel-title"><BarChart3 size={17} /> PODSUMOWANIE STATYSTYK</div>
+        <div className="mob-metric-grid full">
+          <div className="mob-metric"><Gamepad2 size={18} /><strong>{compact(props.stats?.gamesPlayed)}</strong><span>Rozegrane gry</span></div>
+          <div className="mob-metric gold"><Trophy size={18} /><strong>{compact(props.stats?.gamesWon)}</strong><span>Wygrane</span></div>
+          <div className="mob-metric pink"><BarChart3 size={18} /><strong>{winRate}</strong><span>% wygranych</span></div>
+          <div className="mob-metric green"><Disc3 size={18} /><strong>{cardAccuracy}</strong><span>Trafność kart</span></div>
+          <div className="mob-metric violet"><Flame size={18} /><strong>{compact(props.stats?.longestStreak || 0)}</strong><span>Rekordowy streak</span></div>
+          <div className="mob-metric cyan"><Users size={18} /><strong>{compact(props.stats?.guessesCorrect || 0)}</strong><span>Odgadnięci wykonawcy</span></div>
+          <div className="mob-metric cyan"><Music2 size={18} /><strong>{compact(props.stats?.heardSongs?.length || 0)} / {compact(props.songPoolSize)}</strong><span>Przesłuchane piosenki</span></div>
+          <div className="mob-metric pink"><Music2 size={18} /><strong>{compact(props.stats?.guessedSongs?.length || 0)} / {compact(props.songPoolSize)}</strong><span>Odgadnięte piosenki</span></div>
+          <div className="mob-metric violet"><Sparkles size={18} /><strong>{compact(props.stats?.songsAdded || 0)}</strong><span>Dodane do bazy</span></div>
+        </div>
+      </section>
+
+      <section className="mob-panel mob-stats-decade-panel">
+        <div className="mob-panel-title"><Music2 size={17} /> SKUTECZNOŚĆ WG DEKAD</div>
+        <div className="mob-decade-list">
+          {decades.length ? decades.map((item) => (
+            <div className="mob-decade-row" key={item.label}>
+              <div className="mob-decade-copy"><strong>{item.label}</strong><span>{item.correct}/{item.total}</span></div>
+              <div className="mob-decade-meter"><i style={{ width: `${item.pct || 0}%` }} /></div>
+              <b>{item.pct || 0}%</b>
+            </div>
+          )) : <div className="mob-empty">Za mało danych o dekadach.</div>}
+        </div>
+      </section>
+
+      <div className="mob-artist-panels">
+        <section className="mob-panel mob-artist-panel best">
+          <div className="mob-panel-title"><Crown size={17} /> NAJLEPIEJ ZGADUJESZ — TOP 5</div>
+          {bestArtists.length ? bestArtists.map((artist, index) => (
+            <div className="mob-artist-row" key={`${artist.name}-${index}`}><b>#{index + 1}</b><div><strong>{artist.name}</strong><span>{artist.correct}/{artist.total} poprawnych</span><i><em style={{ width: `${Math.round((artist.pct || 0) * 100)}%` }} /></i></div><strong>{Math.round((artist.pct || 0) * 100)}%</strong></div>
+          )) : <div className="mob-empty">Za mało danych o wykonawcach.</div>}
         </section>
-      ) : null}
+        <section className="mob-panel mob-artist-panel worst">
+          <div className="mob-panel-title"><Flame size={17} /> NAJGORZEJ ZGADUJESZ — TOP 5</div>
+          {worstArtists.length ? worstArtists.map((artist, index) => (
+            <div className="mob-artist-row" key={`${artist.name}-${index}`}><b>#{index + 1}</b><div><strong>{artist.name}</strong><span>{artist.correct}/{artist.total} poprawnych</span><i><em style={{ width: `${Math.round((artist.pct || 0) * 100)}%` }} /></i></div><strong>{Math.round((artist.pct || 0) * 100)}%</strong></div>
+          )) : <div className="mob-empty">Za mało danych o wykonawcach.</div>}
+        </section>
+      </div>
+
+      <section className="mob-panel mob-h2h-panel">
+        <div className="mob-panel-title"><Users size={17} /> POJEDYNKI 1V1 <small>{(props.h2hOpponents || []).reduce((sum, duel) => sum + Number(duel.gamesPlayed || 0), 0)} GIER</small></div>
+        {props.h2hOpponents == null ? <div className="mob-empty">Wczytuję historię pojedynków…</div> : props.h2hOpponents.length ? props.h2hOpponents.map((duel, index) => {
+          const opponentId = duel.uids?.find((id) => id !== props.user?.uid) || duel.uid || duel.id;
+          const opponentName = duel.names?.[opponentId] || duel.username || duel.name || 'Gracz';
+          const myWins = Number(duel.wins?.[props.user?.uid] ?? duel.myWins ?? duel.wins ?? 0);
+          const opponentWins = Number(duel.wins?.[opponentId] ?? duel.opponentWins ?? duel.losses ?? 0);
+          const expanded = expandedDuel === opponentId;
+          const myGuessPct = duel.guessesAttempted?.[props.user?.uid] ? pct(duel.guessesCorrect?.[props.user.uid] || 0, duel.guessesAttempted[props.user.uid]) : null;
+          const opponentGuessPct = duel.guessesAttempted?.[opponentId] ? pct(duel.guessesCorrect?.[opponentId] || 0, duel.guessesAttempted[opponentId]) : null;
+          const myPlacePct = duel.placementTotal?.[props.user?.uid] ? pct(duel.placementCorrect?.[props.user.uid] || 0, duel.placementTotal[props.user.uid]) : null;
+          const opponentPlacePct = duel.placementTotal?.[opponentId] ? pct(duel.placementCorrect?.[opponentId] || 0, duel.placementTotal[opponentId]) : null;
+          const myDecisionCount = Number(duel.decisionCount?.[props.user?.uid] || 0);
+          const opponentDecisionCount = Number(duel.decisionCount?.[opponentId] || 0);
+          const myAvgSpeed = myDecisionCount ? Math.round(Number(duel.decisionTimeSumMs?.[props.user.uid] || 0) / myDecisionCount / 1000) : null;
+          const opponentAvgSpeed = opponentDecisionCount ? Math.round(Number(duel.decisionTimeSumMs?.[opponentId] || 0) / opponentDecisionCount / 1000) : null;
+          return (
+            <article className={`mob-h2h-card ${expanded ? 'expanded' : ''}`} key={opponentId || index}>
+              <button type="button" className="mob-h2h-main" onClick={() => setExpandedDuel(expanded ? null : opponentId)}>
+                <div className="mob-h2h-vs"><span>VS</span><div><strong>{opponentName}</strong><small>{duel.gamesPlayed || duel.games || duel.total || 0} gier</small></div></div>
+                <div className="mob-h2h-score"><span>BILANS</span><strong>{myWins} : {opponentWins}</strong></div><ChevronDown size={17} />
+              </button>
+              {expanded ? <div className="mob-h2h-details"><div><span>ZGADYWANIE</span><strong>{myGuessPct ?? '—'}% <small>vs</small> {opponentGuessPct ?? '—'}%</strong></div><div><span>OŚ CZASU</span><strong>{myPlacePct ?? '—'}% <small>vs</small> {opponentPlacePct ?? '—'}%</strong></div><div><span>ŚR. DECYZJA</span><strong>{myAvgSpeed ?? '—'}s <small>vs</small> {opponentAvgSpeed ?? '—'}s</strong></div>{opponentId ? <button type="button" onClick={() => props.onViewProfile?.({ uid: opponentId, username: opponentName })}>ZOBACZ PROFIL</button> : null}</div> : null}
+            </article>
+          );
+        }) : <div className="mob-empty">Nie masz jeszcze rozegranego pojedynku 1v1.</div>}
+      </section>
     </div>
   );
 }
@@ -402,6 +507,8 @@ function MobileCollectionView(props) {
   const [rarity, setRarity] = useState('all');
   const [query, setQuery] = useState('');
   const [ownedOnly, setOwnedOnly] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(40);
+  const [zoomedSong, setZoomedSong] = useState(null);
   const collection = props.stats?.cardCollection || {};
   const songs = Array.isArray(props.songs) ? props.songs : [];
 
@@ -429,38 +536,46 @@ function MobileCollectionView(props) {
     return all;
   }, [songs, collection]);
 
+  const uniqueOwned = Object.keys(collection).filter((id) => Number(collection[id] || 0) > 0).length;
+  const duplicates = Object.values(collection).reduce((sum, count) => sum + Math.max(0, Number(count || 0) - 1), 0);
+  const shown = filtered.slice(0, visibleCount);
+
   return (
     <div className="mob-stack mob-inner-view">
-      <MobileSectionHeader title="KOLEKCJA" subtitle={`${Object.keys(collection).filter((id) => Number(collection[id] || 0) > 0).length} / ${props.songPoolSize || songs.length} unikalnych kart`} icon={<Disc3 size={24} />} onBack={() => props.onNavigate('home')} />
-      <section className="mob-collection-tools mob-panel">
-        <div className="mob-search"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Szukaj karty…" /></div>
-        <button className={ownedOnly ? 'active' : ''} type="button" onClick={() => setOwnedOnly((v) => !v)}>{ownedOnly ? 'TYLKO MOJE' : 'POKAŻ WSZYSTKIE'}</button>
+      <MobileSectionHeader title="KOLEKCJA" subtitle={`${uniqueOwned} / ${props.songPoolSize || songs.length} unikalnych kart`} icon={<Disc3 size={24} />} onBack={() => props.onNavigate('home')} />
+
+      <section className="mob-collection-summary mob-panel">
+        <div><span>UNIKALNE</span><strong>{uniqueOwned} / {props.songPoolSize || songs.length}</strong></div>
+        <div><span>DUPLIKATY</span><strong>{duplicates}</strong></div>
+        <div className="mob-collection-rarity-summary">{RARITIES.slice(1).map((item) => <span key={item.key} style={{ '--rarity': item.color }}><i />{item.label}<b>{rarityCounts[item.key]?.owned || 0}/{rarityCounts[item.key]?.total || 0}</b></span>)}</div>
       </section>
+
+      <section className="mob-collection-tools mob-panel">
+        <div className="mob-search"><Search size={16} /><input value={query} onChange={(e) => { setQuery(e.target.value); setVisibleCount(40); }} placeholder="Szukaj karty…" /></div>
+        <button className={ownedOnly ? 'active' : ''} type="button" onClick={() => { setOwnedOnly((v) => !v); setVisibleCount(40); }}>{ownedOnly ? 'TYLKO MOJE' : 'POKAŻ WSZYSTKIE'}</button>
+      </section>
+
       <div className="mob-rarity-tabs">
         {RARITIES.map((item) => {
           const info = rarityCounts[item.key];
-          return <button type="button" key={item.key} className={rarity === item.key ? 'active' : ''} style={{ '--rarity': item.color }} onClick={() => setRarity(item.key)}><span>{item.label}</span>{item.key !== 'all' && info ? <small>{info.owned}/{info.total}</small> : null}</button>;
+          return <button type="button" key={item.key} className={rarity === item.key ? 'active' : ''} style={{ '--rarity': item.color }} onClick={() => { setRarity(item.key); setVisibleCount(40); }}><span>{item.label}</span>{item.key !== 'all' && info ? <small>{info.owned}/{info.total}</small> : null}</button>;
         })}
       </div>
-      {props.libraryLoading ? <div className="mob-empty mob-panel">Ładowanie biblioteki…</div> : filtered.length ? (
-        <div className="mob-card-grid">
-          {filtered.map((song) => {
+
+      {props.libraryLoading ? <div className="mob-empty mob-panel">Ładowanie biblioteki…</div> : shown.length ? (
+        <div className="mob-real-card-grid">
+          {shown.map((song) => {
             const count = Number(collection[song.id] || 0);
-            const r = effectiveRarity(song);
-            const info = RARITIES.find((item) => item.key === r) || RARITIES[1];
-            const thumb = song.videoId ? `https://img.youtube.com/vi/${song.videoId}/hqdefault.jpg` : null;
-            return (
-              <div className={`mob-song-card ${count < 1 ? 'locked' : ''}`} key={song.id} style={{ '--rarity': info.color }}>
-                <div className="mob-song-thumb">{thumb ? <img src={thumb} alt="" /> : <Disc3 size={30} />}{count < 1 ? <div className="mob-song-lock"><Lock size={18} /></div> : null}</div>
-                <div className="mob-song-year">{count > 0 ? song.year || '—' : '????'}</div>
-                <strong>{count > 0 ? song.title || '—' : 'Nieodkryta karta'}</strong>
-                <span>{count > 0 ? song.artist || '—' : info.label}</span>
-                {count > 1 ? <b className="mob-song-count">×{count}</b> : null}
-              </div>
-            );
+            if (count > 0) return <MobileCollectibleCard key={song.id} song={song} count={count} onClick={() => setZoomedSong(song)} />;
+            const rarityInfo = RARITIES.find((item) => item.key === effectiveRarity(song)) || RARITIES[1];
+            return <div className="mob-locked-collectible" key={song.id} style={{ '--rarity': rarityInfo.color }}><Lock size={21} /><strong>?</strong><span>{rarityInfo.label}</span></div>;
           })}
         </div>
       ) : <div className="mob-empty mob-panel">Brak kart dla wybranego filtra.</div>}
+
+      {filtered.length > visibleCount ? <button type="button" className="mob-load-more" onClick={() => setVisibleCount((v) => v + 40)}>POKAŻ WIĘCEJ <small>({filtered.length - visibleCount} pozostało)</small></button> : null}
+
+      {zoomedSong ? <div className="mob-card-zoom-backdrop" onClick={() => setZoomedSong(null)}><div className="mob-card-zoom" onClick={(e) => e.stopPropagation()}><button type="button" onClick={() => setZoomedSong(null)}><X size={20} /></button><MobileCollectibleCard song={zoomedSong} count={Number(collection[zoomedSong.id] || 1)} large /></div></div> : null}
     </div>
   );
 }
@@ -468,22 +583,57 @@ function MobileCollectionView(props) {
 function MobileAchievementsView(props) {
   const list = props.achievementProgress || [];
   const claimed = list.filter((item) => item.claimed).length;
+  const groups = useMemo(() => {
+    const map = new Map();
+    list.forEach((item) => {
+      const category = item.category || 'Pozostałe';
+      if (!map.has(category)) map.set(category, []);
+      map.get(category).push(item);
+    });
+    return Array.from(map.entries());
+  }, [list]);
+  const [openGroups, setOpenGroups] = useState(() => new Set(groups.length ? [groups[0][0]] : []));
+
+  useEffect(() => {
+    if (!openGroups.size && groups.length) setOpenGroups(new Set([groups[0][0]]));
+  }, [groups.length]);
+
+  const toggleGroup = (category) => setOpenGroups((current) => {
+    const next = new Set(current);
+    if (next.has(category)) next.delete(category); else next.add(category);
+    return next;
+  });
+
   return (
     <div className="mob-stack mob-inner-view">
       <MobileSectionHeader title="OSIĄGNIĘCIA" subtitle={`${claimed} / ${list.length} zdobytych`} icon={<Medal size={24} />} onBack={() => props.onNavigate('home')} />
-      <section className="mob-achievement-summary mob-panel"><img src={glMedal} alt="" /><div><span>TWÓJ POSTĘP</span><strong>{list.length ? `${pct(claimed, list.length)}%` : '0%'}</strong><div className="mob-big-progress"><i style={{ width: `${list.length ? pct(claimed, list.length) : 0}%` }} /></div></div></section>
-      <section className="mob-panel mob-list-panel">
-        {list.map((item, index) => {
-          const icon = item.claimed ? achOdebrane : item.qualifies ? achDoOdebrania : achZablokowane;
+      <section className="mob-achievement-summary mob-panel"><img src={glMedal} alt="" /><div><span>TWÓJ POSTĘP</span><strong>{list.length ? `${pct(claimed, list.length)}%` : '0%'}</strong><div className="mob-big-progress"><i style={{ width: `${list.length ? pct(claimed, list.length) : 0}%` }} /></div><small>{list.filter((item) => item.qualifies && !item.claimed).length} nagród gotowych do odebrania</small></div></section>
+      <div className="mob-achievement-groups">
+        {groups.map(([category, items]) => {
+          const open = openGroups.has(category);
+          const groupClaimed = items.filter((item) => item.claimed).length;
+          const ready = items.filter((item) => item.qualifies && !item.claimed).length;
           return (
-            <div className={`mob-ach-row ${item.claimed ? 'claimed' : item.qualifies ? 'ready' : 'locked'}`} key={item.id || index}>
-              <img src={icon} alt="" />
-              <div><strong>{item.name || item.title || 'Osiągnięcie'}</strong><span>{item.desc || item.description || ''}</span></div>
-              {item.qualifies && !item.claimed ? <button type="button" onClick={() => props.onClaimAchievement?.(item)}>ODBIERZ</button> : <small>{item.claimed ? 'ZDOBYTE' : item.xp ? `+${item.xp} XP` : ''}</small>}
-            </div>
+            <section className={`mob-ach-group mob-panel ${open ? 'open' : ''}`} key={category}>
+              <button type="button" className="mob-ach-group-head" onClick={() => toggleGroup(category)}>
+                <div><Sparkles size={16} /><span>{category.toUpperCase()}</span></div>
+                <div><small>{groupClaimed}/{items.length}{ready ? ` · ${ready} DO ODEBRANIA` : ''}</small><ChevronDown size={17} /></div>
+              </button>
+              {open ? <div className="mob-ach-group-body">{items.map((item, index) => {
+                const icon = item.claimed ? achOdebrane : item.qualifies ? achDoOdebrania : achZablokowane;
+                const status = item.claimed ? 'ZDOBYTE' : item.qualifies ? 'DO ODEBRANIA' : 'ZABLOKOWANE';
+                return (
+                  <div className={`mob-ach-row ${item.claimed ? 'claimed' : item.qualifies ? 'ready' : 'locked'}`} key={item.id || index}>
+                    <img src={icon} alt="" />
+                    <div><strong>{item.name || item.title || 'Osiągnięcie'}</strong><span>{item.desc || item.description || ''}</span><small>+{item.xp || 0} XP · {status}</small></div>
+                    {item.qualifies && !item.claimed ? <button type="button" onClick={() => props.onClaimAchievement?.(item)}>ODBIERZ</button> : null}
+                  </div>
+                );
+              })}</div> : null}
+            </section>
           );
         })}
-      </section>
+      </div>
     </div>
   );
 }
@@ -618,17 +768,47 @@ function MobileProfileSheet({ profile, onClose, levelFromXp }) {
   if (!profile) return null;
   const data = profile.stats || profile;
   const username = profile.username || profile.name || data.username || 'Gracz';
-  const level = levelFromXp ? levelFromXp(data.xp || 0) : { level: 1 };
-  const rarity = data.cardsByRarity || {};
-  const totalCards = Object.values(data.cardCollection || {}).reduce((sum, value) => sum + Number(value || 0), 0);
-  const uniqueCards = Object.keys(data.cardCollection || {}).filter((id) => Number(data.cardCollection[id] || 0) > 0).length;
+  const level = levelFromXp ? levelFromXp(data.xp || 0) : { level: 1, currentLevelXp: 0, xpForNextLevel: 1 };
+  const winRate = data.gamesPlayed ? pct(data.gamesWon || 0, data.gamesPlayed) : 0;
+  const accuracy = data.cardsTotal ? pct(data.cardsCorrect || 0, data.cardsTotal) : 0;
+  const collectionSummary = profile.collectionSummary || {};
+  const raritySummary = collectionSummary.byRarity || {};
+  const totalCards = collectionSummary.totalCopies ?? Object.values(data.cardCollection || {}).reduce((sum, value) => sum + Number(value || 0), 0);
+  const uniqueCards = collectionSummary.uniqueOwned ?? Object.keys(data.cardCollection || {}).filter((id) => Number(data.cardCollection[id] || 0) > 0).length;
+  const totalAvailable = collectionSummary.totalAvailable ?? null;
+  const xpPct = pct(level.currentLevelXp || 0, level.xpForNextLevel || 1);
+
   return (
     <div className="mob-sheet-backdrop" onClick={onClose} role="presentation">
-      <section className="mob-profile-sheet" onClick={(e) => e.stopPropagation()}>
+      <section className="mob-profile-sheet expanded" onClick={(e) => e.stopPropagation()}>
         <button className="mob-sheet-close" type="button" onClick={onClose}><X size={20} /></button>
-        <div className="mob-profile-head"><div className="mob-profile-avatar" style={data.avatarUrl ? { backgroundImage: `url(${data.avatarUrl})` } : undefined}>{!data.avatarUrl ? initials(username) : null}</div><div><span>PROFIL GRACZA</span><h2>{username}</h2><small>LVL {level.level || 1}</small></div></div>
-        <div className="mob-profile-metrics"><div><strong>{data.gamesPlayed || 0}</strong><span>Gry</span></div><div><strong>{data.gamesWon || 0}</strong><span>Wygrane</span></div><div><strong>{data.longestStreak || data.longestGuessStreak || 0}</strong><span>Seria</span></div><div><strong>{uniqueCards}</strong><span>Unikalne</span></div></div>
-        <div className="mob-profile-collection"><div className="mob-panel-title"><Disc3 size={17} /> KOLEKCJA</div><div className="mob-profile-rarity"><span>Winyl <b>{rarity.winyl || 0}</b></span><span>Srebro <b>{rarity.srebrna || 0}</b></span><span>Złoto <b>{rarity.zlota || 0}</b></span><span>Platyna <b>{rarity.platynowa || 0}</b></span><span>Diament <b>{rarity.diamentowa || 0}</b></span></div><div className="mob-profile-total"><span>ŁĄCZNIE KART</span><strong>{totalCards}</strong></div></div>
+        <div className="mob-profile-head"><div className="mob-profile-avatar" style={data.avatarUrl ? { backgroundImage: `url(${data.avatarUrl})` } : undefined}>{!data.avatarUrl ? initials(username) : null}</div><div><span>PROFIL GRACZA</span><h2>{username}</h2><small>LVL {level.level || 1} · {compact(data.xp || 0)} XP</small></div></div>
+        <div className="mob-profile-xp"><div><span>POSTĘP POZIOMU</span><b>{compact(level.currentLevelXp || 0)} / {compact(level.xpForNextLevel || 0)} XP</b></div><i><em style={{ width: `${Math.min(100, xpPct)}%` }} /></i></div>
+
+        <div className="mob-profile-metrics full">
+          <div><strong>{compact(data.gamesPlayed || 0)}</strong><span>Rozegrane</span></div>
+          <div><strong>{compact(data.gamesWon || 0)}</strong><span>Wygrane</span></div>
+          <div><strong>{winRate}%</strong><span>% wygranych</span></div>
+          <div><strong>{accuracy}%</strong><span>Trafność kart</span></div>
+          <div><strong>{compact(data.longestStreak || data.longestGuessStreak || 0)}</strong><span>Rekordowa seria</span></div>
+          <div><strong>{compact(data.guessesCorrect || 0)}</strong><span>Zgadnięte</span></div>
+        </div>
+
+        <div className="mob-profile-secondary">
+          <div><span>PLAYLISTA DNIA</span><strong>{compact(data.playlistTotalScore || 0)} pkt</strong></div>
+          <div><span>HIT RUSH</span><strong>{compact(data.hitRushBestScore || 0)} pkt</strong></div>
+          <div><span>DODANE DO BAZY</span><strong>{compact(data.songsAdded || 0)}</strong></div>
+        </div>
+
+        <div className="mob-profile-collection">
+          <div className="mob-profile-collection-head"><div><span>KOLEKCJA KART</span><strong>{compact(uniqueCards)}{totalAvailable !== null ? ` / ${compact(totalAvailable)}` : ''} unikalnych</strong></div><div><span>ŁĄCZNIE KART</span><strong>{compact(totalCards)}</strong></div></div>
+          <div className="mob-profile-rarity">
+            {RARITIES.slice(1).map((item) => {
+              const summary = raritySummary[item.key] || { owned: Number(data.cardsByRarity?.[item.key] || 0), total: 0 };
+              return <span key={item.key} style={{ '--rarity': item.color }}><i />{item.label}<b>{compact(summary.owned)} / {summary.total ? compact(summary.total) : '—'}</b></span>;
+            })}
+          </div>
+        </div>
       </section>
     </div>
   );

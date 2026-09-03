@@ -415,3 +415,109 @@
 }
 .mob-more-grid > button.locked { opacity:.58; filter:saturate(.65); }
 .mob-more-grid > button.locked > svg { color:#8f899b; }
+
+/* =========================================================
+   MOBILE REDESIGN v1.1 — full stats, real cards, grouped achievements,
+   expanded player profiles
+   ========================================================= */
+
+/* STATS — desktop parity adapted to a narrow screen */
+.mob-stats-feature-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
+.mob-stats-feature { min-width:0; min-height:112px; padding:10px 8px; border-radius:15px; display:flex; flex-direction:column; align-items:flex-start; text-align:left; border:1px solid rgba(82,215,255,.17); background:linear-gradient(155deg,rgba(13,17,41,.96),rgba(6,8,23,.96)); color:#f5f1ff; }
+.mob-stats-feature > svg { color:#56e5ff; margin-bottom:8px; }
+.mob-stats-feature > span { color:#8a8497; font-size:5.5px; letter-spacing:.08em; }
+.mob-stats-feature > strong { margin-top:5px; font-family:'Bebas Neue',sans-serif; font-size:21px; line-height:.96; font-weight:400; color:#5be5ff; }
+.mob-stats-feature > small { margin-top:auto; padding-top:5px; color:#7d778a; font-size:5.5px; }
+.mob-stats-feature.gold { border-color:rgba(255,207,73,.2); }.mob-stats-feature.gold > svg,.mob-stats-feature.gold > strong { color:#ffd251; }
+
+.mob-panel-title { justify-content:flex-start; }
+.mob-panel-title > small { margin-left:auto; color:#6f6a7d; font-size:5.5px; letter-spacing:.08em; }
+.mob-challenge-row { display:grid; grid-template-columns:29px minmax(0,1fr) auto; column-gap:7px; align-items:start; }
+.mob-challenge-number { grid-row:1/4; width:27px; height:27px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:rgba(82,219,255,.06); border:1px solid rgba(82,219,255,.13); color:#5ce6ff; font-family:'Bebas Neue',sans-serif; font-size:15px; }
+.mob-challenge-copy { grid-column:2/4; display:block; }
+.mob-challenge-copy strong { display:block; font-size:7.5px; line-height:1.35; }
+.mob-challenge-copy span { display:block; margin-top:4px; text-align:left; font-size:5.7px; line-height:1.35; }
+.mob-challenge-track { grid-column:2/4; margin-top:7px; }
+.mob-challenge-row > button,.mob-challenge-row > small { grid-column:2/4; justify-self:start; }
+.mob-challenge-row > small { margin-top:7px; color:#49e9a2; font-size:5.5px; }
+.mob-challenge-row.ready { background:linear-gradient(90deg,rgba(47,235,159,.025),transparent); }
+.mob-challenge-row.claimed { opacity:.72; }
+
+.mob-stats-summary-panel { padding:13px; }
+.mob-metric-grid.full { grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
+.mob-metric-grid.full .mob-metric { min-height:93px; padding:10px 9px; }
+.mob-metric-grid.full .mob-metric strong { font-size:25px; }
+.mob-metric-grid.full .mob-metric span { font-size:5.6px; line-height:1.28; }
+
+.mob-stats-decade-panel { padding:13px; }
+.mob-decade-list { display:grid; gap:6px; }
+.mob-decade-row { display:grid; grid-template-columns:68px minmax(0,1fr) 34px; gap:7px; align-items:center; }
+.mob-decade-copy strong { display:block; font-size:7px; color:#d9d5e3; }.mob-decade-copy span { display:block; margin-top:2px; color:#716c7d; font-size:5px; }
+.mob-decade-meter { height:6px; border-radius:99px; overflow:hidden; background:rgba(255,255,255,.055); }
+.mob-decade-meter i { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#45e2ff,#67efc0); box-shadow:0 0 8px rgba(72,222,255,.18); }
+.mob-decade-row > b { text-align:right; color:#59e9c2; font-size:6px; }
+
+.mob-artist-panels { display:grid; gap:8px; }
+.mob-artist-panel { padding:13px; }
+.mob-artist-panel.best { border-color:rgba(56,237,157,.18); }.mob-artist-panel.worst { border-color:rgba(255,83,169,.18); }
+.mob-artist-row { display:grid; grid-template-columns:24px minmax(0,1fr) 35px; gap:7px; align-items:center; padding:8px 0; border-top:1px solid rgba(255,255,255,.045); }
+.mob-artist-row:first-of-type { border-top:0; }
+.mob-artist-row > b { font-family:'Bebas Neue',sans-serif; font-size:15px; color:#626071; }
+.mob-artist-row > div { min-width:0; }.mob-artist-row > div > strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:7px; }.mob-artist-row > div > span { display:block; margin-top:2px; color:#787283; font-size:5px; }
+.mob-artist-row > div > i { display:block; height:4px; margin-top:5px; border-radius:99px; overflow:hidden; background:rgba(255,255,255,.055); }.mob-artist-row > div > i > em { display:block; height:100%; background:#42e9a1; }
+.mob-artist-panel.worst .mob-artist-row > div > i > em { background:#ff5aaa; }
+.mob-artist-row > strong { text-align:right; color:#42e9a1; font-size:6px; }.mob-artist-panel.worst .mob-artist-row > strong { color:#ff65b3; }
+
+.mob-h2h-panel { padding:13px; }
+.mob-h2h-card { border-top:1px solid rgba(255,255,255,.05); }.mob-h2h-card:first-of-type { border-top:0; }
+.mob-h2h-main { width:100%; min-height:58px; padding:8px 0; display:grid; grid-template-columns:minmax(0,1fr) auto 18px; gap:8px; align-items:center; text-align:left; border:0; background:transparent; color:#fff; }
+.mob-h2h-vs { display:flex; align-items:center; gap:8px; min-width:0; }.mob-h2h-vs > span { width:29px; height:29px; flex:0 0 29px; border-radius:9px; display:flex; align-items:center; justify-content:center; color:#ff69d0; background:rgba(255,80,201,.06); border:1px solid rgba(255,80,201,.16); font-family:'Bebas Neue',sans-serif; font-size:14px; }
+.mob-h2h-vs > div { min-width:0; }.mob-h2h-vs strong { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:7px; }.mob-h2h-vs small { display:block; margin-top:3px; color:#777183; font-size:5px; }
+.mob-h2h-score { text-align:right; }.mob-h2h-score span { display:block; color:#716b7f; font-size:5px; }.mob-h2h-score strong { display:block; margin-top:2px; color:#5de6ff; font-family:'Bebas Neue',sans-serif; font-size:19px; font-weight:400; }
+.mob-h2h-main > svg { color:#686274; transition:transform .18s ease; }.mob-h2h-card.expanded .mob-h2h-main > svg { transform:rotate(180deg); color:#ff64cf; }
+.mob-h2h-details { padding:0 0 11px 37px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; }
+.mob-h2h-details > div { min-height:50px; padding:7px; border-radius:9px; background:rgba(4,7,20,.72); border:1px solid rgba(80,211,255,.08); }
+.mob-h2h-details span { display:block; color:#6e6879; font-size:4.6px; }.mob-h2h-details strong { display:block; margin-top:4px; font-size:7px; }.mob-h2h-details strong small { color:#665f70; font-size:4.7px; }
+.mob-h2h-details > button { grid-column:1/-1; min-height:33px; border-radius:9px; border:1px solid rgba(83,218,255,.22); background:rgba(64,208,255,.05); color:#5de5ff; font-size:6px; font-weight:700; }
+
+/* COLLECTION — reuse the actual collectible card frames used elsewhere in the game */
+.mob-collection-summary { padding:12px; display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.mob-collection-summary > div:not(.mob-collection-rarity-summary) { min-height:56px; padding:9px 10px; border-radius:12px; background:rgba(5,8,23,.68); border:1px solid rgba(87,213,255,.09); }
+.mob-collection-summary > div > span { display:block; color:#777183; font-size:5.5px; letter-spacing:.09em; }.mob-collection-summary > div > strong { display:block; margin-top:4px; font-family:'Bebas Neue',sans-serif; font-size:23px; font-weight:400; color:#5ce5ff; }
+.mob-collection-rarity-summary { grid-column:1/-1; display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:4px; }
+.mob-collection-rarity-summary > span { min-width:0; min-height:42px; padding:5px 2px; border-radius:9px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; color:#777182; background:rgba(255,255,255,.022); font-size:4.6px; }.mob-collection-rarity-summary i { width:5px; height:5px; border-radius:50%; background:var(--rarity); box-shadow:0 0 7px var(--rarity); }.mob-collection-rarity-summary b { color:#fff; font-size:6px; }
+.mob-real-card-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 8px; align-items:start; }
+.mob-collectible-card { position:relative; width:100%; aspect-ratio:1024 / 1536; padding:0; border:0; background:transparent; color:#fff; overflow:visible; }
+.mob-collectible-frame { position:absolute; inset:0; width:100%; height:100%; display:block; pointer-events:none; }
+.mob-collectible-thumb { position:absolute; left:14%; right:14%; top:16.2%; height:44%; border-radius:4%; overflow:hidden; background:#0a1420; }.mob-collectible-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+.mob-collectible-copy { position:absolute; left:12%; right:12%; top:62.5%; height:25.5%; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; overflow:hidden; }
+.mob-collectible-year { font-family:'Bebas Neue',sans-serif; font-size:clamp(19px,7vw,29px); line-height:1; color:#dfe9ff; font-weight:400; }.mob-collectible-artist { margin-top:3px; width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#9fb0c8; text-transform:uppercase; letter-spacing:.3px; font-size:clamp(5.5px,1.9vw,8px); }.mob-collectible-title { margin-top:2px; width:100%; line-height:1.15; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; color:#f4eefc; font-size:clamp(6px,2vw,8.5px); }
+.mob-collectible-count { position:absolute; right:5%; top:4%; min-width:27px; height:23px; padding:0 6px; border-radius:9px; display:flex; align-items:center; justify-content:center; color:#ffd557; background:rgba(4,7,20,.88); border:1px solid rgba(255,210,74,.35); font-size:7px; box-shadow:0 0 12px rgba(255,201,60,.12); }
+.mob-locked-collectible { aspect-ratio:1024 / 1536; border-radius:14px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; border:1px dashed color-mix(in srgb,var(--rarity) 30%,transparent); background:linear-gradient(155deg,color-mix(in srgb,var(--rarity) 3%,#090b20),rgba(5,7,20,.94)); color:#696477; }.mob-locked-collectible > strong { font-family:'Bebas Neue',sans-serif; font-size:36px; font-weight:400; color:color-mix(in srgb,var(--rarity) 42%,#676173); }.mob-locked-collectible > span { font-size:5.5px; color:#706a7b; }
+.mob-load-more { align-self:center; min-height:40px; padding:0 16px; border-radius:12px; border:1px solid rgba(82,219,255,.22); background:rgba(57,205,255,.05); color:#5ce5ff; font-size:7px; font-weight:700; }.mob-load-more small { color:#777183; }
+.mob-card-zoom-backdrop { position:fixed; inset:0; z-index:170; display:flex; align-items:center; justify-content:center; padding:22px; background:rgba(2,3,11,.91); backdrop-filter:blur(13px); }.mob-card-zoom { position:relative; width:min(78vw,330px); }.mob-card-zoom > button { position:absolute; z-index:5; right:-6px; top:-6px; width:38px; height:38px; border-radius:13px; display:flex; align-items:center; justify-content:center; border:1px solid rgba(255,255,255,.12); background:#0b0d22; color:#fff; }.mob-collectible-card.large { width:100%; }
+
+/* ACHIEVEMENTS — collapsible groups */
+.mob-achievement-summary small { display:block; margin-top:5px; color:#777183; font-size:5.5px; }
+.mob-achievement-groups { display:grid; gap:8px; }
+.mob-ach-group { overflow:hidden; }
+.mob-ach-group-head { width:100%; min-height:53px; padding:0 12px; border:0; background:transparent; color:#fff; display:flex; align-items:center; justify-content:space-between; gap:8px; text-align:left; }
+.mob-ach-group-head > div { display:flex; align-items:center; gap:7px; min-width:0; }.mob-ach-group-head > div:first-child svg { color:#5ce5ff; }.mob-ach-group-head > div:first-child span { font-size:7px; letter-spacing:.1em; font-weight:700; }.mob-ach-group-head small { color:#716b7c; font-size:5px; white-space:nowrap; }.mob-ach-group-head svg:last-child { color:#6c6676; transition:transform .18s ease; }.mob-ach-group.open .mob-ach-group-head svg:last-child { transform:rotate(180deg); color:#ff62ce; }
+.mob-ach-group-body { padding:0 12px 8px; border-top:1px solid rgba(255,255,255,.045); }.mob-ach-group-body .mob-ach-row > div > small { display:block; margin-top:4px; color:#6f697a; font-size:5px; }
+.mob-ach-row.ready { opacity:1; background:linear-gradient(90deg,rgba(53,237,161,.025),transparent); }.mob-ach-row.claimed { opacity:.82; }
+
+/* PLAYER PROFILE — richer stats and proper collection summary */
+.mob-profile-sheet.expanded { max-height:91vh; padding-top:20px; }
+.mob-profile-xp { margin-top:13px; padding:10px; border-radius:13px; border:1px solid rgba(83,217,255,.1); background:rgba(5,8,23,.66); }.mob-profile-xp > div { display:flex; justify-content:space-between; gap:10px; }.mob-profile-xp span { color:#777183; font-size:5px; letter-spacing:.08em; }.mob-profile-xp b { color:#a49caf; font-size:5.5px; }.mob-profile-xp > i { display:block; height:5px; margin-top:7px; border-radius:99px; background:rgba(255,255,255,.055); overflow:hidden; }.mob-profile-xp > i > em { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#47e4ff,#8769ff 58%,#ff5dcc); }
+.mob-profile-metrics.full { grid-template-columns:repeat(3,minmax(0,1fr)); }.mob-profile-metrics.full > div { min-height:62px; }.mob-profile-metrics.full strong { font-size:21px; }.mob-profile-metrics.full span { font-size:5px; line-height:1.25; }
+.mob-profile-secondary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin-top:7px; }.mob-profile-secondary > div { min-height:58px; padding:8px 5px; border-radius:11px; background:rgba(5,8,23,.65); border:1px solid rgba(160,87,255,.09); text-align:center; }.mob-profile-secondary span { display:block; color:#777183; font-size:4.8px; }.mob-profile-secondary strong { display:block; margin-top:4px; font-family:'Bebas Neue',sans-serif; font-size:18px; font-weight:400; color:#c88aff; }
+.mob-profile-collection-head { display:flex; align-items:flex-end; justify-content:space-between; gap:10px; margin-bottom:9px; }.mob-profile-collection-head > div:first-child span,.mob-profile-collection-head > div:last-child span { display:block; color:#777183; font-size:5px; letter-spacing:.08em; }.mob-profile-collection-head > div:first-child strong { display:block; margin-top:3px; font-size:7px; color:#e9e5ef; }.mob-profile-collection-head > div:last-child { text-align:right; }.mob-profile-collection-head > div:last-child strong { display:block; margin-top:2px; font-family:'Bebas Neue',sans-serif; font-size:22px; font-weight:400; color:#ff67d0; }
+.mob-profile-rarity { grid-template-columns:repeat(5,minmax(0,1fr)); }.mob-profile-rarity span { border:1px solid color-mix(in srgb,var(--rarity) 12%,transparent); }.mob-profile-rarity span i { width:6px; height:6px; border-radius:50%; background:var(--rarity); box-shadow:0 0 8px var(--rarity); }.mob-profile-rarity b { font-size:6.5px; white-space:nowrap; }
+
+@media (max-width: 390px) {
+  .mob-metric-grid.full { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .mob-stats-feature-grid { grid-template-columns:1fr; }
+  .mob-stats-feature { min-height:82px; }
+  .mob-profile-metrics.full { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .mob-profile-secondary { grid-template-columns:1fr; }
+}
