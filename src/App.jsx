@@ -92,8 +92,23 @@ import cardPlatynaImg from "./assets/icons/card-platynowa.webp";
 import cardDiamentImg from "./assets/icons/card-diamentowa.webp";
 import { DesktopAppView } from "./DesktopShell.jsx";
 import { MobileAppView } from "./MobileShell.jsx";
+import {
+  MobileLobbyView,
+  MobileOpenerView,
+  MobilePlayingView,
+  MobilePracticeSetupView,
+  MobilePracticeResultView,
+  MobileDailyPlaylistHubView,
+  MobileDailyPlaylistResultView,
+  MobileHitRushMenuView,
+  MobileHitRushGameView,
+  MobileHitRushResultView,
+  MobileHitRushLeaderboardView,
+  MobileGameOverView,
+} from "./MobileGameViews.jsx";
 import "./desktop-shell.css";
 import "./mobile-shell.css";
+import "./mobile-game.css";
 import {
   DesktopLobbyView,
   DesktopOpenerView,
@@ -4378,6 +4393,7 @@ export default function App() {
   ) : null;
 
   const useDesktopSessionViews = viewportWidth >= 1280;
+  const useMobileSessionViews = viewportWidth < 1280;
   const useDesktopRedesign = viewportWidth >= 1280 && screen === "home";
 
   if (useDesktopSessionViews && screen === "hitRushMenu") {
@@ -4623,6 +4639,240 @@ export default function App() {
           setTimeout(() => openDailyPlaylistHub(), 80);
         }}
         onLeave={leaveRoom}
+      />
+    );
+  }
+
+  if (useMobileSessionViews && screen === "hitRushMenu") {
+    return (
+      <MobileHitRushMenuView
+        stats={stats}
+        bonusEvery={HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO}
+        bonusSeconds={HIT_RUSH_CONFIG.TIME_BONUS_SECONDS}
+        onStart={startHitRush}
+        onLeaderboard={() => {
+          setScreen("hitRushLeaderboard");
+          loadHitRushLeaderboard("weekly");
+        }}
+        onHome={goHome}
+      />
+    );
+  }
+
+  if (useMobileSessionViews && screen === "hitRush" && hitRush && !hitRushResult) {
+    return (
+      <MobileHitRushGameView
+        hitRush={hitRush}
+        iframeRef={hitRushIframeRef}
+        onReplay={unlockHitRushAudio}
+        onAnswer={answerHitRush}
+        onExit={() => {
+          setHitRush(null);
+          setHitRushResult(null);
+          setScreen("hitRushMenu");
+        }}
+        roundSeconds={HIT_RUSH_CONFIG.ROUND_SECONDS}
+        bonusEvery={HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO}
+        bonusSeconds={HIT_RUSH_CONFIG.TIME_BONUS_SECONDS}
+        difficulty={difficultyLabel(hitRush.combo)}
+      />
+    );
+  }
+
+  if (useMobileSessionViews && screen === "hitRush" && hitRushResult) {
+    return (
+      <MobileHitRushResultView
+        result={hitRushResult}
+        onAgain={startHitRush}
+        onLeaderboard={() => {
+          setScreen("hitRushLeaderboard");
+          loadHitRushLeaderboard("weekly");
+        }}
+        onHome={goHome}
+      />
+    );
+  }
+
+  if (useMobileSessionViews && screen === "hitRushLeaderboard") {
+    return (
+      <MobileHitRushLeaderboardView
+        rows={hitRushLeaderboard}
+        period={hitRushLeaderboardPeriod}
+        onPeriod={loadHitRushLeaderboard}
+        onBack={() => setScreen("hitRushMenu")}
+        onHome={goHome}
+      />
+    );
+  }
+
+  if (useMobileSessionViews && screen === "practiceSetup") {
+    return (
+      <MobilePracticeSetupView
+        practiceTarget={practiceTarget}
+        setPracticeTarget={setPracticeTarget}
+        selectedCategories={selectedCategories}
+        categories={CATEGORIES}
+        onToggleCategory={toggleCategory}
+        songPool={effectivePool}
+        busy={busy}
+        onStart={startPractice}
+        onHome={() => setScreen("home")}
+      />
+    );
+  }
+
+  if (useMobileSessionViews && screen === "dailyPlaylistHub") {
+    return (
+      <MobileDailyPlaylistHubView
+        alreadyPlayed={dailyPlaylistAlreadyPlayed}
+        dailyBoard={dailyPlaylistDailyBoard}
+        weeklyBoard={dailyPlaylistWeeklyBoard}
+        allTimeBoard={dailyPlaylistAllTimeBoard}
+        busy={busy || dailyPlaylistBusy}
+        onStart={startDailyPlaylistGame}
+        onHome={() => setScreen("home")}
+      />
+    );
+  }
+
+  if (useMobileSessionViews && screen === "lobby" && room) {
+    return (
+      <MobileLobbyView
+        room={room}
+        roomId={roomId}
+        playerId={playerId}
+        isHost={isHost}
+        copied={copied}
+        onCopy={copyCode}
+        onLeave={leaveRoom}
+        target={target}
+        setTarget={setTarget}
+        selectedCategories={selectedCategories}
+        categories={CATEGORIES}
+        onToggleCategory={toggleCategory}
+        songPool={effectivePool}
+        busy={busy}
+        onStart={beginGame}
+        onKick={(player) => {
+          if (window.confirm(`Wyrzucić gracza ${player.name} z pokoju?`)) kickPlayer(player.id);
+        }}
+        playerLevels={playerLevels}
+        levelFromXp={levelFromXp}
+      />
+    );
+  }
+
+  if (useMobileSessionViews && screen === "opener" && room?.openerCard) {
+    return (
+      <MobileOpenerView
+        room={room}
+        openerPhase={openerPhase}
+        openerCountdownNum={openerCountdownNum}
+        isPlaying={isPlaying}
+        playElapsed={playElapsed}
+        playCapSeconds={PLAY_CAP_SECONDS}
+        iframeRef={iframeRef}
+        onTogglePlay={togglePlay}
+        openerLockedOut={openerLockedOut}
+        setOpenerLockedOut={setOpenerLockedOut}
+        onAnswer={answerOpener}
+        openerRevealCountdown={openerRevealCountdown}
+        onLeave={leaveRoom}
+      />
+    );
+  }
+
+  if (
+    useMobileSessionViews &&
+    (screen === "playing" || screen === "voting" || screen === "roundResult") &&
+    room?.currentCard
+  ) {
+    return (
+      <MobilePlayingView
+        screen={screen}
+        room={room}
+        playerId={playerId}
+        isMyTurn={isMyTurn}
+        turnPlayerName={turnPlayerName}
+        decisionLeft={decisionLeft}
+        playElapsed={playElapsed}
+        playCapSeconds={PLAY_CAP_SECONDS}
+        isPlaying={isPlaying}
+        iframeRef={iframeRef}
+        onTogglePlay={togglePlay}
+        guessArtist={guessArtist}
+        setGuessArtist={setGuessArtist}
+        guessTitle={guessTitle}
+        setGuessTitle={setGuessTitle}
+        onSwapSong={swapSong}
+        onBuyCard={buyCard}
+        swapCost={SWAP_SONG_TOKENS}
+        buyCost={BUY_CARD_TOKENS}
+        chosenSlot={chosenSlot}
+        setChosenSlot={setChosenSlot}
+        turnTimeline={turnTimeline}
+        viewedTimeline={viewedTimeline}
+        displayedPlayerId={displayedPlayerId}
+        displayedPlayerName={displayedPlayerName}
+        setViewedPlayerId={setViewedPlayerId}
+        onConfirmPlacement={confirmPlacement}
+        busy={busy}
+        playerLevels={playerLevels}
+        levelFromXp={levelFromXp}
+        votingCountdown={votingCountdown}
+        onVote={castVote}
+        advanceCountdown={advanceCountdown}
+        onLeave={leaveRoom}
+        chatInput={chatInput}
+        setChatInput={setChatInput}
+        onSendChat={sendChatMessage}
+      />
+    );
+  }
+
+  if (useMobileSessionViews && screen === "gameover" && room?.dailyPlaylistMode) {
+    return (
+      <MobileDailyPlaylistResultView
+        room={room}
+        playerId={playerId}
+        onBackToRankings={() => {
+          leaveRoom();
+          setTimeout(() => openDailyPlaylistHub(), 80);
+        }}
+        onLeave={leaveRoom}
+      />
+    );
+  }
+
+  if (useMobileSessionViews && screen === "gameover" && room?.practiceMode) {
+    return (
+      <MobilePracticeResultView
+        room={room}
+        playerId={playerId}
+        onAgain={() => {
+          leaveRoom();
+          setTimeout(() => setScreen("practiceSetup"), 80);
+        }}
+        onHome={leaveRoom}
+      />
+    );
+  }
+
+  if (useMobileSessionViews && screen === "gameover" && room && !room.practiceMode && !room.dailyPlaylistMode) {
+    const mobileXpSummary = user ? computeGameEndXp(room, playerId) : { items: [], total: 0 };
+    return (
+      <MobileGameOverView
+        room={room}
+        playerId={playerId}
+        isHost={isHost}
+        onPlayAgain={playAgain}
+        onLeave={leaveRoom}
+        onTournamentBack={room.tournamentMode ? () => {
+          leaveRoom();
+          setTimeout(() => openTournamentHub(), 80);
+        } : undefined}
+        xpSummary={mobileXpSummary}
+        gameEndReward={gameEndReward}
       />
     );
   }
