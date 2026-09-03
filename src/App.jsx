@@ -622,6 +622,98 @@ const DailyWheel = memo(function DailyWheel({ rotation, spinning }) {
 
 const guestId = getOrCreatePlayerId();
 
+const RARITY_LABELS = {
+  winyl: "WINYL",
+  srebrna: "SREBRNA",
+  zlota: "ZŁOTA",
+  platynowa: "PLATYNOWA",
+  diamentowa: "DIAMENTOWA",
+};
+
+function GlobalSessionUx({
+  playbackUx,
+  sharedBoughtNotice,
+  boughtCardReveal,
+  boughtCardRevealed,
+  onRevealBoughtCard,
+  onCloseBoughtCard,
+  cardSize = 190,
+}) {
+  const showPlayback = playbackUx && !["idle", "ready"].includes(playbackUx.status);
+  const rarity = boughtCardReveal ? effectiveRarity(boughtCardReveal) : "winyl";
+
+  return (
+    <>
+      {showPlayback && (
+        <div className={`global-playback-ux ${playbackUx.status}`} role="status" aria-live="polite">
+          <div className="global-playback-eq" aria-hidden="true">
+            <i /><i /><i /><i /><i />
+          </div>
+          <div className="global-playback-copy">
+            <strong>
+              {playbackUx.status === "retrying"
+                ? "PROBLEM Z ODTWARZANIEM · PRÓBA 2/2"
+                : playbackUx.status === "replacing"
+                  ? "UTWÓR NIEDOSTĘPNY · LOSUJEMY INNY"
+                  : "ŁADOWANIE UTWORU..."}
+            </strong>
+            <span>
+              {playbackUx.status === "retrying"
+                ? "Pierwsza próba się nie udała. Sprawdzamy link jeszcze raz."
+                : playbackUx.status === "replacing"
+                  ? "Link został zgłoszony do panelu admina. Za moment pojawi się nowy utwór."
+                  : "Przygotowujemy odtwarzanie."}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {sharedBoughtNotice && (
+        <div className="global-purchase-toast" role="status" aria-live="polite">
+          <img src={achKupionaKarta} alt="" />
+          <div>
+            <strong>{sharedBoughtNotice.name || "Gracz"} KUPIŁ(A) KARTĘ</strong>
+            <span>Wydał(a) 3 tokeny i dodał(a) kartę do swojej osi.</span>
+          </div>
+        </div>
+      )}
+
+      {boughtCardReveal && (
+        <div
+          className="token-card-reveal-backdrop"
+          onClick={() => {
+            if (boughtCardRevealed) onCloseBoughtCard?.();
+          }}
+        >
+          <div className={`token-card-reveal-panel rarity-${rarity}`} onClick={(e) => e.stopPropagation()}>
+            {!boughtCardRevealed ? (
+              <>
+                <span className="token-card-reveal-kicker">KARTA KUPIONA · 3 TOKENY</span>
+                <h2>ODKRYJ SWOJĄ KARTĘ</h2>
+                <p>Kliknij rewers, żeby sprawdzić, co trafiło na Twoją oś czasu.</p>
+                <button type="button" className="token-card-back-button" onClick={onRevealBoughtCard}>
+                  <CardBack size={cardSize} />
+                  <span>KLIKNIJ, ABY ODKRYĆ</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="token-card-reveal-kicker">KUPIONA KARTA</span>
+                <h2>{RARITY_LABELS[rarity] || "KARTA"}</h2>
+                <div className="token-card-reveal-card">
+                  <CollectibleCard song={boughtCardReveal} size={cardSize} />
+                </div>
+                <p className="token-card-reveal-added">Karta została dodana do Twojej osi czasu.</p>
+                <button type="button" className="token-card-reveal-done" onClick={onCloseBoughtCard}>GOTOWE</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function App() {
   const [screen, setScreen] = useState("home"); // home | lobby | playing | roundResult | gameover
   const [name, setName] = useState(localStorage.getItem("hitster-player-name") || "");
@@ -641,7 +733,9 @@ export default function App() {
   const [chosenSlot, setChosenSlot] = useState(null);
   const [heldCard, setHeldCard] = useState(null);
   const [boughtCardReveal, setBoughtCardReveal] = useState(null);
+  const [boughtCardRevealed, setBoughtCardRevealed] = useState(false);
   const [sharedBoughtNotice, setSharedBoughtNotice] = useState(null);
+  const [playbackUx, setPlaybackUx] = useState({ status: "idle", mode: null, cardId: null });
   const [viewedPlayerId, setViewedPlayerId] = useState(null);
   const [showOnlyMyPlaylist, setShowOnlyMyPlaylist] = useState(false);
   const clearHeldCard = useCallback(() => setHeldCard(null), []);
@@ -3220,7 +3314,7 @@ export default function App() {
       });
       if (capturedBought) {
         setBoughtCardReveal(capturedBought);
-        setTimeout(() => setBoughtCardReveal(null), 3000);
+        setBoughtCardRevealed(false);
         if (!room?.practiceMode && capturedBought.id) incrementSongPlayCount(capturedBought.id).catch(() => {});
         if (user && !room?.practiceMode) {
           const ref2 = doc(db, "userStats", user.uid);
@@ -3308,14 +3402,20 @@ export default function App() {
   }
 
   const boughtNoticeFiredRef = useRef(null);
+  const boughtNoticeTimerRef = useRef(null);
   useEffect(() => {
     const at = toMillis(room?.lastBoughtCard?.at);
     if (!at || boughtNoticeFiredRef.current === at) return;
     boughtNoticeFiredRef.current = at;
-    if (room.lastBoughtCard.playerId === playerId) return; // kupujący ma już swój lokalny popup
-    const buyerName = room.players.find((p) => p.id === room.lastBoughtCard.playerId)?.name;
+    // Po odświeżeniu strony nie pokazujemy starego zakupu sprzed wielu sekund.
+    if (Date.now() - at > 15000) return;
+    const buyerName = room.players.find((p) => p.id === room.lastBoughtCard.playerId)?.name || "Gracz";
+    // Zdarzenie jest współdzielone w Firestore, więc widzi je każdy klient
+    // pokoju — również osoba, która właśnie kupiła kartę.
     setSharedBoughtNotice({ name: buyerName, card: room.lastBoughtCard.card });
-    setTimeout(() => setSharedBoughtNotice(null), 4000);
+    clearTimeout(boughtNoticeTimerRef.current);
+    boughtNoticeTimerRef.current = setTimeout(() => setSharedBoughtNotice(null), 4000);
+    return () => clearTimeout(boughtNoticeTimerRef.current);
   }, [toMillis(room?.lastBoughtCard?.at)]);
 
   const ytValidatorRef = useRef(null);
@@ -3543,13 +3643,21 @@ export default function App() {
   // dwa razy dla TEJ SAMEJ karty. Dopiero wtedy logujemy ją do brokenLinks i
   // uruchamiamy właściwy dla danego trybu mechanizm podmiany.
   useEffect(() => {
-    if (!brokenValidationMode || !brokenValidationCard?.videoId) return;
+    if (!brokenValidationMode || !brokenValidationCard?.videoId) {
+      setPlaybackUx({ status: "idle", mode: null, cardId: null });
+      return;
+    }
     let cancelled = false;
     let attempts = 0;
     let errorCount = 0;
+    let replacementTimer = null;
+    let readyTimer = null;
     const currentMode = brokenValidationMode;
     const currentCard = brokenValidationCard;
+    const currentCardId = currentCard.id || currentCard.videoId;
     let confirmedFired = false;
+
+    setPlaybackUx({ status: "loading", mode: currentMode, cardId: currentCardId });
 
     const ensureValidatorHost = () => {
       let host = document.getElementById("broken-link-validator");
@@ -3579,6 +3687,15 @@ export default function App() {
       else if (currentMode === "dailySong") handleBrokenDailySongLink(currentCard);
     };
 
+    const markReady = () => {
+      if (cancelled) return;
+      setPlaybackUx((prev) =>
+        prev.cardId === currentCardId
+          ? { status: "ready", mode: currentMode, cardId: currentCardId }
+          : prev
+      );
+    };
+
     const createValidator = () => {
       if (cancelled) return;
       try {
@@ -3591,15 +3708,31 @@ export default function App() {
           videoId: currentCard.videoId,
           playerVars: { autoplay: 1, mute: 1, controls: 0, playsinline: 1 },
           events: {
+            onReady: (event) => {
+              if (cancelled) return;
+              try {
+                event.target?.mute?.();
+                event.target?.playVideo?.();
+              } catch (e) {}
+              clearTimeout(readyTimer);
+              readyTimer = setTimeout(markReady, 300);
+            },
+            onStateChange: (event) => {
+              if (cancelled) return;
+              if ([1, 3, 5].includes(event.data)) markReady();
+            },
             onError: () => {
               if (cancelled) return;
+              clearTimeout(readyTimer);
               errorCount += 1;
               if (errorCount === 1) {
+                setPlaybackUx({ status: "retrying", mode: currentMode, cardId: currentCardId });
                 setTimeout(() => {
                   if (!cancelled) createValidator();
                 }, 2500);
               } else {
-                reactToConfirmedError();
+                setPlaybackUx({ status: "replacing", mode: currentMode, cardId: currentCardId });
+                replacementTimer = setTimeout(reactToConfirmedError, 1100);
               }
             },
           },
@@ -3615,6 +3748,7 @@ export default function App() {
       if (!window.YT || !window.YT.Player) {
         attempts += 1;
         if (attempts < 40) setTimeout(tryAttach, 250);
+        else markReady();
         return;
       }
       createValidator();
@@ -3623,6 +3757,8 @@ export default function App() {
     tryAttach();
     return () => {
       cancelled = true;
+      clearTimeout(replacementTimer);
+      clearTimeout(readyTimer);
       try { ytValidatorRef.current?.destroy?.(); } catch (e) {}
       ytValidatorRef.current = null;
       // destroy() usuwa iframe z DOM — przygotuj pusty host pod następną kartę
@@ -3788,6 +3924,9 @@ export default function App() {
     setError("");
     setShowChat(false);
     setChatInput("");
+    setBoughtCardReveal(null);
+    setBoughtCardRevealed(false);
+    setSharedBoughtNotice(null);
     setGameEndReward(null);
   }
 
@@ -4624,6 +4763,24 @@ export default function App() {
   const useMobileSessionViews = viewportWidth < 1280;
   const useDesktopRedesign = viewportWidth >= 1280 && screen === "home";
 
+  const renderSessionUx = (content) => (
+    <>
+      {content}
+      <GlobalSessionUx
+        playbackUx={playbackUx}
+        sharedBoughtNotice={sharedBoughtNotice}
+        boughtCardReveal={boughtCardReveal}
+        boughtCardRevealed={boughtCardRevealed}
+        onRevealBoughtCard={() => setBoughtCardRevealed(true)}
+        onCloseBoughtCard={() => {
+          setBoughtCardReveal(null);
+          setBoughtCardRevealed(false);
+        }}
+        cardSize={viewportWidth < 640 ? 190 : 220}
+      />
+    </>
+  );
+
   if (useDesktopSessionViews && screen === "hitRushMenu") {
     return (
       <DesktopHitRushMenuView
@@ -4641,7 +4798,7 @@ export default function App() {
   }
 
   if (useDesktopSessionViews && screen === "hitRush" && hitRush && !hitRushResult) {
-    return (
+    return renderSessionUx(
       <DesktopHitRushGameView
         hitRush={hitRush}
         iframeRef={hitRushIframeRef}
@@ -4691,7 +4848,7 @@ export default function App() {
   }
 
   if (useDesktopSessionViews && screen === "home" && showDailySong && dailySong) {
-    return (
+    return renderSessionUx(
       <DesktopDailySongView
         song={dailySong}
         alreadyPlayed={dailyAlreadyPlayed}
@@ -4776,7 +4933,7 @@ export default function App() {
   }
 
   if (useDesktopSessionViews && screen === "opener" && room?.openerCard) {
-    return (
+    return renderSessionUx(
       <DesktopOpenerView
         room={room}
         openerPhase={openerPhase}
@@ -4800,7 +4957,7 @@ export default function App() {
     (screen === "playing" || screen === "voting" || screen === "roundResult") &&
     room?.currentCard
   ) {
-    return (
+    return renderSessionUx(
       <DesktopPlayingView
         screen={screen}
         room={room}
@@ -4872,7 +5029,7 @@ export default function App() {
   }
 
   if (useMobileSessionViews && screen === "home" && showDailySong && dailySong) {
-    return (
+    return renderSessionUx(
       <MobileDailySongView
         song={dailySong}
         alreadyPlayed={dailyAlreadyPlayed}
@@ -4928,7 +5085,7 @@ export default function App() {
   }
 
   if (useMobileSessionViews && screen === "hitRush" && hitRush && !hitRushResult) {
-    return (
+    return renderSessionUx(
       <MobileHitRushGameView
         hitRush={hitRush}
         iframeRef={hitRushIframeRef}
@@ -5031,7 +5188,7 @@ export default function App() {
   }
 
   if (useMobileSessionViews && screen === "opener" && room?.openerCard) {
-    return (
+    return renderSessionUx(
       <MobileOpenerView
         room={room}
         openerPhase={openerPhase}
@@ -5055,7 +5212,7 @@ export default function App() {
     (screen === "playing" || screen === "voting" || screen === "roundResult") &&
     room?.currentCard
   ) {
-    return (
+    return renderSessionUx(
       <MobilePlayingView
         screen={screen}
         room={room}
