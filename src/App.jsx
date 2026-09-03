@@ -91,7 +91,9 @@ import cardZlotoImg from "./assets/icons/card-zlota.webp";
 import cardPlatynaImg from "./assets/icons/card-platynowa.webp";
 import cardDiamentImg from "./assets/icons/card-diamentowa.webp";
 import { DesktopAppView } from "./DesktopShell.jsx";
+import { MobileAppView } from "./MobileShell.jsx";
 import "./desktop-shell.css";
+import "./mobile-shell.css";
 import {
   DesktopLobbyView,
   DesktopOpenerView,
@@ -4769,6 +4771,89 @@ export default function App() {
         </div>
       ) : null}
       </>
+    );
+  }
+
+  const useMobileRedesign = viewportWidth < 1280 && screen === "home" && !showDailySong;
+
+  if (useMobileRedesign) {
+    return (
+      <MobileAppView
+        user={user}
+        authChecked={authChecked}
+        authMode={authMode}
+        setAuthMode={setAuthMode}
+        authUsername={authUsername}
+        setAuthUsername={setAuthUsername}
+        authPassword={authPassword}
+        setAuthPassword={setAuthPassword}
+        authBusy={authBusy}
+        authError={authError}
+        onAuthSubmit={handleAuthSubmit}
+        playerName={name.trim() || user?.displayName || "Gracz"}
+        stats={stats}
+        onlinePlayers={onlinePlayers}
+        levelInfo={desktopLevelInfo}
+        songPoolSize={desktopSongPoolSize}
+        songs={Array.isArray(librarySongs) ? librarySongs : []}
+        libraryLoading={librarySongs === null || librarySongs === undefined}
+        hitcoin={myHitcoin ?? stats?.hitcoin ?? 0}
+        todayKey={currentDayKey()}
+        joinCode={joinCode}
+        setJoinCode={setJoinCode}
+        onCreateRoom={createRoom}
+        onJoinRoom={joinRoom}
+        onPractice={() => setScreen("practiceSetup")}
+        onHitRush={() => setScreen("hitRushMenu")}
+        onDailySong={openDailySong}
+        onDailyPlaylist={openDailyPlaylistHub}
+        onTournament={activeTournament ? openTournamentHub : undefined}
+        activeTournament={activeTournament}
+        lastCompletedTournament={lastCompletedTournament}
+        weeklySummary={{ current: desktopCurrentWeekly, achievementClaimed: desktopAchievementClaimed }}
+        totalAchievements={ACHIEVEMENTS.length}
+        achievementClaimed={desktopAchievementClaimed}
+        achievementProgress={achievementProgress}
+        onClaimAchievement={handleClaimAchievement}
+        currentWeekly={desktopCurrentWeekly}
+        weeklyChallenges={desktopWeeklyChallenges}
+        onClaimWeeklyChallenge={handleClaimWeeklyChallengeReward}
+        decadeEntries={desktopDecadeEntries}
+        bestDecades={desktopBestDecades}
+        worstDecades={desktopWorstDecades}
+        bestArtists={desktopArtistPerformance.best}
+        worstArtists={desktopArtistPerformance.worst}
+        h2hOpponents={h2hOpponents}
+        h2hExpanded={h2hExpanded}
+        onLoadHeadToHead={loadHeadToHeadStats}
+        onToggleHeadToHead={(opponentId) => setH2hExpanded((current) => current === opponentId ? null : opponentId)}
+        leaderboard={leaderboard}
+        leaderboardSort={leaderboardSort}
+        leaderboardPosition={leaderboardPosition}
+        onLoadLeaderboard={loadDesktopLeaderboard}
+        viewingPlayer={viewingPlayer}
+        onViewProfile={viewPlayerProfile}
+        onCloseProfile={() => setViewingPlayer(null)}
+        levelFromXp={levelFromXp}
+        packConfigs={PACKS}
+        packBusy={packShopBusy}
+        packOpenResult={packOpenResult}
+        onBuyPack={buyPack}
+        onClearPackResult={() => setPackOpenResult(null)}
+        challengeSentTo={challengeSentTo}
+        challengeBusy={challengeBusy}
+        onAvatarUpload={handleAvatarUpload}
+        avatarUploadBusy={avatarUploadBusy}
+        onChallenge={handleSendChallenge}
+        proposeDraft={proposeDraft}
+        setProposeDraft={setProposeDraft}
+        categories={CATEGORIES}
+        onToggleProposeCategory={toggleProposeCategory}
+        onSubmitProposal={handleSubmitProposal}
+        proposeBusy={proposeBusy}
+        proposeError={proposeError}
+        proposeSuccess={proposeSuccess}
+      />
     );
   }
 
