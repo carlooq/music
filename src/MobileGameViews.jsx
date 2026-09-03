@@ -428,6 +428,40 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
             {screen === 'playing' && isMyTurn ? (
               <>
                 <MobileTimeline timeline={turnTimeline} selectedSlot={chosenSlot} onPick={setChosenSlot} />
+                {!room.practiceMode ? (
+                  <div className="mgv-inline-guess">
+                    <div className="mgv-inline-guess-head">
+                      <div>
+                        <span className="mgv-eyebrow">BONUS · OPCJONALNIE</span>
+                        <strong>ZGADNIJ TYTUŁ I WYKONAWCĘ</strong>
+                      </div>
+                      <span className="mgv-inline-token"><img src={iconToken} alt="" /> {currentTokens}</span>
+                    </div>
+                    <p>Wpisz odpowiedź przed zatwierdzeniem miejsca. Jeśli zostanie zaakceptowana, zdobywasz token.</p>
+                    <div className="mgv-inline-guess-fields">
+                      <label>
+                        <span>WYKONAWCA</span>
+                        <input
+                          value={guessArtist}
+                          onChange={(event) => setGuessArtist(event.target.value)}
+                          placeholder="Wpisz wykonawcę"
+                          autoComplete="off"
+                          enterKeyHint="next"
+                        />
+                      </label>
+                      <label>
+                        <span>TYTUŁ</span>
+                        <input
+                          value={guessTitle}
+                          onChange={(event) => setGuessTitle(event.target.value)}
+                          placeholder="Wpisz tytuł"
+                          autoComplete="off"
+                          enterKeyHint="done"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="mgv-selected-slot"><span>{chosenSlot !== null ? 'WYBRANO' : 'WYBIERZ + NA OSI'}</span><strong>{chosenSlot !== null ? `SLOT ${chosenSlot + 1}` : '—'}</strong></div>
                 <button type="button" className="mgv-main-cta" onClick={onConfirmPlacement} disabled={chosenSlot === null || busy}>ZATWIERDŹ MIEJSCE <ChevronRight size={20} /></button>
               </>
