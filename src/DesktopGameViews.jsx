@@ -31,6 +31,7 @@ import heroBanner from './assets/home/hero-banner.webp';
 import iconToken from './assets/icons/icon-token.png';
 import glPlaylista from './assets/icons/gl-playlista.png';
 import glTrening from './assets/icons/gl-trening.png';
+import glHitRush from './assets/icons/gl-hitrush.png';
 import glKorona from './assets/icons/gl-korona.png';
 import glPrezent from './assets/icons/gl-prezent.png';
 import { DesktopPlayerProfileModal } from './DesktopShell.jsx';
@@ -92,6 +93,319 @@ function PlayerBadge({ player, hostId, myId, level, active, score, tokenCount, o
         >WYRZUĆ</span>
       ) : null}
     </button>
+  );
+}
+
+
+function hitRushDifficultyMeta(key) {
+  return {
+    easy: { label: 'ŁATWO', className: 'easy' },
+    normal: { label: 'NORMALNIE', className: 'normal' },
+    hard: { label: 'TRUDNO', className: 'hard' },
+    expert: { label: 'EKSPERT', className: 'expert' },
+    insane: { label: 'SZALEŃSTWO', className: 'insane' },
+  }[key] || { label: 'ŁATWO', className: 'easy' };
+}
+
+function hitRushRankMeta(rank) {
+  return {
+    bronze: { label: 'BRONZE', className: 'bronze' },
+    silver: { label: 'SILVER', className: 'silver' },
+    gold: { label: 'GOLD', className: 'gold' },
+    platinum: { label: 'PLATINUM', className: 'platinum' },
+    diamond: { label: 'DIAMOND', className: 'diamond' },
+  }[rank] || { label: 'BEZ RANGI', className: 'none' };
+}
+
+function DesktopHitRushHowTo({ onClose, bonusEvery = 5, bonusSeconds = 5 }) {
+  return (
+    <div className="dgv-hr-help-backdrop" role="dialog" aria-modal="true" aria-label="Jak grać w Hit Rush" onClick={onClose}>
+      <div className="dgv-hr-help" onClick={(event) => event.stopPropagation()}>
+        <button type="button" className="dgv-hr-help-close" onClick={onClose}><X size={20} /></button>
+        <div className="dgv-eyebrow">SZYBKI TRYB SOLO</div>
+        <h2>JAK GRAĆ W <span>HIT RUSH?</span></h2>
+        <p className="lead">Masz 60 sekund. Przy każdym utworze decydujesz tylko, czy został wydany wcześniej czy później od aktualnej karty referencyjnej.</p>
+        <div className="dgv-hr-help-grid">
+          <div><strong>01</strong><span>POSŁUCHAJ</span><p>Fragment nowego utworu odtwarza się automatycznie. Możesz uruchomić go ponownie.</p></div>
+          <div><strong>02</strong><span>PORÓWNAJ</span><p>Spójrz na rok karty referencyjnej i wybierz WCZEŚNIEJ albo PÓŹNIEJ.</p></div>
+          <div><strong>03</strong><span>BUDUJ COMBO</span><p>Seria trafień zwiększa mnożnik punktów i stopniowo zmniejsza różnicę lat między utworami.</p></div>
+          <div><strong>04</strong><span>WALCZ O CZAS</span><p>Co {bonusEvery} poprawnych odpowiedzi z rzędu dostajesz +{bonusSeconds} sekund.</p></div>
+        </div>
+        <div className="dgv-hr-help-note"><Zap size={18} /> Błąd zeruje combo, ale nie kończy runu. Grasz aż skończy się czas.</div>
+        <button type="button" className="dgv-start-button dgv-hr-help-done" onClick={onClose}>WSZYSTKO JASNE <ChevronRight size={20} /></button>
+      </div>
+    </div>
+  );
+}
+
+export function DesktopHitRushMenuView({ stats, onStart, onLeaderboard, onHome, bonusEvery = 5, bonusSeconds = 5 }) {
+  const [showHelp, setShowHelp] = useState(false);
+  const bestScore = Number(stats?.hitRushBestScore || 0);
+  const bestCombo = Number(stats?.hitRushBestCombo || 0);
+  const totalRuns = Number(stats?.hitRushRunsTotal || 0);
+
+  return (
+    <SessionBackground className="dgv-hr-page dgv-hr-menu-page">
+      <div className="dgv-shell">
+        <SessionHeader
+          eyebrow="TRYB SOLO NA CZAS"
+          title="HIT RUSH"
+          onBack={onHome}
+          backLabel="Strona główna"
+          right={<div className="dgv-status-pill dgv-hr-status"><Zap size={16} /> 60 SEKUND</div>}
+        />
+
+        <section className="dgv-panel dgv-hr-menu-hero">
+          <div className="dgv-hr-menu-copy">
+            <div className="dgv-hr-brandline"><img src={glHitRush} alt="" /><span>REFLEKS · WIEDZA · COMBO</span></div>
+            <div className="dgv-eyebrow">JEDNA DECYZJA. CORAZ MNIEJ CZASU.</div>
+            <h1>WCZEŚNIEJ<br /><span>CZY PÓŹNIEJ?</span></h1>
+            <p>Porównuj kolejne utwory z kartą referencyjną. Każde trafienie buduje combo, zwiększa wynik i podnosi poziom trudności.</p>
+            <div className="dgv-hr-menu-actions">
+              <button type="button" className="dgv-start-button dgv-hr-start" onClick={onStart}><Zap size={22} fill="currentColor" /> START HIT RUSH <ChevronRight size={22} /></button>
+              <button type="button" className="dgv-ghost-button large" onClick={() => setShowHelp(true)}><Sparkles size={18} /> JAK GRAĆ?</button>
+            </div>
+          </div>
+
+          <div className="dgv-hr-demo" aria-hidden="true">
+            <div className="dgv-hr-demo-card reference">
+              <span>KARTA REFERENCYJNA</span><strong>1998</strong><small>Massive Attack</small>
+            </div>
+            <div className="dgv-hr-demo-center"><Zap size={38} fill="currentColor" /><span>VS</span></div>
+            <div className="dgv-hr-demo-card mystery">
+              <span>NOWY UTWÓR</span><strong>?</strong><small>WCZEŚNIEJ / PÓŹNIEJ</small>
+            </div>
+            <div className="dgv-hr-demo-arrows"><span>← WCZEŚNIEJ</span><span>PÓŹNIEJ →</span></div>
+          </div>
+        </section>
+
+        <div className="dgv-hr-menu-bottom">
+          <section className="dgv-panel dgv-hr-records">
+            <div className="dgv-section-heading"><Trophy size={18} /> TWOJE REKORDY</div>
+            <div className="dgv-hr-record-grid">
+              <div><span>NAJLEPSZY WYNIK</span><strong>{bestScore.toLocaleString('pl-PL')}</strong><small>PKT</small></div>
+              <div><span>NAJLEPSZE COMBO</span><strong>{bestCombo}</strong><small>TRAFIEŃ</small></div>
+              <div><span>ROZEGRANE RUNY</span><strong>{totalRuns}</strong><small>ŁĄCZNIE</small></div>
+            </div>
+          </section>
+
+          <section className="dgv-panel dgv-hr-rules-card">
+            <div className="dgv-section-heading"><Flame size={18} /> CO NAPĘDZA WYNIK?</div>
+            <div className="dgv-hr-rule"><span>COMBO</span><strong>większy mnożnik punktów</strong></div>
+            <div className="dgv-hr-rule"><span>CO {bonusEvery} TRAFIEŃ</span><strong>+{bonusSeconds}s do zegara</strong></div>
+            <div className="dgv-hr-rule"><span>TRUDNOŚĆ</span><strong>coraz bliższe lata</strong></div>
+            <button type="button" className="dgv-hr-ranking-button" onClick={onLeaderboard}><Trophy size={18} /> RANKING HIT RUSH <ChevronRight size={18} /></button>
+          </section>
+        </div>
+      </div>
+      {showHelp ? <DesktopHitRushHowTo onClose={() => setShowHelp(false)} bonusEvery={bonusEvery} bonusSeconds={bonusSeconds} /> : null}
+    </SessionBackground>
+  );
+}
+
+export function DesktopHitRushGameView({ hitRush, iframeRef, onReplay, onAnswer, onExit, roundSeconds = 60, bonusEvery = 5, bonusSeconds = 5, difficulty = 'easy' }) {
+  if (!hitRush?.referenceCard || !hitRush?.currentCard) return null;
+  const feedback = hitRush.feedback;
+  const difficultyMeta = hitRushDifficultyMeta(difficulty);
+  const currentComboProgress = bonusEvery > 0 ? hitRush.combo % bonusEvery : 0;
+  const untilBonus = bonusEvery > 0 ? (currentComboProgress === 0 ? bonusEvery : bonusEvery - currentComboProgress) : 0;
+  const bonusProgress = bonusEvery > 0 ? (currentComboProgress / bonusEvery) * 100 : 0;
+  const timeProgress = Math.max(0, Math.min(100, (Number(hitRush.timeLeft || 0) / roundSeconds) * 100));
+  const answeredCount = Number(hitRush.correct || 0) + Number(hitRush.wrong || 0);
+
+  return (
+    <SessionBackground className="dgv-hr-page dgv-hr-game-page">
+      <div className="dgv-shell dgv-hr-game-shell">
+        <SessionHeader
+          eyebrow={`RUN · PYTANIE ${answeredCount + 1}`}
+          title="HIT RUSH"
+          onBack={onExit}
+          backLabel="Zakończ run"
+          right={<div className={`dgv-timer dgv-hr-timer ${hitRush.timeLeft <= 10 ? 'danger' : ''}`}><Clock3 size={18} /><strong>{hitRush.timeLeft}s</strong></div>}
+        />
+
+        <div className="dgv-hr-timebar"><span style={{ width: `${timeProgress}%` }} /></div>
+
+        <div className="dgv-hr-live-grid">
+          <main className="dgv-panel dgv-hr-live-main">
+            <div className="dgv-hr-question-head">
+              <div><div className="dgv-eyebrow">PORÓWNAJ Z KARTĄ REFERENCYJNĄ</div><h1>CZY TEN UTWÓR JEST...</h1></div>
+              <span className={`dgv-hr-difficulty ${difficultyMeta.className}`}>{difficultyMeta.label}</span>
+            </div>
+
+            <div className={`dgv-hr-versus ${feedback ? (feedback.correct ? 'correct' : 'wrong') : ''}`}>
+              <article className="dgv-hr-live-card reference">
+                <div className="dgv-hr-card-label"><Disc3 size={16} /> KARTA REFERENCYJNA</div>
+                <div className="dgv-hr-card-year">{hitRush.referenceCard.year}</div>
+                <h2>{hitRush.referenceCard.title}</h2>
+                <p>{hitRush.referenceCard.artist}</p>
+              </article>
+
+              <div className="dgv-hr-vs-mark"><Zap size={30} fill="currentColor" /><span>VS</span></div>
+
+              <article className={`dgv-hr-live-card current ${feedback ? 'revealed' : ''}`}>
+                <div className="dgv-hr-card-label"><Headphones size={16} /> AKTUALNY UTWÓR</div>
+                {feedback ? (
+                  <>
+                    <div className="dgv-hr-card-year">{feedback.year}</div>
+                    <h2>{hitRush.currentCard.title}</h2>
+                    <p>{hitRush.currentCard.artist}</p>
+                  </>
+                ) : (
+                  <div className="dgv-hr-mystery">
+                    <div className="dgv-hr-wave">{Array.from({ length: 18 }).map((_, i) => <i key={i} style={{ '--h': `${25 + ((i * 23) % 70)}%` }} />)}</div>
+                    <strong>?</strong>
+                    <span>POSŁUCHAJ I ZDECYDUJ</span>
+                  </div>
+                )}
+                <button type="button" className="dgv-hr-replay" onClick={onReplay}><Play size={17} fill="currentColor" /> ODTWÓRZ FRAGMENT</button>
+              </article>
+            </div>
+
+            <div className="dgv-hidden-player">
+              <iframe
+                key={hitRush.currentCard.videoId}
+                ref={iframeRef}
+                title="hitrush-audio-desktop"
+                src={`https://www.youtube.com/embed/${hitRush.currentCard.videoId}?enablejsapi=1&autoplay=1&mute=0&start=${hitRush.currentStartSeconds}&controls=0&modestbranding=1&rel=0`}
+                allow="autoplay; encrypted-media"
+                onLoad={onReplay}
+              />
+            </div>
+
+            <div className="dgv-hr-choice-row">
+              <button type="button" className="earlier" disabled={!!feedback} onClick={() => onAnswer('earlier')}><ArrowLeft size={25} /> <div><span>WYBIERAM</span><strong>WCZEŚNIEJ</strong></div></button>
+              <button type="button" className="later" disabled={!!feedback} onClick={() => onAnswer('later')}><div><span>WYBIERAM</span><strong>PÓŹNIEJ</strong></div><ChevronRight size={28} /></button>
+            </div>
+
+            <div className={`dgv-hr-feedback ${feedback ? (feedback.correct ? 'good' : 'bad') : 'idle'}`}>
+              {feedback ? (
+                <>
+                  <span className="icon">{feedback.correct ? <Check size={23} /> : <X size={23} />}</span>
+                  <div><strong>{feedback.correct ? 'DOBRZE!' : 'NIE TYM RAZEM'}</strong><small>{feedback.correct ? `+${feedback.points} pkt${feedback.timeBonus ? ` · +${feedback.timeBonus}s` : ''}` : `Poprawny rok: ${feedback.year}`}</small></div>
+                </>
+              ) : <><Sparkles size={18} /><span>Wybierz wcześniej lub później. Odpowiedź zobaczysz od razu.</span></>}
+            </div>
+          </main>
+
+          <aside className="dgv-hr-side">
+            <section className="dgv-panel dgv-hr-score-card">
+              <div className="dgv-eyebrow">AKTUALNY WYNIK</div>
+              <strong>{Number(hitRush.score || 0).toLocaleString('pl-PL')}</strong>
+              <span>PKT</span>
+              <div className="dgv-hr-mini-stats"><div className="good"><Check size={16} /><b>{hitRush.correct}</b><small>trafień</small></div><div className="bad"><X size={16} /><b>{hitRush.wrong}</b><small>błędów</small></div></div>
+            </section>
+
+            <section className="dgv-panel dgv-hr-combo-card">
+              <div className="dgv-section-heading"><Flame size={18} /> COMBO</div>
+              <div className="dgv-hr-combo-value">{hitRush.combo}<span>x</span></div>
+              <div className="dgv-hr-combo-track"><span style={{ width: `${bonusProgress}%` }} /></div>
+              <p>{untilBonus === bonusEvery && hitRush.combo > 0 ? `Kolejne +${bonusSeconds}s za ${bonusEvery} trafień` : `Jeszcze ${untilBonus} ${untilBonus === 1 ? 'trafienie' : 'trafień'} do +${bonusSeconds}s`}</p>
+              <div className="dgv-hr-best-combo"><span>NAJLEPSZE W TYM RUNIE</span><strong>{hitRush.bestCombo}</strong></div>
+            </section>
+
+            <section className={`dgv-panel dgv-hr-difficulty-card ${difficultyMeta.className}`}>
+              <div className="dgv-eyebrow">POZIOM TRUDNOŚCI</div>
+              <strong>{difficultyMeta.label}</strong>
+              <p>Im dłuższe combo, tym mniejsza różnica lat między porównywanymi utworami.</p>
+            </section>
+          </aside>
+        </div>
+      </div>
+    </SessionBackground>
+  );
+}
+
+export function DesktopHitRushResultView({ result, onAgain, onLeaderboard, onHome }) {
+  if (!result) return null;
+  const rankMeta = hitRushRankMeta(result.rank);
+  const difficultyMeta = hitRushDifficultyMeta(result.maxDifficulty);
+  const total = Number(result.correct || 0) + Number(result.wrong || 0);
+  const accuracy = total ? Math.round((Number(result.correct || 0) / total) * 100) : 0;
+
+  return (
+    <SessionBackground className="dgv-hr-page dgv-hr-result-page">
+      <div className="dgv-shell">
+        <SessionHeader eyebrow="RUN ZAKOŃCZONY" title="HIT RUSH" onBack={onHome} backLabel="Strona główna" />
+        <section className="dgv-panel dgv-hr-result-hero">
+          <div className="dgv-hr-result-icon"><img src={glHitRush} alt="" /></div>
+          <div className="dgv-hr-result-score">
+            <div className="dgv-eyebrow">TWÓJ WYNIK</div>
+            <strong>{Number(result.score || 0).toLocaleString('pl-PL')}</strong><span>PKT</span>
+            {result.isNewBest ? <div className="dgv-hr-new-best"><Trophy size={18} /> NOWY REKORD!</div> : null}
+          </div>
+          <div className={`dgv-hr-rank ${rankMeta.className}`}><span>RANGA RUNU</span><strong>{rankMeta.label}</strong><small>{difficultyMeta.label} · maks. trudność</small></div>
+        </section>
+
+        <div className="dgv-hr-result-grid">
+          <section className="dgv-panel dgv-hr-result-stats">
+            <div className="dgv-section-heading"><Zap size={18} /> PODSUMOWANIE</div>
+            <div className="dgv-hr-result-metrics">
+              <div className="good"><Check size={20} /><strong>{result.correct || 0}</strong><span>TRAFIENIA</span></div>
+              <div className="bad"><X size={20} /><strong>{result.wrong || 0}</strong><span>POMYŁKI</span></div>
+              <div><Flame size={20} /><strong>{result.bestCombo || 0}</strong><span>BEST COMBO</span></div>
+              <div><Trophy size={20} /><strong>{accuracy}%</strong><span>SKUTECZNOŚĆ</span></div>
+            </div>
+          </section>
+
+          <section className="dgv-panel dgv-hr-result-rewards">
+            <div className="dgv-section-heading"><Gift size={18} /> NAGRODY ZA RUN</div>
+            {result.pending ? <div className="dgv-hr-save-state">Zapisuję wynik…</div> : result.saveError ? <div className="dgv-hr-save-state bad">Nie udało się zapisać wyniku.</div> : result.guestNoSave ? <div className="dgv-hr-save-state">Zaloguj się, aby zapisywać wyniki i nagrody.</div> : (
+              <div className="dgv-hr-reward-row">
+                <div><span>XP</span><strong>+{result.xpGain || 0}</strong></div>
+                <div><span>HITCOIN</span><strong>+{result.hitcoinGain || 0}</strong></div>
+              </div>
+            )}
+            <p>Najlepszy wynik trafia do rankingu. Ranking tygodniowy nagradza trzy pierwsze miejsca.</p>
+          </section>
+        </div>
+
+        <div className="dgv-hr-result-actions">
+          <button type="button" className="dgv-start-button dgv-hr-start" onClick={onAgain}><RotateCcw size={21} /> ZAGRAJ PONOWNIE</button>
+          <button type="button" className="dgv-hr-ranking-button large" onClick={onLeaderboard}><Trophy size={19} /> ZOBACZ RANKING</button>
+          <button type="button" className="dgv-ghost-button large" onClick={onHome}><ArrowLeft size={18} /> STRONA GŁÓWNA</button>
+        </div>
+      </div>
+    </SessionBackground>
+  );
+}
+
+export function DesktopHitRushLeaderboardView({ rows = [], period, onPeriod, onBack, onHome, onViewProfile, viewingPlayer, onCloseProfile, levelFromXp }) {
+  const periodLabels = { daily: 'DZIENNY', weekly: 'TYGODNIOWY', alltime: 'WSZECH CZASÓW' };
+  const loading = rows === null;
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const podium = safeRows.slice(0, 3);
+  const rest = safeRows.slice(3);
+  return (
+    <SessionBackground className="dgv-hr-page dgv-hr-leaderboard-page">
+      <div className="dgv-shell">
+        <SessionHeader eyebrow="NAJLEPSI GRACZE" title="RANKING HIT RUSH" onBack={onBack} backLabel="Hit Rush" right={<button type="button" className="dgv-ghost-button" onClick={onHome}>STRONA GŁÓWNA</button>} />
+
+        <section className="dgv-panel dgv-hr-leaderboard-head">
+          <div><div className="dgv-eyebrow">RYWALIZACJA SOLO</div><h1>WALCZ O <span>NAJWYŻSZY WYNIK.</span></h1><p>Do rankingu trafia najlepszy wynik w wybranym okresie. Tygodniowo trzy pierwsze miejsca zdobywają HITCOINY.</p></div>
+          <div className="dgv-hr-period-tabs">{Object.entries(periodLabels).map(([key, label]) => <button type="button" key={key} className={period === key ? 'active' : ''} onClick={() => onPeriod(key)}>{label}</button>)}</div>
+        </section>
+
+        {period === 'weekly' ? <section className="dgv-panel dgv-hr-weekly-prizes"><div><span>🥇 1. MIEJSCE</span><strong>200 HITCOIN</strong></div><div><span>🥈 2. MIEJSCE</span><strong>100 HITCOIN</strong></div><div><span>🥉 3. MIEJSCE</span><strong>75 HITCOIN</strong></div></section> : null}
+
+        {loading ? <section className="dgv-panel dgv-hr-leaderboard-empty">Ładowanie rankingu…</section> : safeRows.length === 0 ? <section className="dgv-panel dgv-hr-leaderboard-empty">Brak jeszcze wyników w tym okresie.</section> : (
+          <>
+            <div className="dgv-hr-podium">
+              {podium.map((entry, index) => (
+                <button type="button" key={entry.uid || index} className={`dgv-panel place-${index + 1}`} onClick={() => entry.uid && onViewProfile?.(entry)}>
+                  <span className="place">#{index + 1}</span>
+                  <span className="avatar" style={entry.avatarUrl ? { backgroundImage: `url(${entry.avatarUrl})` } : undefined}>{!entry.avatarUrl ? initials(entry.username || entry.name) : null}</span>
+                  <strong>{entry.username || entry.name || 'Gracz'}</strong>
+                  <b>{Number(entry.score || 0).toLocaleString('pl-PL')} <small>PKT</small></b>
+                </button>
+              ))}
+            </div>
+            {rest.length ? <section className="dgv-panel dgv-hr-ranking-list"><div className="dgv-section-heading"><Trophy size={18} /> {periodLabels[period]}</div>{rest.map((entry, index) => <button type="button" key={entry.uid || index} onClick={() => entry.uid && onViewProfile?.(entry)}><span className="place">#{index + 4}</span><span className="avatar" style={entry.avatarUrl ? { backgroundImage: `url(${entry.avatarUrl})` } : undefined}>{!entry.avatarUrl ? initials(entry.username || entry.name) : null}</span><span className="name">{entry.username || entry.name || 'Gracz'}</span><strong>{Number(entry.score || 0).toLocaleString('pl-PL')} pkt</strong></button>)}</section> : null}
+          </>
+        )}
+      </div>
+      <DesktopPlayerProfileModal profile={viewingPlayer} onClose={onCloseProfile} levelFromXp={levelFromXp} />
+    </SessionBackground>
   );
 }
 

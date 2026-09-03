@@ -101,6 +101,10 @@ import {
   DesktopDailyPlaylistHubView,
   DesktopDailyPlaylistResultView,
   DesktopDailySongView,
+  DesktopHitRushMenuView,
+  DesktopHitRushGameView,
+  DesktopHitRushResultView,
+  DesktopHitRushLeaderboardView,
 } from "./DesktopGameViews.jsx";
 import "./desktop-game.css";
 
@@ -4373,6 +4377,72 @@ export default function App() {
 
   const useDesktopSessionViews = viewportWidth >= 1280;
   const useDesktopRedesign = viewportWidth >= 1280 && screen === "home";
+
+  if (useDesktopSessionViews && screen === "hitRushMenu") {
+    return (
+      <DesktopHitRushMenuView
+        stats={stats}
+        bonusEvery={HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO}
+        bonusSeconds={HIT_RUSH_CONFIG.TIME_BONUS_SECONDS}
+        onStart={startHitRush}
+        onLeaderboard={() => {
+          setScreen("hitRushLeaderboard");
+          loadHitRushLeaderboard("weekly");
+        }}
+        onHome={goHome}
+      />
+    );
+  }
+
+  if (useDesktopSessionViews && screen === "hitRush" && hitRush && !hitRushResult) {
+    return (
+      <DesktopHitRushGameView
+        hitRush={hitRush}
+        iframeRef={hitRushIframeRef}
+        onReplay={unlockHitRushAudio}
+        onAnswer={answerHitRush}
+        onExit={() => {
+          setHitRush(null);
+          setHitRushResult(null);
+          setScreen("hitRushMenu");
+        }}
+        roundSeconds={HIT_RUSH_CONFIG.ROUND_SECONDS}
+        bonusEvery={HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO}
+        bonusSeconds={HIT_RUSH_CONFIG.TIME_BONUS_SECONDS}
+        difficulty={difficultyLabel(hitRush.combo)}
+      />
+    );
+  }
+
+  if (useDesktopSessionViews && screen === "hitRush" && hitRushResult) {
+    return (
+      <DesktopHitRushResultView
+        result={hitRushResult}
+        onAgain={startHitRush}
+        onLeaderboard={() => {
+          setScreen("hitRushLeaderboard");
+          loadHitRushLeaderboard("weekly");
+        }}
+        onHome={goHome}
+      />
+    );
+  }
+
+  if (useDesktopSessionViews && screen === "hitRushLeaderboard") {
+    return (
+      <DesktopHitRushLeaderboardView
+        rows={hitRushLeaderboard}
+        period={hitRushLeaderboardPeriod}
+        onPeriod={loadHitRushLeaderboard}
+        onBack={() => setScreen("hitRushMenu")}
+        onHome={goHome}
+        onViewProfile={viewPlayerProfile}
+        viewingPlayer={viewingPlayer}
+        onCloseProfile={() => setViewingPlayer(null)}
+        levelFromXp={levelFromXp}
+      />
+    );
+  }
 
   if (useDesktopSessionViews && screen === "home" && showDailySong && dailySong) {
     return (
