@@ -3318,43 +3318,165 @@ export default function App() {
     setTimeout(() => setSharedBoughtNotice(null), 4000);
   }, [toMillis(room?.lastBoughtCard?.at)]);
 
-  const brokenLinkFiredRef = useRef(null);
-  // Wywoływane, gdy YouTube zgłosi błąd wczytania filmu (usunięty/prywatny/
-  // wyłączone osadzanie). Wymiana karty przez transakcję z zabezpieczeniem —
-  // jeśli kilku graczy wykryje to jednocześnie, tylko pierwsza próba coś zrobi.
-  async function handleBrokenLink(card) {
+  const ytValidatorRef = useRef(null);
+
+  // Wspólny komunikat po automatycznej podmianie. Sam toast ze starego UI
+  // może nie być widoczny w nowych layoutach, ale stan zostawiamy, bo korzysta
+  // z niego również klasyczny widok i panel administracyjny.
+  function notifyBrokenLinkHandled(card) {
+    setBrokenLinkNotice(card);
+    setTimeout(() => setBrokenLinkNotice(null), 4000);
+  }
+
+  // Standardowa rozgrywka + trening + Playlista dnia + mecze turniejowe.
+  // Wszystkie te tryby korzystają z room.currentCard, więc jedna transakcja
+  // obsługuje je niezależnie od tego, czy renderuje się mobile czy desktop.
+  async function handleBrokenRoomLink(card) {
     if (!room || !roomId || !card) return;
-    if (brokenLinkFiredRef.current === card.id) return;
-    brokenLinkFiredRef.current = card.id;
     try {
       const ref = doc(db, "rooms", roomId);
+      let claimed = false;
       let swapped = false;
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
-        if (data.status !== "playing") return; // po fazie decyzji już za późno na wymianę
-        if (!data.currentCard || data.currentCard.id !== card.id) return; // ktoś już to obsłużył
-        if (data.deckIndex >= data.deck.length) return; // brak zapasu w talii — zostawiamy jak jest
+        if (!data || data.status !== "playing") return;
+        if (!data.currentCard || data.currentCard.id !== card.id) return; // ktoś już obsłużył tę kartę
+        if (data.brokenLinkHandledVideoId === card.videoId) return;
+        claimed = true;
+        if (data.deckIndex >= data.deck.length) {
+          // Nawet jeśli skończył się zapas kart, zgłoszenie nadal ma trafić do
+          // panelu admina. Znacznik w pokoju chroni przed wielokrotnym raportem
+          // tego samego linku przez kilka telefonów.
+          tx.update(ref, { brokenLinkHandledVideoId: card.videoId });
+          return;
+        }
         swapped = true;
         tx.update(ref, {
           currentCard: data.deck[data.deckIndex],
           deckIndex: data.deckIndex + 1,
           startSeconds: randomStartSeconds(),
           turnStartedAt: serverTimestamp(),
+          brokenLinkHandledVideoId: card.videoId,
         });
       });
-      if (swapped) {
-        logBrokenLink(card).catch(() => {});
-        setBrokenLinkNotice(card);
-        setTimeout(() => setBrokenLinkNotice(null), 4000);
-      }
+      if (claimed) logBrokenLink(card).catch(() => {});
+      if (swapped) notifyBrokenLinkHandled(card);
     } catch (e) {
       // ciche niepowodzenie — gracz może ręcznie skorzystać z wymiany za token
     }
   }
 
-  // Ładujemy oficjalne IFrame API YouTube RAZ — potrzebne wyłącznie do
-  // formalnego "zarejestrowania się" jako słuchacz zdarzeń (onError).
+  // Runda otwierająca korzysta z osobnej karty (openerCard), więc po
+  // potwierdzonym błędzie bierzemy nową kartę z zapasu talii pokoju i
+  // resetujemy zegar minigry. Transakcja zabezpiecza przed kilkukrotną reakcją
+  // kilku telefonów jednocześnie.
+  async function handleBrokenOpenerLink(card) {
+    if (!room || !roomId || !card) return;
+    try {
+      const ref = doc(db, "rooms", roomId);
+      let replacement = null;
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const data = snap.data();
+        if (!data || data.status !== "opener" || data.openerWinnerId) return;
+        if (!data.openerCard || data.openerCard.videoId !== card.videoId) return;
+        if (!Array.isArray(data.deck) || data.deckIndex >= data.deck.length) return;
+
+        // Bierzemy kartę z zapasu już przefiltrowanej talii pokoju. Dzięki temu
+        // zachowujemy wybrane kategorie i nie dokładamy do gry duplikatu, który
+        // później wróciłby jeszcze raz jako zwykła karta.
+        replacement = data.deck[data.deckIndex];
+        const decoys = shuffle(data.deck.filter((s) => (s.id || s.videoId) !== (replacement.id || replacement.videoId))).slice(0, 3);
+        const shuffledOptions = shuffle([replacement, ...decoys]);
+        tx.update(ref, {
+          deckIndex: data.deckIndex + 1,
+          openerCard: replacement,
+          openerOptions: shuffledOptions.map((s) => ({ artist: s.artist, title: s.title })),
+          openerCorrectIndex: shuffledOptions.findIndex((s) => (s.id || s.videoId) === (replacement.id || replacement.videoId)),
+          openerStartSeconds: randomStartSeconds(),
+          openerCreatedAt: serverTimestamp(),
+          openerWinnerId: null,
+          openerResolvedAt: null,
+        });
+      });
+      if (replacement) {
+        logBrokenLink(card).catch(() => {});
+        notifyBrokenLinkHandled(card);
+      }
+    } catch (e) {
+      // ciche niepowodzenie — minigra pozostaje bez automatycznej podmiany
+    }
+  }
+
+  // HIT RUSH nie ma pokoju w Firestore, więc po potwierdzonym błędzie
+  // podmieniamy tylko bieżącą kartę runu, nie zmieniając wyniku ani combo.
+  function handleBrokenHitRushLink(card) {
+    if (!card) return;
+    logBrokenLink(card).catch(() => {});
+    notifyBrokenLinkHandled(card);
+    setHitRush((prev) => {
+      if (!prev || !prev.running || !prev.currentCard || prev.currentCard.videoId !== card.videoId) return prev;
+      const usedIds = new Set(prev.usedIds || []);
+      usedIds.add(card.id || card.videoId);
+      const nextCard = pickNextHitRushSong(prev.pool || [], prev.referenceCard.year, prev.combo, usedIds);
+      if (!nextCard) return { ...prev, running: false, timeLeft: 0 };
+      usedIds.add(nextCard.id || nextCard.videoId);
+      return {
+        ...prev,
+        currentCard: nextCard,
+        currentStartSeconds: randomStartSeconds(),
+        usedIds,
+        feedback: null,
+      };
+    });
+  }
+
+  // Piosenka dnia jest wspólna dla wszystkich graczy. Gdy link okaże się
+  // martwy, transakcyjnie podmieniamy wpis dla bieżącego dnia, dzięki czemu
+  // kolejni gracze dostaną już działający utwór zamiast ponownie trafiać na
+  // ten sam uszkodzony film.
+  async function handleBrokenDailySongLink(card) {
+    if (!card) return;
+    try {
+      const dayKey = currentDayKey();
+      const pool = await getDailyFeaturesPool();
+      const ref = doc(db, "dailySongs", dayKey);
+      let replacement = null;
+      let replacedByUs = false;
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists()) return;
+        const data = snap.data();
+        if (data.videoId !== card.videoId) {
+          replacement = data; // inny klient zdążył już podmienić utwór
+          return;
+        }
+        const candidates = (pool || []).filter((s) => s?.videoId && s.videoId !== card.videoId);
+        if (!candidates.length) return;
+        const next = candidates[Math.floor(Math.random() * candidates.length)];
+        replacement = {
+          videoId: next.videoId,
+          artist: next.artist,
+          title: next.title,
+          year: next.year,
+          startSeconds: Math.floor(Math.random() * 61) + 15,
+        };
+        replacedByUs = true;
+        tx.set(ref, replacement);
+      });
+      if (replacement) setDailySong(replacement);
+      if (replacedByUs) {
+        logBrokenLink(card).catch(() => {});
+        notifyBrokenLinkHandled(card);
+      }
+    } catch (e) {
+      // ciche niepowodzenie — Piosenka dnia pozostaje bez automatycznej podmiany
+    }
+  }
+
+  // Oficjalne IFrame API YouTube ładujemy tylko raz. Validator jest całkowicie
+  // niezależny od widocznych odtwarzaczy i służy wyłącznie do onError.
   useEffect(() => {
     if (window.YT && window.YT.Player) return;
     if (document.getElementById("youtube-iframe-api-script")) return;
@@ -3364,19 +3486,98 @@ export default function App() {
     document.head.appendChild(tag);
   }, []);
 
-  // Wykrywanie zepsutych linków — osobny, ukryty i zawsze wyciszony
-  // "testowy" odtwarzacz, niezależny od tego, co faktycznie słychać.
-  // Błąd musi potwierdzić się DWA razy z rzędu (z chwilą przerwy między
-  // próbami), zanim appka faktycznie wymieni kartę — pierwszy błąd może
-  // być chwilowym problemem (np. sam mechanizm testera zbyt szybko tworzy
-  // i niszczy odtwarzacze), a nie realnym, trwałym problemem z linkiem.
-  const ytValidatorRef = useRef(null);
+  // GLOBALNY host validatora. Nie jest już częścią żadnego konkretnego JSX-a,
+  // więc wcześniejszy return MobilePlayingView/DesktopPlayingView nie może go
+  // usunąć. Host jest odtwarzany również po destroy(), bo YouTube IFrame API
+  // zastępuje wskazany element własnym iframe'em.
   useEffect(() => {
-    if (screen !== "playing" || !room?.currentCard) return;
+    const ensureHost = () => {
+      let host = document.getElementById("broken-link-validator");
+      if (host) return host;
+      host = document.createElement("div");
+      host.id = "broken-link-validator";
+      Object.assign(host.style, {
+        position: "fixed",
+        width: "1px",
+        height: "1px",
+        overflow: "hidden",
+        opacity: "0",
+        pointerEvents: "none",
+        top: "-9999px",
+        left: "-9999px",
+      });
+      document.body.appendChild(host);
+      return host;
+    };
+    ensureHost();
+    return () => {
+      try { ytValidatorRef.current?.destroy?.(); } catch (e) {}
+      ytValidatorRef.current = null;
+      document.getElementById("broken-link-validator")?.remove();
+    };
+  }, []);
+
+  const brokenValidationMode =
+    screen === "opener" && room?.openerCard && !room?.openerWinnerId
+      ? "opener"
+      : screen === "playing" && room?.currentCard
+        ? "room"
+        : screen === "hitRush" && hitRush?.running && hitRush?.currentCard && !hitRush?.feedback
+          ? "hitRush"
+          : screen === "home" && showDailySong && dailySong && !dailyResult
+            ? "dailySong"
+            : null;
+
+  const brokenValidationCard =
+    brokenValidationMode === "opener"
+      ? room?.openerCard
+      : brokenValidationMode === "room"
+        ? room?.currentCard
+        : brokenValidationMode === "hitRush"
+          ? hitRush?.currentCard
+          : brokenValidationMode === "dailySong"
+            ? dailySong
+            : null;
+
+  // Jeden validator dla wszystkich ekranów odtwarzania. Błąd musi wystąpić
+  // dwa razy dla TEJ SAMEJ karty. Dopiero wtedy logujemy ją do brokenLinks i
+  // uruchamiamy właściwy dla danego trybu mechanizm podmiany.
+  useEffect(() => {
+    if (!brokenValidationMode || !brokenValidationCard?.videoId) return;
     let cancelled = false;
     let attempts = 0;
     let errorCount = 0;
-    const currentCard = room.currentCard;
+    const currentMode = brokenValidationMode;
+    const currentCard = brokenValidationCard;
+    let confirmedFired = false;
+
+    const ensureValidatorHost = () => {
+      let host = document.getElementById("broken-link-validator");
+      if (host) return host;
+      host = document.createElement("div");
+      host.id = "broken-link-validator";
+      Object.assign(host.style, {
+        position: "fixed",
+        width: "1px",
+        height: "1px",
+        overflow: "hidden",
+        opacity: "0",
+        pointerEvents: "none",
+        top: "-9999px",
+        left: "-9999px",
+      });
+      document.body.appendChild(host);
+      return host;
+    };
+
+    const reactToConfirmedError = () => {
+      if (cancelled || confirmedFired) return;
+      confirmedFired = true;
+      if (currentMode === "room") handleBrokenRoomLink(currentCard);
+      else if (currentMode === "opener") handleBrokenOpenerLink(currentCard);
+      else if (currentMode === "hitRush") handleBrokenHitRushLink(currentCard);
+      else if (currentMode === "dailySong") handleBrokenDailySongLink(currentCard);
+    };
 
     const createValidator = () => {
       if (cancelled) return;
@@ -3385,44 +3586,49 @@ export default function App() {
           ytValidatorRef.current.destroy?.();
           ytValidatorRef.current = null;
         }
+        ensureValidatorHost();
         ytValidatorRef.current = new window.YT.Player("broken-link-validator", {
           videoId: currentCard.videoId,
-          playerVars: { autoplay: 1, mute: 1, controls: 0 },
+          playerVars: { autoplay: 1, mute: 1, controls: 0, playsinline: 1 },
           events: {
             onError: () => {
               if (cancelled) return;
               errorCount += 1;
               if (errorCount === 1) {
-                // pierwszy błąd — może być fałszywym alarmem, spróbuj jeszcze raz po chwili
                 setTimeout(() => {
                   if (!cancelled) createValidator();
                 }, 2500);
               } else {
-                // błąd potwierdzony drugi raz z rzędu dla tej samej karty — dopiero teraz reagujemy
-                handleBrokenLink(currentCard);
+                reactToConfirmedError();
               }
             },
           },
         });
       } catch (e) {
-        // ciche niepowodzenie — automatyczne wykrywanie po prostu nie zadziała tym razem
+        // ciche niepowodzenie — automatyczne wykrywanie spróbuje ponownie
       }
     };
 
     const tryAttach = () => {
       if (cancelled) return;
-      if (!window.YT || !window.YT.Player || !document.getElementById("broken-link-validator")) {
-        attempts++;
+      ensureValidatorHost();
+      if (!window.YT || !window.YT.Player) {
+        attempts += 1;
         if (attempts < 40) setTimeout(tryAttach, 250);
         return;
       }
       createValidator();
     };
+
     tryAttach();
     return () => {
       cancelled = true;
+      try { ytValidatorRef.current?.destroy?.(); } catch (e) {}
+      ytValidatorRef.current = null;
+      // destroy() usuwa iframe z DOM — przygotuj pusty host pod następną kartę
+      ensureValidatorHost();
     };
-  }, [screen, room?.currentCard?.id]);
+  }, [brokenValidationMode, brokenValidationCard?.id, brokenValidationCard?.videoId]);
 
   async function swapSong() {
     if (!room || (room.tokens?.[playerId] || 0) < SWAP_SONG_TOKENS) return;
@@ -5246,10 +5452,6 @@ export default function App() {
         padding: "32px 16px 64px",
       }}
     >
-      {/* Osobny, zawsze ukryty i wyciszony odtwarzacz-tester do wykrywania
-          zepsutych linków — nigdy nie jest tym, co gracze faktycznie słyszą. */}
-      <div id="broken-link-validator" style={{ position: "fixed", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none", top: -9999 }} />
-
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap');
         :root {
