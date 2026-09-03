@@ -2278,6 +2278,11 @@ export default function App() {
   }
 
   function startHitRush() {
+    if (!user) {
+      setShowAuthForm(true);
+      setError("Zaloguj się lub załóż konto, aby zagrać w Hit Rush. Trening jest dostępny bez konta.");
+      return;
+    }
     const pool = effectivePool.filter((s) => s.year && s.videoId);
     if (pool.length < 15) {
       setError("Za mało utworów w bazie, żeby uruchomić Hit Rush.");
@@ -2695,6 +2700,11 @@ export default function App() {
   }
 
   async function createRoom() {
+    if (!user) {
+      setShowAuthForm(true);
+      setError("Zaloguj się lub załóż konto, aby tworzyć pokoje. Trening jest dostępny bez konta.");
+      return;
+    }
     if (!name.trim()) return setError("Podaj swoje imię.");
     setBusy(true);
     setError("");
@@ -2820,6 +2830,11 @@ export default function App() {
   }
 
   async function joinRoom(explicitCode) {
+    if (!user) {
+      setShowAuthForm(true);
+      setError("Zaloguj się lub załóż konto, aby dołączać do pokoi. Trening jest dostępny bez konta.");
+      return;
+    }
     if (!name.trim()) return setError("Podaj swoje imię.");
     const code = (explicitCode || joinCode).trim().toUpperCase();
     if (!code) return setError("Podaj kod pokoju.");
@@ -4563,6 +4578,16 @@ export default function App() {
       <>
       <DesktopAppView
         user={user}
+        authChecked={authChecked}
+        authMode={authMode}
+        setAuthMode={setAuthMode}
+        authUsername={authUsername}
+        setAuthUsername={setAuthUsername}
+        authPassword={authPassword}
+        setAuthPassword={setAuthPassword}
+        authBusy={authBusy}
+        authError={authError}
+        onAuthSubmit={handleAuthSubmit}
         playerName={name.trim() || user?.displayName || "Gracz"}
         stats={stats}
         onlinePlayers={onlinePlayers}
@@ -5620,7 +5645,7 @@ export default function App() {
                   </button>
                   {authError && <p style={{ color: "var(--bad)", fontSize: 12 }}>{authError}</p>}
                   <p style={{ color: "var(--muted)", fontSize: 11 }}>
-                    Konto = zbieramy Twoje statystyki gier (wygrane, skuteczność odgadywania). Bez konta też możesz grać — podaj tylko imię powyżej.
+                    Konto zapisuje Twój postęp, statystyki, kolekcję i nagrody. Bez konta możesz wypróbować Trening; pozostałe tryby wymagają zalogowania.
                   </p>
                 </div>
               </section>
@@ -5688,7 +5713,7 @@ export default function App() {
                     <div className="hs-tile-slot green">
                       <div className="hs-tile-glow" />
                       <div className="hs-tile-rim" />
-                      <button onClick={() => setScreen("hitRushMenu")} className="hs-tile">
+                      <button onClick={() => user ? setScreen("hitRushMenu") : setShowAuthForm(true)} className="hs-tile">
                         <img className="hs-icon" src={glHitRush} alt="" />
                         <div className="hs-t">HIT RUSH</div>
                         <div className="hs-arrow" style={{ color: "#2af598" }}>›</div>

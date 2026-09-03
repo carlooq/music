@@ -24,6 +24,9 @@ import {
   ListMusic,
   Sparkles,
   AudioWaveform,
+  Lock,
+  LogIn,
+  UserPlus,
 } from 'lucide-react';
 
 import logoImg from './assets/logo-v2.png';
@@ -137,17 +140,17 @@ function DesktopStatCard({ icon, label, value, note, accent = 'cyan', action, on
   );
 }
 
-function DesktopModeCard({ icon, title, desc, accent = 'cyan', badge, footer, onClick }) {
+function DesktopModeCard({ icon, title, desc, accent = 'cyan', badge, footer, onClick, locked = false }) {
   const Tag = onClick ? 'button' : 'div';
   return (
-    <Tag type={onClick ? 'button' : undefined} className={`desk-mode-card ${accent} ${onClick ? 'is-clickable' : ''}`} onClick={onClick}>
-      {badge ? <div className="desk-mode-badge">{badge}</div> : null}
+    <Tag type={onClick ? 'button' : undefined} className={`desk-mode-card ${accent} ${onClick ? 'is-clickable' : ''} ${locked ? 'is-locked' : ''}`} onClick={onClick}>
+      {locked ? <div className="desk-mode-lock"><Lock size={12} /> KONTO</div> : (badge ? <div className="desk-mode-badge">{badge}</div> : null)}
       <img src={icon} alt="" className="desk-mode-icon" />
       <div className="desk-mode-title">{title}</div>
       <div className="desk-mode-desc">{desc}</div>
       <div className="desk-mode-footer">
-        <span>{footer}</span>
-        {onClick ? <div className="desk-mode-arrow"><ChevronRight size={18} /></div> : null}
+        <span>{locked ? 'Zaloguj się, aby zagrać' : footer}</span>
+        {onClick ? <div className="desk-mode-arrow">{locked ? <Lock size={15} /> : <ChevronRight size={18} />}</div> : null}
       </div>
     </Tag>
   );
@@ -177,9 +180,9 @@ function ProgressBar({ value = 0 }) {
   );
 }
 
-function SidebarNav({ active = 'home', onHome, onRooms, onAlbum, onStats, onAchievements, onLeaderboard, onShop, onCommunity, onAdmin, adminUnlocked = false }) {
+function SidebarNav({ active = 'home', onHome, onRooms, onAlbum, onStats, onAchievements, onLeaderboard, onShop, onCommunity, onAdmin, adminUnlocked = false, guestLocked = false, onRequireLogin }) {
   const items = [
-    { key: 'home', label: 'GRAJ TERAZ', icon: <Gamepad2 size={20} />, onClick: onHome },
+    { key: 'home', label: 'GRAJ TERAZ', icon: <Gamepad2 size={20} />, onClick: onHome, public: true },
     { key: 'rooms', label: 'POKÓJ', icon: <DoorOpen size={20} />, onClick: onRooms || onHome },
     { key: 'collection', label: 'KOLEKCJA', icon: <Disc3 size={20} />, onClick: onAlbum },
     { key: 'stats', label: 'STATYSTYKI', icon: <BarChart3 size={20} />, onClick: onStats },
@@ -194,12 +197,16 @@ function SidebarNav({ active = 'home', onHome, onRooms, onAlbum, onStats, onAchi
         <img src={logoImg} alt="Hitsteriada" />
       </button>
       <div className="desk-sidebar-nav">
-        {items.map((item) => (
-          <button key={item.key} className={`desk-nav-item ${active === item.key ? 'active' : ''}`} onClick={item.onClick}>
-            <span className="desk-nav-icon">{item.icon}</span>
-            <span className="desk-nav-label">{item.label}</span>
-          </button>
-        ))}
+        {items.map((item) => {
+          const locked = guestLocked && !item.public;
+          return (
+            <button key={item.key} className={`desk-nav-item ${active === item.key ? 'active' : ''} ${locked ? 'guest-locked' : ''}`} onClick={locked ? onRequireLogin : item.onClick}>
+              <span className="desk-nav-icon">{item.icon}</span>
+              <span className="desk-nav-label">{item.label}</span>
+              {locked ? <Lock size={12} className="desk-nav-lock" /> : null}
+            </button>
+          );
+        })}
       </div>
       <button type="button" className={`desk-admin-entry ${adminUnlocked ? 'unlocked' : ''}`} onClick={onAdmin}>
         <Settings size={18} />
@@ -217,11 +224,11 @@ function SidebarNav({ active = 'home', onHome, onRooms, onAlbum, onStats, onAchi
   );
 }
 
-function DesktopLayout({ active, topRight, onHome, onRooms, onAlbum, onStats, onAchievements, onLeaderboard, onShop, onCommunity, onAdmin, adminUnlocked = false, children }) {
+function DesktopLayout({ active, topRight, onHome, onRooms, onAlbum, onStats, onAchievements, onLeaderboard, onShop, onCommunity, onAdmin, adminUnlocked = false, guestLocked = false, onRequireLogin, children }) {
   return (
     <div className="desk-root" style={{ backgroundImage: `linear-gradient(180deg, rgba(3,6,19,0.70), rgba(3,6,19,0.94)), url(${homeBg})` }}>
       <div className="desk-shell">
-        <SidebarNav active={active} onHome={onHome} onRooms={onRooms} onAlbum={onAlbum} onStats={onStats} onAchievements={onAchievements} onLeaderboard={onLeaderboard} onShop={onShop} onCommunity={onCommunity} onAdmin={onAdmin} adminUnlocked={adminUnlocked} />
+        <SidebarNav active={active} onHome={onHome} onRooms={onRooms} onAlbum={onAlbum} onStats={onStats} onAchievements={onAchievements} onLeaderboard={onLeaderboard} onShop={onShop} onCommunity={onCommunity} onAdmin={onAdmin} adminUnlocked={adminUnlocked} guestLocked={guestLocked} onRequireLogin={onRequireLogin} />
         <div className="desk-content">{children}</div>
       </div>
       {topRight}
@@ -229,29 +236,38 @@ function DesktopLayout({ active, topRight, onHome, onRooms, onAlbum, onStats, on
   );
 }
 
-function HeaderBar({ onlineCount, level, xpText, musicCount, hitcoin, avatarUrl, username, onCommunity, onStats, onShop, onAvatarUpload, avatarUploadBusy }) {
+function HeaderBar({ onlineCount, level, xpText, musicCount, hitcoin, avatarUrl, username, onCommunity, onStats, onShop, onAvatarUpload, avatarUploadBusy, isGuest = false, onLogin }) {
   return (
     <div className="desk-header-bar">
-      <DesktopTopPill icon={<span className="desk-dot" />} accent="green" onClick={onCommunity}>{onlineCount} graczy online</DesktopTopPill>
-      <DesktopTopPill icon={<Star size={16} />} accent="cyan" wide onClick={onStats}>LVL {level} <span className="desk-pill-sub">{xpText}</span></DesktopTopPill>
-      <DesktopTopPill icon={<Music2 size={16} />} accent="pink" onClick={onStats}>{musicCount}</DesktopTopPill>
-      <DesktopTopPill icon={<img src={iconHitcoin} alt="" className="desk-pill-coin" />} accent="gold" onClick={onShop}>{hitcoin}</DesktopTopPill>
-      {onAvatarUpload ? (
-        <label className={`desk-user-pill desk-avatar-uploader ${avatarUploadBusy ? 'busy' : ''}`} title="Kliknij, aby zmienić avatar">
-          <input type="file" accept="image/*" disabled={avatarUploadBusy} onChange={(e) => e.target.files?.[0] && onAvatarUpload(e.target.files[0])} />
-          <div className="desk-avatar" style={avatarUrl ? { backgroundImage: `url(${avatarUrl})` } : undefined}>
-            {!avatarUrl ? initials(username) : null}
-            <span className="desk-avatar-edit">✎</span>
-          </div>
-          <span>{username}</span>
-        </label>
+      <DesktopTopPill icon={<span className="desk-dot" />} accent="green" onClick={isGuest ? undefined : onCommunity}>{onlineCount} graczy online</DesktopTopPill>
+      {isGuest ? (
+        <>
+          <div className="desk-guest-pill"><Lock size={14} /><span>TRYB GOŚCIA</span></div>
+          <button type="button" className="desk-header-login" onClick={onLogin}><LogIn size={15} /> ZALOGUJ SIĘ</button>
+        </>
       ) : (
-        <button type="button" className="desk-user-pill" onClick={onStats}>
-          <div className="desk-avatar" style={avatarUrl ? { backgroundImage: `url(${avatarUrl})` } : undefined}>{!avatarUrl ? initials(username) : null}</div>
-          <span>{username}</span>
-        </button>
+        <>
+          <DesktopTopPill icon={<Star size={16} />} accent="cyan" wide onClick={onStats}>LVL {level} <span className="desk-pill-sub">{xpText}</span></DesktopTopPill>
+          <DesktopTopPill icon={<Music2 size={16} />} accent="pink" onClick={onStats}>{musicCount}</DesktopTopPill>
+          <DesktopTopPill icon={<img src={iconHitcoin} alt="" className="desk-pill-coin" />} accent="gold" onClick={onShop}>{hitcoin}</DesktopTopPill>
+          {onAvatarUpload ? (
+            <label className={`desk-user-pill desk-avatar-uploader ${avatarUploadBusy ? 'busy' : ''}`} title="Kliknij, aby zmienić avatar">
+              <input type="file" accept="image/*" disabled={avatarUploadBusy} onChange={(e) => e.target.files?.[0] && onAvatarUpload(e.target.files[0])} />
+              <div className="desk-avatar" style={avatarUrl ? { backgroundImage: `url(${avatarUrl})` } : undefined}>
+                {!avatarUrl ? initials(username) : null}
+                <span className="desk-avatar-edit">✎</span>
+              </div>
+              <span>{username}</span>
+            </label>
+          ) : (
+            <button type="button" className="desk-user-pill" onClick={onStats}>
+              <div className="desk-avatar" style={avatarUrl ? { backgroundImage: `url(${avatarUrl})` } : undefined}>{!avatarUrl ? initials(username) : null}</div>
+              <span>{username}</span>
+            </button>
+          )}
+          <button type="button" className="desk-gear-btn" onClick={onStats} title="Profil i statystyki"><Settings size={18} /></button>
+        </>
       )}
-      <button type="button" className="desk-gear-btn" onClick={onStats} title="Profil i statystyki"><Settings size={18} /></button>
     </div>
   );
 }
@@ -396,6 +412,61 @@ function DesktopGameGuideModal({ onClose }) {
   );
 }
 
+function DesktopAuthPanel({ mode, setMode, username, setUsername, password, setPassword, busy, error, onSubmit, onGuide, authChecked = true, attention = false }) {
+  const registering = mode === 'register';
+  const submit = (event) => {
+    event?.preventDefault?.();
+    if (!busy) onSubmit?.();
+  };
+
+  return (
+    <section className={`desk-hero-right desk-auth-card desk-panel pink-glow ${attention ? 'attention' : ''}`}>
+      <div className="desk-auth-top">
+        <div className="desk-panel-tag"><Lock size={13} /> PEŁNA WERSJA GRY</div>
+        <div className="desk-auth-icon"><Gamepad2 size={28} /></div>
+      </div>
+      <div className="desk-auth-copy">
+        <h2>Dołącz do<br /><span>Hitsteriady.</span></h2>
+        <p>Zaloguj się albo utwórz darmowe konto. Konto odblokowuje pokoje, rankingi, kolekcję, nagrody i wszystkie tryby gry.</p>
+      </div>
+
+      {!authChecked ? (
+        <div className="desk-auth-checking"><span /> Sprawdzamy Twoją sesję…</div>
+      ) : (
+        <form className="desk-auth-form" onSubmit={submit}>
+          <div className="desk-auth-tabs">
+            <button type="button" className={!registering ? 'active' : ''} onClick={() => setMode?.('login')}><LogIn size={14} /> ZALOGUJ</button>
+            <button type="button" className={registering ? 'active' : ''} onClick={() => setMode?.('register')}><UserPlus size={14} /> ZAŁÓŻ KONTO</button>
+          </div>
+          <label className="desk-auth-field">
+            <span>LOGIN</span>
+            <input autoComplete="username" value={username} onChange={(event) => setUsername?.(event.target.value)} placeholder="Twój login" />
+          </label>
+          <label className="desk-auth-field">
+            <span>HASŁO</span>
+            <input autoComplete={registering ? 'new-password' : 'current-password'} type="password" value={password} onChange={(event) => setPassword?.(event.target.value)} placeholder={registering ? 'Minimum 6 znaków' : 'Twoje hasło'} />
+          </label>
+          {error ? <div className="desk-auth-error">{error}</div> : null}
+          <button type="submit" className="desk-auth-submit" disabled={busy}>
+            {busy ? 'CHWILA…' : (registering ? 'UTWÓRZ KONTO' : 'ZALOGUJ SIĘ')}
+            {!busy ? <ChevronRight size={18} /> : null}
+          </button>
+        </form>
+      )}
+
+      <div className="desk-auth-benefits">
+        <span><CheckCircle2 size={12} /> Pokoje i 1v1</span>
+        <span><CheckCircle2 size={12} /> Karty i HITCOINY</span>
+        <span><CheckCircle2 size={12} /> Rankingi i nagrody</span>
+      </div>
+      <div className="desk-auth-bottom">
+        <span><Sparkles size={13} /> Bez konta możesz wypróbować Trening.</span>
+        <button type="button" onClick={onGuide}>Jak działa gra?</button>
+      </div>
+    </section>
+  );
+}
+
 export function DesktopHomeView(props) {
   const {
     user,
@@ -433,6 +504,15 @@ export function DesktopHomeView(props) {
   const currentWeek = weeklySummary?.current || { title: 'Zagraj 3 gry', progressLabel: '0 / 3', progressPct: 0, reward: '+50 XP' };
   const todayClaimed = stats?.lastDailyHitcoinDate === props.todayKey;
   const [showGuide, setShowGuide] = useState(false);
+  const [authAttention, setAuthAttention] = useState(false);
+  const isGuest = !user;
+
+  const requestLogin = () => {
+    props.setAuthMode?.('login');
+    setAuthAttention(true);
+    window.setTimeout(() => setAuthAttention(false), 650);
+    window.setTimeout(() => document.querySelector('.desk-auth-card input')?.focus(), 40);
+  };
 
   return (
     <DesktopLayout
@@ -446,6 +526,8 @@ export function DesktopHomeView(props) {
       onCommunity={onCommunity}
       onAdmin={props.onAdmin}
       adminUnlocked={props.adminUnlocked}
+      guestLocked={isGuest}
+      onRequireLogin={requestLogin}
     >
       <HeaderBar
         onlineCount={onlinePlayers.length}
@@ -458,8 +540,10 @@ export function DesktopHomeView(props) {
         onCommunity={onCommunity}
         onStats={onStats}
         onShop={onShop}
-        onAvatarUpload={props.onAvatarUpload}
+        onAvatarUpload={isGuest ? undefined : props.onAvatarUpload}
         avatarUploadBusy={props.avatarUploadBusy}
+        isGuest={isGuest}
+        onLogin={requestLogin}
       />
 
       <div className="desk-main-stack">
@@ -471,10 +555,10 @@ export function DesktopHomeView(props) {
             <div className="desk-room-card">
               <div className="desk-room-create">
                 <div className="desk-room-eyebrow">STWÓRZ POKÓJ</div>
-                <button className="desk-primary-cta" onClick={onCreateRoom}>
-                  <span>STWÓRZ POKÓJ</span><span className="desk-primary-plus"><Plus size={22} /></span>
+                <button className={`desk-primary-cta ${isGuest ? 'guest-locked' : ''}`} onClick={isGuest ? requestLogin : onCreateRoom}>
+                  <span>STWÓRZ POKÓJ</span><span className="desk-primary-plus">{isGuest ? <Lock size={18} /> : <Plus size={22} />}</span>
                 </button>
-                <div className="desk-room-note">Ty wybierasz zasady. Zaproś znajomych!</div>
+                <div className="desk-room-note">{isGuest ? 'Załóż konto, aby tworzyć pokoje.' : 'Ty wybierasz zasady. Zaproś znajomych!'}</div>
               </div>
               <div className="desk-room-divider">LUB</div>
               <div className="desk-room-join">
@@ -483,81 +567,116 @@ export function DesktopHomeView(props) {
                   <input
                     value={joinCode}
                     onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                    placeholder="Wpisz kod pokoju"
+                    placeholder={isGuest ? "Zaloguj się, aby dołączyć" : "Wpisz kod pokoju"}
                     maxLength={6}
                     aria-label="Kod pokoju"
+                    disabled={isGuest}
                   />
-                  <button className="desk-secondary-cta" onClick={() => onJoinRoom()}>DOŁĄCZ</button>
+                  <button className={`desk-secondary-cta ${isGuest ? 'guest-locked' : ''}`} onClick={isGuest ? requestLogin : () => onJoinRoom()}>{isGuest ? <><Lock size={15} /> ZALOGUJ</> : 'DOŁĄCZ'}</button>
                 </div>
-                <div className="desk-room-note">Masz kod od znajomego? Wskakuj od razu do rozgrywki.</div>
+                <div className="desk-room-note">{isGuest ? 'Dołączanie do pokoi wymaga darmowego konta.' : 'Masz kod od znajomego? Wskakuj od razu do rozgrywki.'}</div>
               </div>
             </div>
           </section>
 
-          <section className="desk-hero-right desk-guide-card desk-panel pink-glow">
-            <div className="desk-hero-right-copy desk-guide-copy">
-              <div className="desk-panel-tag">POZNAJ HITSTERIADĘ</div>
-              <h2>Jak działa<br /><span>Hitsteriada?</span></h2>
-              <p>Poznaj tryby gry, zasady punktacji, kolekcję kart, sklep, osiągnięcia i system nagród.</p>
-              <button type="button" className="desk-outline-btn" onClick={() => setShowGuide(true)}>DOWIEDZ SIĘ WIĘCEJ <ChevronRight size={18} /></button>
-            </div>
-            <div className="desk-guide-visual" aria-hidden="true">
-              <div className="desk-guide-orbit desk-guide-orbit-a" />
-              <div className="desk-guide-orbit desk-guide-orbit-b" />
-              <div className="desk-guide-core"><img src={logoImg} alt="" /></div>
-              <div className="desk-guide-float float-a"><img src={glTrening} alt="" /><span>TRYBY</span></div>
-              <div className="desk-guide-float float-b"><img src={glKolekcja} alt="" /><span>KARTY</span></div>
-              <div className="desk-guide-float float-c"><img src={glKorona} alt="" /><span>RANKING</span></div>
-              <div className="desk-guide-float float-d"><img src={glKoszyk} alt="" /><span>SKLEP</span></div>
-              <div className="desk-guide-wave">{Array.from({ length: 22 }).map((_, index) => <i key={index} style={{ '--bar': `${26 + ((index * 17) % 62)}%` }} />)}</div>
-            </div>
-            <div className="desk-guide-mini-footer"><span>6 TRYBÓW</span><span>5 RZADKOŚCI</span><span>RANKINGI</span></div>
-          </section>
+          {isGuest ? (
+            <DesktopAuthPanel
+              mode={props.authMode}
+              setMode={props.setAuthMode}
+              username={props.authUsername}
+              setUsername={props.setAuthUsername}
+              password={props.authPassword}
+              setPassword={props.setAuthPassword}
+              busy={props.authBusy}
+              error={props.authError}
+              onSubmit={props.onAuthSubmit}
+              authChecked={props.authChecked}
+              attention={authAttention}
+              onGuide={() => setShowGuide(true)}
+            />
+          ) : (
+            <section className="desk-hero-right desk-guide-card desk-panel pink-glow">
+              <div className="desk-hero-right-copy desk-guide-copy">
+                <div className="desk-panel-tag">POZNAJ HITSTERIADĘ</div>
+                <h2>Jak działa<br /><span>Hitsteriada?</span></h2>
+                <p>Poznaj tryby gry, zasady punktacji, kolekcję kart, sklep, osiągnięcia i system nagród.</p>
+                <button type="button" className="desk-outline-btn" onClick={() => setShowGuide(true)}>DOWIEDZ SIĘ WIĘCEJ <ChevronRight size={18} /></button>
+              </div>
+              <div className="desk-guide-visual" aria-hidden="true">
+                <div className="desk-guide-orbit desk-guide-orbit-a" />
+                <div className="desk-guide-orbit desk-guide-orbit-b" />
+                <div className="desk-guide-core"><img src={logoImg} alt="" /></div>
+                <div className="desk-guide-float float-a"><img src={glTrening} alt="" /><span>TRYBY</span></div>
+                <div className="desk-guide-float float-b"><img src={glKolekcja} alt="" /><span>KARTY</span></div>
+                <div className="desk-guide-float float-c"><img src={glKorona} alt="" /><span>RANKING</span></div>
+                <div className="desk-guide-float float-d"><img src={glKoszyk} alt="" /><span>SKLEP</span></div>
+                <div className="desk-guide-wave">{Array.from({ length: 22 }).map((_, index) => <i key={index} style={{ '--bar': `${26 + ((index * 17) % 62)}%` }} />)}</div>
+              </div>
+              <div className="desk-guide-mini-footer"><span>6 TRYBÓW</span><span>5 RZADKOŚCI</span><span>RANKINGI</span></div>
+            </section>
+          )}
         </div>
 
         <div className="desk-section-grid">
           <div className="desk-left-column">
             <div className="desk-section-label"><Sparkles size={16} /> TRYBY GRY</div>
             <div className="desk-modes-grid">
-              <DesktopModeCard icon={glTrening} title="TRENING" desc="Ćwicz i poznawaj kategorie" accent="cyan" footer="Ćwicz w swoim tempie" onClick={onPractice} />
-              <DesktopModeCard icon={glHitRush} title="HIT RUSH" desc="Szybki tryb solo z presją czasu" accent="green" footer="Nowy rekord czeka" onClick={onHitRush} />
-              <DesktopModeCard icon={glPiosenka} title="PIOSENKA DNIA" desc="Jedna piosenka dla wszystkich" accent="pink" footer="Codzienna szansa" onClick={onDailySong} />
-              <DesktopModeCard icon={glPlaylista} title="PLAYLISTA DNIA" desc="Codzienna nowa playlista" accent="violet" footer="Porównaj się z innymi" onClick={onDailyPlaylist} />
-              <DesktopModeCard icon={glTurniej} title="TURNIEJ" desc="Rywalizuj o najwyższe miejsca" accent="gold" badge="PREMIUM" footer={activeTournament ? `${activeTournament.signups?.length || 0}/${activeTournament.maxPlayers || 0} zapisanych` : lastCompletedTournament ? `Wygrał: ${lastCompletedTournament.signups?.find((p) => p.uid === lastCompletedTournament.winnerUid)?.name || '?'}` : 'Wkrótce kolejny'} onClick={onTournament} />
+              <DesktopModeCard icon={glTrening} title="TRENING" desc="Ćwicz i poznawaj kategorie" accent="cyan" footer={isGuest ? "Dostępny bez konta" : "Ćwicz w swoim tempie"} onClick={onPractice} />
+              <DesktopModeCard icon={glHitRush} title="HIT RUSH" desc="Szybki tryb solo z presją czasu" accent="green" footer="Nowy rekord czeka" locked={isGuest} onClick={isGuest ? requestLogin : onHitRush} />
+              <DesktopModeCard icon={glPiosenka} title="PIOSENKA DNIA" desc="Jedna piosenka dla wszystkich" accent="pink" footer="Codzienna szansa" locked={isGuest} onClick={isGuest ? requestLogin : onDailySong} />
+              <DesktopModeCard icon={glPlaylista} title="PLAYLISTA DNIA" desc="Codzienna nowa playlista" accent="violet" footer="Porównaj się z innymi" locked={isGuest} onClick={isGuest ? requestLogin : onDailyPlaylist} />
+              <DesktopModeCard icon={glTurniej} title="TURNIEJ" desc="Rywalizuj o najwyższe miejsca" accent="gold" badge="PREMIUM" locked={isGuest} footer={activeTournament ? `${activeTournament.signups?.length || 0}/${activeTournament.maxPlayers || 0} zapisanych` : lastCompletedTournament ? `Wygrał: ${lastCompletedTournament.signups?.find((p) => p.uid === lastCompletedTournament.winnerUid)?.name || '?'}` : 'Wkrótce kolejny'} onClick={isGuest ? requestLogin : onTournament} />
             </div>
 
             <div className="desk-section-label"><BarChart3 size={16} /> TWÓJ POSTĘP</div>
-            <div className="desk-progress-grid">
-              <DesktopStatCard icon={glKolekcja} label="KOLEKCJA" value={`${collectionCount}/${songPoolSize}`} note="Utworów odblokowanych" action="ZOBACZ KOLEKCJĘ" onClick={onAlbum} />
-              <DesktopStatCard icon={glMedal} label="OSIĄGNIĘCIA" value={`${weeklySummary?.achievementClaimed || 0}/${totalAchievements}`} note="Odblokowanych" action="ZOBACZ OSIĄGNIĘCIA" onClick={onAchievements} />
-              <DesktopStatCard icon={glStatystyki} label="STATYSTYKI" value={winRate} note="Śr. dokładność" action="ZOBACZ STATYSTYKI" onClick={onStats} />
-              <DesktopStatCard icon={glKorona} label="RANKING" value={props.leaderboardPosition ? `#${formatCompact(props.leaderboardPosition)}` : "—"} note="Twoja pozycja" accent="gold" action="ZOBACZ RANKING" onClick={onLeaderboard} />
-              <DesktopStatCard icon={glKoszyk} label="SKLEP" value="Nowe przedmioty!" note="Sprawdź oferty i odblokuj" accent="cyan" action="PRZEJDŹ DO SKLEPU" onClick={onShop} />
-              <DesktopStatCard icon={glOsoba} label="SPOŁECZNOŚĆ" value={`${onlinePlayers.length}`} note="Graczy online" accent="pink" action="ZOBACZ SPOŁECZNOŚĆ" onClick={onCommunity} />
-            </div>
+            {isGuest ? (
+              <button type="button" className="desk-guest-progress-lock" onClick={requestLogin}>
+                <div className="desk-guest-progress-icon"><Lock size={22} /></div>
+                <div><strong>Twój progres zaczyna się po założeniu konta</strong><span>Kolekcja kart, XP, HITCOINY, osiągnięcia i rankingi zapisują się na Twoim profilu.</span></div>
+                <span className="desk-guest-progress-action">ZAŁÓŻ KONTO <ChevronRight size={16} /></span>
+              </button>
+            ) : (
+              <div className="desk-progress-grid">
+                <DesktopStatCard icon={glKolekcja} label="KOLEKCJA" value={`${collectionCount}/${songPoolSize}`} note="Utworów odblokowanych" action="ZOBACZ KOLEKCJĘ" onClick={onAlbum} />
+                <DesktopStatCard icon={glMedal} label="OSIĄGNIĘCIA" value={`${weeklySummary?.achievementClaimed || 0}/${totalAchievements}`} note="Odblokowanych" action="ZOBACZ OSIĄGNIĘCIA" onClick={onAchievements} />
+                <DesktopStatCard icon={glStatystyki} label="STATYSTYKI" value={winRate} note="Śr. dokładność" action="ZOBACZ STATYSTYKI" onClick={onStats} />
+                <DesktopStatCard icon={glKorona} label="RANKING" value={props.leaderboardPosition ? `#${formatCompact(props.leaderboardPosition)}` : "—"} note="Twoja pozycja" accent="gold" action="ZOBACZ RANKING" onClick={onLeaderboard} />
+                <DesktopStatCard icon={glKoszyk} label="SKLEP" value="Nowe przedmioty!" note="Sprawdź oferty i odblokuj" accent="cyan" action="PRZEJDŹ DO SKLEPU" onClick={onShop} />
+                <DesktopStatCard icon={glOsoba} label="SPOŁECZNOŚĆ" value={`${onlinePlayers.length}`} note="Graczy online" accent="pink" action="ZOBACZ SPOŁECZNOŚĆ" onClick={onCommunity} />
+              </div>
+            )}
           </div>
 
           <div className="desk-right-rail">
-            <DesktopRailCard icon={<Flame size={20} />} title="PASSA" value={`${stats?.longestStreak || 0}`} desc="najlepsza seria trafień" accent="pink" />
-            <DesktopRailCard icon={glPrezent} title="NAGRODA DNIA" value={todayClaimed ? 'ODEBRANA' : 'GOTOWA'} desc={todayClaimed ? 'Wróć jutro po następną próbę.' : 'Nagroda czeka w panelu statystyk.'} accent="cyan" />
-            <DesktopRailCard icon={iconZaproponuj} title="ZAPROPONUJ UTWÓR" value="Masz pomysł na hit?" desc="Zgłoś utwór społeczności!" accent="violet" onClick={onPropose} />
-            <DesktopRailCard icon={<Users size={20} />} title="ZNAJOMI ONLINE" value={`${onlinePlayers.length} aktywnych`} desc={onlinePlayers.length ? 'Dołącz do społeczności' : 'Nikt poza Tobą nie gra w tej chwili.'} accent="cyan">
-              <div className="desk-online-row">
-                {onlinePlayers.slice(0, 5).map((player, index) => (
-                  <button
-                    type="button"
-                    key={player.id || player.uid || index}
-                    className="desk-online-avatar"
-                    style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}
-                    onClick={() => player.uid && props.onViewProfile?.(player)}
-                    title={player.uid ? `Profil: ${player.name || player.username || 'Gracz'}` : (player.name || 'Gracz')}
-                  >
-                    {!player.avatarUrl ? initials(player.username || player.name || 'G') : null}
-                  </button>
-                ))}
-                {onlinePlayers.length > 5 ? <div className="desk-online-avatar more">+{onlinePlayers.length - 5}</div> : null}
-              </div>
-            </DesktopRailCard>
+            {isGuest ? (
+              <>
+                <DesktopRailCard icon={<Lock size={20} />} title="TRYB GOŚCIA" value="Trening dostępny" desc="Załóż konto, żeby odblokować pełną Hitsteriadę." accent="violet" onClick={requestLogin} />
+                <DesktopRailCard icon={<Users size={20} />} title="GRACZE ONLINE" value={`${onlinePlayers.length} aktywnych`} desc="Po zalogowaniu możesz przeglądać profile i wyzywać graczy 1v1." accent="cyan" />
+              </>
+            ) : (
+              <>
+                <DesktopRailCard icon={<Flame size={20} />} title="PASSA" value={`${stats?.longestStreak || 0}`} desc="najlepsza seria trafień" accent="pink" />
+                <DesktopRailCard icon={glPrezent} title="NAGRODA DNIA" value={todayClaimed ? 'ODEBRANA' : 'GOTOWA'} desc={todayClaimed ? 'Wróć jutro po następną próbę.' : 'Nagroda czeka w panelu statystyk.'} accent="cyan" />
+                <DesktopRailCard icon={iconZaproponuj} title="ZAPROPONUJ UTWÓR" value="Masz pomysł na hit?" desc="Zgłoś utwór społeczności!" accent="violet" onClick={onPropose} />
+                <DesktopRailCard icon={<Users size={20} />} title="ZNAJOMI ONLINE" value={`${onlinePlayers.length} aktywnych`} desc={onlinePlayers.length ? 'Dołącz do społeczności' : 'Nikt poza Tobą nie gra w tej chwili.'} accent="cyan">
+                  <div className="desk-online-row">
+                    {onlinePlayers.slice(0, 5).map((player, index) => (
+                      <button
+                        type="button"
+                        key={player.id || player.uid || index}
+                        className="desk-online-avatar"
+                        style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}
+                        onClick={() => player.uid && props.onViewProfile?.(player)}
+                        title={player.uid ? `Profil: ${player.name || player.username || 'Gracz'}` : (player.name || 'Gracz')}
+                      >
+                        {!player.avatarUrl ? initials(player.username || player.name || 'G') : null}
+                      </button>
+                    ))}
+                    {onlinePlayers.length > 5 ? <div className="desk-online-avatar more">+{onlinePlayers.length - 5}</div> : null}
+                  </div>
+                </DesktopRailCard>
+              </>
+            )}
           </div>
         </div>
 
@@ -1177,23 +1296,37 @@ function DesktopProposeView({ common, draft, setDraft, categories, onToggleCateg
 export function DesktopAppView(props) {
   const [section, setSection] = useState('home');
 
+  const requestLogin = () => {
+    setSection('home');
+    props.setAuthMode?.('login');
+    window.setTimeout(() => document.querySelector('.desk-auth-card input')?.focus(), 40);
+  };
+
+  useEffect(() => {
+    if (!props.user && section !== 'home') setSection('home');
+  }, [props.user, section]);
+
   const common = useMemo(() => ({
     onHome: () => setSection('home'),
     onRooms: () => {
+      if (!props.user) return requestLogin();
       setSection('home');
       setTimeout(() => document.querySelector('.desk-room-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
     },
-    onAlbum: () => setSection('collection'),
+    onAlbum: () => props.user ? setSection('collection') : requestLogin(),
     onStats: () => {
+      if (!props.user) return requestLogin();
       setSection('stats');
       props.onLoadHeadToHead?.();
     },
-    onAchievements: () => setSection('achievements'),
-    onLeaderboard: () => setSection('ranking'),
-    onShop: () => setSection('shop'),
-    onCommunity: () => setSection('community'),
+    onAchievements: () => props.user ? setSection('achievements') : requestLogin(),
+    onLeaderboard: () => props.user ? setSection('ranking') : requestLogin(),
+    onShop: () => props.user ? setSection('shop') : requestLogin(),
+    onCommunity: () => props.user ? setSection('community') : requestLogin(),
     onAdmin: props.onAdmin,
     adminUnlocked: props.adminUnlocked,
+    guestLocked: !props.user,
+    onRequireLogin: requestLogin,
     header: {
       onlineCount: props.onlinePlayers.length,
       level: props.levelInfo.level,
@@ -1202,14 +1335,17 @@ export function DesktopAppView(props) {
       hitcoin: formatCompact(props.hitcoin || 0),
       avatarUrl: props.stats?.avatarUrl,
       username: props.playerName || props.user?.displayName || props.user?.username || 'Gracz',
-      onCommunity: () => setSection('community'),
+      onCommunity: () => props.user ? setSection('community') : requestLogin(),
       onStats: () => {
+        if (!props.user) return requestLogin();
         setSection('stats');
         props.onLoadHeadToHead?.();
       },
-      onShop: () => setSection('shop'),
-      onAvatarUpload: props.onAvatarUpload,
+      onShop: () => props.user ? setSection('shop') : requestLogin(),
+      onAvatarUpload: props.user ? props.onAvatarUpload : undefined,
       avatarUploadBusy: props.avatarUploadBusy,
+      isGuest: !props.user,
+      onLogin: requestLogin,
     },
   }), [props.onlinePlayers.length, props.levelInfo.level, props.levelInfo.currentLevelXp, props.levelInfo.xpForNextLevel, props.stats, props.hitcoin, props.user, props.onAvatarUpload, props.avatarUploadBusy, props.onAdmin, props.adminUnlocked, props.onLoadHeadToHead]);
 
@@ -1222,7 +1358,8 @@ export function DesktopAppView(props) {
     onLeaderboard: common.onLeaderboard,
     onShop: common.onShop,
     onCommunity: common.onCommunity,
-    onPropose: () => setSection('propose'),
+    onPropose: () => props.user ? setSection('propose') : requestLogin(),
+    onRequestLogin: requestLogin,
   };
 
   let view;
