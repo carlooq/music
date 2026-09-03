@@ -100,6 +100,8 @@ import {
   MobilePracticeResultView,
   MobileDailyPlaylistHubView,
   MobileDailyPlaylistResultView,
+  MobileDailySongView,
+  MobileTournamentHubView,
   MobileHitRushMenuView,
   MobileHitRushGameView,
   MobileHitRushResultView,
@@ -4639,6 +4641,46 @@ export default function App() {
           setTimeout(() => openDailyPlaylistHub(), 80);
         }}
         onLeave={leaveRoom}
+      />
+    );
+  }
+
+  if (useMobileSessionViews && screen === "home" && showDailySong && dailySong) {
+    return (
+      <MobileDailySongView
+        song={dailySong}
+        alreadyPlayed={dailyAlreadyPlayed}
+        result={dailyResult}
+        isPlaying={dailyIsPlaying}
+        playElapsed={dailyPlayElapsed}
+        playCapSeconds={PLAY_CAP_SECONDS}
+        iframeRef={dailyIframeRef}
+        onTogglePlay={toggleDailyPlay}
+        guessArtist={dailyGuessArtist}
+        setGuessArtist={setDailyGuessArtist}
+        guessTitle={dailyGuessTitle}
+        setGuessTitle={setDailyGuessTitle}
+        guessYear={dailyGuessYear}
+        setGuessYear={setDailyGuessYear}
+        busy={dailyBusy}
+        onSubmit={submitDailyGuess}
+        onHome={closeDailySong}
+      />
+    );
+  }
+
+  if (useMobileSessionViews && screen === "tournamentHub") {
+    return (
+      <MobileTournamentHubView
+        tournament={activeTournament}
+        lastCompleted={lastCompletedTournament}
+        user={user}
+        busy={busy}
+        tournamentBusy={tournamentBusy}
+        onSignUp={handleTournamentSignUp}
+        onStartMatch={startTournamentMatch}
+        onHome={() => setScreen("home")}
+        onRefresh={openTournamentHub}
       />
     );
   }

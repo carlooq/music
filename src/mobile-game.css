@@ -147,3 +147,108 @@
   .mgv-timeline-card { width:108px; flex-basis:108px; }.mgv-slot { width:41px; flex-basis:41px; }
   .mgv-howto-steps { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
+
+/* mobile gameplay v3 — daily song, tournament, final-screen polish */
+.mgv-hitrush-menu-actions { gap:14px; margin-top:14px; margin-bottom:4px; }
+
+.mgv-final-mark {
+  min-height:38px;
+  margin:9px 0 4px;
+  padding:0 12px;
+  border-radius:12px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  font-family:"Space Mono",monospace;
+  font-size:8px;
+  letter-spacing:.14em;
+  font-weight:800;
+  border:1px solid rgba(80,220,255,.22);
+  background:rgba(61,200,255,.055);
+  color:#5be7ff;
+  box-shadow:inset 0 0 22px rgba(55,199,255,.04);
+}
+.mgv-final-mark.violet { color:#b982ff; border-color:rgba(174,91,255,.25); background:rgba(151,61,255,.06); }
+.mgv-final-mark.green { color:#43eea1; border-color:rgba(50,239,159,.25); background:rgba(35,220,139,.055); }
+.mgv-final-mark.gold { color:#f6c955; border-color:rgba(246,201,85,.28); background:rgba(246,201,85,.055); }
+.mgv-final-mark.pink { color:#ff6dcb; border-color:rgba(255,88,199,.27); background:rgba(255,67,195,.055); }
+
+.mgv-daily-audio-card { text-align:center; padding-top:18px; }
+.mgv-daily-audio-card .mgv-turntable { margin-top:4px; }
+.mgv-daily-listen-copy { margin:12px auto 11px; max-width:360px; }
+.mgv-daily-listen-copy > strong { display:block; margin-top:4px; font-family:"Bebas Neue",sans-serif; font-size:25px; line-height:1; font-weight:400; color:#f8f4ff; }
+.mgv-daily-listen-copy p { margin:6px 0 0; color:#8c8498; font-size:9px; line-height:1.45; }
+.mgv-audio-cta.daily { min-height:56px; border-color:rgba(255,96,205,.36); color:#fff; background:linear-gradient(100deg,rgba(219,49,236,.92),rgba(112,78,255,.92) 58%,rgba(62,211,255,.92)); box-shadow:0 0 24px rgba(190,65,255,.14); }
+.mgv-daily-fields { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+.mgv-daily-fields label { display:flex; flex-direction:column; gap:5px; min-width:0; }
+.mgv-daily-fields label:first-child { grid-column:1/-1; }
+.mgv-daily-fields label > span { color:#777083; font-family:"Space Mono",monospace; font-size:7px; letter-spacing:.12em; }
+.mgv-daily-fields input { min-width:0; width:100%; min-height:48px; padding:0 12px; border-radius:12px; border:1px solid rgba(114,100,174,.18); background:rgba(4,7,23,.86); color:#f7f4ff; outline:none; font-size:11px; }
+.mgv-daily-fields input:focus { border-color:rgba(80,221,255,.5); box-shadow:0 0 0 2px rgba(80,221,255,.05); }
+.mgv-form-note { margin:10px 0 12px; color:#716a7d; font-size:8px; line-height:1.45; }
+.mgv-daily-answer-reveal { text-align:center; padding:22px 16px; }
+.mgv-daily-answer-reveal .year { display:block; margin-top:6px; font-family:"Bebas Neue",sans-serif; font-size:66px; line-height:.86; font-weight:400; background:linear-gradient(180deg,#fff 0%,#5be8ff 48%,#a967ff 83%); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.mgv-daily-answer-reveal h2 { margin:11px 0 3px; font-size:15px; line-height:1.25; }
+.mgv-daily-answer-reveal p { margin:0 0 13px; color:#8e8798; font-size:11px; }
+.mgv-daily-check-list { display:flex; flex-direction:column; gap:7px; }
+.mgv-daily-check-list > div { min-height:55px; padding:8px 10px; border-radius:13px; display:grid; grid-template-columns:35px minmax(0,1fr); gap:8px; align-items:center; border:1px solid rgba(112,101,161,.12); background:rgba(5,8,24,.72); }
+.mgv-daily-check-list > div > span { width:31px; height:31px; border-radius:10px; display:flex; align-items:center; justify-content:center; }
+.mgv-daily-check-list .good { border-color:rgba(50,239,159,.18); }
+.mgv-daily-check-list .good > span { color:#38e99b; background:rgba(50,239,159,.09); }
+.mgv-daily-check-list .bad { border-color:rgba(255,78,120,.16); }
+.mgv-daily-check-list .bad > span { color:#ff6888; background:rgba(255,78,120,.08); }
+.mgv-daily-check-list small { display:block; color:#6f6878; font-family:"Space Mono",monospace; font-size:6px; letter-spacing:.11em; }
+.mgv-daily-check-list strong { display:block; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; }
+.mgv-result-stat-grid.daily { grid-template-columns:repeat(3,minmax(0,1fr)); }
+
+.mgv-tournament-fee { min-height:34px; padding:0 10px; border-radius:999px; display:inline-flex; align-items:center; gap:5px; border:1px solid rgba(246,201,85,.28); background:rgba(54,42,9,.5); color:#f6c955; font-family:"Space Mono",monospace; font-size:8px; font-weight:800; }
+.mgv-tournament-signups { display:flex; flex-direction:column; gap:7px; }
+.mgv-tournament-player { min-width:0; min-height:52px; padding:6px 8px; border-radius:12px; display:grid; grid-template-columns:38px minmax(0,1fr); align-items:center; gap:8px; background:rgba(5,8,24,.68); border:1px solid rgba(110,99,160,.12); }
+.mgv-tournament-player .mgv-avatar { width:36px; height:36px; font-size:13px; }
+.mgv-tournament-player strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; }
+.mgv-tournament-player small { display:block; margin-top:2px; color:#6d6676; font-family:"Space Mono",monospace; font-size:6px; letter-spacing:.1em; }
+.mgv-tournament-player.me { border-color:rgba(80,222,255,.24); background:rgba(59,198,255,.045); }
+.mgv-tournament-player.me small { color:#5de7ff; }
+.mgv-tournament-player.bye { opacity:.62; }
+.mgv-tournament-rules { display:grid; gap:7px; }
+.mgv-tournament-rule { min-height:59px; padding:8px 9px; border-radius:12px; display:grid; grid-template-columns:36px minmax(0,1fr); gap:8px; align-items:center; border:1px solid rgba(123,108,176,.12); background:rgba(5,8,24,.66); }
+.mgv-tournament-rule > span { width:33px; height:33px; border-radius:10px; display:flex; align-items:center; justify-content:center; color:#f5c451; background:rgba(246,201,85,.07); }
+.mgv-tournament-rule strong { display:block; font-family:"Space Mono",monospace; font-size:7px; letter-spacing:.11em; }
+.mgv-tournament-rule small { display:block; margin-top:3px; color:#827b8d; font-size:8px; line-height:1.35; }
+.mgv-tournament-ready { min-height:62px; margin-top:12px; padding:10px 12px; border-radius:14px; display:grid; grid-template-columns:38px minmax(0,1fr); gap:8px; align-items:center; border:1px solid rgba(50,239,159,.22); background:rgba(34,218,139,.055); color:#3be99d; }
+.mgv-tournament-ready strong { display:block; font-family:"Bebas Neue",sans-serif; font-size:20px; font-weight:400; }
+.mgv-tournament-ready small { display:block; margin-top:1px; color:#829487; font-size:8px; }
+.mgv-tournament-rounds { display:flex; flex-direction:column; gap:2px; }
+.mgv-tournament-matches { display:flex; flex-direction:column; gap:9px; }
+.mgv-tournament-match { padding:10px; border-radius:15px; border:1px solid rgba(119,105,170,.13); background:rgba(4,7,23,.78); }
+.mgv-tournament-match.mine { border-color:rgba(78,218,255,.25); box-shadow:inset 0 0 24px rgba(55,200,255,.04); }
+.mgv-tournament-match.done { opacity:.88; }
+.mgv-tournament-side { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:8px; }
+.mgv-tournament-side > b { color:#7e7788; font-family:"Bebas Neue",sans-serif; font-size:20px; font-weight:400; }
+.mgv-tournament-side.winner > b { color:#f5c451; }
+.mgv-tournament-side.winner .mgv-tournament-player { border-color:rgba(246,201,85,.23); background:rgba(246,201,85,.045); }
+.mgv-tournament-vs { height:26px; display:flex; align-items:center; justify-content:center; color:#696372; font-family:"Bebas Neue",sans-serif; font-size:16px; }
+.mgv-tournament-vs::before,.mgv-tournament-vs::after { content:""; height:1px; flex:1; background:linear-gradient(90deg,transparent,rgba(120,103,171,.17)); }
+.mgv-tournament-vs::after { transform:scaleX(-1); }
+.mgv-tournament-vs span { margin:0 8px; }
+.mgv-main-cta.compact { min-height:47px; margin-top:9px; font-size:19px; }
+.mgv-tournament-wait,.mgv-tournament-verdict { min-height:39px; margin-top:8px; padding:0 10px; border-radius:10px; display:flex; align-items:center; justify-content:center; gap:6px; font-size:8px; }
+.mgv-tournament-wait { color:#9a93a4; border:1px solid rgba(117,104,165,.13); background:rgba(9,11,30,.72); }
+.mgv-tournament-verdict.good { color:#3deba0; border:1px solid rgba(50,239,159,.18); background:rgba(50,239,159,.05); }
+.mgv-tournament-verdict.bad { color:#ff6a89; border:1px solid rgba(255,78,120,.18); background:rgba(255,78,120,.05); }
+.mgv-tournament-winner { text-align:center; padding:25px 16px; }
+.mgv-tournament-winner > svg { color:#f6c955; filter:drop-shadow(0 0 18px rgba(246,201,85,.25)); }
+.mgv-tournament-winner h1 { margin:5px 0 3px; font-family:"Bebas Neue",sans-serif; font-size:39px; line-height:.95; font-weight:400; color:#fff; }
+.mgv-tournament-winner p { margin:6px auto 0; color:#91899a; font-size:9px; }
+.mgv-tournament-winner p.good { color:#46e8a2; }
+.mgv-tournament-last { text-align:center; }
+.mgv-tournament-last svg { margin:8px auto 5px; color:#f6c955; }
+.mgv-tournament-last strong { display:block; font-family:"Bebas Neue",sans-serif; font-size:28px; font-weight:400; }
+.mgv-tournament-refresh { margin-top:11px; min-height:44px; font-size:17px; }
+
+@media (max-width:380px) {
+  .mgv-daily-fields { grid-template-columns:1fr; }
+  .mgv-daily-fields label:first-child { grid-column:auto; }
+  .mgv-daily-answer-reveal .year { font-size:58px; }
+}

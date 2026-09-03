@@ -30,6 +30,8 @@ import homeBg from './assets/home/bg.jpg';
 import iconToken from './assets/icons/icon-token.png';
 import glTrening from './assets/icons/gl-trening.png';
 import glPlaylista from './assets/icons/gl-playlista.png';
+import glPiosenka from './assets/icons/gl-piosenka.png';
+import glTurniej from './assets/icons/gl-turniej.png';
 import glHitRush from './assets/icons/gl-hitrush.png';
 import glKorona from './assets/icons/gl-korona.png';
 
@@ -479,6 +481,7 @@ export function MobilePracticeResultView({ room, playerId, onAgain, onHome }) {
   return (
     <MobileSession className="mgv-finish-page">
       <MobileHeader eyebrow="TRENING" title="GOTOWE!" onBack={onHome} />
+      <div className="mgv-final-mark cyan"><Check size={18} /><span>SESJA ZAKOŃCZONA</span></div>
       <ModeHero icon={glTrening} eyebrow="PODSUMOWANIE" title="TRENING UKOŃCZONY" description="Twoja oś jest gotowa. Zobacz wynik i spróbuj ponownie, kiedy chcesz." accent="cyan" />
       <div className="mgv-result-stat-grid"><div><Check size={18} /><strong>{correct}</strong><span>trafień</span></div><div><X size={18} /><strong>{wrong}</strong><span>pomyłek</span></div><div><Zap size={18} /><strong>{accuracy}%</strong><span>skuteczność</span></div></div>
       <Panel><div className="mgv-section-title"><Music2 size={18} /><span>TWOJA OŚ CZASU</span><b>{timeline.length}/{room.target}</b></div><MobileTimeline timeline={timeline} interactive={false} compact /></Panel>
@@ -498,7 +501,17 @@ function RankingRows({ rows = [], valueLabel = 'pkt', valueKey = 'score' }) {
 
 export function MobileDailyPlaylistHubView({ alreadyPlayed, dailyBoard = [], weeklyBoard = [], allTimeBoard = [], busy, onStart, onHome }) {
   const [tab, setTab] = useState('daily');
-  const rows = tab === 'daily' ? dailyBoard : tab === 'weekly' ? weeklyBoard : allTimeBoard;
+  const sourceRows = tab === 'daily' ? dailyBoard : tab === 'weekly' ? weeklyBoard : allTimeBoard;
+  const rows = (sourceRows || []).map((row) => ({
+    ...row,
+    name: row.name || row.username || 'Gracz',
+    score: tab === 'all'
+      ? Number(row.playlistTotalScore ?? row.score ?? 0)
+      : Number(row.score ?? row.playlistScore ?? 0),
+    note: tab === 'all'
+      ? `${Number(row.playlistGamesPlayed || 0)} gier`
+      : row.note,
+  }));
   return (
     <MobileSession className="mgv-playlist-hub">
       <MobileHeader eyebrow="CODZIENNE WYZWANIE" title="PLAYLISTA DNIA" onBack={onHome} />
@@ -520,9 +533,286 @@ export function MobileDailyPlaylistResultView({ room, playerId, onBackToRankings
   return (
     <MobileSession className="mgv-finish-page">
       <MobileHeader eyebrow="PLAYLISTA DNIA" title="WYNIK" onBack={onLeave} />
+      <div className="mgv-final-mark violet"><Trophy size={18} /><span>WYNIK ZAPISANY</span></div>
       <ModeHero icon={glPlaylista} eyebrow="DZISIEJSZY WYNIK" title={`${correct} / 10`} description="Wynik został zapisany. Sprawdź, jak wypadasz na tle innych graczy." accent="violet" />
       <Panel><div className="mgv-section-title"><Music2 size={18} /><span>TWOJA PLAYLISTA</span><b>{timeline.length}/10</b></div><MobileTimeline timeline={timeline} interactive={false} compact /></Panel>
       <div className="mgv-action-stack"><button type="button" className="mgv-main-cta" onClick={onBackToRankings}><Trophy size={18} /> ZOBACZ RANKINGI</button><button type="button" className="mgv-secondary-cta" onClick={onLeave}>STRONA GŁÓWNA</button></div>
+    </MobileSession>
+  );
+}
+
+export function MobileDailySongView({
+  song,
+  alreadyPlayed,
+  result,
+  isPlaying,
+  playElapsed,
+  playCapSeconds = 15,
+  iframeRef,
+  onTogglePlay,
+  guessArtist,
+  setGuessArtist,
+  guessTitle,
+  setGuessTitle,
+  guessYear,
+  setGuessYear,
+  busy,
+  onSubmit,
+  onHome,
+}) {
+  const score = Number(result?.score || 0);
+  const remaining = Math.max(0, Math.ceil(Number(playCapSeconds || 0) - Number(playElapsed || 0)));
+  const resultTitle = score === 3 ? 'PERFEKCYJNIE!' : score === 2 ? 'BARDZO DOBRZE!' : score === 1 ? 'JEST PUNKT!' : 'NIE TYM RAZEM';
+  const resultAccent = score === 3 ? 'gold' : score > 0 ? 'cyan' : 'pink';
+
+  return (
+    <MobileSession className="mgv-daily-song-page">
+      <MobileHeader
+        eyebrow="CODZIENNE WYZWANIE"
+        title="PIOSENKA DNIA"
+        onBack={onHome}
+        right={<span className="mgv-timer"><Headphones size={15} />{playCapSeconds}s</span>}
+      />
+
+      {!alreadyPlayed ? (
+        <>
+          <ModeHero
+            icon={glPiosenka}
+            eyebrow="JEDEN UTWÓR · TRZY PUNKTY"
+            title="CO DZIŚ GRA?"
+            description="Masz jeden fragment. Zgadnij wykonawcę, tytuł i rok wydania — każde trafienie to 1 punkt."
+            accent="pink"
+          >
+            <div className="mgv-hero-chips">
+              <span><Music2 size={14} /> 1 utwór dziennie</span>
+              <span><Trophy size={14} /> maks. 3 pkt</span>
+            </div>
+          </ModeHero>
+
+          <Panel className="mgv-daily-audio-card" accent="pink">
+            <div className="mgv-hidden-player">
+              <iframe
+                key={`daily-mobile-${song?.videoId}`}
+                ref={iframeRef}
+                title="daily-mobile-player"
+                src={`https://www.youtube.com/embed/${song?.videoId}?enablejsapi=1&autoplay=1&mute=1&start=${song?.startSeconds || 0}&controls=0&modestbranding=1&rel=0`}
+                allow="autoplay; encrypted-media"
+              />
+            </div>
+            <MobileVinyl spinning={isPlaying} progress={Number(playElapsed || 0) / Math.max(1, Number(playCapSeconds || 1))} />
+            <div className="mgv-daily-listen-copy">
+              <span className="mgv-eyebrow">FRAGMENT DNIA</span>
+              <strong>{isPlaying ? `ODTWARZANIE · ${remaining}s` : playElapsed > 0 ? 'POSŁUCHAJ PONOWNIE' : 'GOTOWY NA ODSŁUCH?'}</strong>
+              <p>Skup się na charakterystycznym wokalu, brzmieniu i epoce utworu.</p>
+            </div>
+            <button type="button" className="mgv-audio-cta daily" onClick={onTogglePlay}>
+              <Play size={19} fill="currentColor" />
+              {isPlaying ? `ODTWARZANIE · ${remaining}s` : playElapsed > 0 ? 'ODTWÓRZ PONOWNIE' : 'ODTWÓRZ TERAZ'}
+            </button>
+          </Panel>
+
+          <Panel className="mgv-daily-guess-card" accent="violet">
+            <div className="mgv-section-title"><Sparkles size={18} /><span>TWOJA ODPOWIEDŹ</span><b>0–3 PKT</b></div>
+            <div className="mgv-daily-fields">
+              <label><span>WYKONAWCA</span><input value={guessArtist} onChange={(event) => setGuessArtist(event.target.value)} placeholder="Np. Maanam" autoComplete="off" /></label>
+              <label><span>TYTUŁ</span><input value={guessTitle} onChange={(event) => setGuessTitle(event.target.value)} placeholder="Np. Kocham Cię, kochanie moje" autoComplete="off" /></label>
+              <label className="year"><span>ROK WYDANIA</span><input type="number" inputMode="numeric" value={guessYear} onChange={(event) => setGuessYear(event.target.value)} placeholder="1984" /></label>
+            </div>
+            <p className="mgv-form-note">Nie wiesz? Możesz zostawić pole puste — pozostałe odpowiedzi nadal są punktowane.</p>
+            <button type="button" className="mgv-main-cta" onClick={onSubmit} disabled={busy}>
+              <Check size={19} /> {busy ? 'SPRAWDZAM…' : 'ZATWIERDŹ ODPOWIEDŹ'}
+            </button>
+          </Panel>
+        </>
+      ) : (
+        <>
+          <div className={`mgv-final-mark ${resultAccent}`}><Trophy size={18} /><span>{resultTitle}</span></div>
+          <ModeHero
+            icon={glPiosenka}
+            eyebrow="TWÓJ WYNIK"
+            title={`${score} / 3`}
+            description={score === 3 ? 'Komplet! Dziś nic Cię nie zaskoczyło.' : 'Wynik zapisany. Jutro czeka kolejny utwór.'}
+            accent={resultAccent}
+          />
+
+          <Panel className="mgv-daily-answer-reveal" accent={resultAccent}>
+            <span className="mgv-eyebrow">POPRAWNA ODPOWIEDŹ</span>
+            <strong className="year">{song?.year || '—'}</strong>
+            <h2>{song?.title || '—'}</h2>
+            <p>{song?.artist || '—'}</p>
+            <button type="button" className="mgv-audio-cta daily" onClick={onTogglePlay}>
+              <Play size={18} fill="currentColor" /> {isPlaying ? `ODTWARZANIE · ${remaining}s` : 'ODTWÓRZ UTWÓR'}
+            </button>
+          </Panel>
+
+          <Panel className="mgv-daily-breakdown">
+            <div className="mgv-section-title"><Check size={18} /><span>JAK POSZŁO?</span><b>{score}/3</b></div>
+            <div className="mgv-daily-check-list">
+              <div className={result?.correctArtist ? 'good' : 'bad'}><span>{result?.correctArtist ? <Check size={17} /> : <X size={17} />}</span><div><small>WYKONAWCA</small><strong>{result?.guessArtist || '—'}</strong></div></div>
+              <div className={result?.correctTitle ? 'good' : 'bad'}><span>{result?.correctTitle ? <Check size={17} /> : <X size={17} />}</span><div><small>TYTUŁ</small><strong>{result?.guessTitle || '—'}</strong></div></div>
+              <div className={result?.correctYear ? 'good' : 'bad'}><span>{result?.correctYear ? <Check size={17} /> : <X size={17} />}</span><div><small>ROK</small><strong>{result?.guessYear || '—'}</strong></div></div>
+            </div>
+          </Panel>
+
+          <div className="mgv-result-stat-grid daily">
+            <div><Trophy size={18} /><strong>{score}</strong><span>punkty</span></div>
+            <div><Flame size={18} /><strong>{result?.streak || 0}</strong><span>seria dni</span></div>
+            <div><Zap size={18} /><strong>+{result?.xpEarned || 0}</strong><span>XP</span></div>
+          </div>
+
+          <button type="button" className="mgv-main-cta" onClick={onHome}>WRÓĆ NA STRONĘ GŁÓWNĄ</button>
+        </>
+      )}
+    </MobileSession>
+  );
+}
+
+function TournamentPlayer({ player, me }) {
+  if (!player) return <div className="mgv-tournament-player bye"><span className="mgv-avatar">—</span><div><strong>WOLNY LOS</strong><small>automatyczny awans</small></div></div>;
+  return (
+    <div className={`mgv-tournament-player ${me ? 'me' : ''}`}>
+      <span className="mgv-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>
+        {!player.avatarUrl ? initials(player.name || player.username) : null}
+      </span>
+      <div><strong>{player.name || player.username || 'Gracz'}</strong><small>{me ? 'TY' : 'GRACZ'}</small></div>
+    </div>
+  );
+}
+
+export function MobileTournamentHubView({
+  tournament,
+  lastCompleted,
+  user,
+  busy,
+  tournamentBusy,
+  onSignUp,
+  onStartMatch,
+  onHome,
+  onRefresh,
+}) {
+  const currentUid = user?.uid;
+  const signups = tournament?.signups || [];
+  const alreadyIn = !!currentUid && signups.some((player) => player.uid === currentUid);
+  const winner = tournament?.winnerUid ? signups.find((player) => player.uid === tournament.winnerUid) : null;
+  const status = tournament?.status || 'none';
+  const entryFee = Number(tournament?.entryFee || 0);
+  const pot = Math.max(0, (signups.length - 1) * entryFee);
+
+  if (!tournament) {
+    const previousWinner = lastCompleted?.winnerUid
+      ? (lastCompleted.signups || []).find((player) => player.uid === lastCompleted.winnerUid)
+      : null;
+    return (
+      <MobileSession className="mgv-tournament-page">
+        <MobileHeader eyebrow="RYWALIZACJA" title="TURNIEJ" onBack={onHome} />
+        <ModeHero icon={glTurniej} eyebrow="TURNIEJ TYGODNIA" title="CZEKAJ NA START" description="Aktualnie nie ma aktywnego turnieju. Gdy pojawi się nowy, zapiszesz się właśnie tutaj." accent="gold" />
+        {previousWinner ? <Panel className="mgv-tournament-last" accent="gold"><span className="mgv-eyebrow">OSTATNI ZWYCIĘZCA</span><Trophy size={34} /><strong>{previousWinner.name || 'Gracz'}</strong></Panel> : null}
+        <div className="mgv-action-stack"><button type="button" className="mgv-secondary-cta" onClick={onRefresh}>ODŚWIEŻ</button><button type="button" className="mgv-ghost-cta" onClick={onHome}>STRONA GŁÓWNA</button></div>
+      </MobileSession>
+    );
+  }
+
+  return (
+    <MobileSession className={`mgv-tournament-page status-${status}`}>
+      <MobileHeader
+        eyebrow="RYWALIZACJA"
+        title="TURNIEJ"
+        onBack={onHome}
+        right={<span className="mgv-tournament-fee"><Trophy size={14} />{entryFee} XP</span>}
+      />
+
+      <ModeHero
+        icon={glTurniej}
+        eyebrow={status === 'signup' ? 'TRWAJĄ ZAPISY' : status === 'active' ? 'TURNIEJ W TOKU' : 'TURNIEJ ZAKOŃCZONY'}
+        title={status === 'signup' ? 'WEJDŹ DO GRY' : status === 'active' ? 'DRABINKA TURNIEJOWA' : 'MAMY ZWYCIĘZCĘ'}
+        description={status === 'signup'
+          ? 'Zapisz się, opłać wpisowe XP i walcz o całą pulę.'
+          : status === 'active'
+            ? 'Rozgrywaj swój mecz, gdy tylko pojawi się przy nim przycisk START.'
+            : 'Turniej dobiegł końca. Zobacz zwycięzcę i swój rezultat.'}
+        accent="gold"
+      >
+        <div className="mgv-hero-chips">
+          <span><Users size={14} /> {signups.length}/{tournament.maxPlayers || '—'} graczy</span>
+          <span><Zap size={14} /> {pot} XP dla zwycięzcy</span>
+        </div>
+      </ModeHero>
+
+      {status === 'signup' ? (
+        <>
+          <Panel className="mgv-tournament-signup" accent="gold">
+            <div className="mgv-section-title"><Users size={18} /><span>LISTA GRACZY</span><b>{signups.length}/{tournament.maxPlayers || '—'}</b></div>
+            <div className="mgv-tournament-signups">
+              {signups.length ? signups.map((player) => <TournamentPlayer key={player.uid} player={player} me={player.uid === currentUid} />) : <div className="mgv-empty">Jeszcze nikt się nie zapisał.</div>}
+            </div>
+          </Panel>
+          <Panel className="mgv-tournament-rules" accent="violet">
+            <div className="mgv-tournament-rule"><span><Shield size={18} /></span><div><strong>WPISOWE</strong><small>{entryFee} XP — pobierane zgodnie z zasadami turnieju</small></div></div>
+            <div className="mgv-tournament-rule"><span><Trophy size={18} /></span><div><strong>NAGRODA</strong><small>Zwycięzca zgarnia XP przegranych</small></div></div>
+            <div className="mgv-tournament-rule"><span><Music2 size={18} /></span><div><strong>MECZE</strong><small>Każdy gracz układa tę samą playlistę meczową</small></div></div>
+          </Panel>
+          {alreadyIn
+            ? <div className="mgv-tournament-ready"><Check size={20} /><div><strong>JESTEŚ ZAPISANY</strong><small>Czekamy na komplet graczy i start drabinki.</small></div></div>
+            : <button type="button" className="mgv-main-cta" disabled={tournamentBusy} onClick={onSignUp}><Trophy size={19} /> {tournamentBusy ? 'ZAPISUJĘ…' : `ZAPISZ SIĘ · ${entryFee} XP`}</button>}
+        </>
+      ) : null}
+
+      {status === 'active' ? (
+        <div className="mgv-tournament-rounds">
+          {(tournament.rounds || []).map((round) => (
+            <Panel key={round.roundNumber} className="mgv-tournament-round" accent={round.matches?.length === 1 ? 'gold' : 'violet'}>
+              <div className="mgv-section-title"><Trophy size={18} /><span>{round.matches?.length === 1 ? 'FINAŁ' : `RUNDA ${round.roundNumber}`}</span><b>{round.matches?.length || 0} mecz.</b></div>
+              <div className="mgv-tournament-matches">
+                {(round.matches || []).map((match) => {
+                  const p1 = match.player1;
+                  const p2 = match.player2;
+                  const isMine = !!currentUid && (p1?.uid === currentUid || p2?.uid === currentUid);
+                  const myResult = p1?.uid === currentUid ? match.player1Result : match.player2Result;
+                  const canPlay = isMine && !match.winnerUid && !myResult && !!p2;
+                  const waiting = isMine && !!myResult && !match.winnerUid;
+                  return (
+                    <div key={match.matchId} className={`mgv-tournament-match ${isMine ? 'mine' : ''} ${match.winnerUid ? 'done' : ''}`}>
+                      <div className={`mgv-tournament-side ${match.winnerUid === p1?.uid ? 'winner' : ''}`}>
+                        <TournamentPlayer player={p1} me={p1?.uid === currentUid} />
+                        {match.player1Result ? <b>{match.player1Result.score}/10</b> : null}
+                      </div>
+                      <div className="mgv-tournament-vs"><span>VS</span></div>
+                      <div className={`mgv-tournament-side ${match.winnerUid === p2?.uid ? 'winner' : ''}`}>
+                        <TournamentPlayer player={p2} me={p2?.uid === currentUid} />
+                        {match.player2Result ? <b>{match.player2Result.score}/10</b> : null}
+                      </div>
+                      {canPlay ? <button type="button" className="mgv-main-cta compact" disabled={busy} onClick={() => onStartMatch(match, round.roundNumber)}><Play size={17} fill="currentColor" /> ZAGRAJ SWÓJ MECZ</button> : null}
+                      {waiting ? <div className="mgv-tournament-wait"><Clock3 size={16} /><span>Twój wynik zapisany — czekamy na przeciwnika.</span></div> : null}
+                      {isMine && match.winnerUid ? <div className={`mgv-tournament-verdict ${match.winnerUid === currentUid ? 'good' : 'bad'}`}>{match.winnerUid === currentUid ? <Check size={16} /> : <X size={16} />}<span>{match.winnerUid === currentUid ? 'AWANSUJESZ' : 'KONIEC UDZIAŁU'}</span></div> : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </Panel>
+          ))}
+        </div>
+      ) : null}
+
+      {status === 'completed' ? (
+        <>
+          <div className="mgv-final-mark gold"><Trophy size={18} /><span>TURNIEJ ZAKOŃCZONY</span></div>
+          <Panel className="mgv-tournament-winner" accent="gold">
+            <Trophy size={54} />
+            <span className="mgv-eyebrow">ZWYCIĘZCA TURNIEJU</span>
+            <h1>{winner?.name || 'GRACZ'}</h1>
+            {winner?.uid === currentUid
+              ? <p className="good">Wygrywasz turniej i zgarniesz {pot} XP!</p>
+              : <p>Twój udział dobiegł końca. Wpisowe: {entryFee} XP.</p>}
+          </Panel>
+          <Panel>
+            <div className="mgv-section-title"><Crown size={18} /><span>UCZESTNICY</span><b>{signups.length}</b></div>
+            <div className="mgv-tournament-signups">{signups.map((player) => <TournamentPlayer key={player.uid} player={player} me={player.uid === currentUid} />)}</div>
+          </Panel>
+          <button type="button" className="mgv-main-cta" onClick={onHome}>STRONA GŁÓWNA</button>
+        </>
+      ) : null}
+
+      {status !== 'completed' ? <button type="button" className="mgv-ghost-cta mgv-tournament-refresh" onClick={onRefresh} disabled={tournamentBusy}>ODŚWIEŻ DANE TURNIEJU</button> : null}
     </MobileSession>
   );
 }
@@ -539,8 +829,10 @@ export function MobileHitRushMenuView({ stats, onStart, onLeaderboard, onHome, b
         <div className="mgv-hero-chips"><span><Flame size={14} /> +{bonusSeconds}s co {bonusEvery}</span><span><Zap size={14} /> tempo rośnie</span></div>
       </ModeHero>
       <div className="mgv-result-stat-grid hitrush"><div><Trophy size={18} /><strong>{stats?.hitRushBestScore || 0}</strong><span>rekord</span></div><div><Flame size={18} /><strong>{stats?.hitRushBestCombo || 0}</strong><span>best combo</span></div><div><Gamepad2 size={18} /><strong>{stats?.hitRushRunsTotal || 0}</strong><span>runów</span></div></div>
-      <button type="button" className="mgv-main-cta huge" onClick={onStart}><Play size={23} fill="currentColor" /> START HIT RUSH <ChevronRight size={22} /></button>
-      <button type="button" className="mgv-secondary-cta" onClick={onLeaderboard}><Trophy size={18} /> RANKING HIT RUSH</button>
+      <div className="mgv-action-stack mgv-hitrush-menu-actions">
+        <button type="button" className="mgv-main-cta huge" onClick={onStart}><Play size={23} fill="currentColor" /> START HIT RUSH <ChevronRight size={22} /></button>
+        <button type="button" className="mgv-secondary-cta" onClick={onLeaderboard}><Trophy size={18} /> RANKING HIT RUSH</button>
+      </div>
       <Panel className="mgv-howto-mini"><div className="mgv-section-title"><Sparkles size={18} /><span>JAK TO DZIAŁA?</span></div><div className="mgv-howto-steps"><div><b>1</b><span>Posłuchaj</span></div><div><b>2</b><span>Porównaj</span></div><div><b>3</b><span>Wcześniej / później</span></div><div><b>4</b><span>Buduj combo</span></div></div></Panel>
     </MobileSession>
   );
@@ -573,6 +865,7 @@ export function MobileHitRushResultView({ result, onAgain, onLeaderboard, onHome
   return (
     <MobileSession className="mgv-hitrush-result">
       <MobileHeader eyebrow="HIT RUSH" title="KONIEC RUNU" onBack={onHome} />
+      <div className="mgv-final-mark green"><Zap size={18} /><span>RUN ZAKOŃCZONY</span></div>
       <ModeHero icon={glHitRush} eyebrow={result.isNewBest ? 'NOWY REKORD!' : 'TWÓJ WYNIK'} title={`${result.score} PKT`} description={result.rank ? `Ranga: ${String(result.rank).toUpperCase()}` : 'Każdy run przybliża Cię do lepszego wyniku.'} accent="green" />
       <div className="mgv-result-stat-grid"><div><Check size={18} /><strong>{result.correct || 0}</strong><span>trafień</span></div><div><X size={18} /><strong>{result.wrong || 0}</strong><span>błędów</span></div><div><Flame size={18} /><strong>{result.bestCombo || 0}</strong><span>best combo</span></div><div><Zap size={18} /><strong>{accuracy}%</strong><span>skuteczność</span></div></div>
       {(result.xpGain > 0 || result.hitcoinGain > 0) ? <Panel className="mgv-reward-panel" accent="gold"><span className="mgv-eyebrow">NAGRODY</span><div>{result.xpGain > 0 ? <strong>+{result.xpGain} XP</strong> : null}{result.hitcoinGain > 0 ? <strong>+{result.hitcoinGain} HITCOIN</strong> : null}</div></Panel> : null}
@@ -598,6 +891,7 @@ export function MobileGameOverView({ room, playerId, isHost, onPlayAgain, onLeav
   return (
     <MobileSession className="mgv-gameover-page">
       <MobileHeader eyebrow="KONIEC GRY" title="WYNIKI" onBack={onLeave} />
+      <div className="mgv-final-mark gold"><Trophy size={18} /><span>ROZGRYWKA ZAKOŃCZONA</span></div>
       <Panel className="mgv-winner-panel" accent="gold"><Trophy size={50} /><span className="mgv-eyebrow">ZWYCIĘZCA</span><h1>{winners.length > 1 ? 'REMIS!' : `${winners[0]?.name || 'GRACZ'} WYGRYWA!`}</h1>{winners.length > 1 ? <p>{winners.map((winner) => winner.name).join(' · ')}</p> : null}</Panel>
       <Panel><div className="mgv-section-title"><Crown size={18} /><span>KLASYFIKACJA</span></div><div className="mgv-final-standing">{standings.map((player, index) => <div key={player.id} className={index < 3 ? `podium p${index + 1}` : ''}><span>#{index + 1}</span><span className="mgv-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.name) : null}</span><strong>{player.name}</strong><b>{room.timelines?.[player.id]?.length || 0} kart</b></div>)}</div></Panel>
       {xpSummary?.items?.length ? <Panel className="mgv-reward-panel" accent="violet"><span className="mgv-eyebrow">ZDOBYTE XP</span>{xpSummary.items.map((item, index) => <div className="mgv-reward-row" key={index}><span>{item.label}</span><strong>{item.amount >= 0 ? '+' : ''}{item.amount} XP</strong></div>)}<div className="mgv-reward-row total"><span>RAZEM</span><strong>{xpSummary.total >= 0 ? '+' : ''}{xpSummary.total} XP</strong></div></Panel> : null}
