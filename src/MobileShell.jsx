@@ -711,18 +711,31 @@ function MobileShopView(props) {
   ];
   const [revealed, setRevealed] = useState(() => new Set());
   const [zoomedSong, setZoomedSong] = useState(null);
+  const [revealFx, setRevealFx] = useState(null);
 
   useEffect(() => {
     setRevealed(new Set());
     setZoomedSong(null);
+    setRevealFx(null);
   }, [props.packOpenResult]);
 
+  useEffect(() => {
+    if (!revealFx) return undefined;
+    const durations = { winyl: 520, srebrna: 720, zlota: 930, platynowa: 1180, diamentowa: 1550 };
+    const timer = window.setTimeout(() => setRevealFx(null), durations[revealFx.rarity] || 760);
+    return () => window.clearTimeout(timer);
+  }, [revealFx]);
+
   const revealCard = (index) => {
+    if (revealed.has(index)) return;
+    const item = props.packOpenResult?.[index];
+    const rarity = item?.song ? effectiveRarity(item.song) : 'winyl';
     setRevealed((current) => {
       const next = new Set(current);
       next.add(index);
       return next;
     });
+    setRevealFx({ index, rarity, nonce: Date.now() });
   };
 
   const allRevealed = Boolean(props.packOpenResult?.length) && revealed.size >= props.packOpenResult.length;
@@ -740,20 +753,35 @@ function MobileShopView(props) {
             {props.packOpenResult.map((item, index) => {
               const isRevealed = revealed.has(index);
               const rarityInfo = RARITIES.find((entry) => entry.key === effectiveRarity(item.song)) || RARITIES[1];
+              const rarityKey = effectiveRarity(item.song) || 'winyl';
+              const isActiveReveal = revealFx?.index === index;
               return (
-                <div className={`mob-pack-reveal-slot ${isRevealed ? 'revealed' : ''}`} key={item.song?.id || index} style={{ '--reveal-accent': rarityInfo.color }}>
+                <div className={`mob-pack-reveal-slot rarity-${rarityKey} ${isRevealed ? 'revealed' : ''} ${isActiveReveal ? 'reveal-active' : ''}`} key={item.song?.id || index} style={{ '--reveal-accent': rarityInfo.color }}>
                   {isRevealed ? (
                     <>
-                      <MobileCollectibleCard song={item.song} count={1} onClick={() => setZoomedSong(item.song)} />
+                      <div className="mob-pack-card-reveal-stage">
+                        <MobileCollectibleCard song={item.song} count={1} onClick={() => setZoomedSong(item.song)} />
+                        <span className="mob-pack-card-aura" aria-hidden="true" />
+                      </div>
                       <div className="mob-pack-reveal-meta"><strong>{rarityInfo.label}</strong>{item.isDuplicate ? <span>DUPLIKAT</span> : <span>NOWA KARTA</span>}</div>
                     </>
                   ) : (
-                    <MobileCardBack onClick={() => revealCard(index)} accent={rarityInfo.color} />
+                    <MobileCardBack onClick={() => revealCard(index)} accent="#7765ff" />
                   )}
                 </div>
               );
             })}
           </div>
+          {revealFx ? (
+            <div className={`mob-rarity-reveal-fx rarity-${revealFx.rarity}`} key={revealFx.nonce} aria-hidden="true">
+              <span className="mob-rarity-flash" />
+              <span className="mob-rarity-ring ring-one" />
+              <span className="mob-rarity-ring ring-two" />
+              <span className="mob-rarity-rays" />
+              <span className="mob-rarity-particle p1" /><span className="mob-rarity-particle p2" /><span className="mob-rarity-particle p3" />
+              <span className="mob-rarity-particle p4" /><span className="mob-rarity-particle p5" /><span className="mob-rarity-particle p6" />
+            </div>
+          ) : null}
           <div className="mob-pack-reveal-progress"><span>{revealed.size} / {props.packOpenResult.length} odkrytych</span><i><em style={{ width: `${props.packOpenResult.length ? (revealed.size / props.packOpenResult.length) * 100 : 0}%` }} /></i></div>
           {allRevealed ? <button className="mob-main-cta" onClick={props.onClearPackResult} type="button">GOTOWE — WRÓĆ DO PACZEK</button> : <div className="mob-pack-reveal-hint">ODKRYJ WSZYSTKIE KARTY, ABY KONTYNUOWAĆ</div>}
         </section>

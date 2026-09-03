@@ -758,3 +758,160 @@
   .mob-reward-wheel-card { min-height:286px; }
   .mob-reward-preview-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
+
+/* mobile polish v3.6 — rarity-driven pack reveal FX */
+.mob-pack-reveal { position:relative; isolation:isolate; }
+.mob-pack-reveal-head,
+.mob-pack-reveal-grid,
+.mob-pack-reveal-progress,
+.mob-pack-reveal-hint,
+.mob-pack-reveal > .mob-main-cta { position:relative; z-index:3; }
+.mob-pack-card-reveal-stage { position:relative; z-index:2; }
+.mob-pack-card-reveal-stage > .mob-collectible-card { position:relative; z-index:2; }
+.mob-pack-card-aura {
+  position:absolute;
+  z-index:1;
+  inset:5% 7%;
+  border-radius:24px;
+  background:radial-gradient(circle at 50% 48%, color-mix(in srgb,var(--reveal-accent) 48%,transparent), transparent 68%);
+  filter:blur(18px);
+  opacity:.16;
+  pointer-events:none;
+}
+.mob-pack-reveal-slot.reveal-active .mob-pack-card-reveal-stage { transform-origin:50% 55%; }
+.mob-pack-reveal-slot.reveal-active.rarity-winyl .mob-pack-card-reveal-stage { animation:mob-rarity-winyl .48s cubic-bezier(.2,.8,.2,1); }
+.mob-pack-reveal-slot.reveal-active.rarity-srebrna .mob-pack-card-reveal-stage { animation:mob-rarity-silver .68s cubic-bezier(.18,.88,.25,1.1); }
+.mob-pack-reveal-slot.reveal-active.rarity-zlota .mob-pack-card-reveal-stage { animation:mob-rarity-gold .86s cubic-bezier(.14,.9,.22,1.14); }
+.mob-pack-reveal-slot.reveal-active.rarity-platynowa .mob-pack-card-reveal-stage { animation:mob-rarity-platinum 1.08s cubic-bezier(.12,.9,.18,1.12); }
+.mob-pack-reveal-slot.reveal-active.rarity-diamentowa .mob-pack-card-reveal-stage { animation:mob-rarity-diamond 1.35s cubic-bezier(.1,.92,.16,1.12); }
+
+.mob-pack-reveal-slot.rarity-srebrna.reveal-active .mob-pack-card-aura { opacity:.34; animation:mob-aura-pulse .7s ease-out; }
+.mob-pack-reveal-slot.rarity-zlota.reveal-active .mob-pack-card-aura { opacity:.48; filter:blur(20px); animation:mob-aura-pulse .9s ease-out; }
+.mob-pack-reveal-slot.rarity-platynowa.reveal-active .mob-pack-card-aura { opacity:.58; filter:blur(23px); animation:mob-aura-pulse 1.08s ease-out; }
+.mob-pack-reveal-slot.rarity-diamentowa.reveal-active .mob-pack-card-aura { opacity:.82; filter:blur(27px); animation:mob-aura-diamond 1.35s ease-out; }
+
+.mob-pack-reveal-slot.rarity-srebrna.reveal-active::after,
+.mob-pack-reveal-slot.rarity-zlota.reveal-active::after,
+.mob-pack-reveal-slot.rarity-platynowa.reveal-active::after,
+.mob-pack-reveal-slot.rarity-diamentowa.reveal-active::after {
+  content:'';
+  position:absolute;
+  z-index:5;
+  inset:2% 4% 14%;
+  border-radius:18px;
+  pointer-events:none;
+  background:linear-gradient(112deg,transparent 28%,rgba(255,255,255,.7) 45%,transparent 61%);
+  transform:translateX(-145%) skewX(-12deg);
+  mix-blend-mode:screen;
+  animation:mob-rarity-sheen .7s .08s ease-out forwards;
+}
+.mob-pack-reveal-slot.rarity-zlota.reveal-active::after { animation-duration:.86s; }
+.mob-pack-reveal-slot.rarity-platynowa.reveal-active::after { animation-duration:1s; }
+.mob-pack-reveal-slot.rarity-diamentowa.reveal-active::after { background:linear-gradient(112deg,transparent 22%,rgba(112,255,233,.28) 36%,rgba(255,255,255,.95) 48%,rgba(173,134,255,.34) 60%,transparent 76%); animation-duration:1.18s; }
+
+.mob-rarity-reveal-fx {
+  --fx:#93a7bb;
+  --fx2:#ffffff;
+  position:absolute;
+  z-index:2;
+  inset:0;
+  overflow:hidden;
+  border-radius:inherit;
+  pointer-events:none;
+}
+.mob-rarity-reveal-fx.rarity-winyl { --fx:#93a7bb; --fx2:#5ee5ff; opacity:.34; }
+.mob-rarity-reveal-fx.rarity-srebrna { --fx:#e5edf5; --fx2:#7bdcff; opacity:.58; }
+.mob-rarity-reveal-fx.rarity-zlota { --fx:#ffd45d; --fx2:#ff9d4d; opacity:.78; }
+.mob-rarity-reveal-fx.rarity-platynowa { --fx:#bcaaff; --fx2:#61e9ff; opacity:.9; }
+.mob-rarity-reveal-fx.rarity-diamentowa { --fx:#70ffe9; --fx2:#c285ff; opacity:1; }
+.mob-rarity-flash {
+  position:absolute;
+  inset:-20%;
+  background:radial-gradient(circle at 50% 45%,color-mix(in srgb,var(--fx) 68%,white),color-mix(in srgb,var(--fx) 15%,transparent) 25%,transparent 58%);
+  opacity:0;
+  animation:mob-screen-flash .6s ease-out;
+}
+.mob-rarity-reveal-fx.rarity-zlota .mob-rarity-flash { animation-duration:.78s; }
+.mob-rarity-reveal-fx.rarity-platynowa .mob-rarity-flash { animation-duration:.98s; }
+.mob-rarity-reveal-fx.rarity-diamentowa .mob-rarity-flash { animation:mob-screen-flash-diamond 1.32s ease-out; }
+.mob-rarity-ring {
+  position:absolute;
+  left:50%;
+  top:47%;
+  width:52px;
+  height:52px;
+  border-radius:50%;
+  border:1px solid color-mix(in srgb,var(--fx) 84%,white);
+  box-shadow:0 0 14px color-mix(in srgb,var(--fx) 55%,transparent), inset 0 0 12px color-mix(in srgb,var(--fx2) 22%,transparent);
+  opacity:0;
+  transform:translate(-50%,-50%) scale(.25);
+  animation:mob-ring-burst .72s .05s ease-out forwards;
+}
+.mob-rarity-ring.ring-two { animation-delay:.16s; border-color:color-mix(in srgb,var(--fx2) 74%,white); }
+.mob-rarity-reveal-fx.rarity-winyl .mob-rarity-ring,
+.mob-rarity-reveal-fx.rarity-srebrna .ring-two { display:none; }
+.mob-rarity-reveal-fx.rarity-zlota .mob-rarity-ring { animation-duration:.88s; }
+.mob-rarity-reveal-fx.rarity-platynowa .mob-rarity-ring { animation-duration:1.05s; }
+.mob-rarity-reveal-fx.rarity-diamentowa .mob-rarity-ring { animation-duration:1.3s; border-width:2px; }
+.mob-rarity-rays {
+  position:absolute;
+  left:50%;
+  top:47%;
+  width:260px;
+  height:260px;
+  transform:translate(-50%,-50%) scale(.35) rotate(0deg);
+  opacity:0;
+  background:repeating-conic-gradient(from 0deg,color-mix(in srgb,var(--fx) 42%,transparent) 0deg 2deg,transparent 2deg 19deg);
+  mask-image:radial-gradient(circle,transparent 0 18%,#000 25% 53%,transparent 72%);
+  -webkit-mask-image:radial-gradient(circle,transparent 0 18%,#000 25% 53%,transparent 72%);
+  animation:mob-rays-burst .9s ease-out forwards;
+}
+.mob-rarity-reveal-fx.rarity-winyl .mob-rarity-rays,
+.mob-rarity-reveal-fx.rarity-srebrna .mob-rarity-rays { display:none; }
+.mob-rarity-reveal-fx.rarity-platynowa .mob-rarity-rays { animation-duration:1.08s; }
+.mob-rarity-reveal-fx.rarity-diamentowa .mob-rarity-rays { width:360px; height:360px; animation:mob-rays-diamond 1.4s ease-out forwards; }
+.mob-rarity-particle {
+  position:absolute;
+  left:50%;
+  top:47%;
+  width:5px;
+  height:5px;
+  border-radius:50%;
+  background:var(--fx);
+  box-shadow:0 0 10px var(--fx),0 0 18px var(--fx2);
+  opacity:0;
+  animation:mob-particle-pop .85s ease-out forwards;
+}
+.mob-rarity-reveal-fx.rarity-winyl .mob-rarity-particle,
+.mob-rarity-reveal-fx.rarity-srebrna .mob-rarity-particle { display:none; }
+.mob-rarity-reveal-fx.rarity-zlota .mob-rarity-particle { width:4px; height:4px; }
+.mob-rarity-reveal-fx.rarity-diamentowa .mob-rarity-particle { width:7px; height:7px; animation-duration:1.25s; }
+.mob-rarity-particle.p1 { --px:-105px; --py:-72px; animation-delay:.03s; }
+.mob-rarity-particle.p2 { --px:112px; --py:-54px; animation-delay:.08s; background:var(--fx2); }
+.mob-rarity-particle.p3 { --px:-126px; --py:52px; animation-delay:.12s; }
+.mob-rarity-particle.p4 { --px:124px; --py:72px; animation-delay:.17s; background:var(--fx2); }
+.mob-rarity-particle.p5 { --px:-42px; --py:-116px; animation-delay:.2s; }
+.mob-rarity-particle.p6 { --px:58px; --py:118px; animation-delay:.24s; background:var(--fx2); }
+
+@keyframes mob-rarity-winyl { 0%{opacity:.15;transform:scale(.88)} 60%{transform:scale(1.025)} 100%{opacity:1;transform:scale(1)} }
+@keyframes mob-rarity-silver { 0%{opacity:.08;transform:scale(.84) rotateY(10deg)} 52%{transform:scale(1.045) rotateY(0)} 100%{opacity:1;transform:scale(1)} }
+@keyframes mob-rarity-gold { 0%{opacity:0;transform:scale(.78) rotate(-1.5deg)} 48%{transform:scale(1.07) rotate(.5deg)} 72%{transform:scale(.985)} 100%{opacity:1;transform:scale(1)} }
+@keyframes mob-rarity-platinum { 0%{opacity:0;filter:brightness(2);transform:scale(.72) rotateY(18deg)} 42%{transform:scale(1.09) rotateY(-2deg)} 68%{transform:scale(.98) rotateY(0)} 100%{opacity:1;filter:brightness(1);transform:scale(1)} }
+@keyframes mob-rarity-diamond { 0%{opacity:0;filter:brightness(3) saturate(1.5);transform:scale(.62) rotateY(24deg)} 36%{opacity:1;transform:scale(1.12) rotateY(-3deg)} 60%{transform:scale(.965) rotateY(1deg)} 78%{transform:scale(1.025) rotateY(0)} 100%{filter:brightness(1) saturate(1);transform:scale(1)} }
+@keyframes mob-aura-pulse { 0%{opacity:0;transform:scale(.5)} 45%{opacity:.72;transform:scale(1.18)} 100%{opacity:.18;transform:scale(1)} }
+@keyframes mob-aura-diamond { 0%{opacity:0;transform:scale(.35)} 32%{opacity:1;transform:scale(1.28)} 58%{opacity:.7;transform:scale(.94)} 100%{opacity:.28;transform:scale(1.04)} }
+@keyframes mob-rarity-sheen { 0%{opacity:0;transform:translateX(-145%) skewX(-12deg)} 18%{opacity:.9} 100%{opacity:0;transform:translateX(145%) skewX(-12deg)} }
+@keyframes mob-screen-flash { 0%{opacity:0} 14%{opacity:.44} 100%{opacity:0} }
+@keyframes mob-screen-flash-diamond { 0%{opacity:0} 10%{opacity:.86} 24%{opacity:.22} 38%{opacity:.52} 100%{opacity:0} }
+@keyframes mob-ring-burst { 0%{opacity:0;transform:translate(-50%,-50%) scale(.2)} 22%{opacity:.9} 100%{opacity:0;transform:translate(-50%,-50%) scale(4.8)} }
+@keyframes mob-rays-burst { 0%{opacity:0;transform:translate(-50%,-50%) scale(.3) rotate(0)} 26%{opacity:.52} 100%{opacity:0;transform:translate(-50%,-50%) scale(1.25) rotate(18deg)} }
+@keyframes mob-rays-diamond { 0%{opacity:0;transform:translate(-50%,-50%) scale(.24) rotate(-8deg)} 22%{opacity:.76} 55%{opacity:.4} 100%{opacity:0;transform:translate(-50%,-50%) scale(1.35) rotate(28deg)} }
+@keyframes mob-particle-pop { 0%{opacity:0;transform:translate(-50%,-50%) scale(.2)} 18%{opacity:1} 100%{opacity:0;transform:translate(calc(-50% + var(--px)),calc(-50% + var(--py))) scale(.35)} }
+
+@media (prefers-reduced-motion: reduce) {
+  .mob-pack-reveal-slot.reveal-active .mob-pack-card-reveal-stage,
+  .mob-pack-reveal-slot.reveal-active .mob-pack-card-aura,
+  .mob-pack-reveal-slot.reveal-active::after,
+  .mob-rarity-reveal-fx * { animation:none !important; }
+  .mob-rarity-reveal-fx { display:none; }
+}
