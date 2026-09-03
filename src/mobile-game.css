@@ -314,3 +314,42 @@
   .mgv-token-actions { grid-template-columns:1fr 1fr; }
   .mgv-player-table-head,.mgv-live-player-row { grid-template-columns:minmax(0,1fr) 72px 72px; }
 }
+
+/* v3.5 — game over: collectible reward + evening playlist */
+.mgv-gameover-rewards { overflow:hidden; }
+.mgv-gameover-hitcoin { margin:8px 0 12px; min-height:46px; padding:9px 12px; border:1px solid rgba(245,196,81,.2); border-radius:12px; background:rgba(245,196,81,.06); display:flex; align-items:center; justify-content:space-between; }
+.mgv-gameover-hitcoin span { color:#9f9682; font-size:9px; font-weight:800; letter-spacing:.12em; }
+.mgv-gameover-hitcoin strong { color:#f5c451; font-family:"Bebas Neue",sans-serif; font-size:26px; font-weight:400; }
+.mgv-gameover-card-reward { display:grid; grid-template-columns:minmax(0,1fr) 126px; gap:12px; align-items:center; padding:12px; border-radius:15px; border:1px solid rgba(245,196,81,.2); background:linear-gradient(135deg,rgba(245,196,81,.07),rgba(65,37,96,.11)); }
+.mgv-gameover-card-heading { min-width:0; display:flex; flex-direction:column; align-items:flex-start; }
+.mgv-gameover-card-heading > strong { margin-top:5px; color:#f5c451; font-family:"Bebas Neue",sans-serif; font-size:27px; line-height:1; font-weight:400; letter-spacing:.035em; }
+.mgv-gameover-card-heading > small { margin-top:7px; color:#8d8594; font-size:8px; line-height:1.4; }
+.mgv-gameover-card { position:relative; width:118px; aspect-ratio:2/3; flex:0 0 auto; filter:drop-shadow(0 10px 18px rgba(0,0,0,.35)); }
+.mgv-gameover-card-frame { position:absolute; inset:0; z-index:3; width:100%; height:100%; object-fit:fill; pointer-events:none; }
+.mgv-gameover-card-thumb { position:absolute; z-index:1; left:13.7%; right:13.7%; top:13%; height:35%; overflow:hidden; border-radius:2px; background:#070913; }
+.mgv-gameover-card-thumb img { width:100%; height:100%; object-fit:cover; }
+.mgv-gameover-card-copy { position:absolute; z-index:2; left:14%; right:14%; top:51%; bottom:13%; display:flex; flex-direction:column; align-items:center; text-align:center; overflow:hidden; }
+.mgv-gameover-card-copy strong { color:#fff; font-family:"Bebas Neue",sans-serif; font-size:21px; line-height:1; font-weight:400; text-shadow:0 1px 5px #000; }
+.mgv-gameover-card-copy span,.mgv-gameover-card-copy b { width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mgv-gameover-card-copy span { margin-top:5px; color:#f4f4f7; font-size:7px; font-weight:800; }
+.mgv-gameover-card-copy b { margin-top:2px; color:#a49daa; font-size:6.5px; font-weight:600; }
+.mgv-gameover-no-card { min-height:48px; display:flex; gap:9px; align-items:center; color:#81798a; font-size:9px; }
+.mgv-gameover-no-card svg { color:#5f5968; }
+.mgv-playlist-head { display:flex; align-items:flex-end; justify-content:space-between; gap:10px; }
+.mgv-playlist-head h2 { margin:3px 0 0; font-family:"Bebas Neue",sans-serif; font-size:25px; line-height:1; font-weight:400; letter-spacing:.025em; }
+.mgv-playlist-head > b { color:#ff5fc9; font-size:9px; white-space:nowrap; }
+.mgv-playlist-tabs { display:grid; grid-template-columns:1fr 1fr; gap:5px; margin:12px 0 8px; }
+.mgv-playlist-tabs button { min-height:34px; border-radius:9px; border:1px solid rgba(255,95,201,.13); background:rgba(255,95,201,.035); color:#746d7a; font-size:8px; font-weight:900; letter-spacing:.08em; }
+.mgv-playlist-tabs button.active { color:#ff6dcc; border-color:rgba(255,95,201,.38); background:rgba(255,95,201,.11); box-shadow:inset 0 0 16px rgba(255,95,201,.04); }
+.mgv-evening-list { display:flex; flex-direction:column; gap:5px; max-height:310px; overflow-y:auto; padding-right:2px; }
+.mgv-evening-row { min-height:53px; padding:7px 8px; display:grid; grid-template-columns:27px minmax(0,1fr) auto; gap:8px; align-items:center; border-radius:11px; border:1px solid rgba(255,255,255,.055); background:rgba(4,7,20,.7); text-decoration:none; color:#f4f4f7; }
+.mgv-evening-row:active { transform:scale(.995); border-color:rgba(255,95,201,.25); }
+.mgv-playlist-result { width:26px; height:26px; display:grid; place-items:center; border-radius:8px; }
+.mgv-playlist-result.good { color:#4ef0a6; background:rgba(49,228,145,.09); border:1px solid rgba(49,228,145,.16); }
+.mgv-playlist-result.bad { color:#ff6384; background:rgba(255,78,118,.08); border:1px solid rgba(255,78,118,.15); }
+.mgv-playlist-copy { min-width:0; display:flex; flex-direction:column; }
+.mgv-playlist-copy strong { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:8.5px; line-height:1.35; }
+.mgv-playlist-copy small { margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#736d79; font-size:7px; }
+.mgv-evening-row > b { color:#ff70cf; font-family:"Bebas Neue",sans-serif; font-size:18px; font-weight:400; }
+.mgv-playlist-note { margin:8px 1px 0; color:#696271; font-size:7px; line-height:1.45; }
+@media (max-width:370px) { .mgv-gameover-card-reward { grid-template-columns:minmax(0,1fr) 108px; } .mgv-gameover-card { width:102px; } }

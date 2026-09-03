@@ -34,10 +34,50 @@ import glPiosenka from './assets/icons/gl-piosenka.png';
 import glTurniej from './assets/icons/gl-turniej.png';
 import glHitRush from './assets/icons/gl-hitrush.png';
 import glKorona from './assets/icons/gl-korona.png';
+import cardWinylImg from './assets/icons/card-winyl.webp';
+import cardSrebroImg from './assets/icons/card-srebro.webp';
+import cardZlotoImg from './assets/icons/card-zlota.webp';
+import cardPlatynaImg from './assets/icons/card-platynowa.webp';
+import cardDiamentImg from './assets/icons/card-diamentowa.webp';
+import { effectiveRarity } from './cards.js';
 
 function initials(label) {
   const raw = String(label || 'G').trim();
   return raw.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() || '').join('') || 'G';
+}
+
+const GAMEOVER_CARD_FRAMES = {
+  winyl: cardWinylImg,
+  srebrna: cardSrebroImg,
+  zlota: cardZlotoImg,
+  platynowa: cardPlatynaImg,
+  diamentowa: cardDiamentImg,
+};
+
+const GAMEOVER_RARITY_LABELS = {
+  winyl: 'WINYL',
+  srebrna: 'SREBRNA',
+  zlota: 'ZŁOTA',
+  platynowa: 'PLATYNOWA',
+  diamentowa: 'DIAMENTOWA',
+};
+
+function GameOverCollectibleCard({ song }) {
+  if (!song) return null;
+  const rarity = effectiveRarity(song);
+  const frame = GAMEOVER_CARD_FRAMES[rarity] || GAMEOVER_CARD_FRAMES.winyl;
+  const thumb = song.videoId ? `https://img.youtube.com/vi/${song.videoId}/hqdefault.jpg` : null;
+  return (
+    <div className="mgv-gameover-card">
+      <img className="mgv-gameover-card-frame" src={frame} alt="" />
+      {thumb ? <div className="mgv-gameover-card-thumb"><img src={thumb} alt="" /></div> : null}
+      <div className="mgv-gameover-card-copy">
+        <strong>{song.year || '—'}</strong>
+        <span>{song.artist || '—'}</span>
+        <b>{song.title || '—'}</b>
+      </div>
+    </div>
+  );
 }
 
 function MobileSession({ children, className = '' }) {
@@ -934,8 +974,13 @@ export function MobileHitRushLeaderboardView({ rows = [], period, onPeriod, onBa
 }
 
 export function MobileGameOverView({ room, playerId, isHost, onPlayAgain, onLeave, onTournamentBack, xpSummary, gameEndReward }) {
+  const [playlistScope, setPlaylistScope] = useState('all');
   const winners = (room.winnerIds || []).map((id) => room.players.find((player) => player.id === id)).filter(Boolean);
   const standings = [...room.players].sort((a, b) => (room.timelines?.[b.id]?.length || 0) - (room.timelines?.[a.id]?.length || 0));
+  const playedCards = Array.isArray(room.playedCards) ? room.playedCards : [];
+  const visiblePlaylist = playlistScope === 'mine' ? playedCards.filter((card) => card.playerId === playerId) : playedCards;
+  const rewardSong = gameEndReward?.card?.song || null;
+  const rewardRarity = rewardSong ? effectiveRarity(rewardSong) : null;
   return (
     <MobileSession className="mgv-gameover-page">
       <MobileHeader eyebrow="KONIEC GRY" title="WYNIKI" onBack={onLeave} />
@@ -943,7 +988,52 @@ export function MobileGameOverView({ room, playerId, isHost, onPlayAgain, onLeav
       <Panel className="mgv-winner-panel" accent="gold"><Trophy size={50} /><span className="mgv-eyebrow">ZWYCIĘZCA</span><h1>{winners.length > 1 ? 'REMIS!' : `${winners[0]?.name || 'GRACZ'} WYGRYWA!`}</h1>{winners.length > 1 ? <p>{winners.map((winner) => winner.name).join(' · ')}</p> : null}</Panel>
       <Panel><div className="mgv-section-title"><Crown size={18} /><span>KLASYFIKACJA</span></div><div className="mgv-final-standing">{standings.map((player, index) => <div key={player.id} className={index < 3 ? `podium p${index + 1}` : ''}><span>#{index + 1}</span><span className="mgv-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.name) : null}</span><strong>{player.name}</strong><b>{room.timelines?.[player.id]?.length || 0} kart</b></div>)}</div></Panel>
       {xpSummary?.items?.length ? <Panel className="mgv-reward-panel" accent="violet"><span className="mgv-eyebrow">ZDOBYTE XP</span>{xpSummary.items.map((item, index) => <div className="mgv-reward-row" key={index}><span>{item.label}</span><strong>{item.amount >= 0 ? '+' : ''}{item.amount} XP</strong></div>)}<div className="mgv-reward-row total"><span>RAZEM</span><strong>{xpSummary.total >= 0 ? '+' : ''}{xpSummary.total} XP</strong></div></Panel> : null}
-      {gameEndReward?.hitcoinTotal > 0 ? <Panel className="mgv-reward-panel" accent="gold"><span className="mgv-eyebrow">HITCOIN</span><div className="mgv-big-reward">+{gameEndReward.hitcoinTotal} HITCOIN</div></Panel> : null}
+      {gameEndReward ? (
+        <Panel className="mgv-gameover-rewards" accent="gold">
+          <div className="mgv-section-title"><Gift size={18} /><span>NAGRODY ZA ROZGRYWKĘ</span></div>
+          {gameEndReward.hitcoinTotal > 0 ? <div className="mgv-gameover-hitcoin"><span>HITCOIN</span><strong>+{gameEndReward.hitcoinTotal}</strong></div> : null}
+          {rewardSong ? (
+            <div className="mgv-gameover-card-reward">
+              <div className="mgv-gameover-card-heading">
+                <span className="mgv-eyebrow">WYLOSOWANA KARTA</span>
+                <strong>{GAMEOVER_RARITY_LABELS[rewardRarity] || 'KARTA'}</strong>
+                {gameEndReward.card?.isDuplicate ? <small>DUPLIKAT · tę kartę masz już w kolekcji</small> : <small>NOWA KARTA W KOLEKCJI</small>}
+              </div>
+              <GameOverCollectibleCard song={rewardSong} />
+            </div>
+          ) : <div className="mgv-gameover-no-card"><Disc3 size={22} /><span>W tej rozgrywce nie wylosowano karty.</span></div>}
+        </Panel>
+      ) : null}
+      {playedCards.length > 0 ? (
+        <Panel className="mgv-evening-playlist" accent="pink">
+          <div className="mgv-playlist-head">
+            <div>
+              <span className="mgv-eyebrow">MUZYKA Z TEJ GRY</span>
+              <h2>PLAYLISTA WIECZORU</h2>
+            </div>
+            <b>{visiblePlaylist.length} utw.</b>
+          </div>
+          <div className="mgv-playlist-tabs">
+            <button type="button" className={playlistScope === 'all' ? 'active' : ''} onClick={() => setPlaylistScope('all')}>WSZYSCY</button>
+            <button type="button" className={playlistScope === 'mine' ? 'active' : ''} onClick={() => setPlaylistScope('mine')}>TYLKO MOJE</button>
+          </div>
+          <div className="mgv-evening-list">
+            {visiblePlaylist.length ? visiblePlaylist.map((card, index) => {
+              const owner = room.players.find((player) => player.id === card.playerId);
+              const href = card.videoId ? `https://www.youtube.com/watch?v=${card.videoId}` : null;
+              const row = (
+                <>
+                  <span className={`mgv-playlist-result ${card.correct ? 'good' : 'bad'}`}>{card.correct ? <Check size={15} /> : <X size={15} />}</span>
+                  <span className="mgv-playlist-copy"><strong>{card.artist} — {card.title}</strong><small>{owner?.name || 'Gracz'}{card.guessedCorrect === true ? ' · tytuł/wykonawca trafiony' : card.guessedCorrect === false ? ' · tytuł/wykonawca nietrafiony' : ''}</small></span>
+                  <b>{card.year}</b>
+                </>
+              );
+              return href ? <a key={`${card.videoId}-${index}`} className="mgv-evening-row" href={href} target="_blank" rel="noreferrer">{row}</a> : <div key={`song-${index}`} className="mgv-evening-row">{row}</div>;
+            }) : <div className="mgv-empty">Brak utworów do wyświetlenia.</div>}
+          </div>
+          <p className="mgv-playlist-note">Kliknij utwór, aby otworzyć go w YouTube. ✓ oznacza poprawne umieszczenie na osi.</p>
+        </Panel>
+      ) : null}
       <div className="mgv-action-stack">{isHost && !room.tournamentMode ? <button type="button" className="mgv-main-cta" onClick={onPlayAgain}><RotateCcw size={19} /> ZAGRAJ PONOWNIE</button> : null}{room.tournamentMode && onTournamentBack ? <button type="button" className="mgv-main-cta" onClick={onTournamentBack}><Trophy size={18} /> WRÓĆ DO TURNIEJU</button> : null}<button type="button" className="mgv-secondary-cta" onClick={onLeave}><LogOut size={18} /> OPUŚĆ POKÓJ</button></div>
     </MobileSession>
   );
