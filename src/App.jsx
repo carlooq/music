@@ -5070,6 +5070,7 @@ export default function App() {
 
   if (useMobileRedesign) {
     return (
+      <>
       <MobileAppView
         user={user}
         authChecked={authChecked}
@@ -5139,6 +5140,11 @@ export default function App() {
         challengeBusy={challengeBusy}
         onAvatarUpload={handleAvatarUpload}
         avatarUploadBusy={avatarUploadBusy}
+        adminUnlocked={adminUnlocked}
+        onAdmin={() => {
+          if (adminUnlocked) setShowAdminPanel(true);
+          else setShowAdminLogin(true);
+        }}
         onChallenge={handleSendChallenge}
         proposeDraft={proposeDraft}
         setProposeDraft={setProposeDraft}
@@ -5149,6 +5155,45 @@ export default function App() {
         proposeError={proposeError}
         proposeSuccess={proposeSuccess}
       />
+
+      {showAdminLogin ? (
+        <div className="desk-admin-modal-backdrop" role="dialog" aria-modal="true" aria-label="Logowanie administratora">
+          <div className="desk-admin-login-card">
+            <div className="desk-admin-modal-eyebrow">TRYB ADMINISTRATORA</div>
+            <h2>PANEL ADMINA</h2>
+            <p>Podaj hasło administratora, aby otworzyć panel bez opuszczania mobilnego interfejsu.</p>
+            <input
+              autoFocus
+              type="password"
+              value={adminPasswordInput}
+              onChange={(e) => setAdminPasswordInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && unlockAdmin()}
+              placeholder="Hasło admina"
+            />
+            {adminError ? <div className="desk-admin-login-error">{adminError}</div> : null}
+            <div className="desk-admin-login-actions">
+              <button type="button" className="ghost" onClick={() => { setShowAdminLogin(false); setAdminError(""); }}>ANULUJ</button>
+              <button type="button" className="primary" onClick={unlockAdmin}>OTWÓRZ PANEL</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showAdminPanel ? (
+        <div className="desk-admin-modal-backdrop admin-panel" role="dialog" aria-modal="true" aria-label="Panel administratora">
+          <div
+            className="desk-admin-modal-card"
+            style={{
+              '--bg': '#05060d', '--surface': 'rgba(12,12,28,0.98)', '--surface2': 'rgba(18,18,42,0.98)',
+              '--accent': '#4fd6ff', '--accent2': '#8b5cf6', '--accent3': '#ff5fc9', '--gold': '#f5c451',
+              '--text': '#f2edff', '--muted': '#8f879f', '--good': '#2af598', '--bad': '#ff3868'
+            }}
+          >
+            {adminPanelContent}
+          </div>
+        </div>
+      ) : null}
+      </>
     );
   }
 

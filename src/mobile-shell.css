@@ -521,3 +521,164 @@
   .mob-profile-metrics.full { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .mob-profile-secondary { grid-template-columns:1fr; }
 }
+
+/* mobile polish v3.1 — card zoom, admin access, pack reveal */
+.mob-card-zoom-backdrop {
+  z-index: 260;
+  padding: 18px 12px;
+  overflow: auto;
+}
+.mob-card-zoom {
+  position: relative;
+  width: min(88vw, 370px);
+  margin: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mob-card-zoom-card {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  flex: 0 0 auto;
+  filter: drop-shadow(0 18px 42px rgba(0,0,0,.58));
+}
+.mob-card-zoom-card .mob-collectible-card,
+.mob-collectible-card.large {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 2 / 3;
+}
+.mob-card-zoom-card .mob-collectible-frame {
+  object-fit: contain;
+}
+.mob-card-zoom-card .mob-collectible-thumb {
+  top: 16.2%;
+  height: 44%;
+}
+.mob-card-zoom-card .mob-collectible-year { font-size: 46px; }
+.mob-card-zoom-card .mob-collectible-artist { font-size: 11px; }
+.mob-card-zoom-card .mob-collectible-title { font-size: 12px; }
+.mob-card-zoom-close,
+.mob-card-zoom > .mob-card-zoom-close {
+  position: absolute;
+  z-index: 8;
+  right: -4px;
+  top: -4px;
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255,255,255,.16);
+  background: rgba(7,10,27,.96);
+  color: #fff;
+  box-shadow: 0 0 20px rgba(78,214,255,.12);
+}
+
+.mob-admin-section { margin-top: 14px; }
+.mob-admin-section-label {
+  display: block;
+  margin: 0 0 7px 3px;
+  color: #666173;
+  font-size: 5px;
+  letter-spacing: .16em;
+}
+.mob-admin-entry {
+  width: 100%;
+  min-height: 70px;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: 38px minmax(0,1fr) 18px;
+  gap: 10px;
+  align-items: center;
+  text-align: left;
+  border-radius: 15px;
+  border: 1px solid rgba(255,87,207,.18);
+  background: linear-gradient(145deg,rgba(26,11,39,.96),rgba(7,9,25,.98));
+  color: #fff;
+  box-shadow: inset 0 0 22px rgba(255,73,201,.025);
+}
+.mob-admin-entry > svg:first-child { color:#ff62ce; filter:drop-shadow(0 0 9px rgba(255,75,203,.3)); }
+.mob-admin-entry > svg:last-child { color:#766d80; }
+.mob-admin-entry div { min-width:0; }
+.mob-admin-entry strong { display:block; font-family:'Bebas Neue',sans-serif; font-size:20px; font-weight:400; color:#ff7bd7; }
+.mob-admin-entry span { display:block; margin-top:2px; color:#7d7485; font-size:5.5px; }
+.mob-admin-entry.unlocked { border-color:rgba(65,231,255,.24); background:linear-gradient(145deg,rgba(7,29,39,.96),rgba(7,9,25,.98)); }
+.mob-admin-entry.unlocked > svg:first-child,.mob-admin-entry.unlocked strong { color:#59e6ff; }
+
+.mob-pack-reveal { padding: 14px 12px 13px; overflow: hidden; }
+.mob-pack-reveal-head {
+  display: grid;
+  grid-template-columns: 34px minmax(0,1fr);
+  gap: 9px;
+  align-items: start;
+  margin-bottom: 13px;
+}
+.mob-pack-reveal-head > svg { color:#ffd45d; filter:drop-shadow(0 0 10px rgba(255,204,71,.28)); }
+.mob-pack-reveal-head span { display:block; color:#8b8293; font-size:5px; letter-spacing:.13em; }
+.mob-pack-reveal-head h2 { margin:2px 0 0; font-family:'Bebas Neue',sans-serif; font-size:27px; line-height:1; font-weight:400; background:linear-gradient(90deg,#fff,#ffd45d 48%,#ff6dce); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.mob-pack-reveal-head p { margin:4px 0 0; color:#7f7889; font-size:5.8px; line-height:1.45; }
+.mob-pack-reveal-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:13px 9px; align-items:start; }
+.mob-pack-reveal-slot { position:relative; min-width:0; }
+.mob-pack-reveal-slot.revealed { animation:mob-card-pop .42s cubic-bezier(.2,.85,.25,1.15); }
+@keyframes mob-card-pop { from{opacity:.25;transform:scale(.86) rotateY(16deg)} to{opacity:1;transform:scale(1) rotateY(0)} }
+.mob-card-back {
+  position:relative;
+  width:100%;
+  aspect-ratio:2 / 3;
+  padding:0;
+  border:0;
+  background:transparent;
+  cursor:pointer;
+  filter:drop-shadow(0 12px 24px rgba(0,0,0,.42));
+}
+.mob-card-back::before {
+  content:'';
+  position:absolute;
+  inset:7% 8%;
+  border-radius:20px;
+  background:radial-gradient(circle,var(--reveal-accent),transparent 68%);
+  opacity:.13;
+  filter:blur(12px);
+  pointer-events:none;
+}
+.mob-card-back img { position:relative; z-index:1; width:100%; height:100%; display:block; object-fit:contain; }
+.mob-card-back span {
+  position:absolute;
+  z-index:2;
+  left:12%; right:12%; bottom:10%;
+  padding:6px 4px;
+  border-radius:999px;
+  color:#d9d4e4;
+  background:rgba(3,6,18,.78);
+  border:1px solid color-mix(in srgb,var(--reveal-accent) 28%,transparent);
+  font-size:4.7px;
+  letter-spacing:.08em;
+  text-align:center;
+  box-shadow:0 0 13px color-mix(in srgb,var(--reveal-accent) 10%,transparent);
+}
+.mob-pack-reveal-meta { margin-top:5px; display:flex; align-items:center; justify-content:center; gap:5px; }
+.mob-pack-reveal-meta strong,.mob-pack-reveal-meta span { padding:3px 6px; border-radius:999px; font-size:4.5px; letter-spacing:.07em; }
+.mob-pack-reveal-meta strong { color:var(--reveal-accent); border:1px solid color-mix(in srgb,var(--reveal-accent) 25%,transparent); background:color-mix(in srgb,var(--reveal-accent) 5%,transparent); }
+.mob-pack-reveal-meta span { color:#847d8d; background:rgba(255,255,255,.035); }
+.mob-pack-reveal-progress { margin:14px 0 11px; }
+.mob-pack-reveal-progress > span { display:block; margin-bottom:5px; color:#81798b; font-size:5px; text-align:center; }
+.mob-pack-reveal-progress > i { display:block; height:5px; border-radius:99px; overflow:hidden; background:rgba(255,255,255,.055); }
+.mob-pack-reveal-progress > i > em { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#4ce2ff,#9568ff 57%,#ff59ca); box-shadow:0 0 8px rgba(91,215,255,.24); transition:width .22s ease; }
+.mob-pack-reveal-hint { min-height:35px; display:flex; align-items:center; justify-content:center; color:#6f6978; font-size:5px; letter-spacing:.08em; text-align:center; }
+
+@media (max-height: 700px) {
+  .mob-card-zoom { width:min(70vw,290px); }
+  .mob-card-zoom-card .mob-collectible-year { font-size:38px; }
+}
+
+/* Existing admin overlay, adapted to mobile instead of falling back to legacy UI. */
+@media (max-width: 1279px) {
+  .desk-admin-modal-backdrop { padding:12px; }
+  .desk-admin-login-card { width:min(100%,430px); padding:22px 18px; border-radius:20px; }
+  .desk-admin-login-card h2 { font-size:38px; }
+  .desk-admin-login-actions { grid-template-columns:1fr; }
+  .desk-admin-modal-backdrop.admin-panel { padding:8px; }
+  .desk-admin-modal-card { width:100%; max-width:none; min-height:calc(100dvh - 16px); margin:0; padding:13px; border-radius:18px; overflow:auto; }
+}

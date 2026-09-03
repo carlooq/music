@@ -26,6 +26,7 @@ import {
   Gamepad2,
   Send,
   Info,
+  Settings,
 } from 'lucide-react';
 
 import logoImg from './assets/logo-v2.png';
@@ -55,6 +56,7 @@ import cardSrebroImg from './assets/icons/card-srebro.webp';
 import cardZlotoImg from './assets/icons/card-zlota.webp';
 import cardPlatynaImg from './assets/icons/card-platynowa.webp';
 import cardDiamentImg from './assets/icons/card-diamentowa.webp';
+import cardRewersImg from './assets/icons/card-rewers-v2.webp';
 import { effectiveRarity } from './cards.js';
 import './mobile-shell.css';
 
@@ -98,6 +100,29 @@ function MobileCollectibleCard({ song, count = 1, onClick, large = false }) {
       </div>
       {count > 1 ? <b className="mob-collectible-count">×{count}</b> : null}
     </button>
+  );
+}
+
+function MobileCardBack({ onClick, accent = '#55e4ff' }) {
+  return (
+    <button type="button" className="mob-card-back" onClick={onClick} style={{ '--reveal-accent': accent }}>
+      <img src={cardRewersImg} alt="Rewers karty" />
+      <span>KLIKNIJ, ABY ODKRYĆ</span>
+    </button>
+  );
+}
+
+function MobileCardZoom({ song, count = 1, onClose }) {
+  if (!song) return null;
+  return (
+    <div className="mob-card-zoom-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-label="Podgląd karty">
+      <div className="mob-card-zoom" onClick={(e) => e.stopPropagation()}>
+        <button className="mob-card-zoom-close" type="button" onClick={onClose} aria-label="Zamknij"><X size={20} /></button>
+        <div className="mob-card-zoom-card">
+          <MobileCollectibleCard song={song} count={count} large />
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -575,7 +600,7 @@ function MobileCollectionView(props) {
 
       {filtered.length > visibleCount ? <button type="button" className="mob-load-more" onClick={() => setVisibleCount((v) => v + 40)}>POKAŻ WIĘCEJ <small>({filtered.length - visibleCount} pozostało)</small></button> : null}
 
-      {zoomedSong ? <div className="mob-card-zoom-backdrop" onClick={() => setZoomedSong(null)}><div className="mob-card-zoom" onClick={(e) => e.stopPropagation()}><button type="button" onClick={() => setZoomedSong(null)}><X size={20} /></button><MobileCollectibleCard song={zoomedSong} count={Number(collection[zoomedSong.id] || 1)} large /></div></div> : null}
+      <MobileCardZoom song={zoomedSong} count={zoomedSong ? Number(collection[zoomedSong.id] || 1) : 1} onClose={() => setZoomedSong(null)} />
     </div>
   );
 }
@@ -670,14 +695,53 @@ function MobileShopView(props) {
     { key: '75', title: 'ROZSZERZONA', img: packRozszerzona, color: '#a96cff' },
     { key: '100', title: 'PREMIUM', img: packPremium, color: '#ffd04f' },
   ];
+  const [revealed, setRevealed] = useState(() => new Set());
+  const [zoomedSong, setZoomedSong] = useState(null);
+
+  useEffect(() => {
+    setRevealed(new Set());
+    setZoomedSong(null);
+  }, [props.packOpenResult]);
+
+  const revealCard = (index) => {
+    setRevealed((current) => {
+      const next = new Set(current);
+      next.add(index);
+      return next;
+    });
+  };
+
+  const allRevealed = Boolean(props.packOpenResult?.length) && revealed.size >= props.packOpenResult.length;
+
   return (
     <div className="mob-stack mob-inner-view">
       <MobileSectionHeader title="SKLEP" subtitle={`Saldo: ${compact(props.hitcoin)} HITCOIN`} icon={<ShoppingCart size={24} />} onBack={() => props.onNavigate('home')} />
       {props.packOpenResult?.length ? (
-        <section className="mob-panel mob-pack-result">
-          <div className="mob-panel-title"><Sparkles size={17} /> OTWARTA PACZKA</div>
-          <div className="mob-pack-result-grid">{props.packOpenResult.map((item, index) => <div key={item.song?.id || index}><strong>{item.song?.year || '—'}</strong><span>{item.song?.title || 'Karta'}</span><small>{item.song?.artist || ''}</small></div>)}</div>
-          <button className="mob-main-cta" onClick={props.onClearPackResult} type="button">WRÓĆ DO PACZEK</button>
+        <section className="mob-panel mob-pack-reveal">
+          <div className="mob-pack-reveal-head">
+            <Sparkles size={20} />
+            <div><span>PACZKA OTWARTA</span><h2>ODKRYJ SWOJE KARTY</h2><p>Klikaj rewersy po kolei i sprawdź, co wylosowałeś.</p></div>
+          </div>
+          <div className="mob-pack-reveal-grid">
+            {props.packOpenResult.map((item, index) => {
+              const isRevealed = revealed.has(index);
+              const rarityInfo = RARITIES.find((entry) => entry.key === effectiveRarity(item.song)) || RARITIES[1];
+              return (
+                <div className={`mob-pack-reveal-slot ${isRevealed ? 'revealed' : ''}`} key={item.song?.id || index} style={{ '--reveal-accent': rarityInfo.color }}>
+                  {isRevealed ? (
+                    <>
+                      <MobileCollectibleCard song={item.song} count={1} onClick={() => setZoomedSong(item.song)} />
+                      <div className="mob-pack-reveal-meta"><strong>{rarityInfo.label}</strong>{item.isDuplicate ? <span>DUPLIKAT</span> : <span>NOWA KARTA</span>}</div>
+                    </>
+                  ) : (
+                    <MobileCardBack onClick={() => revealCard(index)} accent={rarityInfo.color} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div className="mob-pack-reveal-progress"><span>{revealed.size} / {props.packOpenResult.length} odkrytych</span><i><em style={{ width: `${props.packOpenResult.length ? (revealed.size / props.packOpenResult.length) * 100 : 0}%` }} /></i></div>
+          {allRevealed ? <button className="mob-main-cta" onClick={props.onClearPackResult} type="button">GOTOWE — WRÓĆ DO PACZEK</button> : <div className="mob-pack-reveal-hint">ODKRYJ WSZYSTKIE KARTY, ABY KONTYNUOWAĆ</div>}
         </section>
       ) : (
         <div className="mob-pack-stack">
@@ -688,6 +752,7 @@ function MobileShopView(props) {
           })}
         </div>
       )}
+      <MobileCardZoom song={zoomedSong} count={1} onClose={() => setZoomedSong(null)} />
     </div>
   );
 }
@@ -760,6 +825,16 @@ function MobileMoreView(props) {
     <div className="mob-stack mob-inner-view">
       <MobileSectionHeader title="WIĘCEJ" subtitle="Wszystkie funkcje Hitsteriady." icon={<Menu size={24} />} onBack={() => props.onNavigate('home')} />
       <div className="mob-more-grid">{items.map(([id, title, icon, desc]) => { const locked = !props.user && id !== 'guide'; return <button type="button" key={id} className={locked ? 'locked' : ''} onClick={() => locked ? props.onRequireLogin?.() : props.onNavigate(id)}><img src={icon} alt="" /><div><strong>{title}</strong><span>{locked ? 'Zaloguj się, aby odblokować' : desc}</span></div>{locked ? <Lock size={15} /> : <ChevronRight size={17} />}</button>; })}</div>
+      {props.onAdmin ? (
+        <section className="mob-admin-section">
+          <span className="mob-admin-section-label">NARZĘDZIA</span>
+          <button type="button" className={`mob-admin-entry ${props.adminUnlocked ? 'unlocked' : ''}`} onClick={props.onAdmin}>
+            <Settings size={22} />
+            <div><strong>{props.adminUnlocked ? 'PANEL ADMINA' : 'TRYB ADMINA'}</strong><span>{props.adminUnlocked ? 'Otwórz narzędzia administratora' : 'Dostęp chroniony hasłem'}</span></div>
+            <ChevronRight size={17} />
+          </button>
+        </section>
+      ) : null}
     </div>
   );
 }
