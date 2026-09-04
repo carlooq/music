@@ -429,7 +429,7 @@ function MobileStatsView(props) {
   }, []); // load once when mobile statistics open
 
   return (
-    <div className="mob-stack mob-inner-view">
+    <div className="mob-stack mob-inner-view mob-stats-view">
       <MobileSectionHeader title="STATYSTYKI" subtitle="Pełny obraz Twojej gry, skuteczności i postępu." icon={<BarChart3 size={24} />} onBack={() => props.onNavigate('home')} />
 
       <section className="mob-level-card mob-panel">
@@ -683,7 +683,7 @@ function MobileRankingView(props) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const rows = props.leaderboard || [];
   return (
-    <div className="mob-stack mob-inner-view">
+    <div className="mob-stack mob-inner-view mob-ranking-view">
       <MobileSectionHeader title="RANKING" subtitle="Najlepsi gracze Hitsteriady." icon={<Crown size={24} />} onBack={() => props.onNavigate('home')} />
       <div className="mob-ranking-tabs">
         <button type="button" className={props.leaderboardSort === 'gamesWon' ? 'active' : ''} onClick={() => props.onLoadLeaderboard?.('gamesWon')}>WYGRANE</button>

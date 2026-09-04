@@ -1108,3 +1108,84 @@
     padding-right: 9px !important;
   }
 }
+
+/* mobile readability v4.1 — Statistics + Ranking
+   Targeted overrides only: keep the rest of the mobile UI untouched. */
+.mob-stats-view .mob-section-head p,
+.mob-ranking-view .mob-section-head p {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* STATISTICS */
+.mob-stats-view .mob-level-card-top { font-size: 13px; }
+.mob-stats-view .mob-level-card-top b { font-size: 12px; }
+.mob-stats-view .mob-level-card small { font-size: 12px; line-height: 1.45; }
+
+.mob-stats-view .mob-stats-feature { min-height: 124px; padding: 12px 10px; }
+.mob-stats-view .mob-stats-feature > span { font-size: 10.5px; line-height: 1.25; }
+.mob-stats-view .mob-stats-feature > strong { font-size: 27px; }
+.mob-stats-view .mob-stats-feature > small { font-size: 10.5px; line-height: 1.25; }
+
+.mob-stats-view .mob-panel-title { font-size: 12px; line-height: 1.3; letter-spacing: .08em; }
+.mob-stats-view .mob-panel-title > small { font-size: 10px; line-height: 1.2; }
+
+.mob-stats-view .mob-challenge-number { width: 32px; height: 32px; font-size: 18px; }
+.mob-stats-view .mob-challenge-row { grid-template-columns: 34px minmax(0,1fr) auto; column-gap: 9px; padding-top: 13px; padding-bottom: 13px; }
+.mob-stats-view .mob-challenge-copy strong { font-size: 12.5px; line-height: 1.4; }
+.mob-stats-view .mob-challenge-copy span { font-size: 10.5px; line-height: 1.45; }
+.mob-stats-view .mob-challenge-row > small { font-size: 10.5px; }
+.mob-stats-view .mob-challenge-row > button { min-height: 36px; font-size: 11px; }
+
+.mob-stats-view .mob-metric-grid.full .mob-metric { min-height: 106px; padding: 11px 10px; }
+.mob-stats-view .mob-metric-grid.full .mob-metric strong { font-size: 30px; }
+.mob-stats-view .mob-metric-grid.full .mob-metric span { font-size: 10.5px; line-height: 1.35; }
+
+.mob-stats-view .mob-decade-row { grid-template-columns: 86px minmax(0,1fr) 42px; gap: 9px; min-height: 34px; }
+.mob-stats-view .mob-decade-copy strong { font-size: 12px; }
+.mob-stats-view .mob-decade-copy span { font-size: 10px; }
+.mob-stats-view .mob-decade-row > b { font-size: 11px; }
+
+.mob-stats-view .mob-artist-row { grid-template-columns: 30px minmax(0,1fr) 44px; gap: 9px; padding: 11px 0; }
+.mob-stats-view .mob-artist-row > b { font-size: 18px; }
+.mob-stats-view .mob-artist-row > div > strong { font-size: 12px; line-height: 1.3; }
+.mob-stats-view .mob-artist-row > div > span { margin-top: 3px; font-size: 10px; line-height: 1.3; }
+.mob-stats-view .mob-artist-row > strong { font-size: 11px; }
+
+.mob-stats-view .mob-h2h-main { min-height: 70px; padding: 10px 0; }
+.mob-stats-view .mob-h2h-vs > span { width: 34px; height: 34px; flex-basis: 34px; font-size: 17px; }
+.mob-stats-view .mob-h2h-vs strong { font-size: 12px; }
+.mob-stats-view .mob-h2h-vs small { font-size: 10px; line-height: 1.3; }
+.mob-stats-view .mob-h2h-score span { font-size: 10px; }
+.mob-stats-view .mob-h2h-score strong { font-size: 23px; }
+.mob-stats-view .mob-h2h-details { padding-left: 43px; gap: 7px; }
+.mob-stats-view .mob-h2h-details > div { min-height: 58px; padding: 9px; }
+.mob-stats-view .mob-h2h-details span { font-size: 9.5px; line-height: 1.25; }
+.mob-stats-view .mob-h2h-details strong { font-size: 11.5px; }
+.mob-stats-view .mob-h2h-details strong small { font-size: 9px; }
+.mob-stats-view .mob-h2h-details > button { min-height: 38px; font-size: 11px; }
+.mob-stats-view .mob-empty { font-size: 11.5px; line-height: 1.45; }
+
+/* RANKING */
+.mob-ranking-view .mob-ranking-tabs { gap: 9px; }
+.mob-ranking-view .mob-ranking-tabs button { height: 46px; font-size: 12px; letter-spacing: .06em; }
+.mob-ranking-view .mob-ranking-list { padding: 9px 13px; }
+.mob-ranking-view .mob-rank-row {
+  min-height: 74px;
+  padding: 10px 0;
+  grid-template-columns: 40px 44px minmax(0,1fr) 20px;
+  gap: 10px;
+}
+.mob-ranking-view .mob-rank-place { font-size: 15px; }
+.mob-ranking-view .mob-player-avatar { width: 42px; height: 42px; font-size: 11px; }
+.mob-ranking-view .mob-rank-copy strong { font-size: 13px; line-height: 1.25; }
+.mob-ranking-view .mob-rank-copy span { margin-top: 4px; font-size: 11px; line-height: 1.3; }
+.mob-ranking-view .mob-empty { font-size: 12px; line-height: 1.45; }
+
+@media (max-width: 390px) {
+  .mob-stats-view .mob-stats-feature-grid { grid-template-columns: 1fr; }
+  .mob-stats-view .mob-stats-feature { min-height: 96px; }
+  .mob-stats-view .mob-metric-grid.full { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .mob-stats-view .mob-h2h-details { grid-template-columns: 1fr; padding-left: 0; }
+  .mob-ranking-view .mob-rank-row { grid-template-columns: 36px 42px minmax(0,1fr) 18px; gap: 8px; }
+}
