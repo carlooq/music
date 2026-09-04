@@ -344,21 +344,56 @@ export const WEEKLY_CHALLENGE_POOL = [
   { id: "wheel_5x", desc: "Zakręć kołem nagrody dnia 5 razy w tym tygodniu", type: "wheelSpins", target: 5, mode: "add", xp: 130, hitcoin: 40 },
 ];
 
-// Prosty deterministyczny generator liczb pseudolosowych z ziarna tekstowego -
-// ten sam klucz tygodnia zawsze daje ten sam wybór 5 wyzwań, dla każdego gracza.
-function pickWeeklyChallenges(weekKey) {
+// Deterministyczny generator — wszyscy gracze dostają ten sam zestaw.
+// Od 2026-W36 obowiązuje V2: pięć wyzwań z nowego tygodnia nie może
+// powtórzyć żadnego z pięciu wyzwań poprzedniego tygodnia. Przy puli 12
+// zawsze zostaje 7 kandydatów, więc nadal losujemy pełne 5.
+const WEEKLY_CHALLENGE_V2_START = "2026-W36";
+const weeklyChallengeCache = new Map();
+
+function seededWeeklyPick(weekKey, sourcePool = WEEKLY_CHALLENGE_POOL) {
   let seed = 0;
   for (let i = 0; i < weekKey.length; i++) seed = (seed * 31 + weekKey.charCodeAt(i)) >>> 0;
   const rng = () => {
     seed = (seed * 1103515245 + 12345) >>> 0;
     return seed / 4294967296;
   };
-  const pool = [...WEEKLY_CHALLENGE_POOL];
+  const pool = [...sourcePool];
   const picked = [];
   for (let i = 0; i < 5 && pool.length > 0; i++) {
     const idx = Math.floor(rng() * pool.length);
     picked.push(pool.splice(idx, 1)[0]);
   }
+  return picked;
+}
+
+function weekKeyOrdinal(weekKey) {
+  const match = String(weekKey || '').match(/^(\d{4})-W(\d{1,2})$/);
+  return match ? Number(match[1]) * 54 + Number(match[2]) : 0;
+}
+
+function previousWeekKey(weekKey) {
+  const match = String(weekKey || '').match(/^(\d{4})-W(\d{1,2})$/);
+  if (!match) return weekKey;
+  const year = Number(match[1]);
+  const week = Number(match[2]);
+  if (week > 1) return `${year}-W${week - 1}`;
+  return currentWeekKey(new Date(Date.UTC(year - 1, 11, 28)));
+}
+
+function pickWeeklyChallenges(weekKey) {
+  if (weeklyChallengeCache.has(weekKey)) return weeklyChallengeCache.get(weekKey);
+  if (weekKeyOrdinal(weekKey) < weekKeyOrdinal(WEEKLY_CHALLENGE_V2_START)) {
+    const legacy = seededWeeklyPick(weekKey);
+    weeklyChallengeCache.set(weekKey, legacy);
+    return legacy;
+  }
+
+  const previous = pickWeeklyChallenges(previousWeekKey(weekKey));
+  const blocked = new Set(previous.map((challenge) => challenge.id));
+  const candidates = WEEKLY_CHALLENGE_POOL.filter((challenge) => !blocked.has(challenge.id));
+  const picked = seededWeeklyPick(weekKey, candidates);
+  weeklyChallengeCache.set(weekKey, picked);
   return picked;
 }
 

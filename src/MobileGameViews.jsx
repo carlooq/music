@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Check,
@@ -62,19 +62,70 @@ const GAMEOVER_RARITY_LABELS = {
   diamentowa: 'DIAMENTOWA',
 };
 
-function GameOverCollectibleCard({ song }) {
+function normalizeYouTubeVideoId(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const bareId = raw.match(/^([A-Za-z0-9_-]{11})(?:[?&#].*)?$/);
+  if (bareId) return bareId[1];
+  try {
+    const url = new URL(raw.startsWith('http') ? raw : `https://${raw}`);
+    if (url.hostname.includes('youtu.be')) return url.pathname.split('/').filter(Boolean)[0] || '';
+    const fromQuery = url.searchParams.get('v');
+    if (fromQuery) return fromQuery;
+    const parts = url.pathname.split('/').filter(Boolean);
+    const marker = parts.findIndex((part) => ['embed', 'shorts', 'live'].includes(part));
+    if (marker >= 0 && parts[marker + 1]) return parts[marker + 1];
+  } catch {}
+  const match = raw.match(/(?:v=|youtu\.be\/|embed\/|shorts\/|live\/)([A-Za-z0-9_-]{11})/);
+  return match?.[1] || raw;
+}
+
+function YouTubeThumbnail({ song, className = '' }) {
+  const videoId = normalizeYouTubeVideoId(song?.videoId || song?.youtubeId || song?.youtubeUrl || song?.url);
+  const sources = useMemo(() => videoId ? [
+    `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+    `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+    `https://i.ytimg.com/vi/${videoId}/0.jpg`,
+    `https://i.ytimg.com/vi/${videoId}/default.jpg`,
+  ] : [], [videoId]);
+  const [sourceIndex, setSourceIndex] = useState(0);
+  useEffect(() => setSourceIndex(0), [videoId]);
+
+  if (!sources.length || sourceIndex >= sources.length) {
+    return <span className={`mgv-thumb-fallback ${className}`} aria-hidden="true"><Music2 size={28} /></span>;
+  }
+  return <img className={className} src={sources[sourceIndex]} alt="" onError={() => setSourceIndex((index) => index + 1)} />;
+}
+
+function GameOverCollectibleCard({ song, large = false, onClick }) {
   if (!song) return null;
   const rarity = effectiveRarity(song);
   const frame = GAMEOVER_CARD_FRAMES[rarity] || GAMEOVER_CARD_FRAMES.winyl;
-  const thumb = song.videoId ? `https://img.youtube.com/vi/${song.videoId}/hqdefault.jpg` : null;
-  return (
-    <div className="mgv-gameover-card">
+  const content = (
+    <>
       <img className="mgv-gameover-card-frame" src={frame} alt="" />
-      {thumb ? <div className="mgv-gameover-card-thumb"><img src={thumb} alt="" /></div> : null}
+      <div className="mgv-gameover-card-thumb"><YouTubeThumbnail song={song} /></div>
       <div className="mgv-gameover-card-copy">
         <strong>{song.year || '—'}</strong>
         <span>{song.artist || '—'}</span>
         <b>{song.title || '—'}</b>
+      </div>
+    </>
+  );
+  return onClick ? (
+    <button type="button" className={`mgv-gameover-card ${large ? 'large' : ''}`} onClick={onClick} aria-label={`Pokaż kartę ${song.artist || ''} ${song.title || ''}`}>{content}</button>
+  ) : <div className={`mgv-gameover-card ${large ? 'large' : ''}`}>{content}</div>;
+}
+
+function MobileCardPreview({ song, onClose }) {
+  if (!song) return null;
+  return (
+    <div className="mgv-card-preview-backdrop" onClick={onClose}>
+      <div className="mgv-card-preview" onClick={(event) => event.stopPropagation()}>
+        <button type="button" className="mgv-card-preview-close" onClick={onClose} aria-label="Zamknij podgląd karty"><X size={21} /></button>
+        <span className="mgv-eyebrow">PODGLĄD KARTY</span>
+        <GameOverCollectibleCard song={song} large />
+        <div className="mgv-card-preview-copy"><strong>{song.artist || '—'}</strong><span>{song.title || '—'} · {song.year || '—'}</span></div>
       </div>
     </div>
   );
@@ -164,15 +215,19 @@ function MobileVinyl({ spinning, progress = 0 }) {
   );
 }
 
-function TimelineCard({ card, highlight = '', compact = false }) {
-  return (
-    <div className={`mgv-timeline-card ${highlight} ${compact ? 'compact' : ''}`} title={`${card?.title || ''} — ${card?.artist || ''}`}>
+function TimelineCard({ card, highlight = '', compact = false, onClick }) {
+  const content = (
+    <>
       <span className="mgv-card-line" />
       <strong>{card?.year ?? '—'}</strong>
       <span className="mgv-card-title">{card?.title || '—'}</span>
       <span className="mgv-card-artist">{card?.artist || '—'}</span>
-    </div>
+    </>
   );
+  const className = `mgv-timeline-card ${highlight} ${compact ? 'compact' : ''} ${onClick ? 'clickable' : ''}`;
+  return onClick ? (
+    <button type="button" className={className} title={`${card?.title || ''} — ${card?.artist || ''}`} onClick={() => onClick(card)} aria-label={`Pokaż kartę ${card?.artist || ''} ${card?.title || ''}`}>{content}</button>
+  ) : <div className={className} title={`${card?.title || ''} — ${card?.artist || ''}`}>{content}</div>;
 }
 
 function TimelineSlot({ index, selected, onPick }) {
@@ -183,14 +238,14 @@ function TimelineSlot({ index, selected, onPick }) {
   );
 }
 
-function MobileTimeline({ timeline = [], selectedSlot, onPick, interactive = true, compact = false, highlights = {} }) {
+function MobileTimeline({ timeline = [], selectedSlot, onPick, interactive = true, compact = false, highlights = {}, onCardClick }) {
   return (
     <div className={`mgv-timeline-scroll ${compact ? 'compact' : ''}`}>
       <div className="mgv-timeline-row">
         {interactive ? <TimelineSlot index={0} selected={selectedSlot} onPick={onPick} /> : null}
         {timeline.map((card, index) => (
           <React.Fragment key={card?.id || `${card?.videoId || 'card'}-${index}`}>
-            <TimelineCard card={card} compact={compact} highlight={highlights[index] || ''} />
+            <TimelineCard card={card} compact={compact} highlight={highlights[index] || ''} onClick={onCardClick} />
             {interactive ? <TimelineSlot index={index + 1} selected={selectedSlot} onPick={onPick} /> : null}
           </React.Fragment>
         ))}
@@ -200,9 +255,25 @@ function MobileTimeline({ timeline = [], selectedSlot, onPick, interactive = tru
 }
 
 function MobileChat({ open, setOpen, messages = [], playerId, chatInput, setChatInput, onSend }) {
+  const [seenCount, setSeenCount] = useState(() => messages.length);
+  const unreadCount = Math.max(0, messages.slice(Math.min(seenCount, messages.length)).filter((msg) => msg.playerId !== playerId).length);
+
+  useEffect(() => {
+    if (open) setSeenCount(messages.length);
+    else if (seenCount > messages.length) setSeenCount(messages.length);
+  }, [open, messages.length, seenCount]);
+
+  const toggleChat = () => {
+    if (!open) setSeenCount(messages.length);
+    setOpen((value) => !value);
+  };
+
   return (
     <>
-      <button type="button" className="mgv-chat-fab" onClick={() => setOpen((v) => !v)}><MessageCircle size={23} /></button>
+      <button type="button" className={`mgv-chat-fab ${unreadCount ? 'has-unread' : ''}`} onClick={toggleChat} aria-label={unreadCount ? `Czat, ${unreadCount} nowych wiadomości` : 'Czat'}>
+        <MessageCircle size={23} />
+        {unreadCount ? <span className="mgv-chat-badge">{unreadCount > 9 ? '9+' : unreadCount}</span> : null}
+      </button>
       {open ? (
         <div className="mgv-sheet-backdrop" onClick={() => setOpen(false)}>
           <aside className="mgv-chat-sheet" onClick={(event) => event.stopPropagation()}>
@@ -414,6 +485,7 @@ function MobileRoundResult({ room, advanceCountdown }) {
 
 export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayerName, decisionLeft, playElapsed, playCapSeconds, isPlaying, iframeRef, onTogglePlay, guessArtist, setGuessArtist, guessTitle, setGuessTitle, onSwapSong, onBuyCard, swapCost, buyCost, chosenSlot, setChosenSlot, turnTimeline, viewedTimeline, displayedPlayerId, displayedPlayerName, setViewedPlayerId, onConfirmPlacement, busy, playerLevels = {}, levelFromXp, votingCountdown, onVote, advanceCountdown, onLeave, chatInput, setChatInput, onSendChat }) {
   const [timelinePreviewId, setTimelinePreviewId] = useState(null);
+  const [cardPreview, setCardPreview] = useState(null);
   const [chatOpen, setChatOpen] = useState(false);
   const modeLabel = room.dailyPlaylistMode ? 'PLAYLISTA DNIA' : room.practiceMode ? 'TRENING' : room.tournamentMode ? 'TURNIEJ' : 'ROZGRYWKA';
   const currentTokens = room.tokens?.[playerId] || 0;
@@ -450,7 +522,7 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
             </div>
             {screen === 'playing' && isMyTurn ? (
               <>
-                <MobileTimeline timeline={turnTimeline} selectedSlot={chosenSlot} onPick={setChosenSlot} />
+                <MobileTimeline timeline={turnTimeline} selectedSlot={chosenSlot} onPick={setChosenSlot} onCardClick={setCardPreview} />
                 {!room.practiceMode ? (
                   <div className="mgv-inline-guess">
                     <div className="mgv-inline-guess-head">
@@ -501,7 +573,7 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
                 <button type="button" className="mgv-main-cta" onClick={onConfirmPlacement} disabled={chosenSlot === null || busy}>ZATWIERDŹ MIEJSCE <ChevronRight size={20} /></button>
               </>
             ) : (
-              <MobileTimeline timeline={viewedTimeline} interactive={false} />
+              <MobileTimeline timeline={viewedTimeline} interactive={false} onCardClick={setCardPreview} />
             )}
           </Panel>
         </>
@@ -550,11 +622,12 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
             <div className="mgv-sheet-handle" />
             <div className="mgv-sheet-head"><strong>OŚ CZASU · {timelinePreviewPlayer.name}</strong><button type="button" onClick={() => setTimelinePreviewId(null)}><X size={19} /></button></div>
             <div className="mgv-timeline-preview-meta"><span><Music2 size={15} /> {timelinePreviewCards.length}/{room.target} KART</span><span><img src={iconToken} alt="" /> {room.tokens?.[timelinePreviewPlayer.id] || 0} TOKENÓW</span></div>
-            {timelinePreviewCards.length ? <MobileTimeline timeline={timelinePreviewCards} interactive={false} /> : <div className="mgv-empty-timeline">Ten gracz nie ma jeszcze kart na osi.</div>}
+            {timelinePreviewCards.length ? <MobileTimeline timeline={timelinePreviewCards} interactive={false} onCardClick={setCardPreview} /> : <div className="mgv-empty-timeline">Ten gracz nie ma jeszcze kart na osi.</div>}
           </aside>
         </div>
       ) : null}
 
+      {cardPreview ? <MobileCardPreview song={cardPreview} onClose={() => setCardPreview(null)} /> : null}
       {screen === 'roundResult' ? <MobileRoundResult room={room} advanceCountdown={advanceCountdown} /> : null}
     </MobileSession>
   );
@@ -975,6 +1048,7 @@ export function MobileHitRushLeaderboardView({ rows = [], period, onPeriod, onBa
 
 export function MobileGameOverView({ room, playerId, isHost, onPlayAgain, onLeave, onTournamentBack, xpSummary, gameEndReward }) {
   const [playlistScope, setPlaylistScope] = useState('all');
+  const [rewardPreview, setRewardPreview] = useState(null);
   const winners = (room.winnerIds || []).map((id) => room.players.find((player) => player.id === id)).filter(Boolean);
   const standings = [...room.players].sort((a, b) => (room.timelines?.[b.id]?.length || 0) - (room.timelines?.[a.id]?.length || 0));
   const playedCards = Array.isArray(room.playedCards) ? room.playedCards : [];
@@ -999,7 +1073,7 @@ export function MobileGameOverView({ room, playerId, isHost, onPlayAgain, onLeav
                 <strong>{GAMEOVER_RARITY_LABELS[rewardRarity] || 'KARTA'}</strong>
                 {gameEndReward.card?.isDuplicate ? <small>DUPLIKAT · tę kartę masz już w kolekcji</small> : <small>NOWA KARTA W KOLEKCJI</small>}
               </div>
-              <GameOverCollectibleCard song={rewardSong} />
+              <GameOverCollectibleCard song={rewardSong} onClick={() => setRewardPreview(rewardSong)} />
             </div>
           ) : <div className="mgv-gameover-no-card"><Disc3 size={22} /><span>W tej rozgrywce nie wylosowano karty.</span></div>}
         </Panel>
@@ -1035,6 +1109,7 @@ export function MobileGameOverView({ room, playerId, isHost, onPlayAgain, onLeav
         </Panel>
       ) : null}
       <div className="mgv-action-stack">{isHost && !room.tournamentMode ? <button type="button" className="mgv-main-cta" onClick={onPlayAgain}><RotateCcw size={19} /> ZAGRAJ PONOWNIE</button> : null}{room.tournamentMode && onTournamentBack ? <button type="button" className="mgv-main-cta" onClick={onTournamentBack}><Trophy size={18} /> WRÓĆ DO TURNIEJU</button> : null}<button type="button" className="mgv-secondary-cta" onClick={onLeave}><LogOut size={18} /> OPUŚĆ POKÓJ</button></div>
+      {rewardPreview ? <MobileCardPreview song={rewardPreview} onClose={() => setRewardPreview(null)} /> : null}
     </MobileSession>
   );
 }
