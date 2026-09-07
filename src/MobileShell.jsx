@@ -423,9 +423,11 @@ function MobileStatsView(props) {
   const worstArtists = props.worstArtists || [];
   const collectionCount = Object.keys(props.stats?.cardCollection || {}).filter((id) => Number(props.stats?.cardCollection?.[id] || 0) > 0).length;
   const [expandedDuel, setExpandedDuel] = useState(null);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
 
   useEffect(() => {
     props.onLoadHeadToHead?.();
+    props.onLoadGameHistory?.();
   }, []); // load once when mobile statistics open
 
   return (
@@ -537,6 +539,39 @@ function MobileStatsView(props) {
             </article>
           );
         }) : <div className="mob-empty">Nie masz jeszcze rozegranego pojedynku 1v1.</div>}
+      </section>
+
+      <section className="mob-panel mob-game-history-panel">
+        <div className="mob-panel-title"><Gamepad2 size={17} /> OSTATNIE GRY <small>{historyExpanded ? 'DO 15' : '5 OSTATNICH'}</small></div>
+        {props.gameHistory == null && props.gameHistoryLoading ? (
+          <div className="mob-empty">Wczytuję ostatnie gry…</div>
+        ) : (props.gameHistory || []).length ? (
+          <>
+            <div className="mob-game-history-list">
+              {(props.gameHistory || []).slice(0, historyExpanded ? 15 : 5).map((game) => {
+                const me = historyResult(game, props.user?.uid);
+                const accuracy = me?.placementTotal ? Math.round((Number(me.placementCorrect || 0) / Number(me.placementTotal || 1)) * 100) : null;
+                return (
+                  <article className="mob-game-history-row" key={game.id || `${game.roomId}-${game.finishedAtMs}`}>
+                    <div className={`mob-game-history-place pos-${me?.position || 0}`}>{historyMedal(me?.position)}</div>
+                    <div className="mob-game-history-copy">
+                      <strong>{me?.position ? `${me.position}. miejsce` : 'Rozegrana gra'}</strong>
+                      <span>{game.playerCount || game.players?.length || 0} graczy · {me?.cards || 0} kart{accuracy !== null ? ` · ${accuracy}% osi` : ''}</span>
+                    </div>
+                    <time>{historyDate(game)}</time>
+                  </article>
+                );
+              })}
+            </div>
+            {!historyExpanded && (props.gameHistoryHasMore || (props.gameHistory || []).length > 5) ? (
+              <button className="mob-game-history-more" type="button" disabled={props.gameHistoryLoading} onClick={() => { setHistoryExpanded(true); if ((props.gameHistory || []).length < 15) props.onLoadMoreGameHistory?.(); }}>
+                {props.gameHistoryLoading ? 'WCZYTYWANIE…' : 'POKAŻ 15 OSTATNICH'} <ChevronDown size={15} />
+              </button>
+            ) : historyExpanded ? (
+              <button className="mob-game-history-more" type="button" onClick={() => setHistoryExpanded(false)}>POKAŻ 5 <ChevronDown size={15} /></button>
+            ) : null}
+          </>
+        ) : <div className="mob-empty">Historia zacznie się zapisywać od tej wersji gry.</div>}
       </section>
     </div>
   );

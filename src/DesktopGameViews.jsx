@@ -20,6 +20,7 @@ import {
   Shield,
   Sparkles,
   Trophy,
+  UserPlus,
   Users,
   X,
   Zap,
@@ -503,12 +504,23 @@ export function DesktopLobbyView({
   onKick,
   playerLevels,
   levelFromXp,
+  onlinePlayers = [],
+  roomInviteSentTo = {},
+  roomInviteBusyUid = null,
+  onInviteToRoom,
 }) {
   const activeFilter = !selectedCategories.includes('wszystkie') && selectedCategories.length > 0;
   const normalized = (values) => (values || []).map((v) => String(v || '').trim().toLowerCase());
   const playableCount = activeFilter
     ? songPool.filter((song) => normalized(song.categories).some((c) => selectedCategories.includes(c))).length
     : songPool.filter((song) => !normalized(song.categories).includes('religijne')).length;
+  const roomUids = new Set((room.players || []).map((player) => player.uid).filter(Boolean));
+  const myUid = (room.players || []).find((player) => player.id === playerId)?.uid || null;
+  const inviteCandidates = [...new Map(
+    (onlinePlayers || [])
+      .filter((player) => player.uid && !player.roomId && player.uid !== myUid && !roomUids.has(player.uid))
+      .map((player) => [player.uid, player])
+  ).values()];
 
   return (
     <SessionBackground className="dgv-lobby">
@@ -558,6 +570,26 @@ export function DesktopLobbyView({
               ))}
             </div>
             <div className="dgv-player-tip"><Sparkles size={16} /> Minimum 2 graczy do zwykłej rozgrywki.</div>
+            {isHost ? (
+              <div className="dgv-online-invite-block">
+                <div className="dgv-online-invite-title"><UserPlus size={16} /> ZAPROŚ ONLINE <span>{inviteCandidates.length}</span></div>
+                {inviteCandidates.length ? (
+                  <div className="dgv-online-invite-list">
+                    {inviteCandidates.map((player) => {
+                      const sent = !!roomInviteSentTo[player.uid];
+                      const loading = roomInviteBusyUid === player.uid;
+                      return (
+                        <div className="dgv-online-invite-row" key={player.playerId || player.uid}>
+                          <div className="dgv-online-invite-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.name || player.username) : null}</div>
+                          <div><strong>{player.name || player.username || 'Gracz'}</strong><span>● online</span></div>
+                          <button type="button" disabled={sent || loading} onClick={() => onInviteToRoom?.(player)}>{loading ? '...' : sent ? 'WYSŁANO' : 'ZAPROŚ'}</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : <div className="dgv-online-invite-empty">Brak wolnych zalogowanych graczy online.</div>}
+              </div>
+            ) : null}
           </section>
 
           <section className="dgv-panel dgv-settings-panel">

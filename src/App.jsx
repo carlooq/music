@@ -20,6 +20,8 @@ import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, mig
 import { cleanupOldRooms } from "./roomsDb.js";
 import { heartbeat, clearPresence, getOnlinePlayers } from "./presence.js";
 import { sendDuelChallenge, listenForIncomingChallenge, listenForSentChallenges, acceptDuelChallenge, declineDuelChallenge, clearDuelChallenge, isChallengeStale } from "./duelInvites.js";
+import { sendRoomInvite, listenForIncomingRoomInvite, clearRoomInvite, isRoomInviteStale } from "./roomInvites.js";
+import { GAME_HISTORY_COLLECTION, buildGameHistoryRecord, fetchGameHistoryPage, gameHistoryDocumentId } from "./gameHistory.js";
 import { getOrCreateDailySong } from "./dailySong.js";
 import { getOrCreateDailyPlaylist, hasPlayedPlaylistToday, recordDailyPlaylistScore, fetchDailyPlaylistLeaderboard, fetchWeeklyPlaylistLeaderboard, fetchAllTimePlaylistLeaderboard, processWeeklyPlaylistRewardsIfNeeded } from "./dailyPlaylist.js";
 import { createTournament, cancelTournament, fetchActiveTournament, fetchLastCompletedTournament, fetchTournament, signUpForTournament, recordTournamentMatchResult, checkAndAdvanceTournament, settleTournamentXpIfNeeded, pickMatchPlaylist } from "./tournaments.js";
@@ -737,6 +739,30 @@ function DuelChallengeModal({ challenge, busy, onAccept, onDecline }) {
   );
 }
 
+function RoomInviteModal({ invite, busy, onAccept, onDecline }) {
+  if (!invite) return null;
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Zaproszenie do pokoju"
+      style={{ position: "fixed", inset: 0, zIndex: 259, display: "flex", alignItems: "center", justifyContent: "center", padding: 22, background: "rgba(1,2,10,0.82)", backdropFilter: "blur(8px)" }}
+    >
+      <div style={{ width: "min(100%, 370px)", padding: 22, borderRadius: 22, textAlign: "center", background: "linear-gradient(160deg,#0d1028,#070817)", border: "1px solid rgba(73,232,174,.28)", boxShadow: "0 24px 70px rgba(0,0,0,.55),0 0 30px rgba(73,232,174,.10)" }}>
+        <div style={{ width: 58, height: 58, margin: "0 auto 10px", borderRadius: 18, display: "grid", placeItems: "center", fontSize: 29, background: "linear-gradient(135deg,rgba(73,232,174,.16),rgba(68,216,255,.13))", border: "1px solid rgba(73,232,174,.25)" }}>🎮</div>
+        <div style={{ color: "#65f0c2", fontFamily: "'Space Mono', monospace", fontSize: 10, letterSpacing: ".12em" }}>ZAPROSZENIE DO GRY</div>
+        <h2 style={{ margin: "7px 0 6px", color: "#fff", fontFamily: "'Bebas Neue', sans-serif", fontSize: 29, lineHeight: 1 }}>{invite.fromName || "Gracz"} ZAPRASZA CIĘ!</h2>
+        <p style={{ margin: "0 0 7px", color: "#9a92a7", fontSize: 13, lineHeight: 1.45 }}>Dołącz do zwykłego pokoju i zagraj ze znajomymi.</p>
+        <div style={{ margin: "0 auto 17px", width: "fit-content", minWidth: 112, padding: "8px 14px", borderRadius: 12, color: "#fff", fontFamily: "'Space Mono', monospace", fontSize: 22, fontWeight: 900, letterSpacing: ".15em", background: "rgba(84,226,255,.08)", border: "1px solid rgba(84,226,255,.22)" }}>{invite.roomCode || "----"}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
+          <button type="button" onClick={onDecline} disabled={busy} style={{ minHeight: 48, borderRadius: 13, border: "1px solid rgba(255,92,130,.25)", background: "rgba(255,66,110,.07)", color: "#ff7b99", fontWeight: 800 }}>ODRZUĆ</button>
+          <button type="button" onClick={onAccept} disabled={busy} style={{ minHeight: 48, borderRadius: 13, border: "1px solid rgba(73,232,174,.3)", background: "linear-gradient(100deg,#36e6a0,#4edaff)", color: "#061713", fontWeight: 900 }}>{busy ? "DOŁĄCZANIE…" : "DOŁĄCZ"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [screen, setScreen] = useState("home"); // home | lobby | playing | roundResult | gameover
   const [name, setName] = useState(localStorage.getItem("hitster-player-name") || "");
@@ -1005,11 +1031,20 @@ export default function App() {
   }, [screen, room?.players?.length]);
 
   const [onlinePlayers, setOnlinePlayers] = useState([]);
+  const presenceRoomRef = useRef(roomId);
+  useEffect(() => {
+    presenceRoomRef.current = roomId;
+    if (!playerId) return;
+    const displayName = name || user?.displayName || "Gracz";
+    heartbeat(playerId, displayName, user?.uid, stats?.avatarUrl || null, roomId);
+  }, [roomId]);
+
   useEffect(() => {
     if (!playerId) return;
     const displayName = name || user?.displayName || "Gracz";
-    heartbeat(playerId, displayName, user?.uid, stats?.avatarUrl || null);
-    const id = setInterval(() => heartbeat(playerId, displayName, user?.uid, stats?.avatarUrl || null), 25000);
+    const sendHeartbeat = () => heartbeat(playerId, displayName, user?.uid, stats?.avatarUrl || null, presenceRoomRef.current);
+    sendHeartbeat();
+    const id = setInterval(sendHeartbeat, 25000);
     const clear = () => clearPresence(playerId);
     window.addEventListener("beforeunload", clear);
     return () => {
@@ -1024,6 +1059,12 @@ export default function App() {
     const id = setInterval(() => getOnlinePlayers().then(setOnlinePlayers), 40000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    if (screen === "lobby" && room?.hostId === playerId) {
+      getOnlinePlayers().then(setOnlinePlayers).catch(() => {});
+    }
+  }, [screen, room?.hostId, playerId, room?.players?.length]);
 
   // Ta sama tania funkcja licząca, co wcześniej wołana tylko przy wejściu w Statystyki -
   // bez tego kafelek "Kolekcja" na stronie głównej cicho spadał do starej wbudowanej
@@ -1052,6 +1093,20 @@ export default function App() {
   const [incomingChallenge, setIncomingChallenge] = useState(null);
   const [challengeSentTo, setChallengeSentTo] = useState(null);
   const [challengeBusy, setChallengeBusy] = useState(false);
+  const [incomingRoomInvite, setIncomingRoomInvite] = useState(null);
+  const [roomInviteSentTo, setRoomInviteSentTo] = useState({});
+  const [roomInviteBusyUid, setRoomInviteBusyUid] = useState(null);
+
+  const [gameHistory, setGameHistory] = useState(null);
+  const [gameHistoryCursor, setGameHistoryCursor] = useState(null);
+  const [gameHistoryHasMore, setGameHistoryHasMore] = useState(false);
+  const [gameHistoryLoading, setGameHistoryLoading] = useState(false);
+
+  useEffect(() => {
+    setGameHistory(null);
+    setGameHistoryCursor(null);
+    setGameHistoryHasMore(false);
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!user) return;
@@ -1125,6 +1180,102 @@ export default function App() {
     if (!incomingChallenge || !user) return;
     declineDuelChallenge(user.uid).catch(() => {});
     setIncomingChallenge(null);
+  }
+
+  useEffect(() => {
+    if (!user) {
+      setIncomingRoomInvite(null);
+      return;
+    }
+    const unsub = listenForIncomingRoomInvite(user.uid, (data) => {
+      if (data && !isRoomInviteStale(data.createdAt)) setIncomingRoomInvite(data);
+      else {
+        setIncomingRoomInvite(null);
+        if (data) clearRoomInvite(user.uid).catch(() => {});
+      }
+    });
+    return () => unsub();
+  }, [user?.uid]);
+
+  async function handleSendRoomInvite(toPlayer) {
+    if (!user || !roomId || !room) return setError("Najpierw utwórz pokój.");
+    if (room.hostId !== playerId) return setError("Tylko host może zapraszać graczy do pokoju.");
+    if (room.status !== "lobby" || room.joinLocked) return setError("Nie można zapraszać po rozpoczęciu gry.");
+    if (!toPlayer?.uid) return setError("Ten gracz nie może otrzymać zaproszenia.");
+    if (toPlayer.uid === user.uid) return setError("Nie możesz zaprosić samego siebie.");
+    if ((room.players || []).some((player) => player.uid === toPlayer.uid)) return setError("Ten gracz jest już w pokoju.");
+    setRoomInviteBusyUid(toPlayer.uid);
+    try {
+      await sendRoomInvite(user.uid, name.trim() || user.displayName || "Gracz", toPlayer.uid, toPlayer.name || toPlayer.username || "Gracz", roomId);
+      setRoomInviteSentTo((current) => ({ ...current, [toPlayer.uid]: true }));
+      window.setTimeout(() => {
+        setRoomInviteSentTo((current) => {
+          if (!current[toPlayer.uid]) return current;
+          const next = { ...current };
+          delete next[toPlayer.uid];
+          return next;
+        });
+        clearRoomInvite(toPlayer.uid, { fromUid: user.uid, roomCode: roomId }).catch(() => {});
+      }, 95000);
+    } catch (e) {
+      setError("Nie udało się wysłać zaproszenia: " + e.message);
+    } finally {
+      setRoomInviteBusyUid(null);
+    }
+  }
+
+  async function handleAcceptRoomInvite() {
+    if (!incomingRoomInvite || !user) return;
+    const invite = incomingRoomInvite;
+    setRoomInviteBusyUid(user.uid);
+    const joined = await joinRoom(invite.roomCode);
+    if (joined) {
+      clearRoomInvite(user.uid).catch(() => {});
+      setIncomingRoomInvite(null);
+    }
+    setRoomInviteBusyUid(null);
+  }
+
+  async function handleDeclineRoomInvite() {
+    if (!user) return;
+    clearRoomInvite(user.uid).catch(() => {});
+    setIncomingRoomInvite(null);
+  }
+
+  async function loadGameHistory({ force = false } = {}) {
+    if (!user || gameHistoryLoading) return;
+    if (!force && gameHistory !== null) return;
+    setGameHistoryLoading(true);
+    try {
+      const page = await fetchGameHistoryPage(user.uid, 5);
+      setGameHistory(page.games);
+      setGameHistoryCursor(page.cursor);
+      setGameHistoryHasMore(page.hasMore);
+    } catch (e) {
+      setGameHistory([]);
+      setGameHistoryCursor(null);
+      setGameHistoryHasMore(false);
+      setError("Nie udało się wczytać historii gier: " + e.message);
+    } finally {
+      setGameHistoryLoading(false);
+    }
+  }
+
+  async function loadMoreGameHistory() {
+    if (!user || gameHistoryLoading || !gameHistoryHasMore || !gameHistoryCursor) return;
+    setGameHistoryLoading(true);
+    try {
+      const currentLength = gameHistory?.length || 0;
+      const page = await fetchGameHistoryPage(user.uid, Math.min(10, 15 - currentLength), gameHistoryCursor);
+      const nextLength = currentLength + page.games.length;
+      setGameHistory((current) => [...(current || []), ...page.games].slice(0, 15));
+      setGameHistoryCursor(page.cursor);
+      setGameHistoryHasMore(page.hasMore && nextLength < 15);
+    } catch (e) {
+      setError("Nie udało się wczytać dalszej historii: " + e.message);
+    } finally {
+      setGameHistoryLoading(false);
+    }
   }
 
   // --- "Piosenka dnia" ---
@@ -2111,6 +2262,17 @@ export default function App() {
     setTimeout(() => setShowConfetti(false), 4000);
   }, [screen, room?.winnerIds, toMillis(room?.expireAt)]);
 
+  const historyInvalidatedRef = useRef(null);
+  useEffect(() => {
+    if (screen !== "gameover" || room?.practiceMode) return;
+    const marker = `${roomId || ""}_${toMillis(room?.expireAt) || 0}`;
+    if (historyInvalidatedRef.current === marker) return;
+    historyInvalidatedRef.current = marker;
+    setGameHistory(null);
+    setGameHistoryCursor(null);
+    setGameHistoryHasMore(false);
+  }, [screen, roomId, room?.practiceMode, toMillis(room?.expireAt)]);
+
   const xpAwardedRef = useRef(null);
   const [levelUpInfo, setLevelUpInfo] = useState(null);
   const [gameEndReward, setGameEndReward] = useState(null);
@@ -2994,11 +3156,11 @@ export default function App() {
     if (!user) {
       setShowAuthForm(true);
       setError("Zaloguj się lub załóż konto, aby dołączać do pokoi. Trening jest dostępny bez konta.");
-      return;
+      return false;
     }
-    if (!name.trim()) return setError("Podaj swoje imię.");
+    if (!name.trim()) { setError("Podaj swoje imię."); return false; }
     const code = (explicitCode || joinCode).trim().toUpperCase();
-    if (!code) return setError("Podaj kod pokoju.");
+    if (!code) { setError("Podaj kod pokoju."); return false; }
     setBusy(true);
     setError("");
     try {
@@ -3018,8 +3180,10 @@ export default function App() {
         }
       });
       setRoomId(code);
+      return true;
     } catch (e) {
       setError(e.message || "Nie udało się dołączyć do pokoju.");
+      return false;
     } finally {
       setBusy(false);
     }
@@ -3074,6 +3238,9 @@ export default function App() {
       });
       joinLockHeld = true;
 
+      Object.keys(roomInviteSentTo).forEach((uid) => clearRoomInvite(uid, { fromUid: user?.uid, roomCode: roomId }).catch(() => {}));
+      setRoomInviteSentTo({});
+
       const EXTRA_CARDS_PER_PLAYER = 7;
       const needed = players.length * (target + EXTRA_CARDS_PER_PLAYER);
       if (pool.length < needed + 1) {
@@ -3104,6 +3271,8 @@ export default function App() {
         status: "opener",
         joinLocked: true,
         target,
+        categories: [...selectedCategories],
+        gameSessionStartedAt: serverTimestamp(),
         deck,
         deckIndex: players.length + 1,
         currentCard: deck[players.length],
@@ -3928,6 +4097,15 @@ export default function App() {
             winnerIds,
             expireAt: new Date(Date.now() + 60 * 60 * 1000), // TTL: zakończone gry znikają po 1h
           });
+
+          if (!data.practiceMode) {
+            const historyRef = doc(db, GAME_HISTORY_COLLECTION, gameHistoryDocumentId(roomId, data));
+            tx.set(historyRef, {
+              ...buildGameHistoryRecord(data, roomId, winnerIds),
+              finishedAt: serverTimestamp(),
+              finishedAtMs: Date.now(),
+            });
+          }
           gameOverInfo = { winnerIds, players, practiceMode: !!data.practiceMode };
           return;
         }
@@ -3961,6 +4139,8 @@ export default function App() {
   }
 
   function leaveRoom() {
+    Object.keys(roomInviteSentTo).forEach((uid) => clearRoomInvite(uid, { fromUid: user?.uid, roomCode: roomId }).catch(() => {}));
+    setRoomInviteSentTo({});
     setRoomId(null);
     setRoom(null);
     setScreen("home");
@@ -4768,6 +4948,7 @@ export default function App() {
         }}
         cardSize={viewportWidth < 640 ? 190 : 220}
       />
+      <RoomInviteModal invite={incomingChallenge ? null : incomingRoomInvite} busy={roomInviteBusyUid === user?.uid} onAccept={handleAcceptRoomInvite} onDecline={handleDeclineRoomInvite} />
     </>
   );
 
@@ -4918,6 +5099,10 @@ export default function App() {
         }}
         playerLevels={playerLevels}
         levelFromXp={levelFromXp}
+        onlinePlayers={onlinePlayers}
+        roomInviteSentTo={roomInviteSentTo}
+        roomInviteBusyUid={roomInviteBusyUid}
+        onInviteToRoom={handleSendRoomInvite}
       />
     );
   }
@@ -5173,6 +5358,10 @@ export default function App() {
         }}
         playerLevels={playerLevels}
         levelFromXp={levelFromXp}
+        onlinePlayers={onlinePlayers}
+        roomInviteSentTo={roomInviteSentTo}
+        roomInviteBusyUid={roomInviteBusyUid}
+        onInviteToRoom={handleSendRoomInvite}
       />
     );
   }
@@ -5362,6 +5551,11 @@ export default function App() {
         h2hExpanded={h2hExpanded}
         onLoadHeadToHead={loadHeadToHeadStats}
         onToggleHeadToHead={(opponentId) => setH2hExpanded((current) => current === opponentId ? null : opponentId)}
+        gameHistory={gameHistory}
+        gameHistoryLoading={gameHistoryLoading}
+        gameHistoryHasMore={gameHistoryHasMore}
+        onLoadGameHistory={loadGameHistory}
+        onLoadMoreGameHistory={loadMoreGameHistory}
         leaderboard={leaderboard}
         leaderboardSort={leaderboardSort}
         leaderboardPosition={leaderboardPosition}
@@ -5436,6 +5630,7 @@ export default function App() {
         </div>
       ) : null}
       <DuelChallengeModal challenge={incomingChallenge} busy={challengeBusy} onAccept={handleAcceptChallenge} onDecline={handleDeclineChallenge} />
+      <RoomInviteModal invite={incomingChallenge ? null : incomingRoomInvite} busy={roomInviteBusyUid === user?.uid} onAccept={handleAcceptRoomInvite} onDecline={handleDeclineRoomInvite} />
       </>
     );
   }
@@ -5494,6 +5689,11 @@ export default function App() {
         h2hExpanded={h2hExpanded}
         onLoadHeadToHead={loadHeadToHeadStats}
         onToggleHeadToHead={(opponentId) => setH2hExpanded((current) => current === opponentId ? null : opponentId)}
+        gameHistory={gameHistory}
+        gameHistoryLoading={gameHistoryLoading}
+        gameHistoryHasMore={gameHistoryHasMore}
+        onLoadGameHistory={loadGameHistory}
+        onLoadMoreGameHistory={loadMoreGameHistory}
         leaderboard={leaderboard}
         leaderboardSort={leaderboardSort}
         leaderboardPosition={leaderboardPosition}
@@ -5586,6 +5786,7 @@ export default function App() {
         </div>
       ) : null}
       <DuelChallengeModal challenge={incomingChallenge} busy={challengeBusy} onAccept={handleAcceptChallenge} onDecline={handleDeclineChallenge} />
+      <RoomInviteModal invite={incomingChallenge ? null : incomingRoomInvite} busy={roomInviteBusyUid === user?.uid} onAccept={handleAcceptRoomInvite} onDecline={handleDeclineRoomInvite} />
       </>
     );
   }

@@ -1668,3 +1668,17 @@
   .dgv-hr-versus { grid-template-columns:1fr 58px 1fr; }
   .dgv-hr-card-year { font-size:72px; }
 }
+
+/* v1.2 — zapraszanie zalogowanych graczy online z lobby */
+.dgv-online-invite-block { margin-top: 15px; padding-top: 13px; border-top: 1px solid rgba(255,255,255,.06); }
+.dgv-online-invite-title { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; color: #6ce7ff; font-family: 'Space Mono',monospace; font-size: 8px; font-weight: 700; letter-spacing: .09em; }
+.dgv-online-invite-title span { margin-left: auto; padding: 3px 7px; border-radius: 999px; background: rgba(75,220,255,.07); border: 1px solid rgba(75,220,255,.17); color: #9aeeff; }
+.dgv-online-invite-list { display: grid; gap: 7px; max-height: 205px; overflow: auto; padding-right: 2px; }
+.dgv-online-invite-row { display: grid; grid-template-columns: 34px minmax(0,1fr) auto; gap: 9px; align-items: center; min-height: 48px; padding: 6px 7px; border-radius: 11px; background: rgba(5,8,23,.72); border: 1px solid rgba(78,218,255,.10); }
+.dgv-online-invite-avatar { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background-position: center; background-size: cover; color: #6ce7ff; background-color: rgba(65,210,255,.07); border: 1px solid rgba(75,220,255,.18); font-family: 'Bebas Neue',sans-serif; font-size: 15px; }
+.dgv-online-invite-row > div:nth-child(2) { min-width: 0; }
+.dgv-online-invite-row strong { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #f6f2ff; font-size: 10px; }
+.dgv-online-invite-row span { display: block; margin-top: 2px; color: #41dda2; font-size: 7px; }
+.dgv-online-invite-row button { min-width: 78px; min-height: 32px; padding: 0 10px; border-radius: 9px; border: 1px solid rgba(65,223,255,.27); background: linear-gradient(110deg,rgba(52,226,167,.13),rgba(68,213,255,.10)); color: #72eadb; font-family: 'Space Mono',monospace; font-size: 7px; font-weight: 900; }
+.dgv-online-invite-row button:disabled { opacity: .5; color: #8b8598; border-color: rgba(130,120,160,.14); background: rgba(255,255,255,.02); }
+.dgv-online-invite-empty { padding: 11px 6px; color: #746e80; font-size: 9px; text-align: center; }

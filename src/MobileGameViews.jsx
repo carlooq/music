@@ -20,6 +20,7 @@ import {
   Shield,
   Sparkles,
   Trophy,
+  UserPlus,
   Users,
   X,
   Zap,
@@ -340,6 +341,13 @@ export function MobilePracticeSetupView({ practiceTarget, setPracticeTarget, sel
   const playableCount = activeFilter
     ? songPool.filter((song) => normalized(song.categories).some((category) => selectedCategories.includes(category))).length
     : songPool.filter((song) => !normalized(song.categories).includes('religijne')).length;
+  const roomUids = new Set((room.players || []).map((player) => player.uid).filter(Boolean));
+  const myUid = (room.players || []).find((player) => player.id === playerId)?.uid || null;
+  const inviteCandidates = [...new Map(
+    (onlinePlayers || [])
+      .filter((player) => player.uid && !player.roomId && player.uid !== myUid && !roomUids.has(player.uid))
+      .map((player) => [player.uid, player])
+  ).values()];
 
   return (
     <MobileSession className="mgv-practice-setup">
@@ -372,7 +380,7 @@ export function MobilePracticeSetupView({ practiceTarget, setPracticeTarget, sel
   );
 }
 
-export function MobileLobbyView({ room, roomId, playerId, isHost, copied, onCopy, onLeave, target, setTarget, selectedCategories, categories = [], onToggleCategory, songPool = [], busy, onStart, onKick, playerLevels = {}, levelFromXp }) {
+export function MobileLobbyView({ room, roomId, playerId, isHost, copied, onCopy, onLeave, target, setTarget, selectedCategories, categories = [], onToggleCategory, songPool = [], busy, onStart, onKick, playerLevels = {}, levelFromXp, onlinePlayers = [], roomInviteSentTo = {}, roomInviteBusyUid = null, onInviteToRoom }) {
   const normalized = (values) => (values || []).map((value) => String(value || '').trim().toLowerCase());
   const activeFilter = !selectedCategories.includes('wszystkie') && selectedCategories.length > 0;
   const playableCount = activeFilter
@@ -405,6 +413,27 @@ export function MobileLobbyView({ room, roomId, playerId, isHost, copied, onCopy
           ))}
         </div>
       </Panel>
+
+      {isHost ? (
+        <Panel className="mgv-online-invite-panel" accent="cyan">
+          <div className="mgv-section-title"><UserPlus size={18} /><span>ZAPROŚ GRACZA ONLINE</span><b>{inviteCandidates.length}</b></div>
+          {inviteCandidates.length ? (
+            <div className="mgv-online-invite-list">
+              {inviteCandidates.map((player) => {
+                const sent = !!roomInviteSentTo[player.uid];
+                const loading = roomInviteBusyUid === player.uid;
+                return (
+                  <div className="mgv-online-invite-row" key={player.playerId || player.uid}>
+                    <div className="mgv-online-invite-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.name || player.username) : null}</div>
+                    <div className="mgv-online-invite-copy"><strong>{player.name || player.username || 'Gracz'}</strong><span><i /> online</span></div>
+                    <button type="button" disabled={loading || sent} onClick={() => onInviteToRoom?.(player)}>{loading ? '...' : sent ? 'WYSŁANO' : 'ZAPROŚ'}</button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : <div className="mgv-note">Brak wolnych zalogowanych graczy online.</div>}
+        </Panel>
+      ) : null}
 
       <Panel className="mgv-lobby-settings" accent="pink">
         <div className="mgv-section-title"><Gamepad2 size={18} /><span>ZASADY GRY</span></div>

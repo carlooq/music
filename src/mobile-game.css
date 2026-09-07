@@ -1023,3 +1023,15 @@
 @media (prefers-reduced-motion:reduce) {
   .mgv-token-tools-toggle svg { transition:none; }
 }
+
+/* v1.2 — zapraszanie zalogowanych graczy online z lobby */
+.mgv-online-invite-panel { padding: 14px; }
+.mgv-online-invite-list { display: grid; gap: 7px; margin-top: 8px; }
+.mgv-online-invite-row { min-height: 54px; display: grid; grid-template-columns: 38px minmax(0,1fr) auto; gap: 9px; align-items: center; padding: 7px 8px; border-radius: 12px; background: rgba(5,10,27,.72); border: 1px solid rgba(74,224,255,.12); }
+.mgv-online-invite-avatar { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; background-position: center; background-size: cover; color: #75ebff; font-family: 'Bebas Neue',sans-serif; font-size: 15px; border: 1px solid rgba(80,225,255,.22); background-color: rgba(50,204,255,.07); }
+.mgv-online-invite-copy { min-width: 0; }
+.mgv-online-invite-copy strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #f7f4ff; font-size: 12px; }
+.mgv-online-invite-copy span { display: flex; align-items: center; gap: 5px; margin-top: 3px; color: #7f788a; font-size: 9px; }
+.mgv-online-invite-copy span i { width: 6px; height: 6px; border-radius: 50%; background: #31e99b; box-shadow: 0 0 8px rgba(49,233,155,.5); }
+.mgv-online-invite-row > button { min-width: 76px; min-height: 34px; padding: 0 10px; border-radius: 9px; border: 1px solid rgba(64,226,255,.30); background: linear-gradient(115deg,rgba(47,221,181,.15),rgba(63,206,255,.13)); color: #66edda; font-size: 9px; font-weight: 900; letter-spacing: .04em; }
+.mgv-online-invite-row > button:disabled { opacity: .55; color: #8e8997; border-color: rgba(130,120,160,.16); background: rgba(255,255,255,.025); }

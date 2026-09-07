@@ -113,6 +113,24 @@ function initials(label) {
   return parts.map((p) => p[0]?.toUpperCase() || '').join('') || raw.slice(0, 1).toUpperCase();
 }
 
+function historyDate(game) {
+  const raw = game?.finishedAt;
+  const date = raw?.toDate ? raw.toDate() : new Date(Number(game?.finishedAtMs || game?.createdAtMs || 0));
+  if (!date || Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
+}
+
+function historyResult(game, uid) {
+  return (game?.players || []).find((player) => player.uid === uid) || null;
+}
+
+function historyMedal(position) {
+  if (position === 1) return '🥇';
+  if (position === 2) return '🥈';
+  if (position === 3) return '🥉';
+  return `#${position || '—'}`;
+}
+
 function sortDecades(entries = []) {
   return [...entries].sort((a, b) => {
     const an = parseInt(String(a.label).replace(/\D/g, ''), 10) || 0;
@@ -756,6 +774,11 @@ export function DesktopStatsView(props) {
   const username = props.playerName || user?.displayName || user?.username || 'Gracz';
   const progressPct = levelInfo.xpForNextLevel ? Math.round((levelInfo.currentLevelXp / levelInfo.xpForNextLevel) * 100) : 0;
   const collectionCount = Object.keys(stats?.cardCollection || {}).length;
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+
+  useEffect(() => {
+    props.onLoadGameHistory?.();
+  }, []);
 
   return (
     <DesktopLayout
@@ -964,6 +987,45 @@ export function DesktopStatsView(props) {
               })}
             </div>
           )}
+        </section>
+
+        <section className="desk-game-history-panel desk-panel">
+          <div className="desk-game-history-head">
+            <div>
+              <div className="desk-section-label solo"><Gamepad2 size={18} /> OSTATNIE GRY</div>
+              <p>Twoje ostatnie zwykłe rozgrywki multiplayer.</p>
+            </div>
+            <div className="desk-game-history-total">{historyExpanded ? 'DO 15 GIER' : '5 OSTATNICH'}</div>
+          </div>
+          {props.gameHistory == null && props.gameHistoryLoading ? (
+            <div className="desk-h2h-empty">Wczytuję ostatnie gry…</div>
+          ) : (props.gameHistory || []).length ? (
+            <>
+              <div className="desk-game-history-list">
+                {(props.gameHistory || []).slice(0, historyExpanded ? 15 : 5).map((game) => {
+                  const me = historyResult(game, user?.uid);
+                  const accuracy = me?.placementTotal ? Math.round((Number(me.placementCorrect || 0) / Number(me.placementTotal || 1)) * 100) : null;
+                  return (
+                    <article className="desk-game-history-row" key={game.id || `${game.roomId}-${game.finishedAtMs}`}>
+                      <div className={`desk-game-history-place pos-${me?.position || 0}`}>{historyMedal(me?.position)}</div>
+                      <div className="desk-game-history-copy">
+                        <strong>{me?.position ? `${me.position}. miejsce` : 'Rozegrana gra'}</strong>
+                        <span>{game.playerCount || game.players?.length || 0} graczy · {me?.cards || 0} kart{accuracy !== null ? ` · ${accuracy}% osi` : ''}</span>
+                      </div>
+                      <div className="desk-game-history-meta"><span>{historyDate(game)}</span><small>pokój {game.roomId || '—'}</small></div>
+                    </article>
+                  );
+                })}
+              </div>
+              {!historyExpanded && (props.gameHistoryHasMore || (props.gameHistory || []).length > 5) ? (
+                <button type="button" className="desk-game-history-more" disabled={props.gameHistoryLoading} onClick={() => { setHistoryExpanded(true); if ((props.gameHistory || []).length < 15) props.onLoadMoreGameHistory?.(); }}>
+                  {props.gameHistoryLoading ? 'WCZYTYWANIE…' : 'POKAŻ 15 OSTATNICH'} <ChevronRight size={17} />
+                </button>
+              ) : historyExpanded ? (
+                <button type="button" className="desk-game-history-more collapse" onClick={() => setHistoryExpanded(false)}>POKAŻ 5 <ChevronRight size={17} /></button>
+              ) : null}
+            </>
+          ) : <div className="desk-h2h-empty">Historia zacznie się zapisywać od tej wersji gry.</div>}
         </section>
       </div>
     </DesktopLayout>
