@@ -341,13 +341,6 @@ export function MobilePracticeSetupView({ practiceTarget, setPracticeTarget, sel
   const playableCount = activeFilter
     ? songPool.filter((song) => normalized(song.categories).some((category) => selectedCategories.includes(category))).length
     : songPool.filter((song) => !normalized(song.categories).includes('religijne')).length;
-  const roomUids = new Set((room.players || []).map((player) => player.uid).filter(Boolean));
-  const myUid = (room.players || []).find((player) => player.id === playerId)?.uid || null;
-  const inviteCandidates = [...new Map(
-    (onlinePlayers || [])
-      .filter((player) => player.uid && !player.roomId && player.uid !== myUid && !roomUids.has(player.uid))
-      .map((player) => [player.uid, player])
-  ).values()];
 
   return (
     <MobileSession className="mgv-practice-setup">
@@ -386,6 +379,14 @@ export function MobileLobbyView({ room, roomId, playerId, isHost, copied, onCopy
   const playableCount = activeFilter
     ? songPool.filter((song) => normalized(song.categories).some((category) => selectedCategories.includes(category))).length
     : songPool.filter((song) => !normalized(song.categories).includes('religijne')).length;
+
+  const roomUids = new Set((room.players || []).map((player) => player.uid).filter(Boolean));
+  const myUid = (room.players || []).find((player) => player.id === playerId)?.uid || null;
+  const inviteCandidates = [...new Map(
+    (onlinePlayers || [])
+      .filter((player) => player.uid && !player.roomId && player.uid !== myUid && !roomUids.has(player.uid))
+      .map((player) => [player.uid, player])
+  ).values()];
 
   return (
     <MobileSession className="mgv-lobby-page">
