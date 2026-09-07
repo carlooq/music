@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Check,
@@ -254,8 +254,10 @@ function MobileTimeline({ timeline = [], selectedSlot, onPick, interactive = tru
   );
 }
 
-function MobileChat({ open, setOpen, messages = [], playerId, chatInput, setChatInput, onSend }) {
+function MobileChat({ open, setOpen, messages = [], playerId, chatInput, setChatInput, onSend, raised = false }) {
   const [seenCount, setSeenCount] = useState(() => messages.length);
+  const [visualViewport, setVisualViewport] = useState(null);
+  const messagesEndRef = useRef(null);
   const unreadCount = Math.max(0, messages.slice(Math.min(seenCount, messages.length)).filter((msg) => msg.playerId !== playerId).length);
 
   useEffect(() => {
@@ -263,19 +265,53 @@ function MobileChat({ open, setOpen, messages = [], playerId, chatInput, setChat
     else if (seenCount > messages.length) setSeenCount(messages.length);
   }, [open, messages.length, seenCount]);
 
+  useEffect(() => {
+    if (!open) return;
+    const viewport = window.visualViewport;
+    const updateViewport = () => {
+      if (!viewport) {
+        setVisualViewport(null);
+        return;
+      }
+      setVisualViewport({ height: viewport.height, offsetTop: viewport.offsetTop });
+    };
+    updateViewport();
+    viewport?.addEventListener('resize', updateViewport);
+    viewport?.addEventListener('scroll', updateViewport);
+    return () => {
+      viewport?.removeEventListener('resize', updateViewport);
+      viewport?.removeEventListener('scroll', updateViewport);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ block: 'end' }));
+  }, [open, messages.length]);
+
   const toggleChat = () => {
     if (!open) setSeenCount(messages.length);
     setOpen((value) => !value);
   };
 
+  const viewportStyle = visualViewport
+    ? { top: `${visualViewport.offsetTop}px`, bottom: 'auto', height: `${visualViewport.height}px` }
+    : undefined;
+
+  const submitMessage = (event) => {
+    event?.preventDefault?.();
+    if (!chatInput.trim()) return;
+    onSend();
+  };
+
   return (
     <>
-      <button type="button" className={`mgv-chat-fab ${unreadCount ? 'has-unread' : ''}`} onClick={toggleChat} aria-label={unreadCount ? `Czat, ${unreadCount} nowych wiadomości` : 'Czat'}>
+      <button type="button" className={`mgv-chat-fab ${raised ? 'raised' : ''} ${unreadCount ? 'has-unread' : ''}`} onClick={toggleChat} aria-label={unreadCount ? `Czat, ${unreadCount} nowych wiadomości` : 'Czat'}>
         <MessageCircle size={23} />
         {unreadCount ? <span className="mgv-chat-badge">{unreadCount > 9 ? '9+' : unreadCount}</span> : null}
       </button>
       {open ? (
-        <div className="mgv-sheet-backdrop" onClick={() => setOpen(false)}>
+        <div className="mgv-sheet-backdrop mgv-chat-backdrop" style={viewportStyle} onClick={() => setOpen(false)}>
           <aside className="mgv-chat-sheet" onClick={(event) => event.stopPropagation()}>
             <div className="mgv-sheet-handle" />
             <div className="mgv-sheet-head"><strong>CZAT POKOJU</strong><button type="button" onClick={() => setOpen(false)}><X size={19} /></button></div>
@@ -285,11 +321,12 @@ function MobileChat({ open, setOpen, messages = [], playerId, chatInput, setChat
                   <span>{msg.name}</span><p>{msg.text}</p>
                 </div>
               ))}
+              <div ref={messagesEndRef} />
             </div>
-            <div className="mgv-chat-compose">
-              <input value={chatInput} onChange={(event) => setChatInput(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && onSend()} placeholder="Napisz wiadomość…" />
-              <button type="button" onClick={onSend} disabled={!chatInput.trim()}><Send size={18} /></button>
-            </div>
+            <form className="mgv-chat-compose" onSubmit={submitMessage}>
+              <input value={chatInput} onChange={(event) => setChatInput(event.target.value)} placeholder="Napisz wiadomość…" enterKeyHint="send" maxLength={300} />
+              <button type="submit" disabled={!chatInput.trim()} aria-label="Wyślij wiadomość"><Send size={18} /></button>
+            </form>
           </aside>
         </div>
       ) : null}
@@ -487,6 +524,7 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
   const [timelinePreviewId, setTimelinePreviewId] = useState(null);
   const [cardPreview, setCardPreview] = useState(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [tokenToolsOpen, setTokenToolsOpen] = useState(false);
   const modeLabel = room.dailyPlaylistMode ? 'PLAYLISTA DNIA' : room.practiceMode ? 'TRENING' : room.tournamentMode ? 'TURNIEJ' : 'ROZGRYWKA';
   const currentTokens = room.tokens?.[playerId] || 0;
   const turnName = room.dailyPlaylistMode ? 'PLAYLISTA DNIA' : room.practiceMode ? 'TRENING SOLO' : isMyTurn ? 'TWOJA KOLEJ!' : turnPlayerName || 'TURA GRACZA';
@@ -499,6 +537,11 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
   const timelinePreviewCards = timelinePreviewId
     ? [...(room.timelines?.[timelinePreviewId] || [])].sort((a, b) => a.year - b.year)
     : [];
+
+  useEffect(() => {
+    setTokenToolsOpen(false);
+    requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }));
+  }, [room.currentCard?.id]);
 
   return (
     <MobileSession className="mgv-playing-page">
@@ -524,53 +567,45 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
               <>
                 <MobileTimeline timeline={turnTimeline} selectedSlot={chosenSlot} onPick={setChosenSlot} onCardClick={setCardPreview} />
                 {!room.practiceMode ? (
-                  <div className="mgv-inline-guess">
-                    <div className="mgv-inline-guess-head">
-                      <div>
-                        <span className="mgv-eyebrow">ODPOWIEDŹ</span>
-                        <strong>TYTUŁ I WYKONAWCA</strong>
-                      </div>
-                      <span className="mgv-inline-token"><img src={iconToken} alt="" /> {currentTokens}</span>
-                    </div>
-                    <p>Wpisz odpowiedź przed zatwierdzeniem miejsca. Za poprawny tytuł i wykonawcę możesz zdobyć token.</p>
+                  <div className="mgv-inline-guess compact">
                     <div className="mgv-inline-guess-fields">
-                      <label>
-                        <span>WYKONAWCA</span>
-                        <input
-                          value={guessArtist}
-                          onChange={(event) => setGuessArtist(event.target.value)}
-                          placeholder="Wpisz wykonawcę"
-                          autoComplete="off"
-                          enterKeyHint="next"
-                        />
-                      </label>
-                      <label>
-                        <span>TYTUŁ</span>
-                        <input
-                          value={guessTitle}
-                          onChange={(event) => setGuessTitle(event.target.value)}
-                          placeholder="Wpisz tytuł"
-                          autoComplete="off"
-                          enterKeyHint="done"
-                        />
-                      </label>
+                      <input
+                        aria-label="Wykonawca"
+                        value={guessArtist}
+                        onChange={(event) => setGuessArtist(event.target.value)}
+                        placeholder="Wpisz wykonawcę"
+                        autoComplete="off"
+                        enterKeyHint="next"
+                      />
+                      <input
+                        aria-label="Tytuł"
+                        value={guessTitle}
+                        onChange={(event) => setGuessTitle(event.target.value)}
+                        placeholder="Wpisz tytuł"
+                        autoComplete="off"
+                        enterKeyHint="done"
+                      />
                     </div>
-                    <div className="mgv-token-actions">
-                      <button type="button" onClick={onSwapSong} disabled={busy || currentTokens < swapCost}>
-                        <RotateCcw size={17} />
-                        <span><strong>WYMIEŃ UTWÓR</strong><small>Losuje inny utwór do tej tury</small></span>
-                        <b><img src={iconToken} alt="" />{swapCost}</b>
-                      </button>
-                      <button type="button" onClick={onBuyCard} disabled={busy || currentTokens < buyCost}>
-                        <Gift size={17} />
-                        <span><strong>KUP KARTĘ W CIEMNO</strong><small>Dodaje kartę od razu do Twojej osi</small></span>
-                        <b><img src={iconToken} alt="" />{buyCost}</b>
-                      </button>
-                    </div>
+                    <button type="button" className="mgv-token-tools-toggle" aria-expanded={tokenToolsOpen} onClick={() => setTokenToolsOpen((value) => !value)}>
+                      <span><img src={iconToken} alt="" /> OPCJE ZA TOKENY · {currentTokens}</span>
+                      <ChevronRight size={17} className={tokenToolsOpen ? 'open' : ''} />
+                    </button>
+                    {tokenToolsOpen ? (
+                      <div className="mgv-token-actions">
+                        <button type="button" onClick={onSwapSong} disabled={busy || currentTokens < swapCost}>
+                          <RotateCcw size={17} />
+                          <span><strong>WYMIEŃ UTWÓR</strong><small>Losuje inny utwór do tej tury</small></span>
+                          <b><img src={iconToken} alt="" />{swapCost}</b>
+                        </button>
+                        <button type="button" onClick={onBuyCard} disabled={busy || currentTokens < buyCost}>
+                          <Gift size={17} />
+                          <span><strong>KUP KARTĘ W CIEMNO</strong><small>Dodaje kartę od razu do Twojej osi</small></span>
+                          <b><img src={iconToken} alt="" />{buyCost}</b>
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
-                <div className="mgv-selected-slot"><span>{chosenSlot !== null ? 'WYBRANO' : 'WYBIERZ + NA OSI'}</span><strong>{chosenSlot !== null ? `SLOT ${chosenSlot + 1}` : '—'}</strong></div>
-                <button type="button" className="mgv-main-cta" onClick={onConfirmPlacement} disabled={chosenSlot === null || busy}>ZATWIERDŹ MIEJSCE <ChevronRight size={20} /></button>
               </>
             ) : (
               <MobileTimeline timeline={viewedTimeline} interactive={false} onCardClick={setCardPreview} />
@@ -587,7 +622,17 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
         </Panel>
       ) : null}
 
-      {!room.practiceMode ? <MobileChat open={chatOpen} setOpen={setChatOpen} messages={room.messages || []} playerId={playerId} chatInput={chatInput} setChatInput={setChatInput} onSend={onSendChat} /> : null}
+      {screen === 'playing' && isMyTurn ? (
+        <div className="mgv-round-dock" role="group" aria-label="Sterowanie turą">
+          <div className="mgv-round-dock-status">
+            <span className={decisionLeft <= 10 ? 'danger' : ''}><Clock3 size={15} /> {decisionLeft}s</span>
+            <small>{chosenSlot !== null ? `MIEJSCE ${chosenSlot + 1}` : 'WYBIERZ + NA OSI'}</small>
+          </div>
+          <button type="button" onClick={onConfirmPlacement} disabled={chosenSlot === null || busy}>ZATWIERDŹ <ChevronRight size={19} /></button>
+        </div>
+      ) : null}
+
+      {!room.practiceMode ? <MobileChat open={chatOpen} setOpen={setChatOpen} messages={room.messages || []} playerId={playerId} chatInput={chatInput} setChatInput={setChatInput} onSend={onSendChat} raised={screen === 'playing' && isMyTurn} /> : null}
 
       {!room.practiceMode ? (
         <Panel className="mgv-live-players" accent="cyan">

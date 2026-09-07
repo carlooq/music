@@ -1234,7 +1234,7 @@ function DesktopShopView({ common, hitcoin, packConfigs, busy, openResult, onBuy
   );
 }
 
-function DesktopCommunityView({ common, onlinePlayers, challengeSentTo, challengeBusy, onChallenge, onViewProfile }) {
+function DesktopCommunityView({ common, onlinePlayers, challengeSentTo, challengeBusy, onChallenge, onViewProfile, currentUserUid }) {
   return (
     <DesktopLayout active="community" {...common}>
       <HeaderBar {...common.header} />
@@ -1246,13 +1246,14 @@ function DesktopCommunityView({ common, onlinePlayers, challengeSentTo, challeng
             <div className="desk-community-grid">
               {onlinePlayers.map((player, index) => {
                 const pending = challengeSentTo?.uid === player.uid;
+                const isMe = !!player.uid && player.uid === currentUserUid;
                 return (
                   <div key={player.playerId || player.uid || index} className="desk-community-card">
                     <button type="button" className="desk-community-profile" disabled={!player.uid} onClick={() => player.uid && onViewProfile?.(player)}>
                       <div className="desk-community-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.name || player.username || 'G') : null}</div>
-                      <div className="desk-community-copy"><strong>{player.name || player.username || 'Gracz'}</strong><span>🟢 online · {player.uid ? 'zobacz profil' : 'gość'}</span></div>
+                      <div className="desk-community-copy"><strong>{player.name || player.username || 'Gracz'}</strong><span>🟢 online · {player.uid ? (isMe ? 'to Ty' : 'zobacz profil') : 'gość'}</span></div>
                     </button>
-                    {player.uid ? <button disabled={challengeBusy || pending} onClick={() => onChallenge(player)}>{pending ? 'WYZWANIE WYSŁANE' : 'WYZWIJ 1V1'}</button> : null}
+                    {player.uid && !isMe ? <button disabled={challengeBusy || pending} onClick={() => onChallenge(player)}>{pending ? 'WYZWANIE WYSŁANE' : 'WYZWIJ 1V1'}</button> : null}
                   </div>
                 );
               })}
@@ -1368,7 +1369,7 @@ export function DesktopAppView(props) {
   else if (section === 'ranking') view = <DesktopLeaderboardView common={common} leaderboard={props.leaderboard} sortBy={props.leaderboardSort} onSort={props.onLoadLeaderboard} onViewProfile={props.onViewProfile} />;
   else if (section === 'collection') view = <DesktopCollectionView common={common} songs={props.songs} stats={props.stats} libraryLoading={props.libraryLoading} songPoolSize={props.songPoolSize} />;
   else if (section === 'shop') view = <DesktopShopView common={common} hitcoin={props.hitcoin} packConfigs={props.packConfigs} busy={props.packBusy} openResult={props.packOpenResult} onBuy={props.onBuyPack} onClearResult={props.onClearPackResult} />;
-  else if (section === 'community') view = <DesktopCommunityView common={common} onlinePlayers={props.onlinePlayers} challengeSentTo={props.challengeSentTo} challengeBusy={props.challengeBusy} onChallenge={props.onChallenge} onViewProfile={props.onViewProfile} />;
+  else if (section === 'community') view = <DesktopCommunityView common={common} onlinePlayers={props.onlinePlayers} challengeSentTo={props.challengeSentTo} challengeBusy={props.challengeBusy} onChallenge={props.onChallenge} onViewProfile={props.onViewProfile} currentUserUid={props.user?.uid} />;
   else if (section === 'propose') view = <DesktopProposeView common={common} draft={props.proposeDraft} setDraft={props.setProposeDraft} categories={props.categories} onToggleCategory={props.onToggleProposeCategory} onSubmit={props.onSubmitProposal} busy={props.proposeBusy} error={props.proposeError} success={props.proposeSuccess} />;
   else view = <DesktopHomeView {...localHomeProps} />;
 

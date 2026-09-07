@@ -870,3 +870,156 @@
   .mgv-root { max-width:100vw; overscroll-behavior-x:none; }
   .mgv-shell { max-width:100%; }
 }
+
+
+/* ============================================================
+   Mobile gameplay v4.1 — one-hand round flow + keyboard-safe chat
+   ============================================================ */
+.mgv-playing-page .mgv-shell {
+  padding-top:calc(82px + env(safe-area-inset-top));
+  padding-bottom:calc(112px + env(safe-area-inset-bottom));
+}
+.mgv-playing-page .mgv-header {
+  position:fixed;
+  top:env(safe-area-inset-top);
+  left:50%;
+  width:min(calc(100% - 28px),592px);
+  transform:translateX(-50%);
+  z-index:80;
+  padding-left:4px;
+  padding-right:4px;
+}
+.mgv-playing-page .mgv-audio-panel { margin-top:0; }
+
+.mgv-inline-guess.compact { padding:10px; margin-bottom:4px; }
+.mgv-inline-guess.compact .mgv-inline-guess-fields { grid-template-columns:1fr 1fr; }
+.mgv-inline-guess.compact .mgv-inline-guess-fields > input {
+  width:100%;
+  min-width:0;
+  min-height:48px;
+  padding:0 11px;
+  border-radius:11px;
+  border:1px solid rgba(126,103,187,.23);
+  outline:0;
+  background:rgba(4,7,22,.92);
+  color:#fff;
+  font-size:16px;
+  box-shadow:inset 0 0 14px rgba(55,35,105,.05);
+}
+.mgv-inline-guess.compact .mgv-inline-guess-fields > input::placeholder { color:#756e80; }
+.mgv-inline-guess.compact .mgv-inline-guess-fields > input:focus {
+  border-color:rgba(87,225,255,.62);
+  box-shadow:0 0 0 2px rgba(70,213,255,.07),0 0 18px rgba(70,213,255,.07);
+}
+.mgv-token-tools-toggle {
+  width:100%;
+  min-height:39px;
+  margin-top:7px;
+  padding:0 9px;
+  border-radius:10px;
+  border:1px solid rgba(156,92,255,.16);
+  background:rgba(116,54,190,.055);
+  color:#a99fb7;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  font-family:"Space Mono",monospace;
+  font-size:10px;
+  font-weight:700;
+}
+.mgv-token-tools-toggle span { display:flex; align-items:center; gap:5px; }
+.mgv-token-tools-toggle img { width:16px; height:16px; object-fit:contain; }
+.mgv-token-tools-toggle svg { transition:transform .18s ease; }
+.mgv-token-tools-toggle svg.open { transform:rotate(90deg); }
+
+.mgv-round-dock {
+  position:fixed;
+  left:50%;
+  bottom:calc(12px + env(safe-area-inset-bottom));
+  z-index:75;
+  width:min(calc(100% - 28px),592px);
+  min-height:66px;
+  padding:8px;
+  transform:translateX(-50%);
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(145px,46%);
+  align-items:center;
+  gap:8px;
+  border-radius:17px;
+  border:1px solid rgba(82,218,255,.28);
+  background:rgba(7,10,28,.96);
+  box-shadow:0 14px 38px rgba(0,0,0,.48),0 0 28px rgba(74,209,255,.09);
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+}
+.mgv-round-dock-status { min-width:0; padding-left:4px; display:flex; flex-direction:column; gap:4px; }
+.mgv-round-dock-status > span {
+  color:#62e8ff;
+  display:flex;
+  align-items:center;
+  gap:5px;
+  font-family:"Space Mono",monospace;
+  font-size:14px;
+  font-weight:900;
+}
+.mgv-round-dock-status > span.danger { color:#ff6888; }
+.mgv-round-dock-status > small {
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  color:#8b8395;
+  font-family:"Space Mono",monospace;
+  font-size:9px;
+  letter-spacing:.06em;
+}
+.mgv-round-dock > button {
+  min-height:48px;
+  border-radius:12px;
+  border:1px solid rgba(255,255,255,.22);
+  background:linear-gradient(100deg,#b83aff,#7855ff 50%,#34ccff);
+  color:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  font-family:"Bebas Neue",Impact,sans-serif;
+  font-size:20px;
+  letter-spacing:.035em;
+  box-shadow:0 0 20px rgba(124,79,255,.15);
+}
+.mgv-round-dock > button:disabled { opacity:.35; filter:saturate(.5); }
+.mgv-chat-fab.raised { bottom:calc(91px + env(safe-area-inset-bottom)); }
+
+.mgv-chat-backdrop { overflow:hidden; }
+.mgv-chat-sheet {
+  display:flex;
+  flex-direction:column;
+  max-height:min(84dvh,100%);
+  overflow:hidden;
+}
+.mgv-chat-messages {
+  flex:1 1 auto;
+  min-height:90px;
+  max-height:none;
+  overscroll-behavior:contain;
+}
+.mgv-chat-compose {
+  flex:0 0 auto;
+  position:sticky;
+  bottom:0;
+  padding-top:10px;
+  margin-top:0;
+  background:linear-gradient(180deg,rgba(5,7,22,0),#050716 22%);
+}
+.mgv-chat-compose button { min-height:50px; }
+
+@media (max-width:420px) {
+  .mgv-inline-guess.compact .mgv-inline-guess-fields { grid-template-columns:1fr; gap:7px; }
+  .mgv-round-dock { grid-template-columns:minmax(0,1fr) minmax(132px,44%); }
+  .mgv-round-dock > button { font-size:18px; }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  .mgv-token-tools-toggle svg { transition:none; }
+}

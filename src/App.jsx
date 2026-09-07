@@ -714,6 +714,29 @@ function GlobalSessionUx({
   );
 }
 
+function DuelChallengeModal({ challenge, busy, onAccept, onDecline }) {
+  if (!challenge) return null;
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Wyzwanie 1 na 1"
+      style={{ position: "fixed", inset: 0, zIndex: 260, display: "flex", alignItems: "center", justifyContent: "center", padding: 22, background: "rgba(1,2,10,0.82)", backdropFilter: "blur(8px)" }}
+    >
+      <div style={{ width: "min(100%, 360px)", padding: 22, borderRadius: 22, textAlign: "center", background: "linear-gradient(160deg,#0d1028,#070817)", border: "1px solid rgba(76,226,255,.28)", boxShadow: "0 24px 70px rgba(0,0,0,.55),0 0 30px rgba(160,80,255,.12)" }}>
+        <div style={{ width: 58, height: 58, margin: "0 auto 10px", borderRadius: 18, display: "grid", placeItems: "center", fontSize: 30, background: "linear-gradient(135deg,rgba(255,83,201,.18),rgba(68,216,255,.14))", border: "1px solid rgba(255,101,211,.24)" }}>⚔️</div>
+        <div style={{ color: "#7cecff", fontFamily: "'Space Mono', monospace", fontSize: 10, letterSpacing: ".12em" }}>WYZWANIE 1V1</div>
+        <h2 style={{ margin: "7px 0 6px", color: "#fff", fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, lineHeight: 1 }}>{challenge.fromName || "Gracz"} WYZYWA CIĘ!</h2>
+        <p style={{ margin: "0 0 16px", color: "#9a92a7", fontSize: 13, lineHeight: 1.45 }}>Przyjmij wyzwanie, a utworzymy wspólny pokój 1 na 1.</p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
+          <button type="button" onClick={onDecline} disabled={busy} style={{ minHeight: 48, borderRadius: 13, border: "1px solid rgba(255,92,130,.25)", background: "rgba(255,66,110,.07)", color: "#ff7b99", fontWeight: 800 }}>ODRZUĆ</button>
+          <button type="button" onClick={onAccept} disabled={busy} style={{ minHeight: 48, borderRadius: 13, border: "1px solid rgba(73,232,174,.3)", background: "linear-gradient(100deg,#36e6a0,#4edaff)", color: "#061713", fontWeight: 900 }}>{busy ? "ŁĄCZENIE…" : "PRZYJMIJ"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [screen, setScreen] = useState("home"); // home | lobby | playing | roundResult | gameover
   const [name, setName] = useState(localStorage.getItem("hitster-player-name") || "");
@@ -1061,6 +1084,8 @@ export default function App() {
 
   async function handleSendChallenge(toPlayer) {
     if (!user) return setError("Zaloguj się, żeby wyzwać kogoś na pojedynek.");
+    if (!toPlayer?.uid) return setError("Nie można wysłać wyzwania do tego gracza.");
+    if (toPlayer.uid === user.uid) return setError("Nie możesz wyzwać samego siebie.");
     setChallengeBusy(true);
     try {
       await sendDuelChallenge(user.uid, name.trim() || user.displayName || "Gracz", toPlayer.uid, toPlayer.name);
@@ -1068,7 +1093,7 @@ export default function App() {
       setTimeout(() => {
         setChallengeSentTo((current) => {
           if (current?.uid === toPlayer.uid) {
-            clearDuelChallenge(user.uid).catch(() => {});
+            clearDuelChallenge(toPlayer.uid).catch(() => {});
             setError(`${toPlayer.name} nie odpowiedział(a) na wyzwanie.`);
             return null;
           }
@@ -2863,6 +2888,7 @@ export default function App() {
         createdAt: serverTimestamp(),
         expireAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // TTL: porzucone/niedokończone pokoje znikają po 24h
         messages: [],
+        joinLocked: false,
       });
       setRoomId(code);
     } catch (e) {
@@ -2895,6 +2921,7 @@ export default function App() {
       createdAt: serverTimestamp(),
       expireAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       messages: [],
+      joinLocked: false,
     });
     setRoomId(code);
     return code;
@@ -2981,9 +3008,13 @@ export default function App() {
         const snap = await tx.get(ref);
         if (!snap.exists()) throw new Error("Nie znaleziono pokoju o tym kodzie.");
         const data = snap.data();
-        const already = data.players.some((p) => p.id === playerId);
+        const players = Array.isArray(data.players) ? data.players : [];
+        const already = players.some((p) => p.id === playerId);
+        if (!already && (data.status !== "lobby" || data.joinLocked)) {
+          throw new Error("Gra w tym pokoju już się rozpoczęła. Nie można dołączyć w trakcie rozgrywki.");
+        }
         if (!already) {
-          tx.update(ref, { players: [...data.players, { id: playerId, uid: user?.uid || null, name: name.trim(), authed: !!user, avatarUrl: stats?.avatarUrl || null }] });
+          tx.update(ref, { players: [...players, { id: playerId, uid: user?.uid || null, name: name.trim(), authed: !!user, avatarUrl: stats?.avatarUrl || null }] });
         }
       });
       setRoomId(code);
@@ -3017,31 +3048,46 @@ export default function App() {
       setError("Podaj liczbę kart do wygrania.");
       return;
     }
-    if (room.players.length < 2) {
-      setError("Potrzeba minimum 2 graczy. Do gry solo użyj trybu Trening na ekranie głównym.");
-      return;
-    }
     setBusy(true);
     setError("");
+    const ref = doc(db, "rooms", roomId);
+    let joinLockHeld = false;
     try {
+      // Najpierw przygotowujemy pulę. Dopiero tuż przed startem atomowo blokujemy
+      // dołączanie i pobieramy ostateczną listę graczy. Dzięki temu nikt nie może
+      // "wskoczyć" pomiędzy przygotowaniem talii a przejściem do rundy otwierającej.
       const basePool = await getLiveLibraryPool();
       const filterActive = !selectedCategories.includes("wszystkie") && selectedCategories.length > 0;
       const pool = filterActive
         ? basePool.filter((s) => normCategories(s.categories).some((c) => selectedCategories.includes(c)))
         : basePool.filter((s) => !normCategories(s.categories).includes("religijne"));
+
+      let players = [];
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists()) throw new Error("Pokój już nie istnieje.");
+        const data = snap.data();
+        if (data.status !== "lobby" || data.joinLocked) throw new Error("Gra jest już uruchamiana albo została rozpoczęta.");
+        players = Array.isArray(data.players) ? data.players : [];
+        if (players.length < 2) throw new Error("Potrzeba minimum 2 graczy. Do gry solo użyj trybu Trening na ekranie głównym.");
+        tx.update(ref, { joinLocked: true });
+      });
+      joinLockHeld = true;
+
       const EXTRA_CARDS_PER_PLAYER = 7;
-      const needed = room.players.length * (target + EXTRA_CARDS_PER_PLAYER);
+      const needed = players.length * (target + EXTRA_CARDS_PER_PLAYER);
       if (pool.length < needed + 1) {
         const catNote = filterActive ? ` w wybranych kategoriach (${selectedCategories.join(", ")})` : "";
-        setError(`Za mało utworów${catNote} (masz ${pool.length}, potrzeba ${needed + 1}: (${target}+${EXTRA_CARDS_PER_PLAYER}) × ${room.players.length} graczy + 1 na rundę otwierającą).`);
-        setBusy(false);
+        await updateDoc(ref, { joinLocked: false }).catch(() => {});
+        joinLockHeld = false;
+        setError(`Za mało utworów${catNote} (masz ${pool.length}, potrzeba ${needed + 1}: (${target}+${EXTRA_CARDS_PER_PLAYER}) × ${players.length} graczy + 1 na rundę otwierającą).`);
         return;
       }
+
       // +1 karta na minigrę "kto zaczyna" — osobna, nie wchodzi do talii rozgrywki
       const extended = shuffle(pool).slice(0, needed + 1);
       const openerCard = extended[0];
       const deck = extended.slice(1);
-      const players = room.players;
       const timelines = {};
       const tokens = {};
       players.forEach((p, i) => {
@@ -3054,9 +3100,9 @@ export default function App() {
       const openerCorrectIndex = shuffledOptions.findIndex((s) => s.id === openerCard.id);
       const openerOptions = shuffledOptions.map((s) => ({ artist: s.artist, title: s.title }));
 
-      const ref = doc(db, "rooms", roomId);
       await updateDoc(ref, {
         status: "opener",
+        joinLocked: true,
         target,
         deck,
         deckIndex: players.length + 1,
@@ -3085,8 +3131,10 @@ export default function App() {
         gameBestStreaks: {},
         playedCards: [],
       });
+      joinLockHeld = false;
     } catch (e) {
-      setError("Nie udało się rozpocząć gry: " + e.message);
+      if (joinLockHeld) updateDoc(ref, { joinLocked: false }).catch(() => {});
+      setError(e.message || "Nie udało się rozpocząć gry.");
     } finally {
       setBusy(false);
     }
@@ -3954,14 +4002,14 @@ export default function App() {
   async function sendChatMessage() {
     const text = chatInput.trim();
     if (!text || !roomId) return;
-    setChatInput("");
     try {
       const ref = doc(db, "rooms", roomId);
       await updateDoc(ref, {
         messages: arrayUnion({ playerId, name: name || user?.displayName || "Gracz", text, ts: Date.now() }),
       });
+      setChatInput("");
     } catch (e) {
-      // ciche niepowodzenie — wiadomość po prostu nie doleci
+      setError("Nie udało się wysłać wiadomości. Spróbuj ponownie.");
     }
   }
 
@@ -3993,6 +4041,7 @@ export default function App() {
         openerOptions: [],
         openerWinnerId: null,
         openerCreatedAt: null,
+        joinLocked: false,
       });
     } finally {
       setBusy(false);
@@ -5386,6 +5435,7 @@ export default function App() {
           </div>
         </div>
       ) : null}
+      <DuelChallengeModal challenge={incomingChallenge} busy={challengeBusy} onAccept={handleAcceptChallenge} onDecline={handleDeclineChallenge} />
       </>
     );
   }
@@ -5535,6 +5585,7 @@ export default function App() {
           </div>
         </div>
       ) : null}
+      <DuelChallengeModal challenge={incomingChallenge} busy={challengeBusy} onAccept={handleAcceptChallenge} onDecline={handleDeclineChallenge} />
       </>
     );
   }

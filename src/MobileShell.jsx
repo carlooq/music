@@ -807,7 +807,8 @@ function MobileCommunityView(props) {
       <section className="mob-panel mob-community-list">
         {players.length ? players.map((player, index) => {
           const pending = props.challengeSentTo?.uid === player.uid;
-          return <div className="mob-community-row" key={player.playerId || player.uid || index}><button type="button" className="mob-community-profile" onClick={() => player.uid && props.onViewProfile?.(player)}><div className="mob-player-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.name || player.username) : null}</div><div><strong>{player.name || player.username || 'Gracz'}</strong><span>{player.uid ? '🟢 online · zobacz profil' : 'gość'}</span></div></button>{player.uid ? <button className="mob-duel-btn" type="button" disabled={props.challengeBusy || pending} onClick={() => props.onChallenge?.(player)}>{pending ? 'WYSŁANO' : 'WYZWIJ'}</button> : null}</div>;
+          const isMe = !!player.uid && player.uid === props.user?.uid;
+          return <div className="mob-community-row" key={player.playerId || player.uid || index}><button type="button" className="mob-community-profile" onClick={() => player.uid && props.onViewProfile?.(player)}><div className="mob-player-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.name || player.username) : null}</div><div><strong>{player.name || player.username || 'Gracz'}</strong><span>{player.uid ? (isMe ? '🟢 online · to Ty' : '🟢 online · zobacz profil') : 'gość'}</span></div></button>{player.uid && !isMe ? <button className="mob-duel-btn" type="button" disabled={props.challengeBusy || pending} onClick={() => props.onChallenge?.(player)}>{pending ? 'WYSŁANO' : 'WYZWIJ'}</button> : null}</div>;
         }) : <div className="mob-empty">Nikt inny nie jest teraz online.</div>}
       </section>
     </div>
