@@ -413,6 +413,24 @@ function MobileHomeView(props) {
   );
 }
 
+function historyDate(game) {
+  const raw = game?.finishedAt;
+  const date = raw?.toDate ? raw.toDate() : new Date(Number(game?.finishedAtMs || game?.createdAtMs || 0));
+  if (!date || Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
+}
+
+function historyResult(game, uid) {
+  return (game?.players || []).find((player) => player.uid === uid) || null;
+}
+
+function historyMedal(position) {
+  if (position === 1) return '🥇';
+  if (position === 2) return '🥈';
+  if (position === 3) return '🥉';
+  return `#${position || '—'}`;
+}
+
 function MobileStatsView(props) {
   const winRate = props.stats?.gamesPlayed ? `${pct(props.stats?.gamesWon, props.stats?.gamesPlayed)}%` : '0%';
   const cardAccuracy = props.stats?.cardsTotal ? `${pct(props.stats?.cardsCorrect, props.stats?.cardsTotal)}%` : '0%';
