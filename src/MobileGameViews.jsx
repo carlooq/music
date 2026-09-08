@@ -255,7 +255,7 @@ function MobileTimeline({ timeline = [], selectedSlot, onPick, interactive = tru
   );
 }
 
-function MobileChat({ open, setOpen, messages = [], playerId, chatInput, setChatInput, onSend, raised = false }) {
+function MobileChat({ open, setOpen, messages = [], playerId, chatInput, setChatInput, onSend, raised = false, hidden = false }) {
   const [seenCount, setSeenCount] = useState(() => messages.length);
   const [visualViewport, setVisualViewport] = useState(null);
   const messagesEndRef = useRef(null);
@@ -307,7 +307,7 @@ function MobileChat({ open, setOpen, messages = [], playerId, chatInput, setChat
 
   return (
     <>
-      <button type="button" className={`mgv-chat-fab ${raised ? 'raised' : ''} ${unreadCount ? 'has-unread' : ''}`} onClick={toggleChat} aria-label={unreadCount ? `Czat, ${unreadCount} nowych wiadomości` : 'Czat'}>
+      <button type="button" className={`mgv-chat-fab ${raised ? 'raised' : ''} ${unreadCount ? 'has-unread' : ''} ${hidden ? 'kb-hidden' : ''}`} onClick={toggleChat} aria-label={unreadCount ? `Czat, ${unreadCount} nowych wiadomości` : 'Czat'}>
         <MessageCircle size={23} />
         {unreadCount ? <span className="mgv-chat-badge">{unreadCount > 9 ? '9+' : unreadCount}</span> : null}
       </button>
@@ -555,6 +555,23 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
   const [cardPreview, setCardPreview] = useState(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [tokenToolsOpen, setTokenToolsOpen] = useState(false);
+  const [keyboardInset, setKeyboardInset] = useState(0);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const updateInset = () => {
+      const inset = Math.max(0, window.innerHeight - (viewport.height + viewport.offsetTop));
+      setKeyboardInset(inset > 60 ? inset : 0);
+    };
+    updateInset();
+    viewport.addEventListener('resize', updateInset);
+    viewport.addEventListener('scroll', updateInset);
+    return () => {
+      viewport.removeEventListener('resize', updateInset);
+      viewport.removeEventListener('scroll', updateInset);
+    };
+  }, []);
+  const keyboardOpen = keyboardInset > 0;
   const modeLabel = room.dailyPlaylistMode ? 'PLAYLISTA DNIA' : room.practiceMode ? 'TRENING' : room.tournamentMode ? 'TURNIEJ' : 'ROZGRYWKA';
   const currentTokens = room.tokens?.[playerId] || 0;
   const turnName = room.dailyPlaylistMode ? 'PLAYLISTA DNIA' : room.practiceMode ? 'TRENING SOLO' : isMyTurn ? 'TWOJA KOLEJ!' : turnPlayerName || 'TURA GRACZA';
@@ -653,7 +670,7 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
       ) : null}
 
       {screen === 'playing' && isMyTurn ? (
-        <div className="mgv-round-dock" role="group" aria-label="Sterowanie turą">
+        <div className="mgv-round-dock" role="group" aria-label="Sterowanie turą" style={keyboardOpen ? { bottom: keyboardInset + 12 } : undefined}>
           <div className="mgv-round-dock-status">
             <span className={decisionLeft <= 10 ? 'danger' : ''}><Clock3 size={15} /> {decisionLeft}s</span>
             <small>{chosenSlot !== null ? `MIEJSCE ${chosenSlot + 1}` : 'WYBIERZ + NA OSI'}</small>
@@ -662,7 +679,7 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
         </div>
       ) : null}
 
-      {!room.practiceMode ? <MobileChat open={chatOpen} setOpen={setChatOpen} messages={room.messages || []} playerId={playerId} chatInput={chatInput} setChatInput={setChatInput} onSend={onSendChat} raised={screen === 'playing' && isMyTurn} /> : null}
+      {!room.practiceMode ? <MobileChat open={chatOpen} setOpen={setChatOpen} messages={room.messages || []} playerId={playerId} chatInput={chatInput} setChatInput={setChatInput} onSend={onSendChat} raised={screen === 'playing' && isMyTurn} hidden={keyboardOpen} /> : null}
 
       {!room.practiceMode ? (
         <Panel className="mgv-live-players" accent="cyan">
