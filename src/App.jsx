@@ -1479,6 +1479,8 @@ export default function App() {
       setMyHitcoin((prev) => (prev || 0) - PACKS[packKey].price);
       setPackOpenResult(drawn);
       setPackRevealedIndices(new Set());
+      const gotGoldPlus = drawn.some((card) => ["zlota", "platynowa", "diamentowa"].includes(effectiveRarity(card.song)));
+      if (gotGoldPlus) bumpWeeklyChallengeProgress(user.uid, "cardGoldPlus", 1).catch(() => {});
     } catch (e) {
       setError(e.message || "Nie udało się otworzyć paczki.");
     } finally {
