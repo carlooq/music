@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc, updateDoc, increment, runTransaction, collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
 import { db } from "./firebase-config.js";
-import { awardXp, currentWeekKey } from "./stats.js";
+import { awardXp, currentWeekKey, pushRewardNotice } from "./stats.js";
 
 const PLAYLISTS_COLLECTION = "dailyPlaylists";
 const SCORES_COLLECTION = "dailyPlaylistScores";
@@ -139,6 +139,7 @@ export async function processWeeklyPlaylistRewardsIfNeeded() {
     for (let i = 0; i < Math.min(3, entries.length); i++) {
       if (!entries[i].score) continue; // nie nagradzaj kogoś z zerowym wynikiem
       await awardXp(entries[i].uid, WEEKLY_REWARDS[i]);
+      pushRewardNotice(entries[i].uid, { source: "playlist", place: i + 1, xp: WEEKLY_REWARDS[i], hitcoin: 0, label: "Playlista dnia (ranking tygodnia)" }).catch(() => {});
     }
   } catch (e) {
     // ciche niepowodzenie — znacznik już ustawiony, nie spróbujemy ponownie w tym tygodniu, ale i tak nie ma dużej straty

@@ -590,6 +590,7 @@ export async function processSeasonRewardsIfNeeded() {
     const reward = SEASON_REWARDS[i];
     if (!reward) continue;
     await updateDoc(doc(db, "userStats", ranked[i].uid), { xp: increment(reward.xp), hitcoin: increment(reward.hitcoin) });
+    pushRewardNotice(ranked[i].uid, { source: "season", place: i + 1, xp: reward.xp, hitcoin: reward.hitcoin, label: `Sezon ${seasonNumber(endedSeason)} (ranking)` }).catch(() => {});
   }
 }
 
@@ -600,4 +601,39 @@ export function getPlayerSeasonHistory(statsData) {
   return Object.entries(history)
     .map(([seasonKey, result]) => ({ seasonKey, seasonNumber: seasonNumber(seasonKey), ...result, rank: seasonRankForWins(result.gamesWon) }))
     .sort((a, b) => (a.seasonKey < b.seasonKey ? 1 : -1));
+}
+
+// ============================================================
+// POWIADOMIENIA O NAGRODACH Z ROZLICZEŃ TYGODNIOWYCH/SEZONOWYCH
+// ============================================================
+// Problem który to rozwiązuje: nagrody za Playlistę dnia / Hit Rush / Turniej
+// / Sezon są przyznawane w tle, przez transakcję wyzwalaną przez PIERWSZEGO
+// gracza, który akurat otworzy appkę w danym okresie — czyli niekoniecznie
+// przez samego zwycięzcę. Dlatego "karteczka" jest dopisywana bezpośrednio
+// do konta KONKRETNEGO zwycięzcy (niezależnie kto wyzwolił przetwarzanie),
+// a odczytywana leniwie przy jego własnym najbliższym zalogowaniu — każdy
+// zwycięzca prędzej czy później zobaczy swój popup, nawet jeśli nie był
+// tym, kto wywołał samo rozliczenie.
+export async function pushRewardNotice(uid, notice) {
+  if (!uid) return;
+  const ref = doc(db, "userStats", uid);
+  const entry = { ...notice, id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}` };
+  await updateDoc(ref, { rewardNotices: arrayUnion(entry) }).catch(() => {});
+}
+
+// Zdejmuje i zwraca JEDNĄ najstarszą nieodczytaną karteczkę (transakcja —
+// bezpieczne nawet gdyby appka była otwarta na dwóch kartach naraz).
+export async function consumeNextRewardNotice(uid) {
+  if (!uid) return null;
+  const ref = doc(db, "userStats", uid);
+  let notice = null;
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const data = snap.exists() ? snap.data() : {};
+    const notices = data.rewardNotices || [];
+    if (!notices.length) return;
+    notice = notices[0];
+    tx.update(ref, { rewardNotices: notices.slice(1) });
+  });
+  return notice;
 }

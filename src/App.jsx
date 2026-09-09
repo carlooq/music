@@ -15,7 +15,7 @@ import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
 import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId, fuzzyMatch } from "./utils.js";
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
-import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, getLeaderboardPosition, awardXp, xpForLevel, levelFromXp, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag, getWeeklyChallenges, bumpWeeklyChallengeProgress, claimWeeklyChallenge, currentSeasonKey, seasonNumber, seasonRankForWins, SEASON_RANKS, updateSeasonProgress, getSeasonLeaderboard, processSeasonRewardsIfNeeded, getPlayerSeasonHistory } from "./stats.js";
+import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, getLeaderboardPosition, awardXp, xpForLevel, levelFromXp, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag, getWeeklyChallenges, bumpWeeklyChallengeProgress, claimWeeklyChallenge, currentSeasonKey, seasonNumber, seasonRankForWins, SEASON_RANKS, updateSeasonProgress, getSeasonLeaderboard, processSeasonRewardsIfNeeded, getPlayerSeasonHistory, consumeNextRewardNotice } from "./stats.js";
 import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss, incrementSongPlayCount, getSongCount } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
 import { heartbeat, clearPresence, getOnlinePlayers } from "./presence.js";
@@ -763,6 +763,38 @@ function RoomInviteModal({ invite, busy, onAccept, onDecline }) {
   );
 }
 
+function RewardNoticePopup({ notice, onClose }) {
+  if (!notice) return null;
+  const medal = notice.place === 1 ? "🥇" : notice.place === 2 ? "🥈" : notice.place === 3 ? "🥉" : "🏆";
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Odebrana nagroda"
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, zIndex: 260, display: "flex", alignItems: "center", justifyContent: "center", padding: 22, background: "rgba(1,2,10,0.82)", backdropFilter: "blur(8px)" }}
+    >
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "min(100%, 370px)", padding: 22, borderRadius: 22, textAlign: "center", background: "linear-gradient(160deg,#181228,#0c0817)", border: "1px solid rgba(245,196,81,.3)", boxShadow: "0 24px 70px rgba(0,0,0,.55),0 0 30px rgba(245,196,81,.12)" }}>
+        <div style={{ width: 58, height: 58, margin: "0 auto 10px", borderRadius: 18, display: "grid", placeItems: "center", fontSize: 29, background: "linear-gradient(135deg,rgba(245,196,81,.18),rgba(255,95,201,.13))", border: "1px solid rgba(245,196,81,.3)" }}>{medal}</div>
+        <div style={{ color: "#f5c451", fontFamily: "'Space Mono', monospace", fontSize: 10, letterSpacing: ".12em" }}>NAGRODA ODEBRANA</div>
+        <h2 style={{ margin: "7px 0 6px", color: "#fff", fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, lineHeight: 1.1 }}>
+          {notice.place ? `${notice.place}. MIEJSCE` : "GRATULACJE!"}
+        </h2>
+        <p style={{ margin: "0 0 15px", color: "#9a92a7", fontSize: 13, lineHeight: 1.45 }}>{notice.label || "Zdobyłeś nagrodę."}</p>
+        <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 18 }}>
+          {notice.xp > 0 && (
+            <div style={{ padding: "8px 16px", borderRadius: 12, color: "#fff", fontFamily: "'Space Mono', monospace", fontWeight: 900, background: "rgba(79,214,255,.09)", border: "1px solid rgba(79,214,255,.25)" }}>+{notice.xp} XP</div>
+          )}
+          {notice.hitcoin > 0 && (
+            <div style={{ padding: "8px 16px", borderRadius: 12, color: "#fff", fontFamily: "'Space Mono', monospace", fontWeight: 900, background: "rgba(245,196,81,.09)", border: "1px solid rgba(245,196,81,.25)" }}>+{notice.hitcoin} 🪙</div>
+          )}
+        </div>
+        <button type="button" onClick={onClose} style={{ width: "100%", minHeight: 48, borderRadius: 13, border: "1px solid rgba(245,196,81,.3)", background: "linear-gradient(100deg,#f5c451,#ff8fd9)", color: "#241407", fontWeight: 900, fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, letterSpacing: ".04em" }}>SUPER!</button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [screen, setScreen] = useState("home"); // home | lobby | playing | roundResult | gameover
   const [name, setName] = useState(localStorage.getItem("hitster-player-name") || "");
@@ -828,6 +860,7 @@ export default function App() {
   const [leaderboard, setLeaderboard] = useState(null);
   const [seasonLeaderboard, setSeasonLeaderboard] = useState(null);
   const [seasonLeaderboardSort, setSeasonLeaderboardSort] = useState("gamesWon");
+  const [rewardNotice, setRewardNotice] = useState(null);
   const [leaderboardPosition, setLeaderboardPosition] = useState(null);
 
   const [librarySongs, setLibrarySongs] = useState(null); // null = jeszcze nie sprawdzono
@@ -2135,6 +2168,12 @@ export default function App() {
           setMyXp(s?.xp || 0);
           setMyHitcoin(s?.hitcoin || 0);
           setStats(s);
+        }).catch(() => {});
+        // sprawdzamy raz po zalogowaniu, czy czeka jakaś nieodebrana
+        // karteczka (Playlista dnia / Hit Rush / Turniej / Sezon) —
+        // patrz komentarz przy pushRewardNotice w stats.js
+        consumeNextRewardNotice(u.uid).then((notice) => {
+          if (notice) setRewardNotice(notice);
         }).catch(() => {});
       }
     });
@@ -4980,6 +5019,7 @@ export default function App() {
         cardSize={viewportWidth < 640 ? 190 : 220}
       />
       <RoomInviteModal invite={incomingChallenge ? null : incomingRoomInvite} busy={roomInviteBusyUid === user?.uid} onAccept={handleAcceptRoomInvite} onDecline={handleDeclineRoomInvite} />
+      <RewardNoticePopup notice={rewardNotice} onClose={() => setRewardNotice(null)} />
     </>
   );
 
@@ -5667,6 +5707,7 @@ export default function App() {
       ) : null}
       <DuelChallengeModal challenge={incomingChallenge} busy={challengeBusy} onAccept={handleAcceptChallenge} onDecline={handleDeclineChallenge} />
       <RoomInviteModal invite={incomingChallenge ? null : incomingRoomInvite} busy={roomInviteBusyUid === user?.uid} onAccept={handleAcceptRoomInvite} onDecline={handleDeclineRoomInvite} />
+      <RewardNoticePopup notice={rewardNotice} onClose={() => setRewardNotice(null)} />
       </>
     );
   }
@@ -5828,6 +5869,7 @@ export default function App() {
       ) : null}
       <DuelChallengeModal challenge={incomingChallenge} busy={challengeBusy} onAccept={handleAcceptChallenge} onDecline={handleDeclineChallenge} />
       <RoomInviteModal invite={incomingChallenge ? null : incomingRoomInvite} busy={roomInviteBusyUid === user?.uid} onAccept={handleAcceptRoomInvite} onDecline={handleDeclineRoomInvite} />
+      <RewardNoticePopup notice={rewardNotice} onClose={() => setRewardNotice(null)} />
       </>
     );
   }

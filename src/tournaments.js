@@ -1,5 +1,6 @@
 import { doc, getDoc, setDoc, updateDoc, increment, runTransaction, collection, query, where, orderBy, limit, getDocs, deleteDoc } from "firebase/firestore";
 import { db } from "./firebase-config.js";
+import { pushRewardNotice } from "./stats.js";
 
 const COLLECTION = "tournaments";
 const SCORED_COUNT = 10; // tyle kart faktycznie się ocenia w każdym meczu — pierwsza karta "wchodzi za darmo" (bez punktu odniesienia), dokładnie jak w Playliście dnia
@@ -215,6 +216,7 @@ export async function settleTournamentXpIfNeeded(tournamentId) {
     const statsRef = doc(db, "userStats", p.uid);
     if (p.uid === toSettle.winnerUid) {
       await updateDoc(statsRef, { xp: increment(pot) }).catch(() => {});
+      pushRewardNotice(p.uid, { source: "tournament", place: 1, xp: pot, hitcoin: 0, label: "Turniej" }).catch(() => {});
     } else {
       try {
         const statsSnap = await getDoc(statsRef);

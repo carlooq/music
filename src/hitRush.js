@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc, updateDoc, increment, runTransaction, collection, query, orderBy, limit, getDocs, where } from "firebase/firestore";
 import { db } from "./firebase-config.js";
-import { currentDayKey, currentWeekKey } from "./stats.js";
+import { currentDayKey, currentWeekKey, pushRewardNotice } from "./stats.js";
 
 // ============================================================
 // BALANS STARTOWY — wszystko poniżej to PUNKT WYJŚCIA do balansowania
@@ -186,6 +186,7 @@ export async function processHitRushWeeklyRewardsIfNeeded() {
     top3.map((entry, i) => {
       const reward = HIT_RUSH_CONFIG.WEEKLY_PLACE_HITCOIN[i];
       if (!reward || !entry.uid) return Promise.resolve();
+      pushRewardNotice(entry.uid, { source: "hitrush", place: i + 1, xp: 0, hitcoin: reward, label: "Hit Rush (ranking tygodnia)" }).catch(() => {});
       return updateDoc(doc(db, "userStats", entry.uid), { hitcoin: increment(reward) }).catch(() => {});
     })
   );
