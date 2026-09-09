@@ -27,6 +27,7 @@ import {
   Send,
   Info,
   Settings,
+  Coins,
 } from 'lucide-react';
 
 import logoImg from './assets/logo-v2.png';
@@ -640,6 +641,18 @@ function MobileCollectionView(props) {
         <div><span>UNIKALNE</span><strong>{uniqueOwned} / {props.songPoolSize || songs.length}</strong></div>
         <div><span>DUPLIKATY</span><strong>{duplicates}</strong></div>
         <div className="mob-collection-rarity-summary">{RARITIES.slice(1).map((item) => <span key={item.key} style={{ '--rarity': item.color }}><i />{item.label}<b>{rarityCounts[item.key]?.owned || 0}/{rarityCounts[item.key]?.total || 0}</b></span>)}</div>
+        {duplicates > 0 ? (
+          <button
+            type="button"
+            className="mob-sell-duplicates-btn"
+            disabled={props.albumSellBusy}
+            onClick={() => {
+              if (window.confirm(`Sprzedać wszystkie duplikaty (${duplicates} kart)? Zostanie po 1 sztuce każdej.`)) props.onSellDuplicates?.();
+            }}
+          >
+            <Coins size={16} /> {props.albumSellBusy ? 'SPRZEDAJĘ…' : `SPRZEDAJ DUPLIKATY (${duplicates})`}
+          </button>
+        ) : null}
       </section>
 
       <section className="mob-collection-tools mob-panel">

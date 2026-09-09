@@ -1451,10 +1451,12 @@ export default function App() {
   }
 
   async function handleSellAllDuplicates() {
-    if (!user || !albumSongs) return;
+    if (!user) return;
     setAlbumSellBusy(true);
     try {
-      const byId = new Map(albumSongs.map((s) => [s.id, s]));
+      const pool = albumSongs || (await getLiveLibraryPool());
+      if (!albumSongs) setAlbumSongs(pool);
+      const byId = new Map(pool.map((s) => [s.id, s]));
       const result = await sellAllDuplicates(user.uid, byId);
       if (result.totalSold > 0) {
         setMyHitcoin((prev) => (prev || 0) + result.totalEarned);
@@ -5505,6 +5507,8 @@ export default function App() {
     return (
       <>
       <DesktopAppView
+        onSellDuplicates={handleSellAllDuplicates}
+        albumSellBusy={albumSellBusy}
         user={user}
         authChecked={authChecked}
         authMode={authMode}
@@ -5643,6 +5647,8 @@ export default function App() {
     return (
       <>
       <MobileAppView
+        onSellDuplicates={handleSellAllDuplicates}
+        albumSellBusy={albumSellBusy}
         user={user}
         authChecked={authChecked}
         authMode={authMode}

@@ -1514,3 +1514,21 @@
 .mob-game-history-more:not(:disabled):active { transform: translateY(1px); }
 .mob-game-history-more svg { transition: transform .18s ease; }
 .mob-game-history-panel .mob-game-history-more:last-child svg { transform: rotate(180deg); }
+
+.mob-sell-duplicates-btn {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(245, 196, 81, 0.4);
+  background: rgba(245, 196, 81, 0.08);
+  color: #f5c451;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.mob-sell-duplicates-btn:disabled { opacity: 0.5; }

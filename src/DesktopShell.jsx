@@ -1137,7 +1137,7 @@ function DesktopLeaderboardView({ common, leaderboard, sortBy, onSort, onViewPro
   );
 }
 
-function DesktopCollectionView({ common, songs, stats, libraryLoading, songPoolSize }) {
+function DesktopCollectionView({ common, songs, stats, libraryLoading, songPoolSize, onSellDuplicates, albumSellBusy }) {
   const [selectedRarity, setSelectedRarity] = useState('winyl');
   const [onlyOwned, setOnlyOwned] = useState(true);
   const [query, setQuery] = useState('');
@@ -1182,6 +1182,19 @@ function DesktopCollectionView({ common, songs, stats, libraryLoading, songPoolS
           subtitle={`Kolekcja: ${totalOwned}/${songPoolSize || songs?.length || 0} • Duplikaty: ${totalDuplicates}`}
           icon={<Disc3 size={28} />}
         />
+
+        {totalDuplicates > 0 ? (
+          <button
+            type="button"
+            className="desk-sell-duplicates-btn"
+            disabled={albumSellBusy}
+            onClick={() => {
+              if (window.confirm(`Sprzedać wszystkie duplikaty (${totalDuplicates} kart)? Zostanie po 1 sztuce każdej.`)) onSellDuplicates?.();
+            }}
+          >
+            <Coins size={18} /> {albumSellBusy ? 'SPRZEDAJĘ…' : `SPRZEDAJ DUPLIKATY (${totalDuplicates})`}
+          </button>
+        ) : null}
 
         <section className="desk-album-summary desk-panel">
           <div className="desk-album-rarity-summary">
@@ -1429,7 +1442,7 @@ export function DesktopAppView(props) {
   if (section === 'stats') view = <DesktopStatsView {...props} {...common} />;
   else if (section === 'achievements') view = <DesktopAchievementsView common={common} progress={props.achievementProgress || []} onClaim={props.onClaimAchievement} />;
   else if (section === 'ranking') view = <DesktopLeaderboardView common={common} leaderboard={props.leaderboard} sortBy={props.leaderboardSort} onSort={props.onLoadLeaderboard} onViewProfile={props.onViewProfile} />;
-  else if (section === 'collection') view = <DesktopCollectionView common={common} songs={props.songs} stats={props.stats} libraryLoading={props.libraryLoading} songPoolSize={props.songPoolSize} />;
+  else if (section === 'collection') view = <DesktopCollectionView common={common} songs={props.songs} stats={props.stats} libraryLoading={props.libraryLoading} songPoolSize={props.songPoolSize} onSellDuplicates={props.onSellDuplicates} albumSellBusy={props.albumSellBusy} />;
   else if (section === 'shop') view = <DesktopShopView common={common} hitcoin={props.hitcoin} packConfigs={props.packConfigs} busy={props.packBusy} openResult={props.packOpenResult} onBuy={props.onBuyPack} onClearResult={props.onClearPackResult} />;
   else if (section === 'community') view = <DesktopCommunityView common={common} onlinePlayers={props.onlinePlayers} challengeSentTo={props.challengeSentTo} challengeBusy={props.challengeBusy} onChallenge={props.onChallenge} onViewProfile={props.onViewProfile} currentUserUid={props.user?.uid} />;
   else if (section === 'propose') view = <DesktopProposeView common={common} draft={props.proposeDraft} setDraft={props.setProposeDraft} categories={props.categories} onToggleCategory={props.onToggleProposeCategory} onSubmit={props.onSubmitProposal} busy={props.proposeBusy} error={props.proposeError} success={props.proposeSuccess} />;

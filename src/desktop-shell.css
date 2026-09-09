@@ -2940,3 +2940,23 @@
 .desk-game-history-more:hover:not(:disabled) { border-color: rgba(83,224,255,.36); background: rgba(54,204,255,.075); }
 .desk-game-history-more:disabled { opacity: .55; }
 .desk-game-history-more.collapse svg { transform: rotate(-90deg); }
+
+.desk-sell-duplicates-btn {
+  align-self: flex-start;
+  min-height: 46px;
+  padding: 0 20px;
+  margin-top: -8px;
+  border-radius: 12px;
+  border: 1px solid rgba(245, 196, 81, 0.4);
+  background: rgba(245, 196, 81, 0.08);
+  color: #f5c451;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.desk-sell-duplicates-btn:disabled { opacity: 0.5; cursor: default; }
+.desk-sell-duplicates-btn:hover:not(:disabled) { border-color: rgba(245, 196, 81, 0.7); box-shadow: 0 0 16px rgba(245, 196, 81, 0.15); }
