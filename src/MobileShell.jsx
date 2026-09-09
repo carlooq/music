@@ -29,6 +29,7 @@ import {
   Settings,
   Coins,
 } from 'lucide-react';
+import { currentSeasonKey, seasonNumber, seasonRankForWins, getPlayerSeasonHistory } from './stats.js';
 
 import logoImg from './assets/logo-v2.png';
 import homeBg from './assets/home/bg.jpg';
@@ -744,26 +745,52 @@ function MobileAchievementsView(props) {
 }
 
 function MobileRankingView(props) {
+  const [mode, setMode] = useState('season');
   useEffect(() => {
-    if (!props.leaderboard) props.onLoadLeaderboard?.(props.leaderboardSort || 'gamesWon');
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const rows = props.leaderboard || [];
+    if (mode === 'alltime' && !props.leaderboard) props.onLoadLeaderboard?.(props.leaderboardSort || 'gamesWon');
+    if (mode === 'season' && !props.seasonLeaderboard) props.onLoadSeasonLeaderboard?.(props.seasonLeaderboardSort || 'gamesWon');
+  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
+  const rows = mode === 'season' ? (props.seasonLeaderboard || []) : (props.leaderboard || []);
+  const sort = mode === 'season' ? props.seasonLeaderboardSort : props.leaderboardSort;
+  const onSort = mode === 'season' ? props.onLoadSeasonLeaderboard : props.onLoadLeaderboard;
+  const loading = mode === 'season' ? !props.seasonLeaderboard : !props.leaderboard;
   return (
     <div className="mob-stack mob-inner-view mob-ranking-view">
       <MobileSectionHeader title="RANKING" subtitle="Najlepsi gracze Hitsteriady." icon={<Crown size={24} />} onBack={() => props.onNavigate('home')} />
+      <div className="mob-ranking-tabs mob-ranking-period-tabs">
+        <button type="button" className={mode === 'season' ? 'active' : ''} onClick={() => setMode('season')}>SEZON {seasonNumber(currentSeasonKey())}</button>
+        <button type="button" className={mode === 'alltime' ? 'active' : ''} onClick={() => setMode('alltime')}>WSZECH CZASÓW</button>
+      </div>
       <div className="mob-ranking-tabs">
-        <button type="button" className={props.leaderboardSort === 'gamesWon' ? 'active' : ''} onClick={() => props.onLoadLeaderboard?.('gamesWon')}>WYGRANE</button>
-        <button type="button" className={props.leaderboardSort === 'guessesCorrect' ? 'active' : ''} onClick={() => props.onLoadLeaderboard?.('guessesCorrect')}>ZGADYWANIE</button>
+        <button type="button" className={sort === 'gamesWon' ? 'active' : ''} onClick={() => onSort?.('gamesWon')}>WYGRANE</button>
+        <button type="button" className={sort === 'guessesCorrect' ? 'active' : ''} onClick={() => onSort?.('guessesCorrect')}>ZGADYWANIE</button>
       </div>
       <section className="mob-panel mob-ranking-list">
-        {!props.leaderboard ? <div className="mob-empty">Ładowanie rankingu…</div> : rows.length ? rows.map((player, index) => (
-          <button type="button" className={`mob-rank-row place-${index + 1}`} key={player.uid || index} onClick={() => props.onViewProfile?.(player)}>
-            <span className="mob-rank-place">{index < 3 ? ['🥇','🥈','🥉'][index] : `#${index + 1}`}</span>
-            <div className="mob-player-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.username || player.name) : null}</div>
-            <div className="mob-rank-copy"><strong>{player.username || player.name || 'Gracz'}</strong><span>{props.leaderboardSort === 'gamesWon' ? `${player.gamesWon || 0} wygranych` : `${player.guessesCorrect || 0} trafień`}</span></div>
-            <ChevronRight size={16} />
-          </button>
-        )) : <div className="mob-empty">Brak wyników.</div>}
+        {loading ? <div className="mob-empty">Ładowanie rankingu…</div> : rows.length ? rows.map((player, index) => {
+          const seasonWins = player.seasonProgress?.gamesWon || 0;
+          const seasonPlayed = player.seasonProgress?.gamesPlayed || 0;
+          const seasonGuesses = player.seasonProgress?.guessesCorrect || 0;
+          const rank = mode === 'season' ? seasonRankForWins(seasonWins) : null;
+          return (
+            <button type="button" className={`mob-rank-row place-${index + 1}`} key={player.uid || index} onClick={() => props.onViewProfile?.(player)}>
+              <span className="mob-rank-place">{index < 3 ? ['🥇','🥈','🥉'][index] : `#${index + 1}`}</span>
+              <div className="mob-player-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.username || player.name) : null}</div>
+              <div className="mob-rank-copy">
+                <strong>{player.username || player.name || 'Gracz'}</strong>
+                {mode === 'season' ? (
+                  <>
+                    <span>{sort === 'gamesWon' ? `${seasonWins} wygranych` : `${seasonGuesses} trafień`}</span>
+                    {sort === 'gamesWon' ? <small className="mob-rank-sub">{seasonPlayed} rozegranych</small> : null}
+                  </>
+                ) : (
+                  <span>{sort === 'gamesWon' ? `${player.gamesWon || 0} wygranych` : `${player.guessesCorrect || 0} trafień`}</span>
+                )}
+              </div>
+              {rank ? <span className="mob-rank-badge" style={{ '--rank-color': rank.color }}>{rank.label}</span> : null}
+              <ChevronRight size={16} />
+            </button>
+          );
+        }) : <div className="mob-empty">{mode === 'season' ? 'Nikt jeszcze nie grał w tym sezonie.' : 'Brak wyników.'}</div>}
       </section>
     </div>
   );
@@ -961,12 +988,15 @@ function MobileProfileSheet({ profile, onClose, levelFromXp }) {
   const uniqueCards = collectionSummary.uniqueOwned ?? Object.keys(data.cardCollection || {}).filter((id) => Number(data.cardCollection[id] || 0) > 0).length;
   const totalAvailable = collectionSummary.totalAvailable ?? null;
   const xpPct = pct(level.currentLevelXp || 0, level.xpForNextLevel || 1);
+  const currentSeasonWins = data.seasonProgress?.seasonKey === currentSeasonKey() ? (data.seasonProgress.gamesWon || 0) : 0;
+  const currentRank = seasonRankForWins(currentSeasonWins);
+  const pastSeasons = getPlayerSeasonHistory(data);
 
   return (
     <div className="mob-sheet-backdrop" onClick={onClose} role="presentation">
       <section className="mob-profile-sheet expanded" onClick={(e) => e.stopPropagation()}>
         <button className="mob-sheet-close" type="button" onClick={onClose}><X size={20} /></button>
-        <div className="mob-profile-head"><div className="mob-profile-avatar" style={data.avatarUrl ? { backgroundImage: `url(${data.avatarUrl})` } : undefined}>{!data.avatarUrl ? initials(username) : null}</div><div><span>PROFIL GRACZA</span><h2>{username}</h2><small>LVL {level.level || 1} · {compact(data.xp || 0)} XP</small></div></div>
+        <div className="mob-profile-head"><div className="mob-profile-avatar" style={data.avatarUrl ? { backgroundImage: `url(${data.avatarUrl})` } : undefined}>{!data.avatarUrl ? initials(username) : null}</div><div><span>PROFIL GRACZA</span><h2>{username}</h2><small>LVL {level.level || 1} · {compact(data.xp || 0)} XP</small></div>{currentRank ? <span className="mob-rank-badge mob-profile-rank-badge" style={{ '--rank-color': currentRank.color }}>{currentRank.label}</span> : null}</div>
         <div className="mob-profile-xp"><div><span>POSTĘP POZIOMU</span><b>{compact(level.currentLevelXp || 0)} / {compact(level.xpForNextLevel || 0)} XP</b></div><i><em style={{ width: `${Math.min(100, xpPct)}%` }} /></i></div>
 
         <div className="mob-profile-metrics full">
@@ -993,6 +1023,19 @@ function MobileProfileSheet({ profile, onClose, levelFromXp }) {
             })}
           </div>
         </div>
+
+        {pastSeasons.length ? (
+          <div className="mob-profile-seasons">
+            <div className="mob-profile-collection-head"><div><span>POPRZEDNIE SEZONY</span></div></div>
+            {pastSeasons.map((s) => (
+              <div className="mob-profile-season-row" key={s.seasonKey}>
+                <span>Sezon {s.seasonNumber}</span>
+                <span>{s.gamesWon} wygranych · {s.gamesPlayed} rozegranych</span>
+                {s.rank ? <b className="mob-rank-badge" style={{ '--rank-color': s.rank.color }}>{s.rank.label}</b> : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
       </section>
     </div>
   );

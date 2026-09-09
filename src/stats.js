@@ -459,3 +459,145 @@ export async function claimWeeklyChallenge(uid, challengeId) {
   });
   return { ok, xp: def.xp, hitcoin: def.hitcoin };
 }
+
+// ============================================================
+// RANKING SEZONOWY (miesięczny) — Brąz/Srebro/Złoto/Platyna/Diament
+// ============================================================
+// Sezon = pełny miesiąc kalendarzowy (prościej i bezpieczniej niż ręcznie
+// pilnowana data startu — nic nie trzeba pamiętać co miesiąc). Numer sezonu
+// liczony jest od SEASON_START, czysto do wyświetlania ("Sezon 3" zamiast
+// surowego klucza "2026-11").
+const SEASON_START = "2026-09"; // pierwszy miesiąc liczony jako "Sezon 1"
+
+export function currentSeasonKey(date = new Date()) {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+export function seasonNumber(seasonKey) {
+  const [sy, sm] = SEASON_START.split("-").map(Number);
+  const [y, m] = String(seasonKey || "").split("-").map(Number);
+  if (!y || !m) return 1;
+  return (y - sy) * 12 + (m - sm) + 1;
+}
+
+function previousSeasonKey(seasonKey) {
+  const [y, m] = String(seasonKey || currentSeasonKey()).split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 2, 1)); // m jest 1-indeksowane, cofamy o 1 miesiąc
+  return currentSeasonKey(d);
+}
+
+// Progi rang sezonowych wg liczby wygranych gier w danym miesiącu — zgadywane
+// na start (jak w Hit Rush), do skorygowania gdy zobaczymy realne wyniki.
+export const SEASON_RANKS = [
+  { key: "diamond", label: "Diament", minWins: 40, color: "#7dffef" },
+  { key: "platinum", label: "Platyna", minWins: 25, color: "#c4b5fd" },
+  { key: "gold", label: "Złoto", minWins: 15, color: "#f5c451" },
+  { key: "silver", label: "Srebro", minWins: 7, color: "#dbe6ee" },
+  { key: "bronze", label: "Brąz", minWins: 3, color: "#c98a5a" },
+];
+
+export function seasonRankForWins(wins) {
+  return SEASON_RANKS.find((r) => (wins || 0) >= r.minWins) || null;
+}
+
+// Nagrody za czołowe miejsca na koniec sezonu.
+const SEASON_REWARDS = [
+  { xp: 1500, hitcoin: 400 },
+  { xp: 1000, hitcoin: 250 },
+  { xp: 500, hitcoin: 150 },
+];
+
+// Wywoływane przy końcu KAŻDEJ gry (obok już istniejących dożywotnich
+// liczników) — transakcja, więc bezpieczne nawet gdy leci równolegle z
+// innymi zapisami do tego samego dokumentu (patrz: naprawiony wcześniej
+// bug z bumpWeeklyChallengeProgress dokładnie na tym tle).
+export async function updateSeasonProgress(uid, { won = false, guessesCorrect = 0 } = {}) {
+  const sk = currentSeasonKey();
+  const ref = doc(db, "userStats", uid);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const data = snap.exists() ? snap.data() : {};
+    const prev = data.seasonProgress;
+    let history = data.seasonHistory || {};
+    let counters;
+    if (prev && prev.seasonKey === sk) {
+      counters = { ...prev };
+    } else {
+      // sezon się przewinął (albo to pierwsza gra w ogóle) — jeśli poprzedni
+      // wpis istniał, jego OSTATECZNY wynik trafia na stałe do seasonHistory
+      // zanim licznik wyzerujemy, żeby rozdanie nagród mogło to później
+      // odczytać niezależnie od tego kiedy dokładnie ktoś zagra pierwszą
+      // grę w nowym miesiącu.
+      if (prev && prev.seasonKey) {
+        history = { ...history, [prev.seasonKey]: { gamesPlayed: prev.gamesPlayed || 0, gamesWon: prev.gamesWon || 0, guessesCorrect: prev.guessesCorrect || 0 } };
+      }
+      counters = { seasonKey: sk, gamesPlayed: 0, gamesWon: 0, guessesCorrect: 0 };
+    }
+    counters.gamesPlayed = (counters.gamesPlayed || 0) + 1;
+    if (won) counters.gamesWon = (counters.gamesWon || 0) + 1;
+    counters.guessesCorrect = (counters.guessesCorrect || 0) + guessesCorrect;
+    tx.set(ref, { seasonProgress: counters, seasonHistory: history }, { merge: true });
+  });
+}
+
+// Ranking sezonowy — sortBy: "gamesWon" | "guessesCorrect". Bez where+orderBy
+// złożonego (wymagałby ręcznie tworzonego indeksu w konsoli Firebase) —
+// pobieramy szerszą pulę po polu zagnieżdżonym i filtrujemy po stronie
+// klienta do BIEŻĄCEGO sezonu, dokładnie ten sam sprawdzony wzorzec co przy
+// rankingu Hit Rush. Pula 100 zamiast np. 20 celowo — na początku nowego
+// sezonu większość dotychczasowych "topowych" wpisów wg tego pola to jeszcze
+// dane ze STAREGO sezonu (odsiewane niżej), więc trzeba zapasu.
+export async function getSeasonLeaderboard(count = 10, sortBy = "gamesWon") {
+  const sk = currentSeasonKey();
+  const field = sortBy === "guessesCorrect" ? "seasonProgress.guessesCorrect" : "seasonProgress.gamesWon";
+  const q = query(collection(db, "userStats"), orderBy(field, "desc"), limit(100));
+  const snap = await getDocs(q);
+  return snap.docs
+    .map((d) => ({ uid: d.id, ...d.data() }))
+    .filter((p) => p.seasonProgress?.seasonKey === sk)
+    .slice(0, count);
+}
+
+// Rozdanie nagród za top 3 poprzedniego sezonu — bezpieczne wołać "na
+// wszelki wypadek" przy każdym wejściu w ranking, transakcja z markerem
+// gwarantuje że rozda się dokładnie raz, niezależnie ile razy/klientów to
+// wywoła. Czyta z seasonHistory (patrz komentarz w updateSeasonProgress),
+// więc czas wywołania względem tego kiedy kto zagrał pierwszą grę w nowym
+// miesiącu nie ma znaczenia.
+export async function processSeasonRewardsIfNeeded() {
+  const endedSeason = previousSeasonKey(currentSeasonKey());
+  const markerRef = doc(db, "seasonRewardsProcessed", endedSeason);
+  let shouldProcess = false;
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(markerRef);
+    if (snap.exists()) return;
+    shouldProcess = true;
+    tx.set(markerRef, { processedAt: Date.now() });
+  });
+  if (!shouldProcess) return;
+
+  const q = query(collection(db, "userStats"), orderBy(`seasonHistory.${endedSeason}.gamesWon`, "desc"), limit(50));
+  const snap = await getDocs(q);
+  const ranked = snap.docs
+    .map((d) => ({ uid: d.id, result: d.data().seasonHistory?.[endedSeason] }))
+    .filter((p) => p.result)
+    .slice(0, 3);
+
+  const archive = ranked.map((p, i) => ({ uid: p.uid, place: i + 1, ...p.result }));
+  await setDoc(doc(db, "seasonArchive", endedSeason), { seasonKey: endedSeason, top: archive, finalizedAt: Date.now() });
+
+  for (let i = 0; i < ranked.length; i++) {
+    const reward = SEASON_REWARDS[i];
+    if (!reward) continue;
+    await updateDoc(doc(db, "userStats", ranked[i].uid), { xp: increment(reward.xp), hitcoin: increment(reward.hitcoin) });
+  }
+}
+
+// Historia sezonów danego gracza (do profilu) — czyta bezpośrednio z jego
+// własnego seasonHistory, bez dodatkowych zapytań.
+export function getPlayerSeasonHistory(statsData) {
+  const history = statsData?.seasonHistory || {};
+  return Object.entries(history)
+    .map(([seasonKey, result]) => ({ seasonKey, seasonNumber: seasonNumber(seasonKey), ...result, rank: seasonRankForWins(result.gamesWon) }))
+    .sort((a, b) => (a.seasonKey < b.seasonKey ? 1 : -1));
+}

@@ -28,6 +28,7 @@ import {
   LogIn,
   UserPlus,
 } from 'lucide-react';
+import { currentSeasonKey, seasonNumber, seasonRankForWins, getPlayerSeasonHistory } from './stats.js';
 
 import logoImg from './assets/logo-v2.png';
 import heroBanner from './assets/home/hero-banner.webp';
@@ -302,6 +303,9 @@ export function DesktopPlayerProfileModal({ profile, onClose, levelFromXp }) {
   const collectionCopies = collectionSummary.totalCopies ?? Object.values(playerStats.cardCollection || {}).reduce((sum, count) => sum + Number(count || 0), 0);
   const collectionUnique = collectionSummary.uniqueOwned ?? collectionCount;
   const collectionAvailable = collectionSummary.totalAvailable ?? null;
+  const currentSeasonWins = playerStats.seasonProgress?.seasonKey === currentSeasonKey() ? (playerStats.seasonProgress.gamesWon || 0) : 0;
+  const currentRank = seasonRankForWins(currentSeasonWins);
+  const pastSeasons = getPlayerSeasonHistory(playerStats);
   return (
     <div className="desk-profile-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
       <section className="desk-profile-modal" onClick={(event) => event.stopPropagation()}>
@@ -313,6 +317,7 @@ export function DesktopPlayerProfileModal({ profile, onClose, levelFromXp }) {
             <h2>{profile.username || playerStats.username || 'Gracz'}</h2>
             <p>{levelInfo ? `LVL ${levelInfo.level} · ${playerStats.xp || 0} XP` : `${playerStats.xp || 0} XP`}</p>
           </div>
+          {currentRank ? <span className="desk-rank-badge" style={{ '--rank-color': currentRank.color }}>{currentRank.label}</span> : null}
         </div>
         <div className="desk-profile-metrics">
           <div><span>ROZEGRANE</span><strong>{formatCompact(playerStats.gamesPlayed || 0)}</strong></div>
@@ -352,6 +357,19 @@ export function DesktopPlayerProfileModal({ profile, onClose, levelFromXp }) {
             })}
           </div>
         </section>
+
+        {pastSeasons.length ? (
+          <section className="desk-profile-seasons">
+            <div className="desk-profile-collection-head"><div><span>POPRZEDNIE SEZONY</span></div></div>
+            {pastSeasons.map((s) => (
+              <div className="desk-profile-season-row" key={s.seasonKey}>
+                <span>Sezon {s.seasonNumber}</span>
+                <span>{s.gamesWon} wygranych · {s.gamesPlayed} rozegranych</span>
+                {s.rank ? <b className="desk-rank-badge" style={{ '--rank-color': s.rank.color }}>{s.rank.label}</b> : null}
+              </div>
+            ))}
+          </section>
+        ) : null}
       </section>
     </div>
   );
@@ -1097,10 +1115,17 @@ function DesktopAchievementsView({ common, progress, onClaim }) {
   );
 }
 
-function DesktopLeaderboardView({ common, leaderboard, sortBy, onSort, onViewProfile }) {
+function DesktopLeaderboardView({ common, leaderboard, sortBy, onSort, onViewProfile, seasonLeaderboard, seasonLeaderboardSort, onLoadSeasonLeaderboard }) {
+  const [mode, setMode] = useState('season');
   useEffect(() => {
-    if (!leaderboard) onSort(sortBy || 'gamesWon');
-  }, []); // intentional: load once on entry
+    if (mode === 'alltime' && !leaderboard) onSort(sortBy || 'gamesWon');
+    if (mode === 'season' && !seasonLeaderboard) onLoadSeasonLeaderboard?.(seasonLeaderboardSort || 'gamesWon');
+  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const rows = mode === 'season' ? (seasonLeaderboard || []) : (leaderboard || []);
+  const sort = mode === 'season' ? seasonLeaderboardSort : sortBy;
+  const activeSort = mode === 'season' ? onLoadSeasonLeaderboard : onSort;
+  const loading = mode === 'season' ? !seasonLeaderboard : !leaderboard;
 
   return (
     <DesktopLayout active="ranking" {...common}>
@@ -1108,27 +1133,40 @@ function DesktopLeaderboardView({ common, leaderboard, sortBy, onSort, onViewPro
       <div className="desk-main-stack">
         <DesktopSimpleHeader title="RANKING" subtitle="Porównaj wyniki z innymi graczami i walcz o najwyższe miejsca." icon={<Crown size={28} />} />
         <section className="desk-ranking-panel desk-panel">
-          <div className="desk-ranking-tabs">
-            <button className={sortBy === 'gamesWon' ? 'active' : ''} onClick={() => onSort('gamesWon')}>WYGRANE</button>
-            <button className={sortBy === 'guessesCorrect' ? 'active' : ''} onClick={() => onSort('guessesCorrect')}>ZGADYWANIE</button>
+          <div className="desk-ranking-tabs desk-ranking-period-tabs">
+            <button className={mode === 'season' ? 'active' : ''} onClick={() => setMode('season')}>SEZON {seasonNumber(currentSeasonKey())}</button>
+            <button className={mode === 'alltime' ? 'active' : ''} onClick={() => setMode('alltime')}>WSZECH CZASÓW</button>
           </div>
-          {!leaderboard ? (
+          <div className="desk-ranking-tabs">
+            <button className={sort === 'gamesWon' ? 'active' : ''} onClick={() => activeSort?.('gamesWon')}>WYGRANE</button>
+            <button className={sort === 'guessesCorrect' ? 'active' : ''} onClick={() => activeSort?.('guessesCorrect')}>ZGADYWANIE</button>
+          </div>
+          {loading ? (
             <div className="desk-loading">Wczytuję ranking…</div>
           ) : (
             <div className="desk-ranking-list">
-              {leaderboard.map((player, index) => (
-                <button type="button" key={player.uid || index} className={`desk-ranking-row rank-${index + 1}`} onClick={() => player.uid && onViewProfile?.(player)}>
-                  <div className="desk-ranking-position">{index < 3 ? ['🥇','🥈','🥉'][index] : `#${index + 1}`}</div>
-                  <div className="desk-ranking-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.username || 'G') : null}</div>
-                  <div className="desk-ranking-user">
-                    <strong>{player.username || 'Gracz'}</strong>
-                    <span>LVL {player.xp ? Math.max(1, Math.floor(Math.sqrt(player.xp / 75)) + 1) : 1} · kliknij profil</span>
-                  </div>
-                  <div className="desk-ranking-score">
-                    {sortBy === 'gamesWon' ? `${formatCompact(player.gamesWon || 0)} wygranych` : `${formatCompact(player.guessesCorrect || 0)} trafień`}
-                  </div>
-                </button>
-              ))}
+              {rows.length ? rows.map((player, index) => {
+                const seasonWins = player.seasonProgress?.gamesWon || 0;
+                const seasonPlayed = player.seasonProgress?.gamesPlayed || 0;
+                const seasonGuesses = player.seasonProgress?.guessesCorrect || 0;
+                const rank = mode === 'season' ? seasonRankForWins(seasonWins) : null;
+                return (
+                  <button type="button" key={player.uid || index} className={`desk-ranking-row rank-${index + 1}`} onClick={() => player.uid && onViewProfile?.(player)}>
+                    <div className="desk-ranking-position">{index < 3 ? ['🥇','🥈','🥉'][index] : `#${index + 1}`}</div>
+                    <div className="desk-ranking-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.username || 'G') : null}</div>
+                    <div className="desk-ranking-user">
+                      <strong>{player.username || 'Gracz'}</strong>
+                      <span>LVL {player.xp ? Math.max(1, Math.floor(Math.sqrt(player.xp / 75)) + 1) : 1}{mode === 'season' && sort === 'gamesWon' ? ` · ${seasonPlayed} rozegranych` : ' · kliknij profil'}</span>
+                    </div>
+                    {rank ? <span className="desk-rank-badge" style={{ '--rank-color': rank.color }}>{rank.label}</span> : null}
+                    <div className="desk-ranking-score">
+                      {mode === 'season'
+                        ? (sort === 'gamesWon' ? `${formatCompact(seasonWins)} wygranych` : `${formatCompact(seasonGuesses)} trafień`)
+                        : (sortBy === 'gamesWon' ? `${formatCompact(player.gamesWon || 0)} wygranych` : `${formatCompact(player.guessesCorrect || 0)} trafień`)}
+                    </div>
+                  </button>
+                );
+              }) : <div className="desk-loading">{mode === 'season' ? 'Nikt jeszcze nie grał w tym sezonie.' : 'Brak wyników.'}</div>}
             </div>
           )}
         </section>
@@ -1441,7 +1479,7 @@ export function DesktopAppView(props) {
   let view;
   if (section === 'stats') view = <DesktopStatsView {...props} {...common} />;
   else if (section === 'achievements') view = <DesktopAchievementsView common={common} progress={props.achievementProgress || []} onClaim={props.onClaimAchievement} />;
-  else if (section === 'ranking') view = <DesktopLeaderboardView common={common} leaderboard={props.leaderboard} sortBy={props.leaderboardSort} onSort={props.onLoadLeaderboard} onViewProfile={props.onViewProfile} />;
+  else if (section === 'ranking') view = <DesktopLeaderboardView common={common} leaderboard={props.leaderboard} sortBy={props.leaderboardSort} onSort={props.onLoadLeaderboard} onViewProfile={props.onViewProfile} seasonLeaderboard={props.seasonLeaderboard} seasonLeaderboardSort={props.seasonLeaderboardSort} onLoadSeasonLeaderboard={props.onLoadSeasonLeaderboard} />;
   else if (section === 'collection') view = <DesktopCollectionView common={common} songs={props.songs} stats={props.stats} libraryLoading={props.libraryLoading} songPoolSize={props.songPoolSize} onSellDuplicates={props.onSellDuplicates} albumSellBusy={props.albumSellBusy} />;
   else if (section === 'shop') view = <DesktopShopView common={common} hitcoin={props.hitcoin} packConfigs={props.packConfigs} busy={props.packBusy} openResult={props.packOpenResult} onBuy={props.onBuyPack} onClearResult={props.onClearPackResult} />;
   else if (section === 'community') view = <DesktopCommunityView common={common} onlinePlayers={props.onlinePlayers} challengeSentTo={props.challengeSentTo} challengeBusy={props.challengeBusy} onChallenge={props.onChallenge} onViewProfile={props.onViewProfile} currentUserUid={props.user?.uid} />;

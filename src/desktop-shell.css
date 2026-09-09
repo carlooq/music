@@ -1175,7 +1175,7 @@
   border: 1px solid rgba(104,110,200,0.2);
   background: rgba(7,9,22,0.74);
   display: grid;
-  grid-template-columns: 60px 48px minmax(0,1fr) auto;
+  grid-template-columns: 60px 48px minmax(0,1fr) auto auto;
   align-items: center;
   gap: 14px;
   padding: 10px 16px;
@@ -2960,3 +2960,33 @@
 }
 .desk-sell-duplicates-btn:disabled { opacity: 0.5; cursor: default; }
 .desk-sell-duplicates-btn:hover:not(:disabled) { border-color: rgba(245, 196, 81, 0.7); box-shadow: 0 0 16px rgba(245, 196, 81, 0.15); }
+
+.desk-ranking-period-tabs { margin-bottom: 8px; }
+.desk-ranking-period-tabs button.active { background: linear-gradient(90deg, rgba(245,196,81,.22), rgba(255,95,201,.16)); border-color: rgba(245,196,81,.5); color: #fff; }
+.desk-rank-badge {
+  font-size: 12px;
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: 0.04em;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--rank-color, #999);
+  color: var(--rank-color, #999);
+  white-space: nowrap;
+  margin-left: auto;
+  margin-right: 12px;
+}
+
+.desk-profile-head .desk-rank-badge { margin-left: auto; }
+.desk-profile-seasons { margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,.08); }
+.desk-profile-season-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 0;
+  font-size: 13px;
+  color: #b2aabc;
+  border-top: 1px solid rgba(255,255,255,.05);
+}
+.desk-profile-season-row:first-of-type { border-top: 0; }
+.desk-profile-season-row span:first-child { font-family: 'Bebas Neue', sans-serif; font-size: 16px; color: #fff; letter-spacing: .03em; min-width: 70px; }
+.desk-profile-season-row span:nth-child(2) { flex: 1; }
