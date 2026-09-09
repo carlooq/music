@@ -420,14 +420,21 @@ export async function bumpWeeklyChallengeProgress(uid, type, amount = 1) {
   const active = pickWeeklyChallenges(wk).find((c) => c.type === type);
   if (!active) return;
   const ref = doc(db, "userStats", uid);
-  const snap = await getDoc(ref);
-  const data = snap.exists() ? snap.data() : {};
-  const prev = data.weeklyProgress && data.weeklyProgress.weekKey === wk ? data.weeklyProgress : { weekKey: wk, counters: {}, claimed: {} };
-  const counters = { ...prev.counters };
-  if (active.mode === "max") counters[type] = Math.max(counters[type] || 0, amount);
-  else if (active.mode === "flag") counters[type] = true;
-  else counters[type] = (counters[type] || 0) + amount;
-  await updateDoc(ref, { weeklyProgress: { weekKey: wk, counters, claimed: prev.claimed } });
+  // Transakcja (nie zwykłe getDoc+updateDoc) — przy końcu gry appka woła tę
+  // funkcję kilka razy pod rząd dla różnych typów (gamesPlayed, gamesWon,
+  // bestStreak...) bez czekania na siebie nawzajem. Bez transakcji każde z
+  // tych wywołań czytałoby ten sam "stary" stan i ostatni zapis kasowałby
+  // zmiany poprzednich (stąd liczniki czasem w ogóle nie rosły).
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const data = snap.exists() ? snap.data() : {};
+    const prev = data.weeklyProgress && data.weeklyProgress.weekKey === wk ? data.weeklyProgress : { weekKey: wk, counters: {}, claimed: {} };
+    const counters = { ...prev.counters };
+    if (active.mode === "max") counters[type] = Math.max(counters[type] || 0, amount);
+    else if (active.mode === "flag") counters[type] = true;
+    else counters[type] = (counters[type] || 0) + amount;
+    tx.set(ref, { weeklyProgress: { weekKey: wk, counters, claimed: prev.claimed } }, { merge: true });
+  });
 }
 
 // Odbiór nagrody za pojedyncze ukończone wyzwanie - transakcja jak przy
