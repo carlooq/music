@@ -1575,3 +1575,62 @@
   border: 1px solid rgba(245,196,81,.18);
 }
 .mob-ranking-info svg { flex-shrink: 0; margin-top: 1px; color: #f5c451; }
+
+/* === Season status + season picker (v1.4) === */
+.mob-season-status-card {
+  padding: 14px;
+  overflow: hidden;
+  border-color: rgba(245,196,81,.23);
+  background:
+    radial-gradient(circle at 88% 8%, rgba(245,196,81,.10), transparent 30%),
+    radial-gradient(circle at 10% 95%, rgba(79,214,255,.08), transparent 34%),
+    rgba(10,11,27,.90);
+}
+.mob-season-status-head { display:flex; align-items:center; justify-content:space-between; gap:10px; min-width:0; }
+.mob-season-status-head > div { min-width:0; }
+.mob-season-status-head > div > span { display:flex; align-items:center; gap:6px; color:#f7d36a; font-family:'Bebas Neue',sans-serif; font-size:15px; letter-spacing:.055em; }
+.mob-season-status-head > div > small { display:block; margin-top:2px; color:#81798d; font-size:9px; text-transform:uppercase; letter-spacing:.08em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mob-season-status-head button { flex:0 0 auto; min-height:32px; display:flex; align-items:center; justify-content:center; gap:3px; padding:0 10px; border-radius:10px; border:1px solid rgba(245,196,81,.24); background:rgba(245,196,81,.055); color:#f4cf66; font-size:9px; font-weight:850; letter-spacing:.05em; }
+.mob-season-status-main { display:grid; grid-template-columns:minmax(92px,.78fr) minmax(0,1.35fr); gap:9px; margin-top:12px; }
+.mob-season-place,.mob-season-rank { min-width:0; min-height:87px; padding:11px 12px; border-radius:13px; background:rgba(5,7,19,.56); border:1px solid rgba(255,255,255,.07); }
+.mob-season-place small,.mob-season-rank small { display:block; color:#756e81; font-size:8px; font-weight:800; letter-spacing:.09em; }
+.mob-season-place strong { display:block; margin-top:3px; color:#67e8ff; font-family:'Bebas Neue',sans-serif; font-size:31px; line-height:1; text-shadow:0 0 18px rgba(79,214,255,.22); }
+.mob-season-place span,.mob-season-rank span { display:block; margin-top:5px; color:#8f879b; font-size:9px; line-height:1.25; overflow-wrap:anywhere; }
+.mob-season-rank strong { display:inline-flex; max-width:100%; margin-top:6px; padding:4px 9px; border-radius:999px; border:1px solid var(--rank-color,#746d82); background:rgba(255,255,255,.025); color:var(--rank-color,#958da2); font-family:'Bebas Neue',sans-serif; font-size:15px; line-height:1; letter-spacing:.045em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mob-season-rank-progress { margin-top:11px; min-width:0; }
+.mob-season-rank-progress > div { display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0; }
+.mob-season-rank-progress span { min-width:0; color:#7e778a; font-size:8px; font-weight:800; letter-spacing:.075em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mob-season-rank-progress b { flex:0 0 auto; color:#d5cfdd; font-size:8.5px; font-weight:800; }
+.mob-season-rank-progress > i { display:block; height:5px; margin-top:6px; overflow:hidden; border-radius:999px; background:rgba(255,255,255,.055); }
+.mob-season-rank-progress > i > em { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#52ddff,var(--next-rank-color,#f5c451)); box-shadow:0 0 10px rgba(79,214,255,.18); }
+
+.mob-ranking-period-control { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(116px,.8fr); gap:8px; }
+.mob-ranking-period-control > label,.mob-ranking-period-control > button { min-width:0; height:46px; border-radius:12px; border:1px solid rgba(115,104,168,.20); background:rgba(8,10,27,.82); }
+.mob-ranking-period-control > label { position:relative; display:flex; align-items:center; gap:7px; padding:0 10px; color:#91899d; overflow:hidden; }
+.mob-ranking-period-control > label.active { border-color:rgba(245,196,81,.42); background:linear-gradient(90deg,rgba(245,196,81,.12),rgba(255,95,201,.07)); }
+.mob-ranking-period-control > label > span { flex:0 0 auto; color:#a59dab; font-size:8px; font-weight:900; letter-spacing:.09em; }
+.mob-ranking-period-control select { appearance:none; -webkit-appearance:none; min-width:0; flex:1; height:100%; border:0; outline:0; background:transparent; color:#fff; font-family:'Bebas Neue',sans-serif; font-size:13px; letter-spacing:.025em; text-overflow:ellipsis; }
+.mob-ranking-period-control select option { background:#0b0c1b; color:#fff; }
+.mob-ranking-period-control svg { flex:0 0 auto; color:#f5c451; pointer-events:none; }
+.mob-ranking-period-control > button { padding:0 9px; color:#827b8e; font-size:9px; font-weight:850; letter-spacing:.055em; }
+.mob-ranking-period-control > button.active { color:#fff; border-color:rgba(245,196,81,.42); background:linear-gradient(90deg,rgba(245,196,81,.15),rgba(255,95,201,.09)); }
+.mob-rank-badge.muted { --rank-color:#5f5968; color:#777080; border-color:#4e4857; }
+
+@media (max-width: 390px) {
+  .mob-season-status-card { padding:12px; }
+  .mob-season-status-main { grid-template-columns:88px minmax(0,1fr); }
+  .mob-season-place,.mob-season-rank { padding:10px; }
+  .mob-season-place strong { font-size:27px; }
+  .mob-ranking-period-control { grid-template-columns:minmax(0,1.25fr) 108px; gap:6px; }
+  .mob-ranking-period-control > label { padding:0 8px; gap:5px; }
+  .mob-ranking-period-control select { font-size:12px; }
+}
+
+/* Safer archival season rows on narrow screens. */
+.mob-profile-season-row { display:grid; grid-template-columns:64px minmax(0,1fr) auto; gap:8px; min-width:0; }
+.mob-profile-season-row span:nth-child(2) { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mob-profile-season-row .mob-rank-badge { max-width:92px; overflow:hidden; text-overflow:ellipsis; }
+@media (max-width: 390px) {
+  .mob-profile-season-row { grid-template-columns:60px minmax(0,1fr); align-items:center; }
+  .mob-profile-season-row .mob-rank-badge { grid-column:2; justify-self:start; margin-top:-2px; }
+}

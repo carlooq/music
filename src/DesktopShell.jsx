@@ -29,7 +29,7 @@ import {
   UserPlus,
   Info,
 } from 'lucide-react';
-import { currentSeasonKey, seasonNumber, seasonRankForWins, getPlayerSeasonHistory } from './stats.js';
+import { currentSeasonKey, seasonNumber, seasonRankForWins, seasonRankProgress, seasonMonthLabel, availableSeasonKeys, getPlayerSeasonHistory } from './stats.js';
 
 import logoImg from './assets/logo-v2.png';
 import heroBanner from './assets/home/hero-banner.webp';
@@ -794,6 +794,13 @@ export function DesktopStatsView(props) {
   const progressPct = levelInfo.xpForNextLevel ? Math.round((levelInfo.currentLevelXp / levelInfo.xpForNextLevel) * 100) : 0;
   const collectionCount = Object.keys(stats?.cardCollection || {}).length;
   const pastSeasons = getPlayerSeasonHistory(stats);
+  const currentSeason = currentSeasonKey();
+  const currentSeasonNumber = seasonNumber(currentSeason);
+  const currentSeasonProgress = stats?.seasonProgress?.seasonKey === currentSeason ? stats.seasonProgress : null;
+  const currentSeasonWins = Number(currentSeasonProgress?.gamesWon || 0);
+  const currentSeasonPlayed = Number(currentSeasonProgress?.gamesPlayed || 0);
+  const currentSeasonRank = seasonRankForWins(currentSeasonWins);
+  const currentSeasonRankProgress = seasonRankProgress(currentSeasonWins);
   const [historyExpanded, setHistoryExpanded] = useState(false);
 
   useEffect(() => {
@@ -842,6 +849,28 @@ export function DesktopStatsView(props) {
             </div>
           </div>
           <div className="desk-stats-art" style={{ backgroundImage: `linear-gradient(180deg, rgba(5,8,20,0.1), rgba(5,8,20,0.5)), url(${heroBanner})` }} />
+        </section>
+
+        <section className="desk-season-status-card desk-panel">
+          <div className="desk-season-status-identity">
+            <div className="desk-season-status-icon"><Crown size={24} /></div>
+            <div><span>AKTUALNY SEZON</span><strong>SEZON {currentSeasonNumber}</strong><small>{seasonMonthLabel(currentSeason)}</small></div>
+          </div>
+          <div className="desk-season-place">
+            <span>MIEJSCE W RANKINGU</span>
+            <strong>{props.seasonLeaderboardPosition ? `#${props.seasonLeaderboardPosition}` : '—'}</strong>
+            <small>{currentSeasonPlayed ? 'ranking wygranych' : 'zagraj pierwszą grę'}</small>
+          </div>
+          <div className="desk-season-rank-current">
+            <span>TWOJA RANGA</span>
+            <strong style={{ '--rank-color': currentSeasonRank?.color || '#746d82' }}>{currentSeasonRank?.label || 'Bez rangi'}</strong>
+            <small>{currentSeasonWins} wygranych · {currentSeasonPlayed} rozegranych</small>
+          </div>
+          <div className="desk-season-next">
+            <div><span>{currentSeasonRankProgress.next ? `DO ${currentSeasonRankProgress.next.label.toUpperCase()}` : 'MAKSYMALNA RANGA'}</span><b>{currentSeasonRankProgress.next ? `BRAKUJE ${currentSeasonRankProgress.winsToNext}` : 'DIAMENT'}</b></div>
+            <div className="desk-season-progress"><i style={{ width: `${currentSeasonRankProgress.progressPct}%`, '--next-rank-color': currentSeasonRankProgress.next?.color || currentSeasonRank?.color || '#7dffef' }} /></div>
+          </div>
+          <button type="button" className="desk-season-ranking-cta" onClick={() => { props.onLoadSeasonLeaderboard?.('gamesWon', currentSeason); onLeaderboard?.(); }}>ZOBACZ RANKING <ChevronRight size={17} /></button>
         </section>
 
         <div className="desk-stats-feature-grid">
@@ -1130,17 +1159,25 @@ function DesktopAchievementsView({ common, progress, onClaim }) {
   );
 }
 
-function DesktopLeaderboardView({ common, leaderboard, sortBy, onSort, onViewProfile, seasonLeaderboard, seasonLeaderboardSort, onLoadSeasonLeaderboard }) {
+function DesktopLeaderboardView({ common, leaderboard, sortBy, onSort, onViewProfile, seasonLeaderboard, seasonLeaderboardSort, seasonLeaderboardKey, onLoadSeasonLeaderboard, levelFromXp }) {
   const [mode, setMode] = useState('season');
+  const selectedSeasonKey = seasonLeaderboardKey || currentSeasonKey();
+  const seasonKeys = availableSeasonKeys();
+  const selectedSeasonNumber = seasonNumber(selectedSeasonKey);
+  const selectedSeasonIsCurrent = selectedSeasonKey === currentSeasonKey();
+
   useEffect(() => {
     if (mode === 'alltime' && !leaderboard) onSort(sortBy || 'gamesWon');
-    if (mode === 'season' && !seasonLeaderboard) onLoadSeasonLeaderboard?.(seasonLeaderboardSort || 'gamesWon');
+    if (mode === 'season' && !seasonLeaderboard) onLoadSeasonLeaderboard?.(seasonLeaderboardSort || 'gamesWon', selectedSeasonKey);
   }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const rows = mode === 'season' ? (seasonLeaderboard || []) : (leaderboard || []);
   const sort = mode === 'season' ? seasonLeaderboardSort : sortBy;
-  const activeSort = mode === 'season' ? onLoadSeasonLeaderboard : onSort;
   const loading = mode === 'season' ? !seasonLeaderboard : !leaderboard;
+  const loadSort = (nextSort) => {
+    if (mode === 'season') onLoadSeasonLeaderboard?.(nextSort, selectedSeasonKey);
+    else onSort?.(nextSort);
+  };
 
   return (
     <DesktopLayout active="ranking" {...common}>
@@ -1148,35 +1185,54 @@ function DesktopLeaderboardView({ common, leaderboard, sortBy, onSort, onViewPro
       <div className="desk-main-stack">
         <DesktopSimpleHeader title="RANKING" subtitle="Porównaj wyniki z innymi graczami i walcz o najwyższe miejsca." icon={<Crown size={28} />} />
         <section className="desk-ranking-panel desk-panel">
-          <div className="desk-ranking-tabs desk-ranking-period-tabs">
-            <button className={mode === 'season' ? 'active' : ''} onClick={() => setMode('season')}>SEZON {seasonNumber(currentSeasonKey())}</button>
+          <div className="desk-ranking-period-control">
+            <label className={mode === 'season' ? 'active' : ''}>
+              <span>SEZON</span>
+              <select
+                aria-label="Wybierz sezon rankingu"
+                value={selectedSeasonKey}
+                onFocus={() => setMode('season')}
+                onChange={(e) => {
+                  const key = e.target.value;
+                  setMode('season');
+                  onLoadSeasonLeaderboard?.(seasonLeaderboardSort || 'gamesWon', key);
+                }}
+              >
+                {seasonKeys.map((key) => <option key={key} value={key}>Sezon {seasonNumber(key)} · {seasonMonthLabel(key)}</option>)}
+              </select>
+              <ChevronRight className="desk-ranking-select-chevron" size={17} />
+            </label>
             <button className={mode === 'alltime' ? 'active' : ''} onClick={() => setMode('alltime')}>WSZECH CZASÓW</button>
           </div>
           {mode === 'season' ? (
-            <p className="desk-ranking-info"><Info size={14} /> Sezon trwa jeden miesiąc kalendarzowy i resetuje się automatycznie 1. dnia miesiąca. Top 3 na koniec sezonu dostaje nagrodę w XP i HITCOIN — im wyżej, tym więcej.</p>
+            <p className="desk-ranking-info"><Info size={14} /> {selectedSeasonIsCurrent
+              ? `Sezon ${selectedSeasonNumber} trwa jeden miesiąc kalendarzowy i resetuje się automatycznie 1. dnia miesiąca. Top 3 otrzyma nagrody w XP i HITCOIN.`
+              : `Sezon ${selectedSeasonNumber} jest zakończony. Oglądasz archiwalne wyniki tego sezonu — możesz przełączać WYGRANE i ZGADYWANIE.`}</p>
           ) : null}
           <div className="desk-ranking-tabs">
-            <button className={sort === 'gamesWon' ? 'active' : ''} onClick={() => activeSort?.('gamesWon')}>WYGRANE</button>
-            <button className={sort === 'guessesCorrect' ? 'active' : ''} onClick={() => activeSort?.('guessesCorrect')}>ZGADYWANIE</button>
+            <button className={sort === 'gamesWon' ? 'active' : ''} onClick={() => loadSort('gamesWon')}>WYGRANE</button>
+            <button className={sort === 'guessesCorrect' ? 'active' : ''} onClick={() => loadSort('guessesCorrect')}>ZGADYWANIE</button>
           </div>
           {loading ? (
             <div className="desk-loading">Wczytuję ranking…</div>
           ) : (
             <div className="desk-ranking-list">
               {rows.length ? rows.map((player, index) => {
-                const seasonWins = player.seasonProgress?.gamesWon || 0;
-                const seasonPlayed = player.seasonProgress?.gamesPlayed || 0;
-                const seasonGuesses = player.seasonProgress?.guessesCorrect || 0;
+                const seasonData = player.selectedSeasonProgress || player.seasonProgress || {};
+                const seasonWins = Number(seasonData.gamesWon || 0);
+                const seasonPlayed = Number(seasonData.gamesPlayed || 0);
+                const seasonGuesses = Number(seasonData.guessesCorrect || 0);
                 const rank = mode === 'season' ? seasonRankForWins(seasonWins) : null;
+                const realLevel = levelFromXp ? levelFromXp(Number(player.xp || 0)).level : 1;
                 return (
                   <button type="button" key={player.uid || index} className={`desk-ranking-row rank-${index + 1}`} onClick={() => player.uid && onViewProfile?.(player)}>
                     <div className="desk-ranking-position">{index < 3 ? ['🥇','🥈','🥉'][index] : `#${index + 1}`}</div>
                     <div className="desk-ranking-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.username || 'G') : null}</div>
                     <div className="desk-ranking-user">
                       <strong>{player.username || 'Gracz'}</strong>
-                      <span>LVL {player.xp ? Math.max(1, Math.floor(Math.sqrt(player.xp / 75)) + 1) : 1}{mode === 'season' && sort === 'gamesWon' ? ` · ${seasonPlayed} rozegranych` : ' · kliknij profil'}</span>
+                      <span>LVL {realLevel}{mode === 'season' && sort === 'gamesWon' ? ` · ${seasonPlayed} rozegranych` : ' · kliknij profil'}</span>
                     </div>
-                    {rank ? <span className="desk-rank-badge" style={{ '--rank-color': rank.color }}>{rank.label}</span> : null}
+                    {rank ? <span className="desk-rank-badge" style={{ '--rank-color': rank.color }}>{rank.label}</span> : mode === 'season' ? <span className="desk-rank-badge muted">Bez rangi</span> : null}
                     <div className="desk-ranking-score">
                       {mode === 'season'
                         ? (sort === 'gamesWon' ? `${formatCompact(seasonWins)} wygranych` : `${formatCompact(seasonGuesses)} trafień`)
@@ -1184,7 +1240,7 @@ function DesktopLeaderboardView({ common, leaderboard, sortBy, onSort, onViewPro
                     </div>
                   </button>
                 );
-              }) : <div className="desk-loading">{mode === 'season' ? 'Nikt jeszcze nie grał w tym sezonie.' : 'Brak wyników.'}</div>}
+              }) : <div className="desk-loading">{mode === 'season' ? `Brak wyników dla Sezonu ${selectedSeasonNumber}.` : 'Brak wyników.'}</div>}
             </div>
           )}
         </section>
@@ -1192,6 +1248,7 @@ function DesktopLeaderboardView({ common, leaderboard, sortBy, onSort, onViewPro
     </DesktopLayout>
   );
 }
+
 
 function DesktopCollectionView({ common, songs, stats, libraryLoading, songPoolSize, onSellDuplicates, albumSellBusy }) {
   const [selectedRarity, setSelectedRarity] = useState('winyl');
@@ -1497,7 +1554,7 @@ export function DesktopAppView(props) {
   let view;
   if (section === 'stats') view = <DesktopStatsView {...props} {...common} />;
   else if (section === 'achievements') view = <DesktopAchievementsView common={common} progress={props.achievementProgress || []} onClaim={props.onClaimAchievement} />;
-  else if (section === 'ranking') view = <DesktopLeaderboardView common={common} leaderboard={props.leaderboard} sortBy={props.leaderboardSort} onSort={props.onLoadLeaderboard} onViewProfile={props.onViewProfile} seasonLeaderboard={props.seasonLeaderboard} seasonLeaderboardSort={props.seasonLeaderboardSort} onLoadSeasonLeaderboard={props.onLoadSeasonLeaderboard} />;
+  else if (section === 'ranking') view = <DesktopLeaderboardView common={common} leaderboard={props.leaderboard} sortBy={props.leaderboardSort} onSort={props.onLoadLeaderboard} onViewProfile={props.onViewProfile} seasonLeaderboard={props.seasonLeaderboard} seasonLeaderboardSort={props.seasonLeaderboardSort} seasonLeaderboardKey={props.seasonLeaderboardKey} onLoadSeasonLeaderboard={props.onLoadSeasonLeaderboard} levelFromXp={props.levelFromXp} />;
   else if (section === 'collection') view = <DesktopCollectionView common={common} songs={props.songs} stats={props.stats} libraryLoading={props.libraryLoading} songPoolSize={props.songPoolSize} onSellDuplicates={props.onSellDuplicates} albumSellBusy={props.albumSellBusy} />;
   else if (section === 'shop') view = <DesktopShopView common={common} hitcoin={props.hitcoin} packConfigs={props.packConfigs} busy={props.packBusy} openResult={props.packOpenResult} onBuy={props.onBuyPack} onClearResult={props.onClearPackResult} />;
   else if (section === 'community') view = <DesktopCommunityView common={common} onlinePlayers={props.onlinePlayers} challengeSentTo={props.challengeSentTo} challengeBusy={props.challengeBusy} onChallenge={props.onChallenge} onViewProfile={props.onViewProfile} currentUserUid={props.user?.uid} />;

@@ -29,7 +29,7 @@ import {
   Settings,
   Coins,
 } from 'lucide-react';
-import { currentSeasonKey, seasonNumber, seasonRankForWins, getPlayerSeasonHistory } from './stats.js';
+import { currentSeasonKey, seasonNumber, seasonRankForWins, seasonRankProgress, seasonMonthLabel, availableSeasonKeys, getPlayerSeasonHistory } from './stats.js';
 
 import logoImg from './assets/logo-v2.png';
 import homeBg from './assets/home/bg.jpg';
@@ -443,6 +443,13 @@ function MobileStatsView(props) {
   const worstArtists = props.worstArtists || [];
   const collectionCount = Object.keys(props.stats?.cardCollection || {}).filter((id) => Number(props.stats?.cardCollection?.[id] || 0) > 0).length;
   const pastSeasons = getPlayerSeasonHistory(props.stats);
+  const currentSeason = currentSeasonKey();
+  const currentSeasonNumber = seasonNumber(currentSeason);
+  const currentSeasonProgress = props.stats?.seasonProgress?.seasonKey === currentSeason ? props.stats.seasonProgress : null;
+  const currentSeasonWins = Number(currentSeasonProgress?.gamesWon || 0);
+  const currentSeasonPlayed = Number(currentSeasonProgress?.gamesPlayed || 0);
+  const currentSeasonRank = seasonRankForWins(currentSeasonWins);
+  const currentSeasonRankProgress = seasonRankProgress(currentSeasonWins);
   const [expandedDuel, setExpandedDuel] = useState(null);
   const [historyExpanded, setHistoryExpanded] = useState(false);
 
@@ -459,6 +466,29 @@ function MobileStatsView(props) {
         <div className="mob-level-card-top"><span>POZIOM {props.levelInfo?.level || 1}</span><b>{compact(props.levelInfo?.currentLevelXp)} / {compact(props.levelInfo?.xpForNextLevel)} XP</b></div>
         <div className="mob-big-progress"><i style={{ width: `${Math.min(100, xpPct)}%` }} /></div>
         <small>Jeszcze {Math.max(0, Number(props.levelInfo?.xpForNextLevel || 0) - Number(props.levelInfo?.currentLevelXp || 0))} XP do następnego poziomu.</small>
+      </section>
+
+      <section className="mob-season-status-card mob-panel">
+        <div className="mob-season-status-head">
+          <div><span><Crown size={15} /> SEZON {currentSeasonNumber}</span><small>{seasonMonthLabel(currentSeason)}</small></div>
+          <button type="button" onClick={() => { props.onLoadSeasonLeaderboard?.('gamesWon', currentSeason); props.onNavigate('ranking'); }}>RANKING <ChevronRight size={14} /></button>
+        </div>
+        <div className="mob-season-status-main">
+          <div className="mob-season-place">
+            <small>MIEJSCE</small>
+            <strong>{props.seasonLeaderboardPosition ? `#${props.seasonLeaderboardPosition}` : '—'}</strong>
+            <span>{currentSeasonPlayed ? 'ranking wygranych' : 'zagraj pierwszą grę'}</span>
+          </div>
+          <div className="mob-season-rank">
+            <small>TWOJA RANGA</small>
+            <strong style={{ '--rank-color': currentSeasonRank?.color || '#746d82' }}>{currentSeasonRank?.label || 'Bez rangi'}</strong>
+            <span>{currentSeasonWins} wygranych · {currentSeasonPlayed} rozegranych</span>
+          </div>
+        </div>
+        <div className="mob-season-rank-progress">
+          <div><span>{currentSeasonRankProgress.next ? `DO RANGI ${currentSeasonRankProgress.next.label.toUpperCase()}` : 'NAJWYŻSZA RANGA'}</span><b>{currentSeasonRankProgress.next ? `brakuje ${currentSeasonRankProgress.winsToNext}` : 'DIAMENT'}</b></div>
+          <i><em style={{ width: `${currentSeasonRankProgress.progressPct}%`, '--next-rank-color': currentSeasonRankProgress.next?.color || currentSeasonRank?.color || '#7dffef' }} /></i>
+        </div>
       </section>
 
       <div className="mob-stats-feature-grid">
@@ -760,33 +790,61 @@ function MobileAchievementsView(props) {
 
 function MobileRankingView(props) {
   const [mode, setMode] = useState('season');
+  const selectedSeasonKey = props.seasonLeaderboardKey || currentSeasonKey();
+  const seasonKeys = availableSeasonKeys();
+  const selectedSeasonNumber = seasonNumber(selectedSeasonKey);
+  const selectedSeasonIsCurrent = selectedSeasonKey === currentSeasonKey();
+
   useEffect(() => {
     if (mode === 'alltime' && !props.leaderboard) props.onLoadLeaderboard?.(props.leaderboardSort || 'gamesWon');
-    if (mode === 'season' && !props.seasonLeaderboard) props.onLoadSeasonLeaderboard?.(props.seasonLeaderboardSort || 'gamesWon');
+    if (mode === 'season' && !props.seasonLeaderboard) props.onLoadSeasonLeaderboard?.(props.seasonLeaderboardSort || 'gamesWon', selectedSeasonKey);
   }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const rows = mode === 'season' ? (props.seasonLeaderboard || []) : (props.leaderboard || []);
   const sort = mode === 'season' ? props.seasonLeaderboardSort : props.leaderboardSort;
-  const onSort = mode === 'season' ? props.onLoadSeasonLeaderboard : props.onLoadLeaderboard;
   const loading = mode === 'season' ? !props.seasonLeaderboard : !props.leaderboard;
+  const loadSort = (nextSort) => {
+    if (mode === 'season') props.onLoadSeasonLeaderboard?.(nextSort, selectedSeasonKey);
+    else props.onLoadLeaderboard?.(nextSort);
+  };
+
   return (
     <div className="mob-stack mob-inner-view mob-ranking-view">
-      <MobileSectionHeader title="RANKING" subtitle="Najlepsi gracze Hitsteriady." icon={<Crown size={24} />} onBack={() => props.onNavigate('home')} />
-      <div className="mob-ranking-tabs mob-ranking-period-tabs">
-        <button type="button" className={mode === 'season' ? 'active' : ''} onClick={() => setMode('season')}>SEZON {seasonNumber(currentSeasonKey())}</button>
+      <MobileSectionHeader title="RANKING" subtitle="Porównaj wyniki z innymi graczami." icon={<Crown size={24} />} onBack={() => props.onNavigate('home')} />
+      <div className="mob-ranking-period-control">
+        <label className={mode === 'season' ? 'active' : ''}>
+          <span>SEZON</span>
+          <select
+            aria-label="Wybierz sezon rankingu"
+            value={selectedSeasonKey}
+            onFocus={() => setMode('season')}
+            onChange={(e) => {
+              const key = e.target.value;
+              setMode('season');
+              props.onLoadSeasonLeaderboard?.(props.seasonLeaderboardSort || 'gamesWon', key);
+            }}
+          >
+            {seasonKeys.map((key) => <option key={key} value={key}>Sezon {seasonNumber(key)} · {seasonMonthLabel(key)}</option>)}
+          </select>
+          <ChevronDown size={15} />
+        </label>
         <button type="button" className={mode === 'alltime' ? 'active' : ''} onClick={() => setMode('alltime')}>WSZECH CZASÓW</button>
       </div>
       {mode === 'season' ? (
-        <p className="mob-ranking-info"><Info size={13} /> Sezon trwa jeden miesiąc kalendarzowy i resetuje się automatycznie 1. dnia miesiąca. Top 3 na koniec sezonu dostaje nagrodę w XP i HITCOIN — im wyżej, tym więcej.</p>
+        <p className="mob-ranking-info"><Info size={13} /> {selectedSeasonIsCurrent
+          ? `Sezon ${selectedSeasonNumber} trwa jeden miesiąc kalendarzowy. Top 3 na koniec sezonu otrzyma nagrody w XP i HITCOIN.`
+          : `Sezon ${selectedSeasonNumber} jest zakończony. Oglądasz jego archiwalne wyniki — możesz przełączać WYGRANE i ZGADYWANIE.`}</p>
       ) : null}
       <div className="mob-ranking-tabs">
-        <button type="button" className={sort === 'gamesWon' ? 'active' : ''} onClick={() => onSort?.('gamesWon')}>WYGRANE</button>
-        <button type="button" className={sort === 'guessesCorrect' ? 'active' : ''} onClick={() => onSort?.('guessesCorrect')}>ZGADYWANIE</button>
+        <button type="button" className={sort === 'gamesWon' ? 'active' : ''} onClick={() => loadSort('gamesWon')}>WYGRANE</button>
+        <button type="button" className={sort === 'guessesCorrect' ? 'active' : ''} onClick={() => loadSort('guessesCorrect')}>ZGADYWANIE</button>
       </div>
       <section className="mob-panel mob-ranking-list">
         {loading ? <div className="mob-empty">Ładowanie rankingu…</div> : rows.length ? rows.map((player, index) => {
-          const seasonWins = player.seasonProgress?.gamesWon || 0;
-          const seasonPlayed = player.seasonProgress?.gamesPlayed || 0;
-          const seasonGuesses = player.seasonProgress?.guessesCorrect || 0;
+          const seasonData = player.selectedSeasonProgress || player.seasonProgress || {};
+          const seasonWins = Number(seasonData.gamesWon || 0);
+          const seasonPlayed = Number(seasonData.gamesPlayed || 0);
+          const seasonGuesses = Number(seasonData.guessesCorrect || 0);
           const rank = mode === 'season' ? seasonRankForWins(seasonWins) : null;
           return (
             <button type="button" className={`mob-rank-row place-${index + 1}`} key={player.uid || index} onClick={() => props.onViewProfile?.(player)}>
@@ -803,11 +861,11 @@ function MobileRankingView(props) {
                   <span>{sort === 'gamesWon' ? `${player.gamesWon || 0} wygranych` : `${player.guessesCorrect || 0} trafień`}</span>
                 )}
               </div>
-              {rank ? <span className="mob-rank-badge" style={{ '--rank-color': rank.color }}>{rank.label}</span> : null}
+              {rank ? <span className="mob-rank-badge" style={{ '--rank-color': rank.color }}>{rank.label}</span> : mode === 'season' ? <span className="mob-rank-badge muted">Bez rangi</span> : null}
               <ChevronRight size={16} />
             </button>
           );
-        }) : <div className="mob-empty">{mode === 'season' ? 'Nikt jeszcze nie grał w tym sezonie.' : 'Brak wyników.'}</div>}
+        }) : <div className="mob-empty">{mode === 'season' ? `Brak wyników dla Sezonu ${selectedSeasonNumber}.` : 'Brak wyników.'}</div>}
       </section>
     </div>
   );

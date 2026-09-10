@@ -480,6 +480,28 @@ export function seasonNumber(seasonKey) {
   return (y - sy) * 12 + (m - sm) + 1;
 }
 
+export function seasonKeyForNumber(number) {
+  const [sy, sm] = SEASON_START.split("-").map(Number);
+  const offset = Number(number || 0) - 1;
+  const d = new Date(Date.UTC(sy, sm - 1 + offset, 1));
+  return currentSeasonKey(d);
+}
+
+export function seasonZeroKey() {
+  return seasonKeyForNumber(0);
+}
+
+export function availableSeasonKeys(date = new Date()) {
+  const currentNumber = Math.max(0, seasonNumber(currentSeasonKey(date)));
+  return Array.from({ length: currentNumber + 1 }, (_, index) => seasonKeyForNumber(currentNumber - index));
+}
+
+export function seasonMonthLabel(seasonKey) {
+  const [y, m] = String(seasonKey || "").split("-").map(Number);
+  if (!y || !m) return "";
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("pl-PL", { month: "long", year: "numeric", timeZone: "UTC" });
+}
+
 function previousSeasonKey(seasonKey) {
   const [y, m] = String(seasonKey || currentSeasonKey()).split("-").map(Number);
   const d = new Date(Date.UTC(y, m - 2, 1)); // m jest 1-indeksowane, cofamy o 1 miesiąc
@@ -498,6 +520,64 @@ export const SEASON_RANKS = [
 
 export function seasonRankForWins(wins) {
   return SEASON_RANKS.find((r) => (wins || 0) >= r.minWins) || null;
+}
+
+export function seasonRankProgress(wins) {
+  const value = Math.max(0, Number(wins || 0));
+  const current = seasonRankForWins(value);
+  const ascending = [...SEASON_RANKS].sort((a, b) => a.minWins - b.minWins);
+  const next = ascending.find((rank) => value < rank.minWins) || null;
+  const floor = current?.minWins || 0;
+  const ceiling = next?.minWins || Math.max(floor, value);
+  const progressPct = next && ceiling > floor
+    ? Math.max(0, Math.min(100, Math.round(((value - floor) / (ceiling - floor)) * 100)))
+    : 100;
+  return { current, next, winsToNext: next ? Math.max(0, next.minWins - value) : 0, progressPct };
+}
+
+function historicalSeasonResult(statsData, seasonKey) {
+  if (!statsData || !seasonKey) return null;
+  if (statsData.seasonProgress?.seasonKey === seasonKey) return statsData.seasonProgress;
+  return statsData.seasonHistory?.[seasonKey] || null;
+}
+
+function reconstructedSeasonZeroResult(statsData) {
+  const totals = {
+    gamesPlayed: Number(statsData?.gamesPlayed || 0),
+    gamesWon: Number(statsData?.gamesWon || 0),
+    guessesCorrect: Number(statsData?.guessesCorrect || 0),
+  };
+  const subtract = (result, key) => {
+    if (!result || seasonNumber(key) < 1) return;
+    totals.gamesPlayed -= Number(result.gamesPlayed || 0);
+    totals.gamesWon -= Number(result.gamesWon || 0);
+    totals.guessesCorrect -= Number(result.guessesCorrect || 0);
+  };
+  Object.entries(statsData?.seasonHistory || {}).forEach(([key, result]) => subtract(result, key));
+  if (statsData?.seasonProgress?.seasonKey) subtract(statsData.seasonProgress, statsData.seasonProgress.seasonKey);
+  return {
+    seasonKey: seasonZeroKey(),
+    gamesPlayed: Math.max(0, totals.gamesPlayed),
+    gamesWon: Math.max(0, totals.gamesWon),
+    guessesCorrect: Math.max(0, totals.guessesCorrect),
+  };
+}
+
+const historicalSeasonLeaderboardCache = new Map();
+async function getHistoricalSeasonPlayers(seasonKey) {
+  const sk = seasonKey || seasonZeroKey();
+  if (historicalSeasonLeaderboardCache.has(sk)) return historicalSeasonLeaderboardCache.get(sk);
+  const request = getDocs(collection(db, "userStats"))
+    .then((snap) => snap.docs.map((d) => {
+      const data = d.data();
+      const selectedSeasonProgress = sk === seasonZeroKey()
+        ? reconstructedSeasonZeroResult(data)
+        : historicalSeasonResult(data, sk);
+      return { uid: d.id, ...data, selectedSeasonProgress };
+    }).filter((p) => p.selectedSeasonProgress && Number(p.selectedSeasonProgress.gamesPlayed || 0) > 0))
+    .catch((error) => { historicalSeasonLeaderboardCache.delete(sk); throw error; });
+  historicalSeasonLeaderboardCache.set(sk, request);
+  return request;
 }
 
 // Nagrody za czołowe miejsca na koniec sezonu.
@@ -547,23 +627,69 @@ export async function updateSeasonProgress(uid, { won = false, guessesCorrect = 
 // rankingu Hit Rush. Pula 100 zamiast np. 20 celowo — na początku nowego
 // sezonu większość dotychczasowych "topowych" wpisów wg tego pola to jeszcze
 // dane ze STAREGO sezonu (odsiewane niżej), więc trzeba zapasu.
-export async function getSeasonLeaderboard(count = 10, sortBy = "gamesWon") {
-  const sk = currentSeasonKey();
-  const field = sortBy === "guessesCorrect" ? "seasonProgress.guessesCorrect" : "seasonProgress.gamesWon";
-  const q = query(collection(db, "userStats"), orderBy(field, "desc"), limit(100));
-  const snap = await getDocs(q);
-  return snap.docs
-    .map((d) => ({ uid: d.id, ...d.data() }))
-    .filter((p) => p.seasonProgress?.seasonKey === sk)
-    .slice(0, count);
+export async function getSeasonLeaderboard(count = 10, sortBy = "gamesWon", seasonKey = currentSeasonKey()) {
+  const sk = seasonKey || currentSeasonKey();
+  const fieldName = sortBy === "guessesCorrect" ? "guessesCorrect" : "gamesWon";
+
+  if (sk !== currentSeasonKey()) {
+    const players = await getHistoricalSeasonPlayers(sk);
+    return [...players]
+      .sort((a, b) => {
+        const av = Number(a.selectedSeasonProgress?.[fieldName] || 0);
+        const bv = Number(b.selectedSeasonProgress?.[fieldName] || 0);
+        if (bv !== av) return bv - av;
+        const aw = Number(a.selectedSeasonProgress?.gamesWon || 0);
+        const bw = Number(b.selectedSeasonProgress?.gamesWon || 0);
+        return bw - aw;
+      })
+      .slice(0, count);
+  }
+
+  if (sk === currentSeasonKey()) {
+    const field = `seasonProgress.${fieldName}`;
+    const q = query(collection(db, "userStats"), orderBy(field, "desc"), limit(100));
+    const snap = await getDocs(q);
+    return snap.docs
+      .map((d) => ({ uid: d.id, ...d.data() }))
+      .filter((p) => p.seasonProgress?.seasonKey === sk)
+      .map((p) => ({ ...p, selectedSeasonProgress: p.seasonProgress }))
+      .slice(0, count);
+  }
+
+  return [];
+}
+
+export async function getSeasonLeaderboardPosition(uid, seasonKey = currentSeasonKey(), sortBy = "gamesWon") {
+  if (!uid) return null;
+  const sk = seasonKey || currentSeasonKey();
+  const fieldName = sortBy === "guessesCorrect" ? "guessesCorrect" : "gamesWon";
+
+  if (sk !== currentSeasonKey()) {
+    const players = await getHistoricalSeasonPlayers(sk);
+    const mine = players.find((p) => p.uid === uid);
+    if (!mine) return null;
+    const ownValue = Number(mine.selectedSeasonProgress?.[fieldName] || 0);
+    return players.filter((p) => Number(p.selectedSeasonProgress?.[fieldName] || 0) > ownValue).length + 1;
+  }
+
+  const ownSnap = await getDoc(doc(db, "userStats", uid));
+  if (!ownSnap.exists()) return null;
+  const ownData = ownSnap.data();
+  const ownResult = historicalSeasonResult(ownData, sk);
+  if (!ownResult || Number(ownResult.gamesPlayed || 0) <= 0) return null;
+  const ownValue = Number(ownResult[fieldName] || 0);
+
+  const q = query(collection(db, "userStats"), where(`seasonProgress.${fieldName}`, ">", ownValue));
+  const higher = await getDocs(q);
+  return higher.docs.filter((d) => d.data().seasonProgress?.seasonKey === sk).length + 1;
 }
 
 // Rozdanie nagród za top 3 poprzedniego sezonu — bezpieczne wołać "na
 // wszelki wypadek" przy każdym wejściu w ranking, transakcja z markerem
 // gwarantuje że rozda się dokładnie raz, niezależnie ile razy/klientów to
-// wywoła. Czyta z seasonHistory (patrz komentarz w updateSeasonProgress),
-// więc czas wywołania względem tego kiedy kto zagrał pierwszą grę w nowym
-// miesiącu nie ma znaczenia.
+// wywoła. Wynik zakończonego sezonu odczytujemy zarówno z seasonHistory,
+// jak i ze starego seasonProgress, jeśli gracz nie zdążył jeszcze zagrać
+// w nowym miesiącu.
 export async function processSeasonRewardsIfNeeded() {
   const endedSeason = previousSeasonKey(currentSeasonKey());
   const markerRef = doc(db, "seasonRewardsProcessed", endedSeason);
@@ -576,14 +702,22 @@ export async function processSeasonRewardsIfNeeded() {
   });
   if (!shouldProcess) return;
 
-  const q = query(collection(db, "userStats"), orderBy(`seasonHistory.${endedSeason}.gamesWon`, "desc"), limit(50));
-  const snap = await getDocs(q);
-  const ranked = snap.docs
-    .map((d) => ({ uid: d.id, result: d.data().seasonHistory?.[endedSeason] }))
-    .filter((p) => p.result)
-    .slice(0, 3);
+  // Czytamy użytkowników bezpośrednio, bo część z nich może jeszcze mieć
+  // zakończony sezon w seasonProgress (nie rozegrali pierwszej gry nowego
+  // miesiąca), a część mogła już zostać przeniesiona do seasonHistory.
+  // Dzięki temu pierwsza osoba otwierająca ranking w nowym miesiącu nie może
+  // przypadkowo zamknąć sezonu z niepełnymi wynikami.
+  const snap = await getDocs(collection(db, "userStats"));
+  const rankedAll = snap.docs
+    .map((d) => {
+      const data = d.data();
+      return { uid: d.id, username: data.username || "Gracz", avatarUrl: data.avatarUrl || null, result: historicalSeasonResult(data, endedSeason) };
+    })
+    .filter((p) => p.result && Number(p.result.gamesPlayed || 0) > 0)
+    .sort((a, b) => Number(b.result.gamesWon || 0) - Number(a.result.gamesWon || 0) || Number(b.result.guessesCorrect || 0) - Number(a.result.guessesCorrect || 0));
+  const ranked = rankedAll.slice(0, 3);
 
-  const archive = ranked.map((p, i) => ({ uid: p.uid, place: i + 1, ...p.result }));
+  const archive = rankedAll.slice(0, 50).map((p, i) => ({ uid: p.uid, username: p.username, avatarUrl: p.avatarUrl, place: i + 1, ...p.result }));
   await setDoc(doc(db, "seasonArchive", endedSeason), { seasonKey: endedSeason, top: archive, finalizedAt: Date.now() });
 
   for (let i = 0; i < ranked.length; i++) {
@@ -594,11 +728,23 @@ export async function processSeasonRewardsIfNeeded() {
   }
 }
 
-// Historia sezonów danego gracza (do profilu) — czyta bezpośrednio z jego
-// własnego seasonHistory, bez dodatkowych zapytań.
+// Historia sezonów danego gracza (do profilu/statystyk), bez dodatkowych
+// zapytań. Uwzględnia również odtworzony Sezon 0 oraz sytuację, gdy gracz
+// jeszcze nie rozegrał pierwszej gry w nowym miesiącu i poprzedni sezon
+// nadal siedzi w seasonProgress zamiast seasonHistory.
 export function getPlayerSeasonHistory(statsData) {
-  const history = statsData?.seasonHistory || {};
+  const history = { ...(statsData?.seasonHistory || {}) };
+  const zeroKey = seasonZeroKey();
+  if (!history[zeroKey]) {
+    const zero = reconstructedSeasonZeroResult(statsData);
+    if (Number(zero.gamesPlayed || 0) > 0) history[zeroKey] = zero;
+  }
+  const liveProgress = statsData?.seasonProgress;
+  if (liveProgress?.seasonKey && liveProgress.seasonKey !== currentSeasonKey() && !history[liveProgress.seasonKey]) {
+    history[liveProgress.seasonKey] = liveProgress;
+  }
   return Object.entries(history)
+    .filter(([seasonKey]) => seasonKey !== currentSeasonKey())
     .map(([seasonKey, result]) => ({ seasonKey, seasonNumber: seasonNumber(seasonKey), ...result, rank: seasonRankForWins(result.gamesWon) }))
     .sort((a, b) => (a.seasonKey < b.seasonKey ? 1 : -1));
 }

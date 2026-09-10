@@ -15,7 +15,7 @@ import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
 import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId, fuzzyMatch } from "./utils.js";
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
-import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, getLeaderboardPosition, awardXp, xpForLevel, levelFromXp, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag, getWeeklyChallenges, bumpWeeklyChallengeProgress, claimWeeklyChallenge, currentSeasonKey, seasonNumber, seasonRankForWins, SEASON_RANKS, updateSeasonProgress, getSeasonLeaderboard, processSeasonRewardsIfNeeded, getPlayerSeasonHistory, consumeNextRewardNotice, seedSeasonZeroFromAllTime } from "./stats.js";
+import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, getLeaderboardPosition, awardXp, xpForLevel, levelFromXp, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag, getWeeklyChallenges, bumpWeeklyChallengeProgress, claimWeeklyChallenge, currentSeasonKey, seasonNumber, seasonRankForWins, SEASON_RANKS, updateSeasonProgress, getSeasonLeaderboard, getSeasonLeaderboardPosition, processSeasonRewardsIfNeeded, getPlayerSeasonHistory, consumeNextRewardNotice, seedSeasonZeroFromAllTime } from "./stats.js";
 import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss, incrementSongPlayCount, getSongCount } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
 import { heartbeat, clearPresence, getOnlinePlayers } from "./presence.js";
@@ -860,6 +860,8 @@ export default function App() {
   const [leaderboard, setLeaderboard] = useState(null);
   const [seasonLeaderboard, setSeasonLeaderboard] = useState(null);
   const [seasonLeaderboardSort, setSeasonLeaderboardSort] = useState("gamesWon");
+  const [seasonLeaderboardKey, setSeasonLeaderboardKey] = useState(currentSeasonKey());
+  const [seasonLeaderboardPosition, setSeasonLeaderboardPosition] = useState(null);
   const [rewardNotice, setRewardNotice] = useState(null);
   const [leaderboardPosition, setLeaderboardPosition] = useState(null);
 
@@ -2194,6 +2196,20 @@ export default function App() {
     return () => { cancelled = true; };
   }, [user?.uid, stats?.gamesWon]);
 
+  useEffect(() => {
+    const currentKey = currentSeasonKey();
+    const currentProgress = stats?.seasonProgress;
+    if (!user?.uid || currentProgress?.seasonKey !== currentKey || Number(currentProgress?.gamesPlayed || 0) <= 0) {
+      setSeasonLeaderboardPosition(null);
+      return;
+    }
+    let cancelled = false;
+    getSeasonLeaderboardPosition(user.uid, currentKey, "gamesWon")
+      .then((position) => { if (!cancelled) setSeasonLeaderboardPosition(position); })
+      .catch(() => { if (!cancelled) setSeasonLeaderboardPosition(null); });
+    return () => { cancelled = true; };
+  }, [user?.uid, stats?.seasonProgress?.seasonKey, stats?.seasonProgress?.gamesPlayed, stats?.seasonProgress?.gamesWon]);
+
   async function handleAuthSubmit() {
     if (!authUsername.trim() || !authPassword) {
       setAuthError("Podaj login i hasło.");
@@ -2532,17 +2548,19 @@ export default function App() {
     }
   }
 
-  async function openSeasonLeaderboard(sortBy = seasonLeaderboardSort) {
+  async function openSeasonLeaderboard(sortBy = seasonLeaderboardSort, seasonKey = seasonLeaderboardKey) {
+    const key = seasonKey || currentSeasonKey();
     setSeasonLeaderboardSort(sortBy);
+    setSeasonLeaderboardKey(key);
     setSeasonLeaderboard(null);
     try {
-      processSeasonRewardsIfNeeded().catch(() => {});
-      const list = await getSeasonLeaderboard(10, sortBy);
+      if (key === currentSeasonKey()) processSeasonRewardsIfNeeded().catch(() => {});
+      const list = await getSeasonLeaderboard(10, sortBy, key);
       setSeasonLeaderboard(list);
     } catch (e) {
       try {
         await new Promise((r) => setTimeout(r, 600));
-        const list = await getSeasonLeaderboard(10, sortBy);
+        const list = await getSeasonLeaderboard(10, sortBy, key);
         setSeasonLeaderboard(list);
       } catch (e2) {
         setSeasonLeaderboard([]);
@@ -5614,6 +5632,8 @@ export default function App() {
         albumSellBusy={albumSellBusy}
         seasonLeaderboard={seasonLeaderboard}
         seasonLeaderboardSort={seasonLeaderboardSort}
+        seasonLeaderboardKey={seasonLeaderboardKey}
+        seasonLeaderboardPosition={seasonLeaderboardPosition}
         onLoadSeasonLeaderboard={openSeasonLeaderboard}
         user={user}
         authChecked={authChecked}
@@ -5758,6 +5778,8 @@ export default function App() {
         albumSellBusy={albumSellBusy}
         seasonLeaderboard={seasonLeaderboard}
         seasonLeaderboardSort={seasonLeaderboardSort}
+        seasonLeaderboardKey={seasonLeaderboardKey}
+        seasonLeaderboardPosition={seasonLeaderboardPosition}
         onLoadSeasonLeaderboard={openSeasonLeaderboard}
         user={user}
         authChecked={authChecked}
