@@ -2210,6 +2210,11 @@ export default function App() {
     return () => { cancelled = true; };
   }, [user?.uid, stats?.seasonProgress?.seasonKey, stats?.seasonProgress?.gamesPlayed, stats?.seasonProgress?.gamesWon]);
 
+  const loadMySeasonLeaderboardPosition = useCallback((seasonKey) => {
+    if (!user?.uid) return Promise.resolve(null);
+    return getSeasonLeaderboardPosition(user.uid, seasonKey || currentSeasonKey(), "gamesWon");
+  }, [user?.uid]);
+
   async function handleAuthSubmit() {
     if (!authUsername.trim() || !authPassword) {
       setAuthError("Podaj login i hasło.");
@@ -5634,6 +5639,7 @@ export default function App() {
         seasonLeaderboardSort={seasonLeaderboardSort}
         seasonLeaderboardKey={seasonLeaderboardKey}
         seasonLeaderboardPosition={seasonLeaderboardPosition}
+        onGetSeasonLeaderboardPosition={loadMySeasonLeaderboardPosition}
         onLoadSeasonLeaderboard={openSeasonLeaderboard}
         user={user}
         authChecked={authChecked}
@@ -5780,6 +5786,7 @@ export default function App() {
         seasonLeaderboardSort={seasonLeaderboardSort}
         seasonLeaderboardKey={seasonLeaderboardKey}
         seasonLeaderboardPosition={seasonLeaderboardPosition}
+        onGetSeasonLeaderboardPosition={loadMySeasonLeaderboardPosition}
         onLoadSeasonLeaderboard={openSeasonLeaderboard}
         user={user}
         authChecked={authChecked}

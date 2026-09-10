@@ -1634,3 +1634,31 @@
   .mob-profile-season-row { grid-template-columns:60px minmax(0,1fr); align-items:center; }
   .mob-profile-season-row .mob-rank-badge { grid-column:2; justify-self:start; margin-top:-2px; }
 }
+
+
+/* === Unified season selector in Stats + player profile (v1.5) === */
+.mob-season-status-selector { min-width:0; flex:1; }
+.mob-season-status-select { display:inline-flex; align-items:center; gap:4px; max-width:150px; height:30px; margin-top:5px; padding:0 8px 0 9px; border-radius:9px; border:1px solid rgba(245,196,81,.24); background:rgba(5,7,19,.64); }
+.mob-season-status-select select { appearance:none; -webkit-appearance:none; min-width:0; width:100%; border:0; outline:0; background:transparent; color:#fff; font-family:'Bebas Neue',sans-serif; font-size:14px; letter-spacing:.045em; cursor:pointer; }
+.mob-season-status-select select option { background:#0b0c1b; color:#fff; }
+.mob-season-status-select svg { flex:0 0 auto; color:#f5c451; pointer-events:none; }
+
+.mob-profile-season-summary { margin-top:10px; padding:12px; border-radius:14px; border:1px solid rgba(245,196,81,.18); background:radial-gradient(circle at 92% 0%,rgba(245,196,81,.08),transparent 38%),rgba(6,9,24,.72); min-width:0; }
+.mob-profile-season-summary-head { display:flex; align-items:center; justify-content:space-between; gap:10px; min-width:0; }
+.mob-profile-season-summary-head > div { min-width:0; }
+.mob-profile-season-summary-head > div > span { display:block; color:#f3cb5d; font-size:9px; font-weight:900; letter-spacing:.1em; }
+.mob-profile-season-summary-head > div > small { display:block; margin-top:2px; color:#81798d; font-size:8px; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mob-profile-season-summary-head label { flex:0 0 auto; display:flex; align-items:center; gap:4px; height:31px; max-width:116px; padding:0 8px; border-radius:9px; border:1px solid rgba(245,196,81,.22); background:rgba(5,7,19,.65); }
+.mob-profile-season-summary-head select { appearance:none; -webkit-appearance:none; min-width:0; width:78px; border:0; outline:0; background:transparent; color:#fff; font-family:'Bebas Neue',sans-serif; font-size:13px; letter-spacing:.035em; }
+.mob-profile-season-summary-head select option { background:#0b0c1b; color:#fff; }
+.mob-profile-season-summary-head label svg { flex:0 0 auto; color:#f5c451; pointer-events:none; }
+.mob-profile-season-summary-grid { display:grid; grid-template-columns:minmax(0,1.3fr) repeat(3,minmax(0,.8fr)); gap:6px; margin-top:10px; }
+.mob-profile-season-summary-grid > div { min-width:0; min-height:52px; display:flex; flex-direction:column; justify-content:center; padding:8px; border-radius:10px; border:1px solid rgba(255,255,255,.055); background:rgba(5,7,19,.52); }
+.mob-profile-season-summary-grid span { color:#756e81; font-size:7px; font-weight:850; letter-spacing:.08em; }
+.mob-profile-season-summary-grid b { margin-top:4px; color:#e8e3ed; font-family:'Bebas Neue',sans-serif; font-size:17px; line-height:1; }
+.mob-profile-season-summary-grid strong { display:inline-flex; align-self:flex-start; max-width:100%; margin-top:5px; padding:3px 6px; border-radius:999px; border:1px solid var(--rank-color,#746d82); color:var(--rank-color,#958da2); font-family:'Bebas Neue',sans-serif; font-size:11px; line-height:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+@media (max-width:390px) {
+  .mob-profile-season-summary-grid { grid-template-columns:1.2fr 1fr; }
+  .mob-profile-season-summary-grid > div { min-height:48px; }
+  .mob-season-status-select { max-width:128px; }
+}

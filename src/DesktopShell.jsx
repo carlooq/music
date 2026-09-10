@@ -29,7 +29,7 @@ import {
   UserPlus,
   Info,
 } from 'lucide-react';
-import { currentSeasonKey, seasonNumber, seasonRankForWins, seasonRankProgress, seasonMonthLabel, availableSeasonKeys, getPlayerSeasonHistory } from './stats.js';
+import { currentSeasonKey, seasonNumber, seasonRankForWins, seasonRankProgress, seasonMonthLabel, availableSeasonKeys, getPlayerSeasonResult } from './stats.js';
 
 import logoImg from './assets/logo-v2.png';
 import heroBanner from './assets/home/hero-banner.webp';
@@ -293,9 +293,15 @@ function HeaderBar({ onlineCount, level, xpText, musicCount, hitcoin, avatarUrl,
 }
 
 export function DesktopPlayerProfileModal({ profile, onClose, levelFromXp }) {
+  const [selectedProfileSeasonKey, setSelectedProfileSeasonKey] = useState(currentSeasonKey());
+
+  useEffect(() => {
+    if (profile) setSelectedProfileSeasonKey(currentSeasonKey());
+  }, [profile?.uid]);
+
   if (!profile) return null;
   const playerStats = profile.stats || {};
-  const levelInfo = levelFromXp ? levelFromXp(playerStats.xp || 0) : null;
+  const levelInfo = levelFromXp ? levelFromXp(playerStats.xp || 0) : { level: 1, currentLevelXp: 0, xpForNextLevel: 1 };
   const winRate = playerStats.gamesPlayed ? Math.round(((playerStats.gamesWon || 0) / playerStats.gamesPlayed) * 100) : 0;
   const accuracy = playerStats.cardsTotal ? Math.round(((playerStats.cardsCorrect || 0) / playerStats.cardsTotal) * 100) : 0;
   const collectionCount = Object.keys(playerStats.cardCollection || {}).length;
@@ -304,9 +310,13 @@ export function DesktopPlayerProfileModal({ profile, onClose, levelFromXp }) {
   const collectionCopies = collectionSummary.totalCopies ?? Object.values(playerStats.cardCollection || {}).reduce((sum, count) => sum + Number(count || 0), 0);
   const collectionUnique = collectionSummary.uniqueOwned ?? collectionCount;
   const collectionAvailable = collectionSummary.totalAvailable ?? null;
-  const currentSeasonWins = playerStats.seasonProgress?.seasonKey === currentSeasonKey() ? (playerStats.seasonProgress.gamesWon || 0) : 0;
-  const currentRank = seasonRankForWins(currentSeasonWins);
-  const pastSeasons = getPlayerSeasonHistory(playerStats);
+  const xpPct = levelInfo.xpForNextLevel ? Math.min(100, Math.round((Number(levelInfo.currentLevelXp || 0) / Number(levelInfo.xpForNextLevel || 1)) * 100)) : 0;
+  const profileSeasonKeys = availableSeasonKeys();
+  const selectedProfileSeason = getPlayerSeasonResult(playerStats, selectedProfileSeasonKey);
+  const selectedProfileSeasonWins = Number(selectedProfileSeason?.gamesWon || 0);
+  const selectedProfileSeasonPlayed = Number(selectedProfileSeason?.gamesPlayed || 0);
+  const selectedProfileSeasonGuesses = Number(selectedProfileSeason?.guessesCorrect || 0);
+  const selectedProfileRank = seasonRankForWins(selectedProfileSeasonWins);
   return (
     <div className="desk-profile-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
       <section className="desk-profile-modal" onClick={(event) => event.stopPropagation()}>
@@ -316,10 +326,33 @@ export function DesktopPlayerProfileModal({ profile, onClose, levelFromXp }) {
           <div>
             <span>PROFIL GRACZA</span>
             <h2>{profile.username || playerStats.username || 'Gracz'}</h2>
-            <p>{levelInfo ? `LVL ${levelInfo.level} · ${playerStats.xp || 0} XP` : `${playerStats.xp || 0} XP`}</p>
+            <p>LVL {levelInfo.level} · {playerStats.xp || 0} XP</p>
           </div>
-          {currentRank ? <span className="desk-rank-badge" style={{ '--rank-color': currentRank.color }}>{currentRank.label}</span> : null}
         </div>
+
+        <div className="desk-profile-xp">
+          <div><span>POSTĘP POZIOMU</span><b>{formatCompact(levelInfo.currentLevelXp || 0)} / {formatCompact(levelInfo.xpForNextLevel || 0)} XP</b></div>
+          <i><em style={{ width: `${xpPct}%` }} /></i>
+        </div>
+
+        <div className="desk-profile-season-summary">
+          <div className="desk-profile-season-summary-head">
+            <div><span>SEZON GRACZA</span><small>{seasonMonthLabel(selectedProfileSeasonKey)}</small></div>
+            <label>
+              <select value={selectedProfileSeasonKey} onChange={(event) => setSelectedProfileSeasonKey(event.target.value)} aria-label="Wybierz sezon gracza">
+                {profileSeasonKeys.map((key) => <option key={key} value={key}>Sezon {seasonNumber(key)}</option>)}
+              </select>
+              <ChevronRight className="desk-profile-season-chevron" size={15} />
+            </label>
+          </div>
+          <div className="desk-profile-season-summary-grid">
+            <div><span>RANGA</span><strong style={{ '--rank-color': selectedProfileRank?.color || '#746d82' }}>{selectedProfileRank?.label || 'Bez rangi'}</strong></div>
+            <div><span>WYGRANE</span><b>{selectedProfileSeasonWins}</b></div>
+            <div><span>ROZEGRANE</span><b>{selectedProfileSeasonPlayed}</b></div>
+            <div><span>ZGADNIĘTE</span><b>{selectedProfileSeasonGuesses}</b></div>
+          </div>
+        </div>
+
         <div className="desk-profile-metrics">
           <div><span>ROZEGRANE</span><strong>{formatCompact(playerStats.gamesPlayed || 0)}</strong></div>
           <div><span>WYGRANE</span><strong>{formatCompact(playerStats.gamesWon || 0)}</strong></div>
@@ -358,19 +391,6 @@ export function DesktopPlayerProfileModal({ profile, onClose, levelFromXp }) {
             })}
           </div>
         </section>
-
-        {pastSeasons.length ? (
-          <section className="desk-profile-seasons">
-            <div className="desk-profile-collection-head"><div><span>POPRZEDNIE SEZONY</span></div></div>
-            {pastSeasons.map((s) => (
-              <div className="desk-profile-season-row" key={s.seasonKey}>
-                <span>Sezon {s.seasonNumber}</span>
-                <span>{s.gamesWon} wygranych · {s.gamesPlayed} rozegranych</span>
-                {s.rank ? <b className="desk-rank-badge" style={{ '--rank-color': s.rank.color }}>{s.rank.label}</b> : null}
-              </div>
-            ))}
-          </section>
-        ) : null}
       </section>
     </div>
   );
@@ -793,19 +813,42 @@ export function DesktopStatsView(props) {
   const username = props.playerName || user?.displayName || user?.username || 'Gracz';
   const progressPct = levelInfo.xpForNextLevel ? Math.round((levelInfo.currentLevelXp / levelInfo.xpForNextLevel) * 100) : 0;
   const collectionCount = Object.keys(stats?.cardCollection || {}).length;
-  const pastSeasons = getPlayerSeasonHistory(stats);
   const currentSeason = currentSeasonKey();
-  const currentSeasonNumber = seasonNumber(currentSeason);
-  const currentSeasonProgress = stats?.seasonProgress?.seasonKey === currentSeason ? stats.seasonProgress : null;
-  const currentSeasonWins = Number(currentSeasonProgress?.gamesWon || 0);
-  const currentSeasonPlayed = Number(currentSeasonProgress?.gamesPlayed || 0);
-  const currentSeasonRank = seasonRankForWins(currentSeasonWins);
-  const currentSeasonRankProgress = seasonRankProgress(currentSeasonWins);
+  const seasonKeys = availableSeasonKeys();
+  const [selectedStatsSeasonKey, setSelectedStatsSeasonKey] = useState(currentSeason);
+  const selectedSeasonNumber = seasonNumber(selectedStatsSeasonKey);
+  const selectedSeasonProgress = getPlayerSeasonResult(stats, selectedStatsSeasonKey);
+  const selectedSeasonWins = Number(selectedSeasonProgress?.gamesWon || 0);
+  const selectedSeasonPlayed = Number(selectedSeasonProgress?.gamesPlayed || 0);
+  const selectedSeasonRank = seasonRankForWins(selectedSeasonWins);
+  const selectedSeasonRankProgress = seasonRankProgress(selectedSeasonWins);
+  const [selectedSeasonPosition, setSelectedSeasonPosition] = useState(props.seasonLeaderboardPosition || null);
+  const [seasonPositionLoading, setSeasonPositionLoading] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
 
   useEffect(() => {
     props.onLoadGameHistory?.();
   }, []);
+
+  useEffect(() => {
+    if (selectedStatsSeasonKey === currentSeason) {
+      setSelectedSeasonPosition(props.seasonLeaderboardPosition || null);
+      setSeasonPositionLoading(false);
+      return;
+    }
+    if (!selectedSeasonPlayed || !props.onGetSeasonLeaderboardPosition) {
+      setSelectedSeasonPosition(null);
+      setSeasonPositionLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setSeasonPositionLoading(true);
+    Promise.resolve(props.onGetSeasonLeaderboardPosition(selectedStatsSeasonKey))
+      .then((position) => { if (!cancelled) setSelectedSeasonPosition(position || null); })
+      .catch(() => { if (!cancelled) setSelectedSeasonPosition(null); })
+      .finally(() => { if (!cancelled) setSeasonPositionLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedStatsSeasonKey, currentSeason, selectedSeasonPlayed, props.seasonLeaderboardPosition, props.onGetSeasonLeaderboardPosition]);
 
   return (
     <DesktopLayout
@@ -854,23 +897,32 @@ export function DesktopStatsView(props) {
         <section className="desk-season-status-card desk-panel">
           <div className="desk-season-status-identity">
             <div className="desk-season-status-icon"><Crown size={24} /></div>
-            <div><span>AKTUALNY SEZON</span><strong>SEZON {currentSeasonNumber}</strong><small>{seasonMonthLabel(currentSeason)}</small></div>
+            <div>
+              <span>TWOJE SEZONY</span>
+              <label className="desk-season-status-select">
+                <select value={selectedStatsSeasonKey} onChange={(event) => setSelectedStatsSeasonKey(event.target.value)} aria-label="Wybierz sezon w statystykach">
+                  {seasonKeys.map((key) => <option key={key} value={key}>SEZON {seasonNumber(key)}</option>)}
+                </select>
+                <ChevronRight className="desk-season-status-chevron" size={15} />
+              </label>
+              <small>{seasonMonthLabel(selectedStatsSeasonKey)}</small>
+            </div>
           </div>
           <div className="desk-season-place">
             <span>MIEJSCE W RANKINGU</span>
-            <strong>{props.seasonLeaderboardPosition ? `#${props.seasonLeaderboardPosition}` : '—'}</strong>
-            <small>{currentSeasonPlayed ? 'ranking wygranych' : 'zagraj pierwszą grę'}</small>
+            <strong>{seasonPositionLoading ? '…' : selectedSeasonPosition ? `#${selectedSeasonPosition}` : '—'}</strong>
+            <small>{selectedSeasonPlayed ? `ranking Sezonu ${selectedSeasonNumber}` : 'brak rozegranych gier'}</small>
           </div>
           <div className="desk-season-rank-current">
             <span>TWOJA RANGA</span>
-            <strong style={{ '--rank-color': currentSeasonRank?.color || '#746d82' }}>{currentSeasonRank?.label || 'Bez rangi'}</strong>
-            <small>{currentSeasonWins} wygranych · {currentSeasonPlayed} rozegranych</small>
+            <strong style={{ '--rank-color': selectedSeasonRank?.color || '#746d82' }}>{selectedSeasonRank?.label || 'Bez rangi'}</strong>
+            <small>{selectedSeasonWins} wygranych · {selectedSeasonPlayed} rozegranych</small>
           </div>
           <div className="desk-season-next">
-            <div><span>{currentSeasonRankProgress.next ? `DO ${currentSeasonRankProgress.next.label.toUpperCase()}` : 'MAKSYMALNA RANGA'}</span><b>{currentSeasonRankProgress.next ? `BRAKUJE ${currentSeasonRankProgress.winsToNext}` : 'DIAMENT'}</b></div>
-            <div className="desk-season-progress"><i style={{ width: `${currentSeasonRankProgress.progressPct}%`, '--next-rank-color': currentSeasonRankProgress.next?.color || currentSeasonRank?.color || '#7dffef' }} /></div>
+            <div><span>{selectedSeasonRankProgress.next ? `DO ${selectedSeasonRankProgress.next.label.toUpperCase()}` : 'MAKSYMALNA RANGA'}</span><b>{selectedSeasonRankProgress.next ? `BRAKUJE ${selectedSeasonRankProgress.winsToNext}` : 'DIAMENT'}</b></div>
+            <div className="desk-season-progress"><i style={{ width: `${selectedSeasonRankProgress.progressPct}%`, '--next-rank-color': selectedSeasonRankProgress.next?.color || selectedSeasonRank?.color || '#7dffef' }} /></div>
           </div>
-          <button type="button" className="desk-season-ranking-cta" onClick={() => { props.onLoadSeasonLeaderboard?.('gamesWon', currentSeason); onLeaderboard?.(); }}>ZOBACZ RANKING <ChevronRight size={17} /></button>
+          <button type="button" className="desk-season-ranking-cta" onClick={() => { props.onLoadSeasonLeaderboard?.('gamesWon', selectedStatsSeasonKey); onLeaderboard?.(); }}>ZOBACZ RANKING <ChevronRight size={17} /></button>
         </section>
 
         <div className="desk-stats-feature-grid">
@@ -1077,18 +1129,6 @@ export function DesktopStatsView(props) {
           ) : <div className="desk-h2h-empty">Historia zacznie się zapisywać od tej wersji gry.</div>}
         </section>
 
-        {pastSeasons.length ? (
-          <section className="desk-panel desk-profile-seasons">
-            <div className="desk-profile-collection-head"><div><span>TWOJE POPRZEDNIE SEZONY</span></div></div>
-            {pastSeasons.map((s) => (
-              <div className="desk-profile-season-row" key={s.seasonKey}>
-                <span>Sezon {s.seasonNumber}</span>
-                <span>{s.gamesWon} wygranych · {s.gamesPlayed} rozegranych</span>
-                {s.rank ? <b className="desk-rank-badge" style={{ '--rank-color': s.rank.color }}>{s.rank.label}</b> : null}
-              </div>
-            ))}
-          </section>
-        ) : null}
       </div>
     </DesktopLayout>
   );

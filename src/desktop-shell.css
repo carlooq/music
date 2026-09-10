@@ -3061,3 +3061,32 @@
 .desk-profile-season-row { display:grid; grid-template-columns:78px minmax(0,1fr) auto; gap:14px; min-width:0; }
 .desk-profile-season-row span:nth-child(2) { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .desk-profile-season-row .desk-rank-badge { max-width:130px; overflow:hidden; text-overflow:ellipsis; margin-right:0; }
+
+
+/* === Unified season selector in Stats + player profile (v1.5) === */
+.desk-season-status-select { display:flex; align-items:center; gap:5px; width:max-content; max-width:150px; height:29px; margin-top:3px; padding:0 7px 0 9px; border-radius:9px; border:1px solid rgba(245,196,81,.22); background:rgba(5,7,19,.58); }
+.desk-season-status-select select { appearance:none; -webkit-appearance:none; min-width:0; width:105px; border:0; outline:0; background:transparent; color:#fff; font-family:'Bebas Neue',sans-serif; font-size:16px; letter-spacing:.045em; cursor:pointer; }
+.desk-season-status-select select option { background:#0b0c1b; color:#fff; }
+.desk-season-status-chevron { flex:0 0 auto; color:#f5c451; transform:rotate(90deg); pointer-events:none; }
+
+.desk-profile-xp { margin-top:14px; padding:12px 14px; border-radius:12px; border:1px solid rgba(83,217,255,.11); background:rgba(5,8,23,.66); }
+.desk-profile-xp > div { display:flex; justify-content:space-between; align-items:center; gap:14px; }
+.desk-profile-xp span { color:#81798d; font-size:9px; font-weight:850; letter-spacing:.09em; }
+.desk-profile-xp b { color:#b8afc0; font-size:10px; }
+.desk-profile-xp > i { display:block; height:6px; margin-top:8px; border-radius:999px; background:rgba(255,255,255,.055); overflow:hidden; }
+.desk-profile-xp > i > em { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#47e4ff,#8769ff 58%,#ff5dcc); }
+
+.desk-profile-season-summary { margin-top:10px; padding:13px 14px; border-radius:13px; border:1px solid rgba(245,196,81,.18); background:radial-gradient(circle at 94% 0%,rgba(245,196,81,.075),transparent 35%),rgba(6,9,24,.72); min-width:0; }
+.desk-profile-season-summary-head { display:flex; align-items:center; justify-content:space-between; gap:18px; min-width:0; }
+.desk-profile-season-summary-head > div { min-width:0; }
+.desk-profile-season-summary-head > div > span { display:block; color:#f3cb5d; font-size:9px; font-weight:900; letter-spacing:.11em; }
+.desk-profile-season-summary-head > div > small { display:block; margin-top:3px; color:#81798d; font-size:9px; text-transform:uppercase; }
+.desk-profile-season-summary-head label { flex:0 0 auto; display:flex; align-items:center; gap:5px; height:33px; padding:0 9px 0 11px; border-radius:9px; border:1px solid rgba(245,196,81,.22); background:rgba(5,7,19,.65); }
+.desk-profile-season-summary-head select { appearance:none; -webkit-appearance:none; width:94px; border:0; outline:0; background:transparent; color:#fff; font-family:'Bebas Neue',sans-serif; font-size:14px; letter-spacing:.04em; cursor:pointer; }
+.desk-profile-season-summary-head select option { background:#0b0c1b; color:#fff; }
+.desk-profile-season-chevron { color:#f5c451; transform:rotate(90deg); pointer-events:none; }
+.desk-profile-season-summary-grid { display:grid; grid-template-columns:minmax(145px,1.35fr) repeat(3,minmax(92px,.75fr)); gap:7px; margin-top:11px; }
+.desk-profile-season-summary-grid > div { min-width:0; min-height:55px; display:flex; flex-direction:column; justify-content:center; padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.055); background:rgba(5,7,19,.52); }
+.desk-profile-season-summary-grid span { color:#756e81; font-size:8px; font-weight:850; letter-spacing:.08em; }
+.desk-profile-season-summary-grid b { margin-top:4px; color:#eee9f2; font-family:'Bebas Neue',sans-serif; font-size:20px; line-height:1; }
+.desk-profile-season-summary-grid strong { display:inline-flex; align-self:flex-start; max-width:100%; margin-top:5px; padding:4px 8px; border-radius:999px; border:1px solid var(--rank-color,#746d82); color:var(--rank-color,#958da2); font-family:'Bebas Neue',sans-serif; font-size:13px; line-height:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }

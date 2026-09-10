@@ -29,7 +29,7 @@ import {
   Settings,
   Coins,
 } from 'lucide-react';
-import { currentSeasonKey, seasonNumber, seasonRankForWins, seasonRankProgress, seasonMonthLabel, availableSeasonKeys, getPlayerSeasonHistory } from './stats.js';
+import { currentSeasonKey, seasonNumber, seasonRankForWins, seasonRankProgress, seasonMonthLabel, availableSeasonKeys, getPlayerSeasonResult } from './stats.js';
 
 import logoImg from './assets/logo-v2.png';
 import homeBg from './assets/home/bg.jpg';
@@ -442,14 +442,17 @@ function MobileStatsView(props) {
   const bestArtists = props.bestArtists || [];
   const worstArtists = props.worstArtists || [];
   const collectionCount = Object.keys(props.stats?.cardCollection || {}).filter((id) => Number(props.stats?.cardCollection?.[id] || 0) > 0).length;
-  const pastSeasons = getPlayerSeasonHistory(props.stats);
   const currentSeason = currentSeasonKey();
-  const currentSeasonNumber = seasonNumber(currentSeason);
-  const currentSeasonProgress = props.stats?.seasonProgress?.seasonKey === currentSeason ? props.stats.seasonProgress : null;
-  const currentSeasonWins = Number(currentSeasonProgress?.gamesWon || 0);
-  const currentSeasonPlayed = Number(currentSeasonProgress?.gamesPlayed || 0);
-  const currentSeasonRank = seasonRankForWins(currentSeasonWins);
-  const currentSeasonRankProgress = seasonRankProgress(currentSeasonWins);
+  const seasonKeys = availableSeasonKeys();
+  const [selectedStatsSeasonKey, setSelectedStatsSeasonKey] = useState(currentSeason);
+  const selectedSeasonNumber = seasonNumber(selectedStatsSeasonKey);
+  const selectedSeasonProgress = getPlayerSeasonResult(props.stats, selectedStatsSeasonKey);
+  const selectedSeasonWins = Number(selectedSeasonProgress?.gamesWon || 0);
+  const selectedSeasonPlayed = Number(selectedSeasonProgress?.gamesPlayed || 0);
+  const selectedSeasonRank = seasonRankForWins(selectedSeasonWins);
+  const selectedSeasonRankProgress = seasonRankProgress(selectedSeasonWins);
+  const [selectedSeasonPosition, setSelectedSeasonPosition] = useState(props.seasonLeaderboardPosition || null);
+  const [seasonPositionLoading, setSeasonPositionLoading] = useState(false);
   const [expandedDuel, setExpandedDuel] = useState(null);
   const [historyExpanded, setHistoryExpanded] = useState(false);
 
@@ -457,6 +460,26 @@ function MobileStatsView(props) {
     props.onLoadHeadToHead?.();
     props.onLoadGameHistory?.();
   }, []); // load once when mobile statistics open
+
+  useEffect(() => {
+    if (selectedStatsSeasonKey === currentSeason) {
+      setSelectedSeasonPosition(props.seasonLeaderboardPosition || null);
+      setSeasonPositionLoading(false);
+      return;
+    }
+    if (!selectedSeasonPlayed || !props.onGetSeasonLeaderboardPosition) {
+      setSelectedSeasonPosition(null);
+      setSeasonPositionLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setSeasonPositionLoading(true);
+    Promise.resolve(props.onGetSeasonLeaderboardPosition(selectedStatsSeasonKey))
+      .then((position) => { if (!cancelled) setSelectedSeasonPosition(position || null); })
+      .catch(() => { if (!cancelled) setSelectedSeasonPosition(null); })
+      .finally(() => { if (!cancelled) setSeasonPositionLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedStatsSeasonKey, currentSeason, selectedSeasonPlayed, props.seasonLeaderboardPosition, props.onGetSeasonLeaderboardPosition]);
 
   return (
     <div className="mob-stack mob-inner-view mob-stats-view">
@@ -470,24 +493,33 @@ function MobileStatsView(props) {
 
       <section className="mob-season-status-card mob-panel">
         <div className="mob-season-status-head">
-          <div><span><Crown size={15} /> SEZON {currentSeasonNumber}</span><small>{seasonMonthLabel(currentSeason)}</small></div>
-          <button type="button" onClick={() => { props.onLoadSeasonLeaderboard?.('gamesWon', currentSeason); props.onNavigate('ranking'); }}>RANKING <ChevronRight size={14} /></button>
+          <div className="mob-season-status-selector">
+            <span><Crown size={15} /> TWOJE SEZONY</span>
+            <label className="mob-season-status-select">
+              <select value={selectedStatsSeasonKey} onChange={(event) => setSelectedStatsSeasonKey(event.target.value)} aria-label="Wybierz sezon w statystykach">
+                {seasonKeys.map((key) => <option key={key} value={key}>Sezon {seasonNumber(key)}</option>)}
+              </select>
+              <ChevronDown size={14} />
+            </label>
+            <small>{seasonMonthLabel(selectedStatsSeasonKey)}</small>
+          </div>
+          <button type="button" onClick={() => { props.onLoadSeasonLeaderboard?.('gamesWon', selectedStatsSeasonKey); props.onNavigate('ranking'); }}>RANKING <ChevronRight size={14} /></button>
         </div>
         <div className="mob-season-status-main">
           <div className="mob-season-place">
             <small>MIEJSCE</small>
-            <strong>{props.seasonLeaderboardPosition ? `#${props.seasonLeaderboardPosition}` : '—'}</strong>
-            <span>{currentSeasonPlayed ? 'ranking wygranych' : 'zagraj pierwszą grę'}</span>
+            <strong>{seasonPositionLoading ? '…' : selectedSeasonPosition ? `#${selectedSeasonPosition}` : '—'}</strong>
+            <span>{selectedSeasonPlayed ? `ranking Sezonu ${selectedSeasonNumber}` : 'brak rozegranych gier'}</span>
           </div>
           <div className="mob-season-rank">
             <small>TWOJA RANGA</small>
-            <strong style={{ '--rank-color': currentSeasonRank?.color || '#746d82' }}>{currentSeasonRank?.label || 'Bez rangi'}</strong>
-            <span>{currentSeasonWins} wygranych · {currentSeasonPlayed} rozegranych</span>
+            <strong style={{ '--rank-color': selectedSeasonRank?.color || '#746d82' }}>{selectedSeasonRank?.label || 'Bez rangi'}</strong>
+            <span>{selectedSeasonWins} wygranych · {selectedSeasonPlayed} rozegranych</span>
           </div>
         </div>
         <div className="mob-season-rank-progress">
-          <div><span>{currentSeasonRankProgress.next ? `DO RANGI ${currentSeasonRankProgress.next.label.toUpperCase()}` : 'NAJWYŻSZA RANGA'}</span><b>{currentSeasonRankProgress.next ? `brakuje ${currentSeasonRankProgress.winsToNext}` : 'DIAMENT'}</b></div>
-          <i><em style={{ width: `${currentSeasonRankProgress.progressPct}%`, '--next-rank-color': currentSeasonRankProgress.next?.color || currentSeasonRank?.color || '#7dffef' }} /></i>
+          <div><span>{selectedSeasonRankProgress.next ? `DO RANGI ${selectedSeasonRankProgress.next.label.toUpperCase()}` : 'NAJWYŻSZA RANGA'}</span><b>{selectedSeasonRankProgress.next ? `brakuje ${selectedSeasonRankProgress.winsToNext}` : 'DIAMENT'}</b></div>
+          <i><em style={{ width: `${selectedSeasonRankProgress.progressPct}%`, '--next-rank-color': selectedSeasonRankProgress.next?.color || selectedSeasonRank?.color || '#7dffef' }} /></i>
         </div>
       </section>
 
@@ -625,18 +657,6 @@ function MobileStatsView(props) {
         ) : <div className="mob-empty">Historia zacznie się zapisywać od tej wersji gry.</div>}
       </section>
 
-      {pastSeasons.length ? (
-        <section className="mob-panel mob-profile-seasons">
-          <div className="mob-section-title"><Crown size={18} /><span>TWOJE POPRZEDNIE SEZONY</span></div>
-          {pastSeasons.map((s) => (
-            <div className="mob-profile-season-row" key={s.seasonKey}>
-              <span>Sezon {s.seasonNumber}</span>
-              <span>{s.gamesWon} wygranych · {s.gamesPlayed} rozegranych</span>
-              {s.rank ? <b className="mob-rank-badge" style={{ '--rank-color': s.rank.color }}>{s.rank.label}</b> : null}
-            </div>
-          ))}
-        </section>
-      ) : null}
     </div>
   );
 }
@@ -1051,6 +1071,12 @@ function MobileMoreView(props) {
 }
 
 function MobileProfileSheet({ profile, onClose, levelFromXp }) {
+  const [selectedProfileSeasonKey, setSelectedProfileSeasonKey] = useState(currentSeasonKey());
+
+  useEffect(() => {
+    if (profile) setSelectedProfileSeasonKey(currentSeasonKey());
+  }, [profile?.uid]);
+
   if (!profile) return null;
   const data = profile.stats || profile;
   const username = profile.username || profile.name || data.username || 'Gracz';
@@ -1063,16 +1089,37 @@ function MobileProfileSheet({ profile, onClose, levelFromXp }) {
   const uniqueCards = collectionSummary.uniqueOwned ?? Object.keys(data.cardCollection || {}).filter((id) => Number(data.cardCollection[id] || 0) > 0).length;
   const totalAvailable = collectionSummary.totalAvailable ?? null;
   const xpPct = pct(level.currentLevelXp || 0, level.xpForNextLevel || 1);
-  const currentSeasonWins = data.seasonProgress?.seasonKey === currentSeasonKey() ? (data.seasonProgress.gamesWon || 0) : 0;
-  const currentRank = seasonRankForWins(currentSeasonWins);
-  const pastSeasons = getPlayerSeasonHistory(data);
+  const profileSeasonKeys = availableSeasonKeys();
+  const selectedProfileSeason = getPlayerSeasonResult(data, selectedProfileSeasonKey);
+  const selectedProfileSeasonWins = Number(selectedProfileSeason?.gamesWon || 0);
+  const selectedProfileSeasonPlayed = Number(selectedProfileSeason?.gamesPlayed || 0);
+  const selectedProfileSeasonGuesses = Number(selectedProfileSeason?.guessesCorrect || 0);
+  const selectedProfileRank = seasonRankForWins(selectedProfileSeasonWins);
 
   return (
     <div className="mob-sheet-backdrop" onClick={onClose} role="presentation">
       <section className="mob-profile-sheet expanded" onClick={(e) => e.stopPropagation()}>
         <button className="mob-sheet-close" type="button" onClick={onClose}><X size={20} /></button>
-        <div className="mob-profile-head"><div className="mob-profile-avatar" style={data.avatarUrl ? { backgroundImage: `url(${data.avatarUrl})` } : undefined}>{!data.avatarUrl ? initials(username) : null}</div><div><span>PROFIL GRACZA</span><h2>{username}</h2><small>LVL {level.level || 1} · {compact(data.xp || 0)} XP</small></div>{currentRank ? <span className="mob-rank-badge mob-profile-rank-badge" style={{ '--rank-color': currentRank.color }}>{currentRank.label}</span> : null}</div>
+        <div className="mob-profile-head"><div className="mob-profile-avatar" style={data.avatarUrl ? { backgroundImage: `url(${data.avatarUrl})` } : undefined}>{!data.avatarUrl ? initials(username) : null}</div><div><span>PROFIL GRACZA</span><h2>{username}</h2><small>LVL {level.level || 1} · {compact(data.xp || 0)} XP</small></div></div>
         <div className="mob-profile-xp"><div><span>POSTĘP POZIOMU</span><b>{compact(level.currentLevelXp || 0)} / {compact(level.xpForNextLevel || 0)} XP</b></div><i><em style={{ width: `${Math.min(100, xpPct)}%` }} /></i></div>
+
+        <div className="mob-profile-season-summary">
+          <div className="mob-profile-season-summary-head">
+            <div><span>SEZON GRACZA</span><small>{seasonMonthLabel(selectedProfileSeasonKey)}</small></div>
+            <label>
+              <select value={selectedProfileSeasonKey} onChange={(event) => setSelectedProfileSeasonKey(event.target.value)} aria-label="Wybierz sezon gracza">
+                {profileSeasonKeys.map((key) => <option key={key} value={key}>Sezon {seasonNumber(key)}</option>)}
+              </select>
+              <ChevronDown size={14} />
+            </label>
+          </div>
+          <div className="mob-profile-season-summary-grid">
+            <div><span>RANGA</span><strong style={{ '--rank-color': selectedProfileRank?.color || '#746d82' }}>{selectedProfileRank?.label || 'Bez rangi'}</strong></div>
+            <div><span>WYGRANE</span><b>{selectedProfileSeasonWins}</b></div>
+            <div><span>ROZEGRANE</span><b>{selectedProfileSeasonPlayed}</b></div>
+            <div><span>ZGADNIĘTE</span><b>{selectedProfileSeasonGuesses}</b></div>
+          </div>
+        </div>
 
         <div className="mob-profile-metrics full">
           <div><strong>{compact(data.gamesPlayed || 0)}</strong><span>Rozegrane</span></div>
@@ -1098,19 +1145,6 @@ function MobileProfileSheet({ profile, onClose, levelFromXp }) {
             })}
           </div>
         </div>
-
-        {pastSeasons.length ? (
-          <div className="mob-profile-seasons">
-            <div className="mob-profile-collection-head"><div><span>POPRZEDNIE SEZONY</span></div></div>
-            {pastSeasons.map((s) => (
-              <div className="mob-profile-season-row" key={s.seasonKey}>
-                <span>Sezon {s.seasonNumber}</span>
-                <span>{s.gamesWon} wygranych · {s.gamesPlayed} rozegranych</span>
-                {s.rank ? <b className="mob-rank-badge" style={{ '--rank-color': s.rank.color }}>{s.rank.label}</b> : null}
-              </div>
-            ))}
-          </div>
-        ) : null}
       </section>
     </div>
   );

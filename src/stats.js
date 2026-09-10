@@ -563,6 +563,17 @@ function reconstructedSeasonZeroResult(statsData) {
   };
 }
 
+// Zwraca wynik konkretnego sezonu jednego gracza bez dodatkowego odczytu.
+// Dla Sezonu 0 korzysta z zapisanej historii, a jeśli jej nie ma —
+// odtwarza go z liczników all-time pomniejszonych o sezony 1+.
+export function getPlayerSeasonResult(statsData, seasonKey = currentSeasonKey()) {
+  const sk = seasonKey || currentSeasonKey();
+  const direct = historicalSeasonResult(statsData, sk);
+  if (direct) return { seasonKey: sk, ...direct };
+  if (sk === seasonZeroKey()) return reconstructedSeasonZeroResult(statsData);
+  return { seasonKey: sk, gamesPlayed: 0, gamesWon: 0, guessesCorrect: 0 };
+}
+
 const historicalSeasonLeaderboardCache = new Map();
 async function getHistoricalSeasonPlayers(seasonKey) {
   const sk = seasonKey || seasonZeroKey();
