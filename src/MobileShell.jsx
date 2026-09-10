@@ -442,6 +442,7 @@ function MobileStatsView(props) {
   const bestArtists = props.bestArtists || [];
   const worstArtists = props.worstArtists || [];
   const collectionCount = Object.keys(props.stats?.cardCollection || {}).filter((id) => Number(props.stats?.cardCollection?.[id] || 0) > 0).length;
+  const pastSeasons = getPlayerSeasonHistory(props.stats);
   const [expandedDuel, setExpandedDuel] = useState(null);
   const [historyExpanded, setHistoryExpanded] = useState(false);
 
@@ -593,6 +594,19 @@ function MobileStatsView(props) {
           </>
         ) : <div className="mob-empty">Historia zacznie się zapisywać od tej wersji gry.</div>}
       </section>
+
+      {pastSeasons.length ? (
+        <section className="mob-panel mob-profile-seasons">
+          <div className="mob-section-title"><Crown size={18} /><span>TWOJE POPRZEDNIE SEZONY</span></div>
+          {pastSeasons.map((s) => (
+            <div className="mob-profile-season-row" key={s.seasonKey}>
+              <span>Sezon {s.seasonNumber}</span>
+              <span>{s.gamesWon} wygranych · {s.gamesPlayed} rozegranych</span>
+              {s.rank ? <b className="mob-rank-badge" style={{ '--rank-color': s.rank.color }}>{s.rank.label}</b> : null}
+            </div>
+          ))}
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -761,6 +775,9 @@ function MobileRankingView(props) {
         <button type="button" className={mode === 'season' ? 'active' : ''} onClick={() => setMode('season')}>SEZON {seasonNumber(currentSeasonKey())}</button>
         <button type="button" className={mode === 'alltime' ? 'active' : ''} onClick={() => setMode('alltime')}>WSZECH CZASÓW</button>
       </div>
+      {mode === 'season' ? (
+        <p className="mob-ranking-info"><Info size={13} /> Sezon trwa jeden miesiąc kalendarzowy i resetuje się automatycznie 1. dnia miesiąca. Top 3 na koniec sezonu dostaje nagrodę w XP i HITCOIN — im wyżej, tym więcej.</p>
+      ) : null}
       <div className="mob-ranking-tabs">
         <button type="button" className={sort === 'gamesWon' ? 'active' : ''} onClick={() => onSort?.('gamesWon')}>WYGRANE</button>
         <button type="button" className={sort === 'guessesCorrect' ? 'active' : ''} onClick={() => onSort?.('guessesCorrect')}>ZGADYWANIE</button>

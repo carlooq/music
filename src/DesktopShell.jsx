@@ -27,6 +27,7 @@ import {
   Lock,
   LogIn,
   UserPlus,
+  Info,
 } from 'lucide-react';
 import { currentSeasonKey, seasonNumber, seasonRankForWins, getPlayerSeasonHistory } from './stats.js';
 
@@ -792,6 +793,7 @@ export function DesktopStatsView(props) {
   const username = props.playerName || user?.displayName || user?.username || 'Gracz';
   const progressPct = levelInfo.xpForNextLevel ? Math.round((levelInfo.currentLevelXp / levelInfo.xpForNextLevel) * 100) : 0;
   const collectionCount = Object.keys(stats?.cardCollection || {}).length;
+  const pastSeasons = getPlayerSeasonHistory(stats);
   const [historyExpanded, setHistoryExpanded] = useState(false);
 
   useEffect(() => {
@@ -1045,6 +1047,19 @@ export function DesktopStatsView(props) {
             </>
           ) : <div className="desk-h2h-empty">Historia zacznie się zapisywać od tej wersji gry.</div>}
         </section>
+
+        {pastSeasons.length ? (
+          <section className="desk-panel desk-profile-seasons">
+            <div className="desk-profile-collection-head"><div><span>TWOJE POPRZEDNIE SEZONY</span></div></div>
+            {pastSeasons.map((s) => (
+              <div className="desk-profile-season-row" key={s.seasonKey}>
+                <span>Sezon {s.seasonNumber}</span>
+                <span>{s.gamesWon} wygranych · {s.gamesPlayed} rozegranych</span>
+                {s.rank ? <b className="desk-rank-badge" style={{ '--rank-color': s.rank.color }}>{s.rank.label}</b> : null}
+              </div>
+            ))}
+          </section>
+        ) : null}
       </div>
     </DesktopLayout>
   );
@@ -1137,6 +1152,9 @@ function DesktopLeaderboardView({ common, leaderboard, sortBy, onSort, onViewPro
             <button className={mode === 'season' ? 'active' : ''} onClick={() => setMode('season')}>SEZON {seasonNumber(currentSeasonKey())}</button>
             <button className={mode === 'alltime' ? 'active' : ''} onClick={() => setMode('alltime')}>WSZECH CZASÓW</button>
           </div>
+          {mode === 'season' ? (
+            <p className="desk-ranking-info"><Info size={14} /> Sezon trwa jeden miesiąc kalendarzowy i resetuje się automatycznie 1. dnia miesiąca. Top 3 na koniec sezonu dostaje nagrodę w XP i HITCOIN — im wyżej, tym więcej.</p>
+          ) : null}
           <div className="desk-ranking-tabs">
             <button className={sort === 'gamesWon' ? 'active' : ''} onClick={() => activeSort?.('gamesWon')}>WYGRANE</button>
             <button className={sort === 'guessesCorrect' ? 'active' : ''} onClick={() => activeSort?.('guessesCorrect')}>ZGADYWANIE</button>

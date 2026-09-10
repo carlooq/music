@@ -15,7 +15,7 @@ import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
 import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId, fuzzyMatch } from "./utils.js";
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
-import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, getLeaderboardPosition, awardXp, xpForLevel, levelFromXp, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag, getWeeklyChallenges, bumpWeeklyChallengeProgress, claimWeeklyChallenge, currentSeasonKey, seasonNumber, seasonRankForWins, SEASON_RANKS, updateSeasonProgress, getSeasonLeaderboard, processSeasonRewardsIfNeeded, getPlayerSeasonHistory, consumeNextRewardNotice } from "./stats.js";
+import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, getLeaderboardPosition, awardXp, xpForLevel, levelFromXp, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag, getWeeklyChallenges, bumpWeeklyChallengeProgress, claimWeeklyChallenge, currentSeasonKey, seasonNumber, seasonRankForWins, SEASON_RANKS, updateSeasonProgress, getSeasonLeaderboard, processSeasonRewardsIfNeeded, getPlayerSeasonHistory, consumeNextRewardNotice, seedSeasonZeroFromAllTime } from "./stats.js";
 import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss, incrementSongPlayCount, getSongCount } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
 import { heartbeat, clearPresence, getOnlinePlayers } from "./presence.js";
@@ -874,6 +874,8 @@ export default function App() {
   const [adminPage, setAdminPage] = useState(1);
   const ADMIN_PAGE_SIZE = 100;
   const [adminBusy, setAdminBusy] = useState(false);
+  const [seasonZeroBusy, setSeasonZeroBusy] = useState(false);
+  const [seasonZeroResult, setSeasonZeroResult] = useState(null);
   const [avatarUploadBusy, setAvatarUploadBusy] = useState(false);
   const [showDailyWheel, setShowDailyWheel] = useState(false);
   const [dailyWheelBusy, setDailyWheelBusy] = useState(false);
@@ -4350,6 +4352,35 @@ export default function App() {
                 ← Wróć
               </button>
             </div>
+
+            <button
+              onClick={async () => {
+                setSeasonZeroBusy(true);
+                setSeasonZeroResult(null);
+                try {
+                  const res = await seedSeasonZeroFromAllTime();
+                  setSeasonZeroResult(res);
+                } catch (e) {
+                  setSeasonZeroResult({ error: e.message });
+                } finally {
+                  setSeasonZeroBusy(false);
+                }
+              }}
+              disabled={seasonZeroBusy}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold"
+              style={{ background: "var(--surface2)", border: "1px solid var(--gold)", color: "var(--gold)" }}
+            >
+              🏆 {seasonZeroBusy ? "Zapisuję…" : "Ustaw Sezon 0 z obecnego rankingu"}
+            </button>
+            {seasonZeroResult && (
+              <p style={{ fontSize: 12, color: seasonZeroResult.error ? "var(--bad)" : "var(--muted)" }}>
+                {seasonZeroResult.error
+                  ? `Błąd: ${seasonZeroResult.error}`
+                  : seasonZeroResult.alreadyProcessed
+                    ? "Sezon 0 był już wcześniej ustawiony (nic nie zrobiono ponownie)."
+                    : `Gotowe — nagrodzono ${seasonZeroResult.top?.length || 0} graczy za Sezon 0.`}
+              </p>
+            )}
 
             <button
               onClick={() => {

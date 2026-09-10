@@ -637,3 +637,44 @@ export async function consumeNextRewardNotice(uid) {
   });
   return notice;
 }
+
+// ============================================================
+// JEDNORAZOWE: "Sezon 0" z obecnego rankingu wszechczasów
+// ============================================================
+// Wywoływane ręcznie z panelu admina, raz. Traktuje DZISIEJSZY stan
+// dożywotniego rankingu (sprzed wprowadzenia sezonów) jako zamknięty
+// "Sezon 0" — zapisuje top 3 na stałe do ich seasonHistory, przyznaje
+// nagrody i wysyła karteczki, dokładnie jak przy normalnym zamknięciu
+// sezonu. Klucz wypada naturalnie przed SEASON_START, więc
+// seasonNumber() sam policzy to jako "Sezon 0" bez specjalnych
+// przypadków w kodzie wyświetlania.
+export async function seedSeasonZeroFromAllTime() {
+  const zeroKey = previousSeasonKey(SEASON_START);
+  const markerRef = doc(db, "seasonRewardsProcessed", zeroKey);
+  let shouldProcess = false;
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(markerRef);
+    if (snap.exists()) return;
+    shouldProcess = true;
+    tx.set(markerRef, { processedAt: Date.now(), seeded: true });
+  });
+  if (!shouldProcess) return { alreadyProcessed: true, zeroKey };
+
+  const top3 = await getLeaderboard(3, "gamesWon");
+  const archive = [];
+  for (let i = 0; i < top3.length; i++) {
+    const p = top3[i];
+    if (!p.uid || !p.gamesWon) continue;
+    const result = { gamesWon: p.gamesWon || 0, gamesPlayed: p.gamesPlayed || 0, guessesCorrect: p.guessesCorrect || 0 };
+    const ref = doc(db, "userStats", p.uid);
+    await updateDoc(ref, { [`seasonHistory.${zeroKey}`]: result }).catch(() => {});
+    const reward = SEASON_REWARDS[i];
+    if (reward) {
+      await updateDoc(ref, { xp: increment(reward.xp), hitcoin: increment(reward.hitcoin) }).catch(() => {});
+      await pushRewardNotice(p.uid, { source: "season", place: i + 1, xp: reward.xp, hitcoin: reward.hitcoin, label: "Sezon 0 (ranking)" }).catch(() => {});
+    }
+    archive.push({ uid: p.uid, place: i + 1, ...result });
+  }
+  await setDoc(doc(db, "seasonArchive", zeroKey), { seasonKey: zeroKey, top: archive, finalizedAt: Date.now(), seeded: true });
+  return { seeded: true, zeroKey, top: archive };
+}

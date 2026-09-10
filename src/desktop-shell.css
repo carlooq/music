@@ -2990,3 +2990,18 @@
 .desk-profile-season-row:first-of-type { border-top: 0; }
 .desk-profile-season-row span:first-child { font-family: 'Bebas Neue', sans-serif; font-size: 16px; color: #fff; letter-spacing: .03em; min-width: 70px; }
 .desk-profile-season-row span:nth-child(2) { flex: 1; }
+
+.desk-ranking-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #9a92a7;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  border-radius: 12px;
+  background: rgba(245,196,81,.06);
+  border: 1px solid rgba(245,196,81,.18);
+}
+.desk-ranking-info svg { flex-shrink: 0; margin-top: 2px; color: #f5c451; }
