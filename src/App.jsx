@@ -3527,6 +3527,7 @@ export default function App() {
             ...summaryFields,
             playedCards: playedCardsWithGuess,
             ...(hasGuess ? { [`gameGuessStreaks.${data.currentPlayerId}`]: newGuessStreak } : {}),
+            ...(hasGuess ? { [`gameGuesses.${data.currentPlayerId}`]: increment(1) } : {}),
             ...(hasGuess ? { [`tokens.${data.currentPlayerId}`]: increment(1) } : {}),
           });
         }
@@ -3656,6 +3657,7 @@ export default function App() {
             [`tokens.${data.currentPlayerId}`]: increment(1),
             playedCards: updatedPlayedCards,
             [`gameGuessStreaks.${data.currentPlayerId}`]: newStreak,
+            [`gameGuesses.${data.currentPlayerId}`]: increment(1),
           });
         } else if (approvals + remaining < required) {
           const playedCards = data.playedCards || [];
@@ -5579,6 +5581,9 @@ export default function App() {
         } : undefined}
         xpSummary={mobileXpSummary}
         gameEndReward={gameEndReward}
+        chatInput={chatInput}
+        setChatInput={setChatInput}
+        onSendChat={sendChatMessage}
       />
     );
   }

@@ -650,13 +650,18 @@ export async function consumeNextRewardNotice(uid) {
 // przypadków w kodzie wyświetlania.
 export async function seedSeasonZeroFromAllTime() {
   const zeroKey = previousSeasonKey(SEASON_START);
-  const markerRef = doc(db, "seasonRewardsProcessed", zeroKey);
+  // Osobny, stały znacznik — NIE ten sam dokument co zwykłe, comiesięczne
+  // rozliczenie sezonu (processSeasonRewardsIfNeeded). Oba kiedyś mogą policzyć
+  // ten sam klucz kalendarzowy (np. teraz obydwa wychodzą na "2026-08"), a to
+  // dwie zupełnie różne operacje — jednorazowy ręczny backfill nie może dzielić
+  // znacznika z automatycznym, comiesięcznym mechanizmem.
+  const markerRef = doc(db, "seasonRewardsProcessed", "season-zero-manual-seed");
   let shouldProcess = false;
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(markerRef);
     if (snap.exists()) return;
     shouldProcess = true;
-    tx.set(markerRef, { processedAt: Date.now(), seeded: true });
+    tx.set(markerRef, { processedAt: Date.now(), seeded: true, zeroKey });
   });
   if (!shouldProcess) return { alreadyProcessed: true, zeroKey };
 

@@ -1138,7 +1138,8 @@ export function MobileHitRushLeaderboardView({ rows = [], period, onPeriod, onBa
   );
 }
 
-export function MobileGameOverView({ room, playerId, isHost, onPlayAgain, onLeave, onTournamentBack, xpSummary, gameEndReward }) {
+export function MobileGameOverView({ room, playerId, isHost, onPlayAgain, onLeave, onTournamentBack, xpSummary, gameEndReward, chatInput, setChatInput, onSendChat }) {
+  const [chatOpen, setChatOpen] = useState(false);
   const [playlistScope, setPlaylistScope] = useState('all');
   const [rewardPreview, setRewardPreview] = useState(null);
   const winners = (room.winnerIds || []).map((id) => room.players.find((player) => player.id === id)).filter(Boolean);
@@ -1202,6 +1203,7 @@ export function MobileGameOverView({ room, playerId, isHost, onPlayAgain, onLeav
       ) : null}
       <div className="mgv-action-stack">{isHost && !room.tournamentMode ? <button type="button" className="mgv-main-cta" onClick={onPlayAgain}><RotateCcw size={19} /> ZAGRAJ PONOWNIE</button> : null}{room.tournamentMode && onTournamentBack ? <button type="button" className="mgv-main-cta" onClick={onTournamentBack}><Trophy size={18} /> WRÓĆ DO TURNIEJU</button> : null}<button type="button" className="mgv-secondary-cta" onClick={onLeave}><LogOut size={18} /> OPUŚĆ POKÓJ</button></div>
       {rewardPreview ? <MobileCardPreview song={rewardPreview} onClose={() => setRewardPreview(null)} /> : null}
+      {!room.practiceMode ? <MobileChat open={chatOpen} setOpen={setChatOpen} messages={room.messages || []} playerId={playerId} chatInput={chatInput} setChatInput={setChatInput} onSend={onSendChat} /> : null}
     </MobileSession>
   );
 }
