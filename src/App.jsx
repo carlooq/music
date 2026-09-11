@@ -795,6 +795,168 @@ function RewardNoticePopup({ notice, onClose }) {
   );
 }
 
+// ============================================================
+// ANIMOWANE PODSUMOWANIE PO GRZE — poziom → XP → HITCOIN → karta
+// ============================================================
+// Odgrywa zdobyte nagrody krok po kroku (pasek poziomu realnie się
+// wypełnia i "przelewa" przy awansie, licznik HITCOIN tyka, karta
+// wjeżdża na końcu). Pierwsze dotknięcie przewija do stanu końcowego,
+// drugie zamyka — dokładnie tak jak w większości gier mobilnych.
+function GameEndRevealPopup({ data, onClose, levelFromXp }) {
+  const xpItems = data?.xpItems || [];
+  const hitcoinItems = data?.hitcoinItems || [];
+  const card = data?.card || null;
+  const oldXp = data?.oldXp || 0;
+
+  const totalSteps = xpItems.length + hitcoinItems.length + (card ? 1 : 0);
+  const [revealed, setRevealed] = useState(0);
+  const settled = revealed >= totalSteps;
+  const timerRef = useRef(null);
+  const prevLevelRef = useRef(null);
+  const [flashLevel, setFlashLevel] = useState(false);
+
+  useEffect(() => {
+    setRevealed(0);
+    prevLevelRef.current = null;
+  }, [data]);
+
+  useEffect(() => {
+    if (!data || settled) return;
+    const isCardStep = card && revealed === xpItems.length + hitcoinItems.length;
+    const delay = isCardStep ? 300 : 620;
+    timerRef.current = setTimeout(() => setRevealed((v) => v + 1), delay);
+    return () => clearTimeout(timerRef.current);
+  }, [data, revealed, settled, xpItems.length, hitcoinItems.length, card]);
+
+  if (!data) return null;
+
+  const shownXpCount = Math.min(revealed, xpItems.length);
+  const shownHcCount = Math.max(0, Math.min(revealed - xpItems.length, hitcoinItems.length));
+  const cardShown = !!card && revealed >= xpItems.length + hitcoinItems.length + 1;
+
+  const xpSoFar = xpItems.slice(0, shownXpCount).reduce((sum, it) => sum + it.amount, 0);
+  const hcSoFar = hitcoinItems.slice(0, shownHcCount).reduce((sum, it) => sum + it.amount, 0);
+  const currentXp = oldXp + xpSoFar;
+  const lv = levelFromXp(currentXp);
+  const barPct = lv.xpForNextLevel ? Math.min(100, Math.round((lv.currentLevelXp / lv.xpForNextLevel) * 100)) : 0;
+
+  if (prevLevelRef.current === null) prevLevelRef.current = lv.level;
+  useEffect(() => {
+    if (prevLevelRef.current !== null && lv.level > prevLevelRef.current) {
+      setFlashLevel(true);
+      const t = setTimeout(() => setFlashLevel(false), 900);
+      prevLevelRef.current = lv.level;
+      return () => clearTimeout(t);
+    }
+    prevLevelRef.current = lv.level;
+  }, [lv.level]);
+
+  const handleTap = () => {
+    if (!settled) {
+      clearTimeout(timerRef.current);
+      setRevealed(totalSteps);
+    } else {
+      onClose();
+    }
+  };
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Podsumowanie nagród"
+      onClick={handleTap}
+      style={{ position: "fixed", inset: 0, zIndex: 270, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, background: "rgba(1,2,10,0.86)", backdropFilter: "blur(9px)", cursor: "pointer" }}
+    >
+      <style>{`
+        @keyframes goverPopIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes goverCardIn { from { opacity:0; transform:scale(.72) rotateY(35deg); } to { opacity:1; transform:scale(1) rotateY(0deg); } }
+        @keyframes goverLevelFlash { 0%{ box-shadow:0 0 0 rgba(245,196,81,0); } 35%{ box-shadow:0 0 46px rgba(245,196,81,.75); } 100%{ box-shadow:0 0 0 rgba(245,196,81,0); } }
+        @keyframes goverBurst { from { opacity:.9; transform:scale(.4);} to { opacity:0; transform:scale(2.1);} }
+        @keyframes goverHint { 0%,100%{ opacity:.45; } 50%{ opacity:1; } }
+      `}</style>
+      <div style={{ width: "min(100%, 380px)", cursor: "default", position: "relative" }}>
+        <div style={{ padding: "26px 22px 20px", borderRadius: 24, textAlign: "center", background: "linear-gradient(165deg,#181228,#0a0714 65%)", border: "1px solid rgba(120,90,255,.28)", boxShadow: "0 30px 80px rgba(0,0,0,.6),0 0 40px rgba(120,90,255,.10)" }}>
+          <p style={{ margin: "0 0 16px", color: "#8f86a3", fontFamily: "'Space Mono', monospace", fontSize: 10, letterSpacing: ".14em" }}>PODSUMOWANIE ROZGRYWKI</p>
+
+          {/* Poziom + pasek postępu */}
+          <div style={{ position: "relative", display: "inline-flex", flexDirection: "column", alignItems: "center", marginBottom: 18 }}>
+            {flashLevel && (
+              <span style={{ position: "absolute", top: -6, left: "50%", transform: "translateX(-50%)", width: 96, height: 96, borderRadius: "50%", background: "radial-gradient(circle,rgba(245,196,81,.55),transparent 70%)", animation: "goverBurst .9s ease-out" }} />
+            )}
+            <div
+              style={{
+                width: 74, height: 74, borderRadius: "50%", display: "grid", placeItems: "center",
+                background: "linear-gradient(150deg,#241a3d,#120c22)", border: "1px solid rgba(180,150,255,.35)",
+                animation: flashLevel ? "goverLevelFlash .9s ease-out" : "none", position: "relative", zIndex: 1,
+                transition: "transform .25s ease", transform: flashLevel ? "scale(1.12)" : "scale(1)",
+              }}
+            >
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 8, color: "#9d94b8", letterSpacing: ".08em" }}>POZIOM</div>
+                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, color: "#fff", lineHeight: 1 }}>{lv.level}</div>
+              </div>
+            </div>
+            <div style={{ width: 190, height: 9, borderRadius: 999, background: "rgba(255,255,255,.08)", marginTop: 10, overflow: "hidden", border: "1px solid rgba(255,255,255,.08)" }}>
+              <div style={{ height: "100%", borderRadius: 999, width: `${barPct}%`, background: "linear-gradient(90deg,#845ef7,#4fd6ff)", transition: "width .55s cubic-bezier(.34,1.15,.64,1)" }} />
+            </div>
+            <div style={{ marginTop: 6, fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#9d94b8" }}>{lv.currentLevelXp} / {lv.xpForNextLevel} XP</div>
+          </div>
+
+          {/* Lista pozycji XP */}
+          {xpItems.length ? (
+            <div style={{ textAlign: "left", marginBottom: 6 }}>
+              {xpItems.slice(0, shownXpCount).map((it, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 2px", fontSize: 13, color: "#e4defa", animation: "goverPopIn .32s ease-out" }}>
+                  <span>{it.label}</span>
+                  <span style={{ fontFamily: "'Space Mono', monospace", fontWeight: 700, color: "#8ad0ff" }}>+{it.amount} XP</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {shownXpCount > 0 && (
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 2px", marginBottom: 16, borderTop: "1px solid rgba(255,255,255,.1)", fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: "#fff", letterSpacing: ".02em" }}>
+              <span>RAZEM XP</span>
+              <span>+{xpSoFar}</span>
+            </div>
+          )}
+
+          {/* HITCOIN */}
+          {hitcoinItems.length ? (
+            <div style={{ textAlign: "left", marginBottom: 6, paddingTop: xpItems.length ? 4 : 0 }}>
+              {hitcoinItems.slice(0, shownHcCount).map((it, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 2px", fontSize: 13, color: "#e4defa", animation: "goverPopIn .32s ease-out" }}>
+                  <span>{it.label}</span>
+                  <span style={{ fontFamily: "'Space Mono', monospace", fontWeight: 700, color: "#f5c451" }}>+{it.amount} 🪙</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {shownHcCount > 0 && (
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 2px", marginBottom: cardShown || card ? 16 : 4, borderTop: "1px solid rgba(255,255,255,.1)", fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: "#fff", letterSpacing: ".02em" }}>
+              <span>RAZEM HITCOIN</span>
+              <span>+{hcSoFar} 🪙</span>
+            </div>
+          )}
+
+          {/* Karta */}
+          {card && cardShown && (
+            <div style={{ animation: "goverCardIn .5s cubic-bezier(.34,1.1,.64,1)", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginTop: 4, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,.1)" }}>
+              <p style={{ margin: 0, fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#9d94b8", letterSpacing: ".1em" }}>{card.isDuplicate ? "DUPLIKAT — TA KARTA JEST JUŻ TWOJA" : "NOWA KARTA W KOLEKCJI"}</p>
+              <CollectibleCard song={card.song} size={92} />
+              <p style={{ margin: 0, fontSize: 13, fontWeight: "bold", color: "#fff" }}>{card.song?.artist} — {card.song?.title}</p>
+            </div>
+          )}
+
+          <p style={{ marginTop: 18, marginBottom: 0, fontSize: 11, color: "#8f86a3", animation: settled ? "goverHint 1.6s ease-in-out infinite" : "none" }}>
+            {settled ? "Dotknij, żeby zamknąć" : "Dotknij, żeby pominąć animację"}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [screen, setScreen] = useState("home"); // home | lobby | playing | roundResult | gameover
   const [name, setName] = useState(localStorage.getItem("hitster-player-name") || "");
@@ -2342,8 +2504,7 @@ export default function App() {
   }, [screen, roomId, room?.practiceMode, toMillis(room?.expireAt)]);
 
   const xpAwardedRef = useRef(null);
-  const [levelUpInfo, setLevelUpInfo] = useState(null);
-  const [gameEndReward, setGameEndReward] = useState(null);
+  const [gameEndReveal, setGameEndReveal] = useState(null);
   useEffect(() => {
     if (screen !== "gameover" || !room?.winnerIds?.length || !user || room.practiceMode) return;
     const marker = toMillis(room?.expireAt);
@@ -2369,15 +2530,15 @@ export default function App() {
         });
         if (!shouldProcess) return;
 
-        const { total: baseTotal } = computeGameEndXp(room, playerId);
+        const { items: xpItems, total: baseTotal } = computeGameEndXp(room, playerId);
         const before = await getStats(user.uid);
         const oldXp = before?.xp || 0;
-        const oldLevel = levelFromXp(oldXp).level;
         const hadDoubleXp = !!before?.doubleXpNextGame && baseTotal > 0;
         const total = hadDoubleXp ? baseTotal * 2 : baseTotal;
         let grandTotal = total;
         if (total) await awardXp(user.uid, total);
         if (hadDoubleXp) consumeDoubleXpFlag(user.uid).catch(() => {});
+        const xpItemsForReveal = hadDoubleXp ? [...xpItems, { label: "✨ Podwójne XP", amount: baseTotal }] : xpItems;
 
         // wyzwania tygodniowe (jeśli akurat wypadły w tym tygodniu — funkcja
         // sama sprawdza i nic nie robi gdy dany typ nie jest w aktualnej 5)
@@ -2396,11 +2557,6 @@ export default function App() {
         }).catch(() => {});
 
         setMyXp(oldXp + grandTotal);
-        const newLevel = levelFromXp(oldXp + grandTotal).level;
-        if (newLevel > oldLevel) {
-          setLevelUpInfo({ level: newLevel });
-          setTimeout(() => setLevelUpInfo(null), 5000);
-        }
 
         // liczniki potrzebne wyłącznie do osiągnięć
         const won = (room.winnerIds || []).includes(playerId);
@@ -2424,7 +2580,10 @@ export default function App() {
         if (drawResult?.rarity && ["zlota", "platynowa", "diamentowa"].includes(drawResult.rarity)) {
           bumpWeeklyChallengeProgress(user.uid, "cardGoldPlus", 1).catch(() => {});
         }
-        setGameEndReward({ hitcoinItems: hcResult.items, hitcoinTotal: hcResult.total, card: drawResult });
+        // jeden, spójny obiekt napędzający animowane podsumowanie
+        // (poziom → XP → HITCOIN → karta), zamiast dwóch osobnych,
+        // statycznych paneli sprzed tej zmiany
+        setGameEndReveal({ xpItems: xpItemsForReveal, oldXp, hitcoinItems: hcResult.items, hitcoinTotal: hcResult.total, card: drawResult });
       } catch (e) {
         // ciche niepowodzenie — najwyżej XP z tej gry się nie doliczy
       }
@@ -4249,7 +4408,7 @@ export default function App() {
     setBoughtCardReveal(null);
     setBoughtCardRevealed(false);
     setSharedBoughtNotice(null);
-    setGameEndReward(null);
+    setGameEndReveal(null);
   }
 
   async function kickPlayer(targetId) {
@@ -5076,6 +5235,7 @@ export default function App() {
       />
       <RoomInviteModal invite={incomingChallenge ? null : incomingRoomInvite} busy={roomInviteBusyUid === user?.uid} onAccept={handleAcceptRoomInvite} onDecline={handleDeclineRoomInvite} />
       <RewardNoticePopup notice={rewardNotice} onClose={() => setRewardNotice(null)} />
+      {gameEndReveal && <GameEndRevealPopup data={gameEndReveal} onClose={() => setGameEndReveal(null)} levelFromXp={levelFromXp} />}
     </>
   );
 
@@ -5590,24 +5750,24 @@ export default function App() {
   }
 
   if (useMobileSessionViews && screen === "gameover" && room && !room.practiceMode && !room.dailyPlaylistMode) {
-    const mobileXpSummary = user ? computeGameEndXp(room, playerId) : { items: [], total: 0 };
     return (
-      <MobileGameOverView
-        room={room}
-        playerId={playerId}
-        isHost={isHost}
-        onPlayAgain={playAgain}
-        onLeave={leaveRoom}
-        onTournamentBack={room.tournamentMode ? () => {
-          leaveRoom();
-          setTimeout(() => openTournamentHub(), 80);
-        } : undefined}
-        xpSummary={mobileXpSummary}
-        gameEndReward={gameEndReward}
-        chatInput={chatInput}
-        setChatInput={setChatInput}
-        onSendChat={sendChatMessage}
-      />
+      <>
+        <MobileGameOverView
+          room={room}
+          playerId={playerId}
+          isHost={isHost}
+          onPlayAgain={playAgain}
+          onLeave={leaveRoom}
+          onTournamentBack={room.tournamentMode ? () => {
+            leaveRoom();
+            setTimeout(() => openTournamentHub(), 80);
+          } : undefined}
+          chatInput={chatInput}
+          setChatInput={setChatInput}
+          onSendChat={sendChatMessage}
+        />
+        {gameEndReveal && <GameEndRevealPopup data={gameEndReveal} onClose={() => setGameEndReveal(null)} levelFromXp={levelFromXp} />}
+      </>
     );
   }
 
@@ -5770,6 +5930,7 @@ export default function App() {
       <DuelChallengeModal challenge={incomingChallenge} busy={challengeBusy} onAccept={handleAcceptChallenge} onDecline={handleDeclineChallenge} />
       <RoomInviteModal invite={incomingChallenge ? null : incomingRoomInvite} busy={roomInviteBusyUid === user?.uid} onAccept={handleAcceptRoomInvite} onDecline={handleDeclineRoomInvite} />
       <RewardNoticePopup notice={rewardNotice} onClose={() => setRewardNotice(null)} />
+      {gameEndReveal && <GameEndRevealPopup data={gameEndReveal} onClose={() => setGameEndReveal(null)} levelFromXp={levelFromXp} />}
       </>
     );
   }
@@ -5935,6 +6096,7 @@ export default function App() {
       <DuelChallengeModal challenge={incomingChallenge} busy={challengeBusy} onAccept={handleAcceptChallenge} onDecline={handleDeclineChallenge} />
       <RoomInviteModal invite={incomingChallenge ? null : incomingRoomInvite} busy={roomInviteBusyUid === user?.uid} onAccept={handleAcceptRoomInvite} onDecline={handleDeclineRoomInvite} />
       <RewardNoticePopup notice={rewardNotice} onClose={() => setRewardNotice(null)} />
+      {gameEndReveal && <GameEndRevealPopup data={gameEndReveal} onClose={() => setGameEndReveal(null)} levelFromXp={levelFromXp} />}
       </>
     );
   }
@@ -8596,44 +8758,6 @@ export default function App() {
               );
             })()}
 
-            {user && !room.practiceMode && gameEndReward && (
-              <div className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 22px rgba(245,196,81,0.18)" }}>
-                <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8, display: "flex", alignItems: "center", gap: 5 }}>
-                  <img src={iconHitcoin} alt="" style={{ height: 14 }} /> Zdobyty HITCOIN
-                </p>
-                <div className="flex flex-col gap-1 text-left mb-3">
-                  {gameEndReward.hitcoinItems.map((it, i) => (
-                    <div key={i} className="flex items-center justify-between text-sm">
-                      <span>{it.label}</span>
-                      <span style={{ color: "var(--gold)", display: "flex", alignItems: "center", gap: 4 }}>
-                        +{it.amount} <img src={iconHitcoin} alt="" style={{ height: 13 }} />
-                      </span>
-                    </div>
-                  ))}
-                  {gameEndReward.hitcoinItems.length > 1 && (
-                    <div className="flex items-center justify-between text-sm mt-1 pt-1" style={{ borderTop: "1px solid #33294f", fontWeight: "bold" }}>
-                      <span>Razem</span>
-                      <span style={{ color: "var(--gold)", display: "flex", alignItems: "center", gap: 4 }}>
-                        +{gameEndReward.hitcoinTotal} <img src={iconHitcoin} alt="" style={{ height: 13 }} />
-                      </span>
-                    </div>
-                  )}
-                </div>
-                {gameEndReward.card && (
-                  <div className="rounded-xl p-3 flex items-center gap-3" style={{ background: "var(--surface2)" }}>
-                    <CollectibleCard song={gameEndReward.card.song} size={64} onClick={() => setZoomedCard(gameEndReward.card.song)} />
-                    <div className="text-left flex-1">
-                      <p style={{ fontSize: 13, fontWeight: "bold" }}>{gameEndReward.card.song.artist} — {gameEndReward.card.song.title}</p>
-                      <p style={{ fontSize: 11, color: RARITY_INFO[effectiveRarity(gameEndReward.card.song)].color }}>
-                        {RARITY_INFO[effectiveRarity(gameEndReward.card.song)].label}
-                        {gameEndReward.card.isDuplicate && <span style={{ color: "var(--muted)" }}> · masz już tę kartę</span>}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
             {room.playedCards && room.playedCards.length > 0 && (
               <div className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(255,95,201,0.4)", boxShadow: "0 0 22px rgba(255,95,201,0.15)" }}>
                 <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
@@ -8929,27 +9053,8 @@ export default function App() {
         </div>
       )}
 
-      {levelUpInfo && (
-        <div
-          onClick={() => setLevelUpInfo(null)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.65)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 100,
-            padding: 24,
-          }}
-        >
-          <div className="rounded-2xl p-6 text-center card-glow pulse-cta" style={{ background: "var(--surface)", maxWidth: 320 }}>
-            <p style={{ fontSize: 40 }}>🎉</p>
-            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: "var(--accent)" }}>AWANS POZIOMU!</p>
-            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48 }}>Poziom {levelUpInfo.level}</p>
-            <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>(kliknij, żeby zamknąć)</p>
-          </div>
-        </div>
+      {gameEndReveal && (
+        <GameEndRevealPopup data={gameEndReveal} onClose={() => setGameEndReveal(null)} levelFromXp={levelFromXp} />
       )}
 
       {showDailySong && dailySong && (

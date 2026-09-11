@@ -1138,39 +1138,19 @@ export function MobileHitRushLeaderboardView({ rows = [], period, onPeriod, onBa
   );
 }
 
-export function MobileGameOverView({ room, playerId, isHost, onPlayAgain, onLeave, onTournamentBack, xpSummary, gameEndReward, chatInput, setChatInput, onSendChat }) {
+export function MobileGameOverView({ room, playerId, isHost, onPlayAgain, onLeave, onTournamentBack, chatInput, setChatInput, onSendChat }) {
   const [chatOpen, setChatOpen] = useState(false);
   const [playlistScope, setPlaylistScope] = useState('all');
-  const [rewardPreview, setRewardPreview] = useState(null);
   const winners = (room.winnerIds || []).map((id) => room.players.find((player) => player.id === id)).filter(Boolean);
   const standings = [...room.players].sort((a, b) => (room.timelines?.[b.id]?.length || 0) - (room.timelines?.[a.id]?.length || 0));
   const playedCards = Array.isArray(room.playedCards) ? room.playedCards : [];
   const visiblePlaylist = playlistScope === 'mine' ? playedCards.filter((card) => card.playerId === playerId) : playedCards;
-  const rewardSong = gameEndReward?.card?.song || null;
-  const rewardRarity = rewardSong ? effectiveRarity(rewardSong) : null;
   return (
     <MobileSession className="mgv-gameover-page">
       <MobileHeader eyebrow="KONIEC GRY" title="WYNIKI" onBack={onLeave} />
       <div className="mgv-final-mark gold"><Trophy size={18} /><span>ROZGRYWKA ZAKOŃCZONA</span></div>
       <Panel className="mgv-winner-panel" accent="gold"><Trophy size={50} /><span className="mgv-eyebrow">ZWYCIĘZCA</span><h1>{winners.length > 1 ? 'REMIS!' : `${winners[0]?.name || 'GRACZ'} WYGRYWA!`}</h1>{winners.length > 1 ? <p>{winners.map((winner) => winner.name).join(' · ')}</p> : null}</Panel>
       <Panel><div className="mgv-section-title"><Crown size={18} /><span>KLASYFIKACJA</span></div><div className="mgv-final-standing">{standings.map((player, index) => <div key={player.id} className={index < 3 ? `podium p${index + 1}` : ''}><span>#{index + 1}</span><span className="mgv-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.name) : null}</span><strong>{player.name}</strong><b>{room.timelines?.[player.id]?.length || 0} kart</b></div>)}</div></Panel>
-      {xpSummary?.items?.length ? <Panel className="mgv-reward-panel" accent="violet"><span className="mgv-eyebrow">ZDOBYTE XP</span>{xpSummary.items.map((item, index) => <div className="mgv-reward-row" key={index}><span>{item.label}</span><strong>{item.amount >= 0 ? '+' : ''}{item.amount} XP</strong></div>)}<div className="mgv-reward-row total"><span>RAZEM</span><strong>{xpSummary.total >= 0 ? '+' : ''}{xpSummary.total} XP</strong></div></Panel> : null}
-      {gameEndReward ? (
-        <Panel className="mgv-gameover-rewards" accent="gold">
-          <div className="mgv-section-title"><Gift size={18} /><span>NAGRODY ZA ROZGRYWKĘ</span></div>
-          {gameEndReward.hitcoinTotal > 0 ? <div className="mgv-gameover-hitcoin"><span>HITCOIN</span><strong>+{gameEndReward.hitcoinTotal}</strong></div> : null}
-          {rewardSong ? (
-            <div className="mgv-gameover-card-reward">
-              <div className="mgv-gameover-card-heading">
-                <span className="mgv-eyebrow">WYLOSOWANA KARTA</span>
-                <strong>{GAMEOVER_RARITY_LABELS[rewardRarity] || 'KARTA'}</strong>
-                {gameEndReward.card?.isDuplicate ? <small>DUPLIKAT · tę kartę masz już w kolekcji</small> : <small>NOWA KARTA W KOLEKCJI</small>}
-              </div>
-              <GameOverCollectibleCard song={rewardSong} onClick={() => setRewardPreview(rewardSong)} />
-            </div>
-          ) : <div className="mgv-gameover-no-card"><Disc3 size={22} /><span>W tej rozgrywce nie wylosowano karty.</span></div>}
-        </Panel>
-      ) : null}
       {playedCards.length > 0 ? (
         <Panel className="mgv-evening-playlist" accent="pink">
           <div className="mgv-playlist-head">
@@ -1202,7 +1182,6 @@ export function MobileGameOverView({ room, playerId, isHost, onPlayAgain, onLeav
         </Panel>
       ) : null}
       <div className="mgv-action-stack">{isHost && !room.tournamentMode ? <button type="button" className="mgv-main-cta" onClick={onPlayAgain}><RotateCcw size={19} /> ZAGRAJ PONOWNIE</button> : null}{room.tournamentMode && onTournamentBack ? <button type="button" className="mgv-main-cta" onClick={onTournamentBack}><Trophy size={18} /> WRÓĆ DO TURNIEJU</button> : null}<button type="button" className="mgv-secondary-cta" onClick={onLeave}><LogOut size={18} /> OPUŚĆ POKÓJ</button></div>
-      {rewardPreview ? <MobileCardPreview song={rewardPreview} onClose={() => setRewardPreview(null)} /> : null}
       {!room.practiceMode ? <MobileChat open={chatOpen} setOpen={setChatOpen} messages={room.messages || []} playerId={playerId} chatInput={chatInput} setChatInput={setChatInput} onSend={onSendChat} /> : null}
     </MobileSession>
   );
