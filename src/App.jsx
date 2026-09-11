@@ -15,7 +15,7 @@ import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
 import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId, fuzzyMatch } from "./utils.js";
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
-import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, getLeaderboardPosition, awardXp, xpForLevel, levelFromXp, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag, getWeeklyChallenges, bumpWeeklyChallengeProgress, claimWeeklyChallenge, currentSeasonKey, seasonNumber, seasonRankForWins, SEASON_RANKS, updateSeasonProgress, getSeasonLeaderboard, getSeasonLeaderboardPosition, processSeasonRewardsIfNeeded, getPlayerSeasonHistory, consumeNextRewardNotice, seedSeasonZeroFromAllTime } from "./stats.js";
+import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, getLeaderboardPosition, awardXp, xpForLevel, levelFromXp, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag, getWeeklyChallenges, bumpWeeklyChallengeProgress, claimWeeklyChallenge, currentSeasonKey, seasonNumber, seasonRankForWins, SEASON_RANKS, updateSeasonProgress, getSeasonLeaderboard, getSeasonLeaderboardPosition, processSeasonRewardsIfNeeded, getPlayerSeasonHistory, consumeNextRewardNotice } from "./stats.js";
 import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss, incrementSongPlayCount, getSongCount } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
 import { heartbeat, clearPresence, getOnlinePlayers } from "./presence.js";
@@ -149,6 +149,10 @@ const CATEGORIES = [
   { slug: "pop", label: "Pop" },
   { slug: "rap", label: "Rap" },
   { slug: "elektroniczna", label: "Elektroniczna" },
+  { slug: "alternatywna", label: "Alternatywna" },
+  { slug: "filmowa", label: "Filmowa" },
+  { slug: "disco", label: "Disco" },
+  { slug: "disco-polo", label: "Disco Polo" },
   { slug: "tymek", label: "Tymek" },
   { slug: "religijne", label: "Religijne" },
 ];
@@ -879,7 +883,6 @@ function GameEndRevealPopup({ data, onClose, levelFromXp }) {
         <div style={{ padding: "26px 22px 20px", borderRadius: 24, textAlign: "center", background: "linear-gradient(165deg,#181228,#0a0714 65%)", border: "1px solid rgba(120,90,255,.28)", boxShadow: "0 30px 80px rgba(0,0,0,.6),0 0 40px rgba(120,90,255,.10)" }}>
           <p style={{ margin: "0 0 16px", color: "#8f86a3", fontFamily: "'Space Mono', monospace", fontSize: 10, letterSpacing: ".14em" }}>PODSUMOWANIE ROZGRYWKI</p>
 
-          {/* Poziom + pasek postępu */}
           <div style={{ position: "relative", display: "inline-flex", flexDirection: "column", alignItems: "center", marginBottom: 18 }}>
             {flashLevel && (
               <span style={{ position: "absolute", top: -6, left: "50%", transform: "translateX(-50%)", width: 96, height: 96, borderRadius: "50%", background: "radial-gradient(circle,rgba(245,196,81,.55),transparent 70%)", animation: "goverBurst .9s ease-out" }} />
@@ -903,7 +906,6 @@ function GameEndRevealPopup({ data, onClose, levelFromXp }) {
             <div style={{ marginTop: 6, fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#9d94b8" }}>{lv.currentLevelXp} / {lv.xpForNextLevel} XP</div>
           </div>
 
-          {/* Lista pozycji XP */}
           {xpItems.length ? (
             <div style={{ textAlign: "left", marginBottom: 6 }}>
               {xpItems.slice(0, shownXpCount).map((it, i) => (
@@ -921,7 +923,6 @@ function GameEndRevealPopup({ data, onClose, levelFromXp }) {
             </div>
           )}
 
-          {/* HITCOIN */}
           {hitcoinItems.length ? (
             <div style={{ textAlign: "left", marginBottom: 6, paddingTop: xpItems.length ? 4 : 0 }}>
               {hitcoinItems.slice(0, shownHcCount).map((it, i) => (
@@ -939,7 +940,6 @@ function GameEndRevealPopup({ data, onClose, levelFromXp }) {
             </div>
           )}
 
-          {/* Karta */}
           {card && cardShown && (
             <div style={{ animation: "goverCardIn .5s cubic-bezier(.34,1.1,.64,1)", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginTop: 4, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,.1)" }}>
               <p style={{ margin: 0, fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#9d94b8", letterSpacing: ".1em" }}>{card.isDuplicate ? "DUPLIKAT — TA KARTA JEST JUŻ TWOJA" : "NOWA KARTA W KOLEKCJI"}</p>
@@ -1038,8 +1038,6 @@ export default function App() {
   const [adminPage, setAdminPage] = useState(1);
   const ADMIN_PAGE_SIZE = 100;
   const [adminBusy, setAdminBusy] = useState(false);
-  const [seasonZeroBusy, setSeasonZeroBusy] = useState(false);
-  const [seasonZeroResult, setSeasonZeroResult] = useState(null);
   const [avatarUploadBusy, setAvatarUploadBusy] = useState(false);
   const [showDailyWheel, setShowDailyWheel] = useState(false);
   const [dailyWheelBusy, setDailyWheelBusy] = useState(false);
@@ -4536,35 +4534,6 @@ export default function App() {
                 ← Wróć
               </button>
             </div>
-
-            <button
-              onClick={async () => {
-                setSeasonZeroBusy(true);
-                setSeasonZeroResult(null);
-                try {
-                  const res = await seedSeasonZeroFromAllTime();
-                  setSeasonZeroResult(res);
-                } catch (e) {
-                  setSeasonZeroResult({ error: e.message });
-                } finally {
-                  setSeasonZeroBusy(false);
-                }
-              }}
-              disabled={seasonZeroBusy}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold"
-              style={{ background: "var(--surface2)", border: "1px solid var(--gold)", color: "var(--gold)" }}
-            >
-              🏆 {seasonZeroBusy ? "Zapisuję…" : "Ustaw Sezon 0 z obecnego rankingu"}
-            </button>
-            {seasonZeroResult && (
-              <p style={{ fontSize: 12, color: seasonZeroResult.error ? "var(--bad)" : "var(--muted)" }}>
-                {seasonZeroResult.error
-                  ? `Błąd: ${seasonZeroResult.error}`
-                  : seasonZeroResult.alreadyProcessed
-                    ? "Sezon 0 był już wcześniej ustawiony (nic nie zrobiono ponownie)."
-                    : `Gotowe — nagrodzono ${seasonZeroResult.top?.length || 0} graczy za Sezon 0.`}
-              </p>
-            )}
 
             <button
               onClick={() => {
