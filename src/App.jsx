@@ -6084,6 +6084,7 @@ export default function App() {
     return (
       <>
       <DesktopAppView
+        onLogout={handleLogout}
         onSellDuplicates={handleSellAllDuplicates}
         albumSellBusy={albumSellBusy}
         seasonLeaderboard={seasonLeaderboard}
@@ -6232,6 +6233,7 @@ export default function App() {
     return (
       <>
       <MobileAppView
+        onLogout={handleLogout}
         onSellDuplicates={handleSellAllDuplicates}
         albumSellBusy={albumSellBusy}
         seasonLeaderboard={seasonLeaderboard}

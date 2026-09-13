@@ -7,6 +7,7 @@ import {
   Menu,
   Lock,
   LogIn,
+  LogOut,
   UserPlus,
   Users,
   Trophy,
@@ -1063,6 +1064,20 @@ function MobileMoreView(props) {
           <button type="button" className={`mob-admin-entry ${props.adminUnlocked ? 'unlocked' : ''}`} onClick={props.onAdmin}>
             <Settings size={22} />
             <div><strong>{props.adminUnlocked ? 'PANEL ADMINA' : 'TRYB ADMINA'}</strong><span>{props.adminUnlocked ? 'Otwórz narzędzia administratora' : 'Dostęp chroniony hasłem'}</span></div>
+            <ChevronRight size={17} />
+          </button>
+        </section>
+      ) : null}
+      {props.user ? (
+        <section className="mob-admin-section">
+          <span className="mob-admin-section-label">KONTO</span>
+          <button
+            type="button"
+            className="mob-admin-entry"
+            onClick={() => { if (window.confirm('Na pewno się wylogować?')) props.onLogout?.(); }}
+          >
+            <LogOut size={22} />
+            <div><strong>WYLOGUJ SIĘ</strong><span>{props.name || props.user?.displayName || 'Twoje konto'}</span></div>
             <ChevronRight size={17} />
           </button>
         </section>

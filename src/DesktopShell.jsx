@@ -26,6 +26,7 @@ import {
   AudioWaveform,
   Lock,
   LogIn,
+  LogOut,
   UserPlus,
   Info,
 } from 'lucide-react';
@@ -256,7 +257,7 @@ function DesktopLayout({ active, topRight, onHome, onRooms, onAlbum, onStats, on
   );
 }
 
-function HeaderBar({ onlineCount, level, xpText, musicCount, hitcoin, avatarUrl, username, onCommunity, onStats, onShop, onAvatarUpload, avatarUploadBusy, isGuest = false, onLogin }) {
+function HeaderBar({ onlineCount, level, xpText, musicCount, hitcoin, avatarUrl, username, onCommunity, onStats, onShop, onAvatarUpload, avatarUploadBusy, isGuest = false, onLogin, onLogout }) {
   return (
     <div className="desk-header-bar">
       <DesktopTopPill icon={<span className="desk-dot" />} accent="green" onClick={isGuest ? undefined : onCommunity}>{onlineCount} graczy online</DesktopTopPill>
@@ -286,6 +287,14 @@ function HeaderBar({ onlineCount, level, xpText, musicCount, hitcoin, avatarUrl,
             </button>
           )}
           <button type="button" className="desk-gear-btn" onClick={onStats} title="Profil i statystyki"><Settings size={18} /></button>
+          <button
+            type="button"
+            className="desk-gear-btn"
+            title="Wyloguj"
+            onClick={() => { if (window.confirm("Na pewno się wylogować?")) onLogout?.(); }}
+          >
+            <LogOut size={18} />
+          </button>
         </>
       )}
     </div>
@@ -1575,8 +1584,9 @@ export function DesktopAppView(props) {
       avatarUploadBusy: props.avatarUploadBusy,
       isGuest: !props.user,
       onLogin: requestLogin,
+      onLogout: props.onLogout,
     },
-  }), [props.onlinePlayers.length, props.levelInfo.level, props.levelInfo.currentLevelXp, props.levelInfo.xpForNextLevel, props.stats, props.hitcoin, props.user, props.onAvatarUpload, props.avatarUploadBusy, props.onAdmin, props.adminUnlocked, props.onLoadHeadToHead]);
+  }), [props.onlinePlayers.length, props.levelInfo.level, props.levelInfo.currentLevelXp, props.levelInfo.xpForNextLevel, props.stats, props.hitcoin, props.user, props.onAvatarUpload, props.avatarUploadBusy, props.onAdmin, props.adminUnlocked, props.onLoadHeadToHead, props.onLogout]);
 
   const localHomeProps = {
     ...props,
