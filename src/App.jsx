@@ -4822,6 +4822,13 @@ export default function App() {
               </button>
             </div>
 
+            {error && (
+              <div className="w-full rounded-lg p-3 text-sm" style={{ background: "rgba(232,97,93,0.12)", border: "1px solid var(--bad)", color: "var(--bad)" }}>
+                {error}
+                <button onClick={() => setError("")} style={{ marginLeft: 10, textDecoration: "underline" }}>ukryj</button>
+              </div>
+            )}
+
             <button
               onClick={() => {
                 setShowProposals((v) => !v);
