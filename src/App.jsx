@@ -14,7 +14,7 @@ import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage
 import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
 import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId, fuzzyMatch } from "./utils.js";
 import { REAL_SONGS } from "./songs.js";
-import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError } from "./auth.js";
+import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError, ensureSignedIn } from "./auth.js";
 import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, getLeaderboardPosition, awardXp, xpForLevel, levelFromXp, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag, getWeeklyChallenges, bumpWeeklyChallengeProgress, claimWeeklyChallenge, currentSeasonKey, seasonNumber, seasonRankForWins, SEASON_RANKS, updateSeasonProgress, getSeasonLeaderboard, getSeasonLeaderboardPosition, processSeasonRewardsIfNeeded, getPlayerSeasonHistory, consumeNextRewardNotice } from "./stats.js";
 import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss, incrementSongPlayCount, getSongCount } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
@@ -1002,6 +1002,7 @@ export default function App() {
   const VOTING_SECONDS = 20;
 
   const [user, setUser] = useState(null);
+  const [authUser, setAuthUser] = useState(null); // surowa sesja Firebase Auth (realna LUB anonimowa) — do playerId/zapisów; `user` zostaje `null` dla gości, dokładnie jak dotąd
   const [authChecked, setAuthChecked] = useState(false);
   const [authMode, setAuthMode] = useState("login"); // login | register
   const [authUsername, setAuthUsername] = useState("");
@@ -1087,7 +1088,7 @@ export default function App() {
   const [proposalEditingId, setProposalEditingId] = useState(null);
   const [proposalEditDraft, setProposalEditDraft] = useState({});
 
-  const playerId = user ? user.uid : guestId;
+  const playerId = authUser ? authUser.uid : guestId;
 
   useEffect(() => {
     const handleResize = () => setViewportWidth(window.innerWidth);
@@ -2324,6 +2325,22 @@ export default function App() {
 
   useEffect(() => {
     const unsub = watchAuthState(async (u) => {
+      if (!u) {
+        // nikt w ogóle niezalogowany (nawet anonimowo) — logujemy po cichu
+        // anonimowo; ten sam listener wywoła się ponownie z nowym `u`,
+        // gdy się to uda
+        ensureSignedIn().catch(() => {});
+        setAuthChecked(true);
+        return;
+      }
+      setAuthUser(u);
+      if (u.isAnonymous) {
+        // dla reszty appki (blokady funkcji za kontem) anonimowa sesja
+        // Firebase to nadal "gość" — `user` zostaje `null` tak jak dotąd
+        setUser(null);
+        setAuthChecked(true);
+        return;
+      }
       setUser(u);
       setAuthChecked(true);
       if (u) {
@@ -5734,6 +5751,7 @@ export default function App() {
           chatInput={chatInput}
           setChatInput={setChatInput}
           onSendChat={sendChatMessage}
+          gameEndReveal={gameEndReveal}
         />
         {gameEndReveal && <GameEndRevealPopup data={gameEndReveal} onClose={() => setGameEndReveal(null)} levelFromXp={levelFromXp} />}
       </>
@@ -8726,6 +8744,44 @@ export default function App() {
                 </div>
               );
             })()}
+
+            {user && !room.practiceMode && gameEndReveal && (gameEndReveal.hitcoinTotal > 0 || gameEndReveal.card) && (
+              <div className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 22px rgba(245,196,81,0.18)" }}>
+                <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8, display: "flex", alignItems: "center", gap: 5 }}>
+                  <img src={iconHitcoin} alt="" style={{ height: 14 }} /> Zdobyty HITCOIN
+                </p>
+                <div className="flex flex-col gap-1 text-left mb-3">
+                  {gameEndReveal.hitcoinItems.map((it, i) => (
+                    <div key={i} className="flex items-center justify-between text-sm">
+                      <span>{it.label}</span>
+                      <span style={{ color: "var(--gold)", display: "flex", alignItems: "center", gap: 4 }}>
+                        +{it.amount} <img src={iconHitcoin} alt="" style={{ height: 13 }} />
+                      </span>
+                    </div>
+                  ))}
+                  {gameEndReveal.hitcoinItems.length > 1 && (
+                    <div className="flex items-center justify-between text-sm mt-1 pt-1" style={{ borderTop: "1px solid #33294f", fontWeight: "bold" }}>
+                      <span>Razem</span>
+                      <span style={{ color: "var(--gold)", display: "flex", alignItems: "center", gap: 4 }}>
+                        +{gameEndReveal.hitcoinTotal} <img src={iconHitcoin} alt="" style={{ height: 13 }} />
+                      </span>
+                    </div>
+                  )}
+                </div>
+                {gameEndReveal.card && (
+                  <div className="rounded-xl p-3 flex items-center gap-3" style={{ background: "var(--surface2)" }}>
+                    <CollectibleCard song={gameEndReveal.card.song} size={64} onClick={() => setZoomedCard(gameEndReveal.card.song)} />
+                    <div className="text-left flex-1">
+                      <p style={{ fontSize: 13, fontWeight: "bold" }}>{gameEndReveal.card.song.artist} — {gameEndReveal.card.song.title}</p>
+                      <p style={{ fontSize: 11, color: RARITY_INFO[effectiveRarity(gameEndReveal.card.song)].color }}>
+                        {RARITY_INFO[effectiveRarity(gameEndReveal.card.song)].label}
+                        {gameEndReveal.card.isDuplicate && <span style={{ color: "var(--muted)" }}> · masz już tę kartę</span>}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {room.playedCards && room.playedCards.length > 0 && (
               <div className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(255,95,201,0.4)", boxShadow: "0 0 22px rgba(255,95,201,0.15)" }}>
