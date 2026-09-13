@@ -1,6 +1,7 @@
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  signInAnonymously,
   signOut,
   onAuthStateChanged,
   updateProfile,
@@ -13,6 +14,18 @@ import { auth } from "./firebase-config.js";
 function usernameToPseudoEmail(username) {
   const clean = username.trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "");
   return `${clean}@hitster-app.local`;
+}
+
+export async function ensureSignedIn() {
+  // Gwarantuje, że KAŻDY odwiedzający — nawet ten, kto nigdy nie założył
+  // konta — ma prawdziwą sesję Firebase Auth (anonimową, bez hasła,
+  // niewidoczną dla użytkownika). Dzięki temu reguły bezpieczeństwa
+  // Firestore mogą bezpiecznie wymagać "zalogowany" wszędzie, nie tracąc
+  // przy tym możliwości grania bez rejestracji — appka i tak rozróżnia
+  // to dalej przez `user.isAnonymous`.
+  if (!auth.currentUser) {
+    await signInAnonymously(auth);
+  }
 }
 
 export async function registerWithUsername(username, password) {
