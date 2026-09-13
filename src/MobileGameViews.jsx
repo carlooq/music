@@ -1138,7 +1138,7 @@ export function MobileHitRushLeaderboardView({ rows = [], period, onPeriod, onBa
   );
 }
 
-export function MobileGameOverView({ room, playerId, isHost, onPlayAgain, onLeave, onTournamentBack, chatInput, setChatInput, onSendChat }) {
+export function MobileGameOverView({ room, playerId, isHost, onPlayAgain, onLeave, onTournamentBack, chatInput, setChatInput, onSendChat, gameEndReveal }) {
   const [chatOpen, setChatOpen] = useState(false);
   const [playlistScope, setPlaylistScope] = useState('all');
   const winners = (room.winnerIds || []).map((id) => room.players.find((player) => player.id === id)).filter(Boolean);
@@ -1150,6 +1150,30 @@ export function MobileGameOverView({ room, playerId, isHost, onPlayAgain, onLeav
       <MobileHeader eyebrow="KONIEC GRY" title="WYNIKI" onBack={onLeave} />
       <div className="mgv-final-mark gold"><Trophy size={18} /><span>ROZGRYWKA ZAKOŃCZONA</span></div>
       <Panel className="mgv-winner-panel" accent="gold"><Trophy size={50} /><span className="mgv-eyebrow">ZWYCIĘZCA</span><h1>{winners.length > 1 ? 'REMIS!' : `${winners[0]?.name || 'GRACZ'} WYGRYWA!`}</h1>{winners.length > 1 ? <p>{winners.map((winner) => winner.name).join(' · ')}</p> : null}</Panel>
+      {gameEndReveal ? (
+        <Panel className="mgv-reward-panel" accent="violet">
+          <span className="mgv-eyebrow">TWOJE NAGRODY Z TEJ GRY</span>
+          {gameEndReveal.xpItems.map((item, index) => (
+            <div className="mgv-reward-row" key={`xp-${index}`}><span>{item.label}</span><strong>+{item.amount} XP</strong></div>
+          ))}
+          {gameEndReveal.hitcoinItems.map((item, index) => (
+            <div className="mgv-reward-row" key={`hc-${index}`}><span>{item.label}</span><strong>+{item.amount} 🪙</strong></div>
+          ))}
+          <div className="mgv-reward-row total">
+            <span>RAZEM</span>
+            <strong>+{gameEndReveal.xpItems.reduce((s, i) => s + i.amount, 0)} XP · +{gameEndReveal.hitcoinTotal} 🪙</strong>
+          </div>
+          {gameEndReveal.card ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,.08)' }}>
+              <GameOverCollectibleCard song={gameEndReveal.card.song} />
+              <div>
+                <p style={{ margin: 0, fontSize: 12, fontWeight: 'bold' }}>{gameEndReveal.card.song?.artist} — {gameEndReveal.card.song?.title}</p>
+                <p style={{ margin: 0, fontSize: 11, color: '#9d94b8' }}>{gameEndReveal.card.isDuplicate ? 'Duplikat — masz już tę kartę' : 'Nowa karta w kolekcji'}</p>
+              </div>
+            </div>
+          ) : null}
+        </Panel>
+      ) : null}
       <Panel><div className="mgv-section-title"><Crown size={18} /><span>KLASYFIKACJA</span></div><div className="mgv-final-standing">{standings.map((player, index) => <div key={player.id} className={index < 3 ? `podium p${index + 1}` : ''}><span>#{index + 1}</span><span className="mgv-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.name) : null}</span><strong>{player.name}</strong><b>{room.timelines?.[player.id]?.length || 0} kart</b></div>)}</div></Panel>
       {playedCards.length > 0 ? (
         <Panel className="mgv-evening-playlist" accent="pink">
