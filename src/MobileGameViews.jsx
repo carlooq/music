@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
+  CalendarDays,
   Check,
   ChevronRight,
   Clock3,
@@ -373,7 +374,7 @@ export function MobilePracticeSetupView({ practiceTarget, setPracticeTarget, sel
   );
 }
 
-export function MobileLobbyView({ room, roomId, playerId, isHost, copied, onCopy, onLeave, target, setTarget, selectedCategories, categories = [], onToggleCategory, songPool = [], busy, onStart, onKick, playerLevels = {}, levelFromXp, onlinePlayers = [], roomInviteSentTo = {}, roomInviteBusyUid = null, onInviteToRoom }) {
+export function MobileLobbyView({ room, roomId, playerId, isHost, copied, onCopy, onLeave, target, setTarget, selectedCategories, categories = [], onToggleCategory, songPool = [], busy, onStart, onStartYearGuess, onKick, playerLevels = {}, levelFromXp, onlinePlayers = [], roomInviteSentTo = {}, roomInviteBusyUid = null, onInviteToRoom }) {
   const normalized = (values) => (values || []).map((value) => String(value || '').trim().toLowerCase());
   const activeFilter = !selectedCategories.includes('wszystkie') && selectedCategories.length > 0;
   const playableCount = activeFilter
@@ -440,14 +441,20 @@ export function MobileLobbyView({ room, roomId, playerId, isHost, copied, onCopy
         <div className="mgv-section-title"><Gamepad2 size={18} /><span>ZASADY GRY</span></div>
         {isHost ? (
           <>
-            <div className="mgv-setting-block">
-              <div><strong>KART DO WYGRANIA</strong><small>Pierwszy gracz, który zbierze tyle poprawnych kart, wygrywa.</small></div>
-              <div className="mgv-stepper">
-                <button type="button" onClick={() => setTarget(Math.max(1, Number(target || 1) - 1))}>−</button>
-                <input type="number" min="1" value={target} onChange={(event) => setTarget(event.target.value === '' ? '' : parseInt(event.target.value, 10))} />
-                <button type="button" onClick={() => setTarget(Number(target || 0) + 1)}>+</button>
+            {room.yearGuessMode ? (
+              <div className="mgv-setting-block">
+                <div><strong>ZGADNIJ ROK</strong><small>Wszyscy słuchają tego samego utworu i typują rok wydania. Gra trwa 15 rund, punkty liczą się automatycznie.</small></div>
               </div>
-            </div>
+            ) : (
+              <div className="mgv-setting-block">
+                <div><strong>KART DO WYGRANIA</strong><small>Pierwszy gracz, który zbierze tyle poprawnych kart, wygrywa.</small></div>
+                <div className="mgv-stepper">
+                  <button type="button" onClick={() => setTarget(Math.max(1, Number(target || 1) - 1))}>−</button>
+                  <input type="number" min="1" value={target} onChange={(event) => setTarget(event.target.value === '' ? '' : parseInt(event.target.value, 10))} />
+                  <button type="button" onClick={() => setTarget(Number(target || 0) + 1)}>+</button>
+                </div>
+              </div>
+            )}
             <div className="mgv-category-section">
               <div className="mgv-category-head"><strong>KATEGORIE</strong><span>{playableCount} utworów</span></div>
               <div className="mgv-category-grid">
@@ -456,7 +463,11 @@ export function MobileLobbyView({ room, roomId, playerId, isHost, copied, onCopy
                 ))}
               </div>
             </div>
-            <button type="button" className="mgv-main-cta" disabled={busy || !target || room.players.length < 2} onClick={onStart}><Play size={20} fill="currentColor" /> ROZPOCZNIJ GRĘ <ChevronRight size={20} /></button>
+            {room.yearGuessMode ? (
+              <button type="button" className="mgv-main-cta" disabled={busy || room.players.length < 2} onClick={onStartYearGuess}><Play size={20} fill="currentColor" /> ROZPOCZNIJ ZGADNIJ ROK <ChevronRight size={20} /></button>
+            ) : (
+              <button type="button" className="mgv-main-cta" disabled={busy || !target || room.players.length < 2} onClick={onStart}><Play size={20} fill="currentColor" /> ROZPOCZNIJ GRĘ <ChevronRight size={20} /></button>
+            )}
             {room.players.length < 2 ? <div className="mgv-note warning">Potrzebujesz co najmniej 2 graczy.</div> : null}
           </>
         ) : (
@@ -501,6 +512,117 @@ export function MobileOpenerView({ room, openerPhase, openerCountdownNum, isPlay
           </>
         )}
       </Panel>
+    </MobileSession>
+  );
+}
+
+// ============================================================
+// TRYB "ZGADNIJ ROK" — aktywna runda i wynik rundy
+// ============================================================
+export function MobileYearGuessView({ room, playerId, isPlaying, playElapsed, playCapSeconds, iframeRef, onTogglePlay, onSubmit, onLeave }) {
+  const [yearInput, setYearInput] = useState('');
+  const song = room.yearGuessSongs?.[room.yearGuessRoundIndex];
+  const myAnswer = room.yearGuessAnswers?.[playerId];
+  const answeredCount = Object.keys(room.yearGuessAnswers || {}).length;
+  const totalPlayers = room.players.length;
+  const [secondsLeft, setSecondsLeft] = useState(60);
+
+  useEffect(() => {
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil(60 - (Date.now() - (room.yearGuessRoundStartedAtMs || Date.now())) / 1000));
+      setSecondsLeft(remaining);
+    };
+    tick();
+    const t = setInterval(tick, 250);
+    return () => clearInterval(t);
+  }, [room.yearGuessRoundStartedAtMs]);
+
+  if (!song) return null;
+  const audioLeft = Math.max(0, Math.ceil(playCapSeconds - playElapsed));
+  const currentYear = new Date().getFullYear();
+
+  return (
+    <MobileSession className="mgv-yearguess-page">
+      <MobileHeader eyebrow={`RUNDA ${room.yearGuessRoundIndex + 1} / ${room.yearGuessSongs.length}`} title="ZGADNIJ ROK" onBack={onLeave} right={<span className={`mgv-live-pill ${secondsLeft <= 10 ? 'danger' : ''}`}><Clock3 size={13} />{secondsLeft}s</span>} />
+
+      <Panel className="mgv-audio-panel">
+        <MobileVinyl spinning={isPlaying} progress={playElapsed / playCapSeconds} />
+        <div className="mgv-hidden-player"><iframe key={`yg-${room.yearGuessRoundIndex}`} ref={iframeRef} title="yearguess-player" src={`https://www.youtube.com/embed/${song.videoId}?enablejsapi=1&autoplay=1&mute=1&start=${room.yearGuessStartSeconds}&controls=0&modestbranding=1&rel=0`} allow="autoplay; encrypted-media" /></div>
+        <button type="button" className="mgv-audio-cta" onClick={onTogglePlay}><Play size={19} fill="currentColor" />{isPlaying ? 'ODTWARZANIE' : 'ODTWÓRZ PONOWNIE'}<span>{audioLeft}s</span></button>
+      </Panel>
+
+      <Panel accent="pink">
+        <div className="mgv-section-title"><CalendarDays size={18} /><span>W KTÓRYM ROKU WYSZEDŁ TEN UTWÓR?</span></div>
+        {myAnswer ? (
+          <div className="mgv-waiting-host"><Check size={40} /><strong>ODPOWIEDŹ WYSŁANA: {myAnswer.year}</strong><p>Czekamy na pozostałych graczy ({answeredCount}/{totalPlayers})…</p></div>
+        ) : (
+          <>
+            <input
+              type="number"
+              inputMode="numeric"
+              className="mgv-year-input"
+              placeholder="np. 1994"
+              min="1900"
+              max={currentYear}
+              value={yearInput}
+              onChange={(e) => setYearInput(e.target.value)}
+            />
+            <button
+              type="button"
+              className="mgv-main-cta"
+              disabled={!yearInput || Number(yearInput) < 1900 || Number(yearInput) > currentYear}
+              onClick={() => onSubmit(Number(yearInput))}
+            >
+              <Check size={20} /> ZATWIERDŹ ODPOWIEDŹ
+            </button>
+            <p className="mgv-note">Uwaga: po zatwierdzeniu nie da się już zmienić odpowiedzi.</p>
+          </>
+        )}
+      </Panel>
+    </MobileSession>
+  );
+}
+
+export function MobileYearGuessResultView({ room, playerId, onLeave }) {
+  const last = room.yearGuessLastRound;
+  if (!last) return null;
+  const isLastRound = room.yearGuessRoundIndex >= room.yearGuessSongs.length - 1;
+  const sorted = [...last.results].sort((a, b) => (room.yearGuessScores[b.playerId] || 0) - (room.yearGuessScores[a.playerId] || 0));
+
+  return (
+    <MobileSession className="mgv-yearguess-page">
+      <MobileHeader eyebrow={`RUNDA ${room.yearGuessRoundIndex + 1} / ${room.yearGuessSongs.length}`} title="WYNIK RUNDY" onBack={onLeave} />
+
+      <Panel className="mgv-winner-panel" accent="gold">
+        <Music2 size={40} />
+        <span className="mgv-eyebrow">TO BYŁO</span>
+        <h1 style={{ fontSize: 22 }}>{last.song.artist} — {last.song.title}</h1>
+        <p>Rok wydania: <strong>{last.song.year}</strong></p>
+      </Panel>
+
+      <Panel>
+        <div className="mgv-section-title"><Trophy size={18} /><span>PUNKTACJA</span></div>
+        <div className="mgv-final-standing">
+          {sorted.map((r) => {
+            const totalNow = room.yearGuessScores[r.playerId] || 0;
+            const totalBefore = totalNow - r.points;
+            return (
+              <div key={r.playerId} className={r.playerId === playerId ? 'podium p1' : ''}>
+                <span className="mgv-avatar">{initials(r.name)}</span>
+                <strong>{r.name}</strong>
+                <small style={{ display: 'block', color: '#9d94b8', fontSize: 11 }}>
+                  {r.year === null ? 'brak odpowiedzi' : `typował ${r.year} · różnica ${r.diff} lat`}
+                </small>
+                <b>{totalBefore} <span style={{ color: r.points > 0 ? '#7dffef' : '#7a7288' }}>+{r.points}!</span></b>
+              </div>
+            );
+          })}
+        </div>
+      </Panel>
+
+      <p className="mgv-note" style={{ textAlign: 'center' }}>
+        {isLastRound ? 'To była ostatnia runda — za chwilę podsumowanie całej gry…' : 'Kolejna runda zaraz się zacznie…'}
+      </p>
     </MobileSession>
   );
 }
@@ -1142,7 +1264,9 @@ export function MobileGameOverView({ room, playerId, isHost, onPlayAgain, onLeav
   const [chatOpen, setChatOpen] = useState(false);
   const [playlistScope, setPlaylistScope] = useState('all');
   const winners = (room.winnerIds || []).map((id) => room.players.find((player) => player.id === id)).filter(Boolean);
-  const standings = [...room.players].sort((a, b) => (room.timelines?.[b.id]?.length || 0) - (room.timelines?.[a.id]?.length || 0));
+  const standings = room.yearGuessMode
+    ? [...room.players].sort((a, b) => (room.yearGuessScores?.[b.id] || 0) - (room.yearGuessScores?.[a.id] || 0))
+    : [...room.players].sort((a, b) => (room.timelines?.[b.id]?.length || 0) - (room.timelines?.[a.id]?.length || 0));
   const playedCards = Array.isArray(room.playedCards) ? room.playedCards : [];
   const visiblePlaylist = playlistScope === 'mine' ? playedCards.filter((card) => card.playerId === playerId) : playedCards;
   return (
@@ -1174,7 +1298,7 @@ export function MobileGameOverView({ room, playerId, isHost, onPlayAgain, onLeav
           ) : null}
         </Panel>
       ) : null}
-      <Panel><div className="mgv-section-title"><Crown size={18} /><span>KLASYFIKACJA</span></div><div className="mgv-final-standing">{standings.map((player, index) => <div key={player.id} className={index < 3 ? `podium p${index + 1}` : ''}><span>#{index + 1}</span><span className="mgv-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.name) : null}</span><strong>{player.name}</strong><b>{room.timelines?.[player.id]?.length || 0} kart</b></div>)}</div></Panel>
+      <Panel><div className="mgv-section-title"><Crown size={18} /><span>KLASYFIKACJA</span></div><div className="mgv-final-standing">{standings.map((player, index) => <div key={player.id} className={index < 3 ? `podium p${index + 1}` : ''}><span>#{index + 1}</span><span className="mgv-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.name) : null}</span><strong>{player.name}</strong><b>{room.yearGuessMode ? `${room.yearGuessScores?.[player.id] || 0} pkt` : `${room.timelines?.[player.id]?.length || 0} kart`}</b></div>)}</div></Panel>
       {playedCards.length > 0 ? (
         <Panel className="mgv-evening-playlist" accent="pink">
           <div className="mgv-playlist-head">

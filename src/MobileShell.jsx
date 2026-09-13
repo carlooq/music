@@ -361,6 +361,7 @@ function MobileHomeView(props) {
         <div className="mob-block-title"><Sparkles size={15} /> TRYBY GRY</div>
         <div className="mob-mode-grid">
           <MobileModeCard icon={glTrening} title="TRENING" desc="Ćwicz bez presji i poznawaj muzykę" tone="cyan" onClick={props.onPractice} />
+          <MobileModeCard icon={glTrening} title="ZGADNIJ ROK" desc="Wszyscy słuchają tego samego utworu i typują rok" tone="pink" locked={locked} onClick={requireUser(props.onYearGuess)} />
           <MobileModeCard icon={glHitRush} title="HIT RUSH" desc="Wcześniej czy później? Liczy się tempo" tone="green" locked={locked} onClick={requireUser(props.onHitRush)} />
           <MobileModeCard icon={glPiosenka} title="PIOSENKA DNIA" desc="Jedno wyzwanie dla wszystkich" tone="pink" locked={locked} onClick={requireUser(props.onDailySong)} />
           <MobileModeCard icon={glPlaylista} title="PLAYLISTA DNIA" desc="Codzienna playlista i ranking" tone="violet" locked={locked} onClick={requireUser(props.onDailyPlaylist)} />

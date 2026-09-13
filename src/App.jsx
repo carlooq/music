@@ -97,6 +97,8 @@ import { MobileAppView, MobileDailyRewardModal } from "./MobileShell.jsx";
 import {
   MobileLobbyView,
   MobileOpenerView,
+  MobileYearGuessView,
+  MobileYearGuessResultView,
   MobilePlayingView,
   MobilePracticeSetupView,
   MobilePracticeResultView,
@@ -2545,7 +2547,9 @@ export default function App() {
         });
         if (!shouldProcess) return;
 
-        const { items: xpItems, total: baseTotal } = computeGameEndXp(room, playerId);
+        const { items: xpItems, total: baseTotal } = room.yearGuessMode
+          ? computeYearGuessXp(room, playerId)
+          : computeGameEndXp(room, playerId);
         const before = await getStats(user.uid);
         const oldXp = before?.xp || 0;
         const hadDoubleXp = !!before?.doubleXpNextGame && baseTotal > 0;
@@ -2584,7 +2588,7 @@ export default function App() {
         updateAchievementCounters(user.uid, { won, perfectGame, opponents, playerCount: room.players.length, nightGame, frugalFinish }).catch(() => {});
 
         // HITCOIN + losowanie karty
-        const hcResult = computeGameEndHitcoin(room, playerId);
+        const hcResult = room.yearGuessMode ? computeYearGuessHitcoin(room, playerId) : computeGameEndHitcoin(room, playerId);
         if (hcResult.total) {
           await awardHitcoin(user.uid, hcResult.total);
           setMyHitcoin((prev) => (prev || 0) + hcResult.total);
@@ -3458,6 +3462,43 @@ export default function App() {
     }
   }
 
+  // Tworzenie pokoju dla trybu "Zgadnij Rok" — flaga ustawiona już od
+  // razu przy tworzeniu (nie dopiero przy starcie gry), żeby lobby
+  // wiedziało że ma pokazać inny ekran startu (bez wyboru liczby kart —
+  // ten tryb ma zawsze 15 stałych rund).
+  async function createYearGuessRoom() {
+    if (!user) {
+      setShowAuthForm(true);
+      setError("Zaloguj się lub załóż konto, aby tworzyć pokoje.");
+      return;
+    }
+    if (!name.trim()) return setError("Podaj swoje imię.");
+    setBusy(true);
+    setError("");
+    try {
+      checkQuickReturn(user.uid).catch(() => {});
+      const code = generateRoomCode();
+      const ref = doc(db, "rooms", code);
+      await setDoc(ref, {
+        code,
+        hostId: playerId,
+        status: "lobby",
+        yearGuessMode: true,
+        players: [{ id: playerId, uid: user?.uid || null, name: name.trim(), authed: !!user, avatarUrl: stats?.avatarUrl || null }],
+        winnerIds: [],
+        createdAt: serverTimestamp(),
+        expireAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        messages: [],
+        joinLocked: false,
+      });
+      setRoomId(code);
+    } catch (e) {
+      setError("Nie udało się stworzyć pokoju: " + e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function copyCode() {
     if (!roomId) return;
     navigator.clipboard?.writeText(roomId);
@@ -3619,6 +3660,235 @@ export default function App() {
     }
   }
 
+  // ============================================================
+  // TRYB "ZGADNIJ ROK" — osobny tryb multiplayer, ta sama baza utworów
+  // i system pokoi co zwykła gra. 15 stałych rund, każdy słucha tego
+  // samego utworu i wpisuje rok wydania.
+  // ============================================================
+  const YEAR_GUESS_ROUNDS = 15;
+
+  function computeYearGuessPoints(guessYear, actualYear) {
+    const diff = Math.abs(guessYear - actualYear);
+    if (diff === 0) return 5;
+    if (diff === 1) return 3;
+    if (diff <= 3) return 1;
+    return 0;
+  }
+
+  async function beginYearGuessGame() {
+    if (!room) return;
+    setBusy(true);
+    setError("");
+    const ref = doc(db, "rooms", roomId);
+    let joinLockHeld = false;
+    try {
+      const basePool = await getLiveLibraryPool();
+      const filterActive = !selectedCategories.includes("wszystkie") && selectedCategories.length > 0;
+      const pool = filterActive
+        ? basePool.filter((s) => normCategories(s.categories).some((c) => selectedCategories.includes(c)))
+        : basePool.filter((s) => !normCategories(s.categories).includes("religijne"));
+
+      let players = [];
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists()) throw new Error("Pokój już nie istnieje.");
+        const data = snap.data();
+        if (data.status !== "lobby" || data.joinLocked) throw new Error("Gra jest już uruchamiana albo została rozpoczęta.");
+        players = Array.isArray(data.players) ? data.players : [];
+        if (players.length < 2) throw new Error("Potrzeba minimum 2 graczy.");
+        tx.update(ref, { joinLocked: true });
+      });
+      joinLockHeld = true;
+
+      Object.keys(roomInviteSentTo).forEach((uid) => clearRoomInvite(uid, { fromUid: user?.uid, roomCode: roomId }).catch(() => {}));
+      setRoomInviteSentTo({});
+
+      if (pool.length < YEAR_GUESS_ROUNDS) {
+        const catNote = filterActive ? ` w wybranych kategoriach (${selectedCategories.join(", ")})` : "";
+        await updateDoc(ref, { joinLocked: false }).catch(() => {});
+        joinLockHeld = false;
+        setError(`Za mało utworów${catNote} (masz ${pool.length}, potrzeba ${YEAR_GUESS_ROUNDS}).`);
+        return;
+      }
+
+      const songs = shuffle(pool).slice(0, YEAR_GUESS_ROUNDS);
+      const scores = {};
+      players.forEach((p) => { scores[p.id] = 0; });
+
+      await updateDoc(ref, {
+        status: "yearGuess",
+        joinLocked: true,
+        yearGuessMode: true,
+        categories: [...selectedCategories],
+        gameSessionStartedAt: serverTimestamp(),
+        yearGuessSongs: songs,
+        yearGuessRoundIndex: 0,
+        yearGuessScores: scores,
+        yearGuessAnswers: {},
+        yearGuessStartSeconds: randomStartSeconds(),
+        yearGuessRoundStartedAtMs: Date.now(),
+        yearGuessLastRound: null,
+        yearGuessGameOver: false,
+        winnerIds: [],
+      });
+      joinLockHeld = false;
+    } catch (e) {
+      if (joinLockHeld) updateDoc(ref, { joinLocked: false }).catch(() => {});
+      setError(e.message || "Nie udało się rozpocząć gry.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Wspólna logika rozstrzygania rundy — wywoływana WEWNĄTRZ transakcji,
+  // więc bezpieczna niezależnie od tego, czy wyzwoli ją "wszyscy
+  // odpowiedzieli" (submitYearGuessAnswer) czy upłynięcie 60s
+  // (forceResolveYearGuessRound). Kolejny klient, który trafi na już
+  // rozstrzygniętą rundę, po prostu nic nie robi (status już nie "yearGuess").
+  function resolveYearGuessRoundInTx(tx, ref, data, answers) {
+    const song = data.yearGuessSongs[data.yearGuessRoundIndex];
+    const results = (data.players || []).map((p) => {
+      const answer = answers[p.id];
+      const guessYear = answer ? answer.year : null;
+      const points = guessYear === null ? 0 : computeYearGuessPoints(guessYear, song.year);
+      return { playerId: p.id, name: p.name, year: guessYear, diff: guessYear === null ? null : Math.abs(guessYear - song.year), points };
+    });
+    const newScores = { ...(data.yearGuessScores || {}) };
+    results.forEach((r) => { newScores[r.playerId] = (newScores[r.playerId] || 0) + r.points; });
+
+    const isLastRound = data.yearGuessRoundIndex >= (data.yearGuessSongs.length - 1);
+    const update = {
+      status: "yearGuessResult",
+      yearGuessAnswers: answers,
+      yearGuessScores: newScores,
+      yearGuessLastRound: { song, results },
+    };
+    if (isLastRound) {
+      const maxScore = Math.max(...Object.values(newScores));
+      update.winnerIds = Object.keys(newScores).filter((id) => newScores[id] === maxScore);
+      update.yearGuessGameOver = true;
+    }
+    tx.update(ref, update);
+  }
+
+  async function submitYearGuessAnswer(year) {
+    if (!room || room.status !== "yearGuess") return;
+    const ref = doc(db, "rooms", roomId);
+    try {
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const data = snap.data();
+        if (data.status !== "yearGuess") return; // runda już rozstrzygnięta
+        if (data.yearGuessAnswers?.[playerId]) return; // już odpowiedział — nie da się zmienić
+        const answers = { ...(data.yearGuessAnswers || {}), [playerId]: { year, submittedAt: Date.now() } };
+        const activeIds = (data.players || []).map((p) => p.id);
+        const allAnswered = activeIds.every((id) => answers[id]);
+        if (allAnswered) {
+          resolveYearGuessRoundInTx(tx, ref, data, answers);
+        } else {
+          tx.update(ref, { yearGuessAnswers: answers });
+        }
+      });
+    } catch (e) {
+      setError("Błąd zapisu odpowiedzi: " + e.message);
+    }
+  }
+
+  async function forceResolveYearGuessRound() {
+    if (!room || room.status !== "yearGuess") return;
+    const ref = doc(db, "rooms", roomId);
+    try {
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const data = snap.data();
+        if (data.status !== "yearGuess") return;
+        resolveYearGuessRoundInTx(tx, ref, data, data.yearGuessAnswers || {});
+      });
+    } catch (e) {}
+  }
+
+  async function advanceYearGuessRound() {
+    if (!room || room.status !== "yearGuessResult") return;
+    const ref = doc(db, "rooms", roomId);
+    try {
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const data = snap.data();
+        if (data.status !== "yearGuessResult") return;
+        if (data.yearGuessGameOver) {
+          tx.update(ref, { status: "gameover" });
+          return;
+        }
+        tx.update(ref, {
+          status: "yearGuess",
+          yearGuessRoundIndex: data.yearGuessRoundIndex + 1,
+          yearGuessAnswers: {},
+          yearGuessStartSeconds: randomStartSeconds(),
+          yearGuessRoundStartedAtMs: Date.now(),
+        });
+      });
+    } catch (e) {}
+  }
+
+  // 60s na rundę — jeśli czas minie zanim wszyscy odpowiedzą, KAŻDY klient
+  // (niezależnie) spróbuje rozstrzygnąć rundę; transakcja gwarantuje że
+  // faktycznie zrobi to tylko pierwszy, reszta trafi na już zmieniony status.
+  useEffect(() => {
+    if (!room || room.status !== "yearGuess" || !room.yearGuessRoundStartedAtMs) return;
+    const remaining = 60000 - (Date.now() - room.yearGuessRoundStartedAtMs);
+    if (remaining <= 0) { forceResolveYearGuessRound(); return; }
+    const t = setTimeout(() => forceResolveYearGuessRound(), remaining + 200);
+    return () => clearTimeout(t);
+  }, [room?.status, room?.yearGuessRoundIndex, room?.yearGuessRoundStartedAtMs]);
+
+  // 5s na obejrzenie wyniku rundy, potem automatycznie dalej (albo koniec gry)
+  useEffect(() => {
+    if (!room || room.status !== "yearGuessResult") return;
+    const t = setTimeout(() => advanceYearGuessRound(), 5000);
+    return () => clearTimeout(t);
+  }, [room?.status, room?.yearGuessRoundIndex]);
+
+  // XP/HITCOIN na tych samych zasadach co zwykła gra (30 za udział, wygrana
+  // wg tego samego wzoru skalowanego liczbą graczy, podium przy 3+ graczach)
+  // — ale bez bonusów specyficznych dla kart/tokenów, których ten tryb nie ma.
+  function computeYearGuessXp(gameRoom, forPlayerId) {
+    const items = [{ label: "🎮 Udział w grze", amount: 30 }];
+    const won = (gameRoom.winnerIds || []).includes(forPlayerId);
+    const winXp = Math.max(100, ((gameRoom.players || []).length - 1) * 100);
+    if (won) {
+      items.push({ label: `🏆 Wygrana (${gameRoom.players.length} graczy)`, amount: winXp });
+    } else if ((gameRoom.players || []).length >= 3) {
+      const winnerSet = new Set(gameRoom.winnerIds || []);
+      const ranked = Object.entries(gameRoom.yearGuessScores || {})
+        .filter(([id]) => !winnerSet.has(id))
+        .sort((a, b) => b[1] - a[1]);
+      const myRank = ranked.findIndex(([id]) => id === forPlayerId);
+      if (myRank === 0) items.push({ label: "🥈 2. miejsce", amount: Math.round(winXp / 2) });
+      else if (myRank === 1) items.push({ label: "🥉 3. miejsce", amount: Math.round(winXp / 4) });
+    }
+    const total = items.reduce((sum, it) => sum + it.amount, 0);
+    return { items, total };
+  }
+
+  function computeYearGuessHitcoin(gameRoom, forPlayerId) {
+    const items = [{ label: "🎮 Udział w grze", amount: 10 }];
+    const won = (gameRoom.winnerIds || []).includes(forPlayerId);
+    const winHc = Math.max(20, ((gameRoom.players || []).length - 1) * 20);
+    if (won) {
+      items.push({ label: `🏆 Wygrana (${gameRoom.players.length} graczy)`, amount: winHc });
+    } else if ((gameRoom.players || []).length >= 3) {
+      const winnerSet = new Set(gameRoom.winnerIds || []);
+      const ranked = Object.entries(gameRoom.yearGuessScores || {})
+        .filter(([id]) => !winnerSet.has(id))
+        .sort((a, b) => b[1] - a[1]);
+      const myRank = ranked.findIndex(([id]) => id === forPlayerId);
+      if (myRank === 0) items.push({ label: "🥈 2. miejsce", amount: Math.round(winHc / 2) });
+      else if (myRank === 1) items.push({ label: "🥉 3. miejsce", amount: Math.round(winHc / 4) });
+    }
+    const total = items.reduce((sum, it) => sum + it.amount, 0);
+    return { items, total };
+  }
+
   function togglePlay() {
     const win = iframeRef.current && iframeRef.current.contentWindow;
     const willPlay = !isPlaying;
@@ -3628,7 +3898,7 @@ export default function App() {
 
     if (willPlay) {
       setPlayElapsed(0);
-      const startAt = screen === "opener" ? room.openerStartSeconds : room.startSeconds;
+      const startAt = screen === "opener" ? room.openerStartSeconds : screen === "yearGuess" ? room.yearGuessStartSeconds : room.startSeconds;
       if (win) {
         win.postMessage(JSON.stringify({ event: "command", func: "seekTo", args: [startAt, true] }), "*");
         win.postMessage(JSON.stringify({ event: "command", func: "unMute", args: [] }), "*");
@@ -5626,6 +5896,7 @@ export default function App() {
         songPool={effectivePool}
         busy={busy}
         onStart={beginGame}
+        onStartYearGuess={beginYearGuessGame}
         onKick={(player) => {
           if (window.confirm(`Wyrzucić gracza ${player.name} z pokoju?`)) kickPlayer(player.id);
         }}
@@ -5654,6 +5925,32 @@ export default function App() {
         setOpenerLockedOut={setOpenerLockedOut}
         onAnswer={answerOpener}
         openerRevealCountdown={openerRevealCountdown}
+        onLeave={leaveRoom}
+      />
+    );
+  }
+
+  if (useMobileSessionViews && screen === "yearGuess" && room?.yearGuessSongs) {
+    return renderSessionUx(
+      <MobileYearGuessView
+        room={room}
+        playerId={playerId}
+        isPlaying={isPlaying}
+        playElapsed={playElapsed}
+        playCapSeconds={PLAY_CAP_SECONDS}
+        iframeRef={iframeRef}
+        onTogglePlay={togglePlay}
+        onSubmit={submitYearGuessAnswer}
+        onLeave={leaveRoom}
+      />
+    );
+  }
+
+  if (useMobileSessionViews && screen === "yearGuessResult" && room?.yearGuessLastRound) {
+    return renderSessionUx(
+      <MobileYearGuessResultView
+        room={room}
+        playerId={playerId}
         onLeave={leaveRoom}
       />
     );
@@ -5965,6 +6262,7 @@ export default function App() {
         onDailySong={openDailySong}
         onDailyPlaylist={openDailyPlaylistHub}
         onTournament={activeTournament ? openTournamentHub : undefined}
+        onYearGuess={createYearGuessRoom}
         activeTournament={activeTournament}
         lastCompletedTournament={lastCompletedTournament}
         weeklySummary={{ current: desktopCurrentWeekly, achievementClaimed: desktopAchievementClaimed }}
