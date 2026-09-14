@@ -3332,3 +3332,70 @@
   .desk-season-reward-ladder { grid-template-columns:repeat(4,minmax(105px,1fr)); }
 }
 .desk-season-claim-status { color:#77e7b6!important; font-weight:850; }
+
+/* =========================================================
+   v1.9.2 — HOME game modes: 6-up wide desktop layout
+   Keep the full HITSTERIADA card language, only compact it
+   enough to keep all six game modes in one clean row.
+   ========================================================= */
+@media (min-width: 1541px) {
+  .desk-modes-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .desk-mode-card {
+    min-height: 270px;
+    padding: 19px 13px 15px;
+  }
+
+  .desk-mode-icon {
+    width: 76px;
+    height: 76px;
+    margin: 0 auto 10px;
+  }
+
+  .desk-mode-title {
+    font-size: 36px;
+    line-height: .94;
+  }
+
+  .desk-mode-desc {
+    min-height: 48px;
+    max-width: 100%;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .desk-mode-footer {
+    gap: 6px;
+    padding-top: 8px;
+    font-size: 10px;
+  }
+
+  .desk-mode-footer > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .desk-mode-arrow {
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+  }
+
+  .desk-mode-badge,
+  .desk-mode-lock {
+    font-size: 11px;
+  }
+}
+
+/* Intermediate desktop/laptop width: avoid a lonely last tile,
+   but don't force six cards into a space that is too narrow. */
+@media (min-width: 1361px) and (max-width: 1540px) {
+  .desk-modes-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+  }
+}
