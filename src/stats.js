@@ -82,6 +82,8 @@ export async function ensureStatsDoc(uid, username) {
       cardCollection: {},
       cardsByRarity: {},
       duplicatesSold: 0,
+      tournamentsWon: 0,
+      tournamentRewardClaims: {},
       lastDailyHitcoinDate: "",
     });
   } else if (username && snap.data().username !== username) {

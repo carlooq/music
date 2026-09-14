@@ -374,6 +374,7 @@ export function DesktopPlayerProfileModal({ profile, onClose, levelFromXp }) {
           <div><span>ZGADNIĘTE TYTUŁY / WYKONAWCY</span><strong>{formatCompact(playerStats.guessesCorrect || 0)}</strong></div>
           <div><span>PLAYLISTA DNIA</span><strong>{formatCompact(playerStats.playlistTotalScore || 0)} pkt</strong></div>
           <div><span>HIT RUSH</span><strong>{formatCompact(playerStats.hitRushBestScore || 0)} pkt</strong></div>
+          <div><span>WYGRANE TURNIEJE</span><strong>{formatCompact(playerStats.tournamentsWon || 0)} 🏆</strong></div>
         </div>
 
         <section className="desk-profile-collection">
@@ -1020,6 +1021,7 @@ export function DesktopStatsView(props) {
               <StatMetric icon={<Users size={22} />} value={formatCompact(stats?.guessesCorrect || 0)} label="ODGADNIĘTE WYKONAWCY" accent="violet" />
               <StatMetric icon={<AudioWaveform size={22} />} value={`${formatCompact(stats?.heardSongs?.length || 0)} / ${songPoolSize}`} label="PRZESŁUCHANE PIOSENKI" accent="cyan" />
               <StatMetric icon={<ListMusic size={22} />} value={`${formatCompact(stats?.guessedSongs?.length || 0)} / ${songPoolSize}`} label="ODGADNIĘTE PIOSENKI" accent="pink" />
+              <StatMetric icon={<Trophy size={22} />} value={formatCompact(stats?.tournamentsWon || 0)} label="WYGRANE TURNIEJE" accent="gold" />
               <StatMetric icon={<Coins size={22} />} value={formatCompact(stats?.songsAdded || 0)} label="DODANE DO BAZY" accent="violet" />
             </div>
           </section>

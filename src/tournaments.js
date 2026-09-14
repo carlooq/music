@@ -5,6 +5,7 @@ import { pushRewardNotice } from "./stats.js";
 const COLLECTION = "tournaments";
 const SCORED_COUNT = 10; // tyle kart faktycznie się ocenia w każdym meczu — pierwsza karta "wchodzi za darmo" (bez punktu odniesienia), dokładnie jak w Playliście dnia
 const MATCH_DEADLINE_MS = 24 * 60 * 60 * 1000; // 24h na rozegranie swojej tury
+const ONE_HOUR_MS = 60 * 60 * 1000;
 
 function shuffle(arr) {
   const a = [...arr];
@@ -98,7 +99,7 @@ export async function fetchTournament(tournamentId) {
 
 // --- Zapisy i start drabinki ---
 
-export async function signUpForTournament(tournamentId, uid, name, pool) {
+export async function signUpForTournament(tournamentId, uid, name, pool, avatarUrl = null) {
   const ref = doc(db, COLLECTION, tournamentId);
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
@@ -106,10 +107,10 @@ export async function signUpForTournament(tournamentId, uid, name, pool) {
     const data = snap.data();
     if (data.status !== "signup") throw new Error("Zapisy do tego turnieju są już zamknięte.");
     if (data.signups.some((p) => p.uid === uid)) return; // już zapisany, nic nie rób
-    const newSignups = [...data.signups, { uid, name }];
+    const newSignups = [...data.signups, { uid, name, avatarUrl: avatarUrl || null }];
     if (newSignups.length >= data.maxPlayers) {
       const round = buildRound(newSignups, pool, 1);
-      tx.update(ref, { signups: newSignups, status: "active", rounds: [round] });
+      tx.update(ref, { signups: newSignups, status: "active", rounds: [round], startedAt: Date.now() });
     } else {
       tx.update(ref, { signups: newSignups });
     }
@@ -196,37 +197,79 @@ export async function checkAndAdvanceTournament(tournamentId, pool) {
   });
 }
 
-// --- Rozliczenie XP na koniec turnieju (leniwe, zabezpieczone przez settledAt) ---
-
-export async function settleTournamentXpIfNeeded(tournamentId) {
-  const ref = doc(db, COLLECTION, tournamentId);
-  let toSettle = null;
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref);
-    if (!snap.exists()) return;
-    const data = snap.data();
-    if (data.status !== "completed" || data.settledAt) return;
-    tx.update(ref, { settledAt: Date.now() });
-    toSettle = data;
-  });
-  if (!toSettle) return;
-
-  const pot = (toSettle.signups.length - 1) * toSettle.entryFee;
-  for (const p of toSettle.signups) {
-    const statsRef = doc(db, "userStats", p.uid);
-    if (p.uid === toSettle.winnerUid) {
-      await updateDoc(statsRef, { xp: increment(pot) }).catch(() => {});
-      pushRewardNotice(p.uid, { source: "tournament", place: 1, xp: pot, hitcoin: 0, label: "Turniej" }).catch(() => {});
-    } else {
-      try {
-        const statsSnap = await getDoc(statsRef);
-        const currentXp = statsSnap.exists() ? statsSnap.data().xp || 0 : 0;
-        await updateDoc(statsRef, { xp: Math.max(0, currentXp - toSettle.entryFee) });
-      } catch (e) {
-        // ciche niepowodzenie
-      }
-    }
-  }
+// Stan turniejowy konkretnego użytkownika. Używany wspólnie przez mobile, desktop
+// oraz system przypomnień, żeby uniknąć rozjazdu logiki między widokami.
+export function getTournamentUserState(tournament, uid, now = Date.now()) {
+  const signups = tournament?.signups || [];
+  const signedUp = !!uid && signups.some((player) => player.uid === uid);
+  const rounds = tournament?.rounds || [];
+  const currentRound = rounds.length ? rounds[rounds.length - 1] : null;
+  const match = currentRound?.matches?.find((item) => item.player1?.uid === uid || item.player2?.uid === uid) || null;
+  const myResult = !match ? null : match.player1?.uid === uid ? match.player1Result : match.player2Result;
+  const opponent = !match ? null : match.player1?.uid === uid ? match.player2 : match.player1;
+  const deadline = Number(match?.deadline || 0);
+  const msLeft = deadline ? Math.max(0, deadline - now) : null;
+  const canPlay = !!(tournament?.status === "active" && match && opponent && !match.winnerUid && !myResult);
+  const waiting = !!(match && myResult && !match.winnerUid);
+  const wonMatch = !!(match?.winnerUid && match.winnerUid === uid);
+  const eliminated = !!(match?.winnerUid && match.winnerUid !== uid && (match.player1?.uid === uid || match.player2?.uid === uid));
+  return { signedUp, currentRound, roundNumber: currentRound?.roundNumber || null, match, myResult, opponent, deadline, msLeft, canPlay, waiting, wonMatch, eliminated, urgent: canPlay && msLeft !== null && msLeft <= ONE_HOUR_MS };
 }
 
-export { pickMatchPlaylist };
+export function tournamentTimeLeftLabel(msLeft) {
+  if (msLeft === null || msLeft === undefined) return "—";
+  if (msLeft <= 0) return "czas minął";
+  const totalMinutes = Math.max(1, Math.ceil(msLeft / 60000));
+  if (totalMinutes < 60) return `${totalMinutes} min`;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes ? `${hours} h ${minutes} min` : `${hours} h`;
+}
+
+// --- Rozliczenie XP na koniec turnieju ---
+// Każdy gracz dostaje własny marker rozliczenia w userStats. Dzięki temu
+// przerwanie przeglądarki w połowie nie powoduje ani podwójnej wypłaty, ani
+// utraty nagrody. settledAt ustawiamy dopiero po przejściu wszystkich graczy.
+export async function settleTournamentXpIfNeeded(tournamentId) {
+  const ref = doc(db, COLLECTION, tournamentId);
+  const tournamentSnap = await getDoc(ref);
+  if (!tournamentSnap.exists()) return;
+  const data = tournamentSnap.data();
+  if (data.status !== "completed" || data.settledAt) return;
+
+  const pot = Math.max(0, ((data.signups || []).length - 1) * Number(data.entryFee || 0));
+  for (const player of data.signups || []) {
+    const statsRef = doc(db, "userStats", player.uid);
+    let granted = false;
+    let winnerGranted = false;
+    await runTransaction(db, async (tx) => {
+      const statsSnap = await tx.get(statsRef);
+      if (!statsSnap.exists()) return;
+      const stats = statsSnap.data();
+      const claims = { ...(stats.tournamentRewardClaims || {}) };
+      if (claims[tournamentId]) return;
+      const isWinner = player.uid === data.winnerUid;
+      const currentXp = Number(stats.xp || 0);
+      const nextXp = isWinner ? currentXp + pot : Math.max(0, currentXp - Number(data.entryFee || 0));
+      claims[tournamentId] = {
+        tournamentId,
+        won: isWinner,
+        xpDelta: isWinner ? pot : -Math.min(currentXp, Number(data.entryFee || 0)),
+        settledAt: Date.now(),
+      };
+      tx.update(statsRef, {
+        xp: nextXp,
+        tournamentRewardClaims: claims,
+        ...(isWinner ? { tournamentsWon: Number(stats.tournamentsWon || 0) + 1 } : {}),
+      });
+      granted = true;
+      winnerGranted = isWinner;
+    });
+    if (granted && winnerGranted) {
+      pushRewardNotice(player.uid, { source: "tournament", place: 1, xp: pot, hitcoin: 0, label: "Zwycięstwo w turnieju" }).catch(() => {});
+    }
+  }
+  await updateDoc(ref, { settledAt: Date.now() }).catch(() => {});
+}
+
+export { pickMatchPlaylist, MATCH_DEADLINE_MS };

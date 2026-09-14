@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
+  Bell,
+  BellRing,
   CalendarDays,
   Check,
   ChevronRight,
@@ -36,6 +38,8 @@ import glTrening from './assets/icons/gl-trening.png';
 import glHitRush from './assets/icons/gl-hitrush.png';
 import glKorona from './assets/icons/gl-korona.png';
 import glPrezent from './assets/icons/gl-prezent.png';
+import glTurniej from './assets/icons/gl-turniej.png';
+import { getTournamentUserState, tournamentTimeLeftLabel } from './tournaments.js';
 import { DesktopPlayerProfileModal } from './DesktopShell.jsx';
 
 function initials(label) {
@@ -98,6 +102,111 @@ function PlayerBadge({ player, hostId, myId, level, active, score, tokenCount, o
   );
 }
 
+
+function DesktopTournamentPlayer({ player, me, winner, result }) {
+  if (!player) return <div className="dgv-tournament-player bye"><span className="dgv-player-avatar">—</span><div><strong>WOLNY LOS</strong><small>automatyczny awans</small></div></div>;
+  return (
+    <div className={`dgv-tournament-player ${me ? 'me' : ''} ${winner ? 'winner' : ''}`}>
+      <div className="dgv-player-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.name || player.username) : null}</div>
+      <div className="dgv-tournament-player-copy"><strong>{player.name || player.username || 'Gracz'}</strong><small>{me ? 'TY' : winner ? 'ZWYCIĘZCA MECZU' : 'GRACZ'}</small></div>
+      {result ? <b className="dgv-tournament-score">{result.score}/10</b> : null}
+    </div>
+  );
+}
+
+export function DesktopTournamentHubView({ tournament, lastCompleted, user, busy, tournamentBusy, notificationPermission, onEnableNotifications, onSignUp, onStartMatch, onHome, onRefresh }) {
+  const currentUid = user?.uid;
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 30000);
+    return () => window.clearInterval(id);
+  }, []);
+  const signups = tournament?.signups || [];
+  const alreadyIn = !!currentUid && signups.some((player) => player.uid === currentUid);
+  const status = tournament?.status || 'none';
+  const entryFee = Number(tournament?.entryFee || 0);
+  const pot = Math.max(0, (signups.length - 1) * entryFee);
+  const state = getTournamentUserState(tournament, currentUid, now);
+  const notificationReady = notificationPermission === 'granted';
+  const winner = tournament?.winnerUid ? signups.find((player) => player.uid === tournament.winnerUid) : null;
+
+  if (!tournament) {
+    const previousWinner = lastCompleted?.winnerUid ? (lastCompleted.signups || []).find((player) => player.uid === lastCompleted.winnerUid) : null;
+    return (
+      <SessionBackground className="dgv-tournament-page">
+        <div className="dgv-shell dgv-tournament-shell">
+          <SessionHeader eyebrow="TRYB PREMIUM" title="TURNIEJ" onBack={onHome} />
+          <section className="dgv-tournament-hero empty">
+            <img src={glTurniej} alt="" />
+            <div><span>TURNIEJ HITSTERIADY</span><h1>CZEKAJ NA KOLEJNY START</h1><p>Aktualnie nie ma aktywnego turnieju. Gdy pojawi się nowy, zapiszesz się tutaj i rozpoczniesz walkę w drabince.</p></div>
+          </section>
+          {previousWinner ? <section className="dgv-panel dgv-tournament-last"><Trophy size={28}/><div><span>OSTATNI ZWYCIĘZCA</span><strong>{previousWinner.name || 'Gracz'}</strong></div></section> : null}
+          <div className="dgv-tournament-actions"><button className="dgv-primary-button gold" onClick={onRefresh}>ODŚWIEŻ TURNIEJ</button><button className="dgv-ghost-button" onClick={onHome}>STRONA GŁÓWNA</button></div>
+        </div>
+      </SessionBackground>
+    );
+  }
+
+  return (
+    <SessionBackground className="dgv-tournament-page">
+      <div className="dgv-shell dgv-tournament-shell">
+        <SessionHeader eyebrow="TRYB PREMIUM" title="TURNIEJ" onBack={onHome} right={<div className="dgv-tournament-entry"><Trophy size={17}/>{entryFee} XP WPISOWEGO</div>} />
+
+        <section className={`dgv-tournament-hero status-${status}`}>
+          <img src={glTurniej} alt="" />
+          <div className="dgv-tournament-hero-copy">
+            <span>{status === 'signup' ? 'TRWAJĄ ZAPISY' : status === 'active' ? 'DRABINKA AKTYWNA' : 'TURNIEJ ZAKOŃCZONY'}</span>
+            <h1>{status === 'signup' ? 'WEJDŹ DO GRY' : status === 'active' ? 'WALCZ O FINAŁ' : 'MAMY ZWYCIĘZCĘ'}</h1>
+            <p>{status === 'signup' ? 'Zapisz się, zarezerwuj miejsce w drabince i walcz o pulę XP.' : status === 'active' ? 'Każdy mecz to ta sama playlista dla obu zawodników. Wygrywa lepszy wynik, a przy remisie — szybszy czas.' : 'Drabinka została rozstrzygnięta. Zobacz wynik i zwycięzcę.'}</p>
+            <div className="dgv-tournament-hero-chips"><span><Users size={16}/>{signups.length}/{tournament.maxPlayers || '—'} graczy</span><span><Zap size={16}/>{pot} XP puli</span><span><Music2 size={16}/>10 ocenianych utworów</span></div>
+          </div>
+          <div className="dgv-tournament-premium-mark"><Crown size={22}/><strong>PREMIUM</strong><span>BRACKET MODE</span></div>
+        </section>
+
+        <section className={`dgv-panel dgv-tournament-my-status ${state.urgent ? 'urgent' : ''}`}>
+          <div className="dgv-tournament-status-copy">
+            <span>TWÓJ STATUS</span>
+            <strong>{status === 'signup' ? (alreadyIn ? 'ZAPISANY · CZEKASZ NA START' : 'MOŻESZ DOŁĄCZYĆ') : state.canPlay ? 'TWÓJ MECZ JEST GOTOWY' : state.waiting ? 'WYNIK ZAPISANY · CZEKASZ' : state.wonMatch ? 'AWANSUJESZ DO KOLEJNEJ RUNDY' : state.eliminated ? 'TWÓJ UDZIAŁ SIĘ ZAKOŃCZYŁ' : 'ŚLEDŹ DRABINKĘ'}</strong>
+            <small>{state.opponent ? `Przeciwnik: ${state.opponent.name || 'Gracz'} · Runda ${state.roundNumber || '—'}` : status === 'signup' ? 'Turniej rusza automatycznie po zapełnieniu listy.' : 'Otwórz drabinkę, aby śledzić kolejne mecze.'}</small>
+          </div>
+          {status === 'active' && state.deadline ? <div className={`dgv-tournament-deadline ${state.urgent ? 'urgent' : ''}`}><Clock3 size={18}/><span>CZAS NA MECZ</span><strong>{tournamentTimeLeftLabel(state.msLeft)}</strong></div> : null}
+          <button type="button" className={`dgv-tournament-notify ${notificationReady ? 'enabled' : ''}`} onClick={onEnableNotifications} disabled={notificationPermission === 'unsupported'}>{notificationReady ? <BellRing size={18}/> : <Bell size={18}/>}<span>{notificationPermission === 'unsupported' ? 'POWIADOMIENIA NIEDOSTĘPNE' : notificationPermission === 'denied' ? 'POWIADOMIENIA ZABLOKOWANE' : notificationReady ? 'POWIADOMIENIA WŁĄCZONE' : 'WŁĄCZ POWIADOMIENIA'}</span></button>
+        </section>
+
+        {status === 'signup' ? (
+          <div className="dgv-tournament-signup-grid">
+            <section className="dgv-panel dgv-tournament-roster">
+              <div className="dgv-section-heading"><Users size={18}/> LISTA GRACZY <span>{signups.length}/{tournament.maxPlayers || '—'}</span></div>
+              <div className="dgv-tournament-player-grid">{signups.length ? signups.map((player)=><DesktopTournamentPlayer key={player.uid} player={player} me={player.uid===currentUid}/>) : <div className="dgv-tournament-empty">Jeszcze nikt się nie zapisał.</div>}</div>
+            </section>
+            <section className="dgv-panel dgv-tournament-rules">
+              <div className="dgv-section-heading"><Shield size={18}/> ZASADY PREMIUM</div>
+              <div><Trophy size={20}/><span><strong>WPISOWE</strong><small>{entryFee} XP ryzyka</small></span></div>
+              <div><Zap size={20}/><span><strong>PULA</strong><small>Zwycięzca przejmuje XP przegranych</small></span></div>
+              <div><Music2 size={20}/><span><strong>MECZ</strong><small>10 utworów, identyczna playlista dla pary</small></span></div>
+              {alreadyIn ? <div className="dgv-tournament-ready"><Check size={18}/> JESTEŚ ZAPISANY</div> : <button type="button" className="dgv-primary-button gold" disabled={tournamentBusy} onClick={onSignUp}>{tournamentBusy ? 'ZAPISUJĘ…' : `ZAPISZ SIĘ · ${entryFee} XP`}</button>}
+            </section>
+          </div>
+        ) : null}
+
+        {status === 'active' ? <div className="dgv-tournament-round-list">{(tournament.rounds || []).map((round)=><section key={round.roundNumber} className="dgv-panel dgv-tournament-round"><div className="dgv-section-heading"><Trophy size={18}/>{round.matches?.length===1?'FINAŁ':`RUNDA ${round.roundNumber}`}<span>{round.matches?.length || 0} mecz.</span></div><div className="dgv-tournament-match-grid">{(round.matches||[]).map((match)=>{ const p1=match.player1,p2=match.player2; const mine=!!currentUid&&(p1?.uid===currentUid||p2?.uid===currentUid); const myResult=p1?.uid===currentUid?match.player1Result:match.player2Result; const canPlay=mine&&!match.winnerUid&&!myResult&&!!p2; const waiting=mine&&!!myResult&&!match.winnerUid; return <article key={match.matchId} className={`dgv-tournament-match ${mine?'mine':''} ${match.winnerUid?'done':''}`}><DesktopTournamentPlayer player={p1} me={p1?.uid===currentUid} winner={match.winnerUid===p1?.uid} result={match.player1Result}/><div className="dgv-tournament-vs">VS</div><DesktopTournamentPlayer player={p2} me={p2?.uid===currentUid} winner={match.winnerUid===p2?.uid} result={match.player2Result}/>{canPlay?<button className="dgv-primary-button gold compact" disabled={busy} onClick={()=>onStartMatch(match,round.roundNumber)}><Play size={17} fill="currentColor"/> ZAGRAJ SWÓJ MECZ</button>:null}{waiting?<div className="dgv-tournament-wait"><Clock3 size={16}/>Twój wynik zapisany — czekamy na przeciwnika.</div>:null}{mine&&match.winnerUid?<div className={`dgv-tournament-verdict ${match.winnerUid===currentUid?'good':'bad'}`}>{match.winnerUid===currentUid?'AWANSUJESZ':'KONIEC UDZIAŁU'}</div>:null}</article>; })}</div></section>)}</div> : null}
+
+        {status === 'completed' ? <section className="dgv-panel dgv-tournament-winner"><Trophy size={58}/><span>ZWYCIĘZCA TURNIEJU</span><h1>{winner?.name || 'GRACZ'}</h1><p>{winner?.uid===currentUid?`Wygrywasz turniej i pulę ${pot} XP!`:`Turniej zakończony. Wpisowe wynosiło ${entryFee} XP.`}</p></section> : null}
+
+        {status !== 'completed' ? <div className="dgv-tournament-footer-actions"><button className="dgv-ghost-button" onClick={onRefresh} disabled={tournamentBusy}>ODŚWIEŻ DANE TURNIEJU</button></div> : <div className="dgv-tournament-footer-actions"><button className="dgv-primary-button gold" onClick={onHome}>STRONA GŁÓWNA</button></div>}
+      </div>
+    </SessionBackground>
+  );
+}
+
+export function DesktopTournamentMatchResultView({ room, playerId, onTournamentBack, onLeave }) {
+  const played=(room.playedCards||[]).filter((card)=>card.playerId===playerId);
+  const score=played.filter((card)=>card.correct).length;
+  const wrong=Math.max(0,played.length-score);
+  const times=room.decisionTimes?.[playerId]||[];
+  const avg=times.length?Math.round(times.reduce((sum,value)=>sum+value,0)/times.length/1000):null;
+  return <SessionBackground className="dgv-tournament-result-page"><div className="dgv-shell dgv-tournament-result-shell"><SessionHeader eyebrow="TURNIEJ PREMIUM" title="MECZ ZAKOŃCZONY" onBack={onLeave} backLabel="Opuść" right={<div className="dgv-tournament-entry"><Trophy size={17}/>RUNDA {room.tournamentRoundNumber||'—'}</div>}/><section className="dgv-tournament-result-hero"><img src={glTurniej} alt=""/><div><span>TWÓJ WYNIK</span><h1>{score}<em>/10</em></h1><p>Wynik został zapisany do drabinki. Przy remisie o awansie decyduje krótszy łączny czas odpowiedzi.</p></div></section><div className="dgv-tournament-result-metrics"><div><Check size={21}/><span>TRAFIENIA</span><strong>{score}</strong></div><div><X size={21}/><span>POMYŁKI</span><strong>{wrong}</strong></div><div><Clock3 size={21}/><span>ŚR. CZAS</span><strong>{avg!==null?`${avg}s`:'—'}</strong></div><div><Trophy size={21}/><span>RUNDA</span><strong>{room.tournamentRoundNumber||'—'}</strong></div></div><section className="dgv-panel dgv-tournament-result-note"><Trophy size={22}/><div><strong>WRÓĆ DO DRABINKI</strong><span>Jeśli przeciwnik jeszcze nie zagrał, zobaczysz oczekiwanie. Jeśli mecz jest już rozstrzygnięty, zobaczysz od razu awans lub zakończenie udziału.</span></div></section><div className="dgv-tournament-actions"><button className="dgv-primary-button gold" onClick={onTournamentBack}>WRÓĆ DO TURNIEJU</button><button className="dgv-ghost-button" onClick={onLeave}>OPUŚĆ</button></div></div></SessionBackground>;
+}
 
 function hitRushDifficultyMeta(key) {
   return {
@@ -801,7 +910,7 @@ function ResultOverlay({ room, advanceCountdown }) {
         <div className="dgv-result-v3-countdown">
           <div className="dgv-result-v3-countdown-label">
             <Clock3 size={19} />
-            <span>{room.practiceMode ? 'KOLEJNY UTWÓR ZA' : 'KOLEJNA TURA ZA'}</span>
+            <span>{room.tournamentMode ? 'KOLEJNY UTWÓR MECZU ZA' : room.practiceMode ? 'KOLEJNY UTWÓR ZA' : 'KOLEJNA TURA ZA'}</span>
           </div>
           <strong>{advanceCountdown ?? 5}</strong>
           <em>SEK.</em>
@@ -811,7 +920,7 @@ function ResultOverlay({ room, advanceCountdown }) {
           <section className="dgv-result-timeline dgv-result-v3-timeline">
             <div className="dgv-result-timeline-head">
               <div>
-                <div className="dgv-eyebrow">{room.practiceMode ? 'TWOJA OŚ CZASU' : `OŚ CZASU · ${ownerName}`}</div>
+                <div className="dgv-eyebrow">{room.tournamentMode ? 'TWOJA OŚ TURNIEJOWA' : room.practiceMode ? 'TWOJA OŚ CZASU' : `OŚ CZASU · ${ownerName}`}</div>
                 <strong>PO TEJ RUNDZIE</strong>
               </div>
               <span>{ownerTimeline.length} / {room.target}</span>
@@ -893,9 +1002,9 @@ export function DesktopPlayingView({
   onSendChat,
 }) {
   const [chatOpen, setChatOpen] = useState(false);
-  const modeLabel = room.dailyPlaylistMode ? 'PLAYLISTA DNIA' : room.practiceMode ? 'TRENING' : room.tournamentMode ? 'TURNIEJ' : 'ROZGRYWKA';
+  const modeLabel = room.dailyPlaylistMode ? 'PLAYLISTA DNIA' : room.tournamentMode ? 'TURNIEJ' : room.practiceMode ? 'TRENING' : 'ROZGRYWKA';
   const currentTokens = room.tokens?.[playerId] || 0;
-  const turnName = room.practiceMode ? 'TRENING SOLO' : isMyTurn ? 'TWOJA KOLEJ!' : turnPlayerName || 'TURA GRACZA';
+  const turnName = room.tournamentMode ? 'MECZ TURNIEJOWY' : room.practiceMode ? 'TRENING SOLO' : isMyTurn ? 'TWOJA KOLEJ!' : turnPlayerName || 'TURA GRACZA';
   const practicePlayed = room.practiceMode ? (room.playedCards || []).filter((card) => card.playerId === playerId) : [];
   const practiceCorrect = practicePlayed.filter((card) => card.correct).length;
   const practiceWrong = practicePlayed.filter((card) => !card.correct).length;
@@ -1010,17 +1119,17 @@ export function DesktopPlayingView({
             ) : null}
 
             {room.practiceMode ? (
-              <section className="dgv-panel dgv-practice-progress-panel dgv-v3-progress-panel">
-                <div className="dgv-section-heading"><Zap size={18} /> POSTĘP TRENINGU</div>
+              <section className={`dgv-panel dgv-practice-progress-panel dgv-v3-progress-panel ${room.tournamentMode ? 'tournament' : ''}`}>
+                <div className="dgv-section-heading"><Zap size={18} /> {room.tournamentMode ? 'WYNIK MECZU TURNIEJOWEGO' : 'POSTĘP TRENINGU'}</div>
                 <div className="dgv-practice-progress-main">
-                  <strong>{(room.timelines?.[playerId] || []).length}</strong><span>/ {room.target} kart</span>
+                  <strong>{room.tournamentMode ? practicePlayed.length : (room.timelines?.[playerId] || []).length}</strong><span>/ {room.tournamentMode ? 10 : room.target} {room.tournamentMode ? 'utworów' : 'kart'}</span>
                 </div>
-                <div className="dgv-practice-progress-bar"><span style={{ width: `${Math.min(100, ((room.timelines?.[playerId] || []).length / Math.max(1, room.target)) * 100)}%` }} /></div>
+                <div className="dgv-practice-progress-bar"><span style={{ width: `${Math.min(100, room.tournamentMode ? (practicePlayed.length / 10) * 100 : ((room.timelines?.[playerId] || []).length / Math.max(1, room.target)) * 100)}%` }} /></div>
                 <div className="dgv-practice-mini-stats">
                   <div className="good"><Check size={18} /><span>Trafienia</span><strong>{practiceCorrect}</strong></div>
                   <div className="bad"><X size={18} /><span>Pomyłki</span><strong>{practiceWrong}</strong></div>
                 </div>
-                <div className="dgv-v3-tip"><Sparkles size={16} /> Liczy się tylko poprawne miejsce na osi czasu.</div>
+                <div className="dgv-v3-tip"><Sparkles size={16} /> {room.tournamentMode ? '10 utworów · przy remisie liczy się łączny czas odpowiedzi.' : 'Liczy się tylko poprawne miejsce na osi czasu.'}</div>
               </section>
             ) : (
               <section className="dgv-panel dgv-score-panel dgv-v3-score-panel">

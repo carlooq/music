@@ -592,6 +592,7 @@ function MobileStatsView(props) {
           <div className="mob-metric cyan"><Users size={18} /><strong>{compact(props.stats?.guessesCorrect || 0)}</strong><span>Odgadnięci wykonawcy</span></div>
           <div className="mob-metric cyan"><Music2 size={18} /><strong>{compact(props.stats?.heardSongs?.length || 0)} / {compact(props.songPoolSize)}</strong><span>Przesłuchane piosenki</span></div>
           <div className="mob-metric pink"><Music2 size={18} /><strong>{compact(props.stats?.guessedSongs?.length || 0)} / {compact(props.songPoolSize)}</strong><span>Odgadnięte piosenki</span></div>
+          <div className="mob-metric gold"><Trophy size={18} /><strong>{compact(props.stats?.tournamentsWon || 0)}</strong><span>Wygrane turnieje</span></div>
           <div className="mob-metric violet"><Sparkles size={18} /><strong>{compact(props.stats?.songsAdded || 0)}</strong><span>Dodane do bazy</span></div>
         </div>
       </section>
@@ -1266,6 +1267,7 @@ function MobileProfileSheet({ profile, onClose, levelFromXp }) {
         <div className="mob-profile-secondary">
           <div><span>PLAYLISTA DNIA</span><strong>{compact(data.playlistTotalScore || 0)} pkt</strong></div>
           <div><span>HIT RUSH</span><strong>{compact(data.hitRushBestScore || 0)} pkt</strong></div>
+          <div><span>WYGRANE TURNIEJE</span><strong>{compact(data.tournamentsWon || 0)} 🏆</strong></div>
           <div><span>DODANE DO BAZY</span><strong>{compact(data.songsAdded || 0)}</strong></div>
         </div>
 

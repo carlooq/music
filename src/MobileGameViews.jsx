@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
+  Bell,
+  BellRing,
   CalendarDays,
   Check,
   ChevronRight,
@@ -42,6 +44,7 @@ import cardZlotoImg from './assets/icons/card-zlota.webp';
 import cardPlatynaImg from './assets/icons/card-platynowa.webp';
 import cardDiamentImg from './assets/icons/card-diamentowa.webp';
 import { effectiveRarity } from './cards.js';
+import { getTournamentUserState, tournamentTimeLeftLabel } from './tournaments.js';
 
 function initials(label) {
   const raw = String(label || 'G').trim();
@@ -738,10 +741,10 @@ function MobileRoundResult({ room, advanceCountdown }) {
         <div className="mgv-result-status"><span>{placementGood ? <Check size={25} /> : <X size={25} />}</span><strong>{headline}</strong></div>
         <div className="mgv-reveal-card"><small>POPRAWNA ODPOWIEDŹ</small><b>{result.card.year}</b><strong>{result.card.title}</strong><span>{result.card.artist}</span></div>
         {!room.practiceMode && !room.dailyPlaylistMode && result.tokenAwarded !== undefined ? <div className={`mgv-token-result ${result.tokenAwarded ? 'good' : 'bad'}`}><Headphones size={17} /><span>{result.tokenAwarded ? '+1 TOKEN ZA TYTUŁ I WYKONAWCĘ' : 'BEZ TOKENA W TEJ RUNDZIE'}</span></div> : null}
-        <div className="mgv-result-countdown"><Clock3 size={18} /><span>{room.practiceMode ? 'KOLEJNY UTWÓR' : 'KOLEJNA TURA'}</span><strong>{advanceCountdown ?? 5}</strong><em>sek.</em></div>
+        <div className="mgv-result-countdown"><Clock3 size={18} /><span>{room.tournamentMode ? 'KOLEJNY UTWÓR MECZU' : room.practiceMode ? 'KOLEJNY UTWÓR' : 'KOLEJNA TURA'}</span><strong>{advanceCountdown ?? 5}</strong><em>sek.</em></div>
         {displayCards.length ? (
           <div className="mgv-result-timeline">
-            <div className="mgv-subhead"><span>{room.practiceMode ? 'TWOJA OŚ' : `OŚ · ${ownerName}`}</span><b>{ownerTimeline.length}/{room.target}</b></div>
+            <div className="mgv-subhead"><span>{room.tournamentMode ? 'TWOJA OŚ TURNIEJOWA' : room.practiceMode ? 'TWOJA OŚ' : `OŚ · ${ownerName}`}</span><b>{ownerTimeline.length}/{room.target}</b></div>
             <div className="mgv-timeline-scroll compact"><div className="mgv-timeline-row">{displayCards.map((card, index) => <TimelineCard key={card.__ghost ? 'ghost' : card.id || index} card={card} compact highlight={card.__ghost ? 'bad' : ''} />)}</div></div>
           </div>
         ) : null}
@@ -772,9 +775,9 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
     };
   }, []);
   const keyboardOpen = keyboardInset > 0;
-  const modeLabel = room.dailyPlaylistMode ? 'PLAYLISTA DNIA' : room.practiceMode ? 'TRENING' : room.tournamentMode ? 'TURNIEJ' : 'ROZGRYWKA';
+  const modeLabel = room.dailyPlaylistMode ? 'PLAYLISTA DNIA' : room.tournamentMode ? 'TURNIEJ' : room.practiceMode ? 'TRENING' : 'ROZGRYWKA';
   const currentTokens = room.tokens?.[playerId] || 0;
-  const turnName = room.dailyPlaylistMode ? 'PLAYLISTA DNIA' : room.practiceMode ? 'TRENING SOLO' : isMyTurn ? 'TWOJA KOLEJ!' : turnPlayerName || 'TURA GRACZA';
+  const turnName = room.dailyPlaylistMode ? 'PLAYLISTA DNIA' : room.tournamentMode ? 'MECZ TURNIEJOWY' : room.practiceMode ? 'TRENING SOLO' : isMyTurn ? 'TWOJA KOLEJ!' : turnPlayerName || 'TURA GRACZA';
   const audioLeft = Math.max(0, Math.ceil(playCapSeconds - playElapsed));
   const practicePlayed = room.practiceMode ? (room.playedCards || []).filter((card) => card.playerId === playerId) : [];
   const practiceCorrect = practicePlayed.filter((card) => card.correct).length;
@@ -862,10 +865,11 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
       )}
 
       {room.practiceMode ? (
-        <Panel className="mgv-practice-live" accent="green">
-          <div className="mgv-section-title"><Zap size={17} /><span>{room.dailyPlaylistMode ? 'POSTĘP PLAYLISTY' : 'POSTĘP TRENINGU'}</span><b>{(room.timelines?.[playerId] || []).length}/{room.target}</b></div>
-          <div className="mgv-progress"><span style={{ width: `${Math.min(100, ((room.timelines?.[playerId] || []).length / Math.max(1, room.target)) * 100)}%` }} /></div>
+        <Panel className={`mgv-practice-live ${room.tournamentMode ? 'tournament' : ''}`} accent={room.tournamentMode ? 'gold' : 'green'}>
+          <div className="mgv-section-title"><Zap size={17} /><span>{room.tournamentMode ? 'WYNIK MECZU TURNIEJOWEGO' : room.dailyPlaylistMode ? 'POSTĘP PLAYLISTY' : 'POSTĘP TRENINGU'}</span><b>{room.tournamentMode ? `${practicePlayed.length}/10` : `${(room.timelines?.[playerId] || []).length}/${room.target}`}</b></div>
+          <div className="mgv-progress"><span style={{ width: `${Math.min(100, room.tournamentMode ? (practicePlayed.length / 10) * 100 : ((room.timelines?.[playerId] || []).length / Math.max(1, room.target)) * 100)}%` }} /></div>
           <div className="mgv-mini-stats"><div className="good"><Check size={17} /><span>Trafienia</span><b>{practiceCorrect}</b></div><div className="bad"><X size={17} /><span>Pomyłki</span><b>{practiceWrong}</b></div></div>
+          {room.tournamentMode ? <small className="mgv-tournament-match-hint">10 utworów · przy remisie liczy się łączny czas</small> : null}
         </Panel>
       ) : null}
 
@@ -1138,18 +1142,27 @@ export function MobileTournamentHubView({
   user,
   busy,
   tournamentBusy,
+  notificationPermission,
+  onEnableNotifications,
   onSignUp,
   onStartMatch,
   onHome,
   onRefresh,
 }) {
   const currentUid = user?.uid;
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 30000);
+    return () => window.clearInterval(id);
+  }, []);
   const signups = tournament?.signups || [];
   const alreadyIn = !!currentUid && signups.some((player) => player.uid === currentUid);
   const winner = tournament?.winnerUid ? signups.find((player) => player.uid === tournament.winnerUid) : null;
   const status = tournament?.status || 'none';
   const entryFee = Number(tournament?.entryFee || 0);
   const pot = Math.max(0, (signups.length - 1) * entryFee);
+  const myTournamentState = getTournamentUserState(tournament, currentUid, now);
+  const notificationReady = notificationPermission === 'granted';
 
   if (!tournament) {
     const previousWinner = lastCompleted?.winnerUid
@@ -1190,6 +1203,21 @@ export function MobileTournamentHubView({
           <span><Zap size={14} /> {pot} XP dla zwycięzcy</span>
         </div>
       </ModeHero>
+
+      <Panel className={`mgv-tournament-premium-status ${myTournamentState.urgent ? 'urgent' : ''}`} accent={myTournamentState.urgent ? 'pink' : 'gold'}>
+        <div className="mgv-tournament-premium-top">
+          <div>
+            <span className="mgv-eyebrow">STATUS PREMIUM</span>
+            <strong>{status === 'signup' ? (alreadyIn ? 'CZEKASZ NA START' : 'ZAPISY OTWARTE') : myTournamentState.canPlay ? 'TWÓJ MECZ JEST GOTOWY' : myTournamentState.waiting ? 'WYNIK ZAPISANY' : myTournamentState.wonMatch ? 'AWANSUJESZ DALEJ' : myTournamentState.eliminated ? 'UDZIAŁ ZAKOŃCZONY' : 'ŚLEDŹ DRABINKĘ'}</strong>
+          </div>
+          {status === 'active' && myTournamentState.deadline ? <b className={myTournamentState.urgent ? 'urgent' : ''}><Clock3 size={15} /> {tournamentTimeLeftLabel(myTournamentState.msLeft)}</b> : null}
+        </div>
+        {status === 'active' && myTournamentState.opponent ? <small>Przeciwnik: <strong>{myTournamentState.opponent.name || 'Gracz'}</strong>{myTournamentState.roundNumber ? ` · Runda ${myTournamentState.roundNumber}` : ''}</small> : status === 'signup' ? <small>Turniej ruszy automatycznie po zapełnieniu listy.</small> : <small>Wynik meczu zapisuje się w drabince po zakończeniu playlisty.</small>}
+        <button type="button" className={`mgv-tournament-notify-toggle ${notificationReady ? 'enabled' : ''}`} onClick={onEnableNotifications} disabled={notificationPermission === 'unsupported'}>
+          {notificationReady ? <BellRing size={16} /> : <Bell size={16} />}
+          <span>{notificationPermission === 'unsupported' ? 'POWIADOMIENIA NIEDOSTĘPNE' : notificationPermission === 'denied' ? 'POWIADOMIENIA ZABLOKOWANE' : notificationReady ? 'POWIADOMIENIA WŁĄCZONE' : 'WŁĄCZ POWIADOMIENIA O TURNIEJU'}</span>
+        </button>
+      </Panel>
 
       {status === 'signup' ? (
         <>
@@ -1266,6 +1294,30 @@ export function MobileTournamentHubView({
       ) : null}
 
       {status !== 'completed' ? <button type="button" className="mgv-ghost-cta mgv-tournament-refresh" onClick={onRefresh} disabled={tournamentBusy}>ODŚWIEŻ DANE TURNIEJU</button> : null}
+    </MobileSession>
+  );
+}
+
+export function MobileTournamentMatchResultView({ room, playerId, onTournamentBack, onLeave }) {
+  const played = (room.playedCards || []).filter((card) => card.playerId === playerId);
+  const score = played.filter((card) => card.correct).length;
+  const wrong = Math.max(0, played.length - score);
+  const times = room.decisionTimes?.[playerId] || [];
+  const avgSeconds = times.length ? Math.round(times.reduce((sum, value) => sum + value, 0) / times.length / 1000) : null;
+  return (
+    <MobileSession className="mgv-tournament-result-page">
+      <MobileHeader eyebrow="TURNIEJ PREMIUM" title="MECZ ZAKOŃCZONY" onBack={onLeave} backLabel="Opuść" right={<span className="mgv-tournament-fee"><Trophy size={14} /> RUNDA {room.tournamentRoundNumber || '—'}</span>} />
+      <ModeHero icon={glTurniej} eyebrow="WYNIK ZAPISANY" title={`${score} / 10`} description="Twój rezultat trafia do drabinki. Przy remisie o awansie decyduje krótszy łączny czas odpowiedzi." accent="gold">
+        <div className="mgv-hero-chips"><span><Check size={14} /> {score} trafień</span><span><X size={14} /> {wrong} błędów</span>{avgSeconds !== null ? <span><Clock3 size={14} /> śr. {avgSeconds}s</span> : null}</div>
+      </ModeHero>
+      <Panel className="mgv-tournament-result-summary" accent="gold">
+        <div><span>WYNIK MECZU</span><strong>{score}/10</strong></div>
+        <div><span>TRAFIENIA</span><strong>{score}</strong></div>
+        <div><span>POMYŁKI</span><strong>{wrong}</strong></div>
+        <div><span>ŚR. CZAS</span><strong>{avgSeconds !== null ? `${avgSeconds}s` : '—'}</strong></div>
+      </Panel>
+      <div className="mgv-tournament-result-note"><Trophy size={18} /><div><strong>CO DALEJ?</strong><span>Wróć do drabinki. Jeśli przeciwnik jeszcze nie zagrał, zobaczysz status oczekiwania; jeśli wynik jest już rozstrzygnięty — od razu zobaczysz awans.</span></div></div>
+      <div className="mgv-action-stack"><button type="button" className="mgv-main-cta" onClick={onTournamentBack}><Trophy size={18} /> WRÓĆ DO TURNIEJU</button><button type="button" className="mgv-secondary-cta" onClick={onLeave}><LogOut size={17} /> OPUŚĆ</button></div>
     </MobileSession>
   );
 }
