@@ -7,3 +7,126 @@ html, body, #root {
   padding: 0;
   min-height: 100%;
 }
+
+/* ===== Game end reveal — HITSTERIADA ===== */
+.game-end-reveal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 270;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(2, 3, 12, .88);
+  backdrop-filter: blur(12px);
+  animation: gameEndBackdropIn .24s ease-out both;
+}
+.game-end-reveal-shell {
+  position: relative;
+  width: min(100%, 430px);
+  max-height: min(92vh, 780px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 22px;
+  border: 1px solid rgba(93, 223, 255, .24);
+  border-radius: 26px;
+  color: #f5f2ff;
+  background:
+    linear-gradient(160deg, rgba(15, 20, 45, .98), rgba(8, 8, 24, .99) 58%, rgba(20, 8, 31, .98)),
+    #080917;
+  box-shadow: 0 35px 95px rgba(0, 0, 0, .72), 0 0 42px rgba(79, 214, 255, .1), 0 0 64px rgba(183, 81, 255, .08);
+  isolation: isolate;
+  animation: gameEndShellIn .42s cubic-bezier(.2,.9,.25,1.12) both;
+}
+.game-end-reveal-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(125deg, rgba(80,225,255,.62), rgba(123,91,255,.15) 38%, rgba(255,95,201,.56) 76%, rgba(245,196,81,.36));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.game-end-reveal-glow { position:absolute; z-index:-1; width:190px; height:190px; border-radius:50%; filter:blur(45px); opacity:.18; pointer-events:none; }
+.game-end-reveal-glow-cyan { top:-80px; left:-70px; background:#4fd6ff; }
+.game-end-reveal-glow-pink { right:-70px; bottom:80px; background:#ff5fc9; }
+.game-end-reveal-scan { position:absolute; inset:0; z-index:-1; pointer-events:none; opacity:.16; background:repeating-linear-gradient(180deg,transparent 0 3px,rgba(255,255,255,.025) 3px 4px); }
+.game-end-reveal-header { display:flex; align-items:center; gap:14px; padding-bottom:16px; border-bottom:1px solid rgba(255,255,255,.08); }
+.game-end-reveal-place { width:66px; height:66px; flex:0 0 auto; border-radius:20px; display:grid; place-items:center; align-content:center; color:#69eaff; background:linear-gradient(145deg,rgba(79,214,255,.16),rgba(109,78,255,.09)); border:1px solid rgba(79,214,255,.28); box-shadow:inset 0 0 24px rgba(79,214,255,.06); }
+.game-end-reveal-place.winner { color:#f5c451; background:linear-gradient(145deg,rgba(245,196,81,.18),rgba(255,95,201,.08)); border-color:rgba(245,196,81,.34); box-shadow:0 0 25px rgba(245,196,81,.08), inset 0 0 24px rgba(245,196,81,.07); }
+.game-end-reveal-place strong { font-family:'Bebas Neue',sans-serif; font-size:21px; line-height:.9; font-weight:400; }
+.game-end-reveal-header>div:last-child { min-width:0; text-align:left; }
+.game-end-reveal-header span { display:block; color:#817a91; font-family:'Space Mono',monospace; font-size:8px; font-weight:700; letter-spacing:.12em; }
+.game-end-reveal-header h2 { margin:3px 0 1px; font-family:'Bebas Neue',sans-serif; font-size:36px; line-height:.95; font-weight:400; letter-spacing:.025em; background:linear-gradient(90deg,#fff 0%,#64e8ff 48%,#d477ff 100%); -webkit-background-clip:text; color:transparent; }
+.game-end-reveal-header p { margin:4px 0 0; color:#8f879f; font-size:10px; }
+.game-end-reveal-stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; margin-top:14px; }
+.game-end-reveal-stats>div { min-width:0; min-height:76px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:8px 5px; border-radius:14px; background:rgba(9,12,31,.72); border:1px solid rgba(104,128,220,.14); }
+.game-end-reveal-stats svg { color:#845ef7; margin-bottom:4px; }
+.game-end-reveal-stats span { color:#706a7c; font-family:'Space Mono',monospace; font-size:6px; letter-spacing:.07em; }
+.game-end-reveal-stats strong { margin-top:2px; color:#fff; font-family:'Bebas Neue',sans-serif; font-size:23px; line-height:1; font-weight:400; }
+.game-end-reveal-stats small { color:#777184; font-size:7px; }
+.game-end-reveal-level { position:relative; margin-top:12px; display:grid; grid-template-columns:54px minmax(0,1fr); gap:12px; align-items:center; padding:11px 13px; border-radius:15px; background:linear-gradient(100deg,rgba(117,76,238,.12),rgba(38,189,255,.06)); border:1px solid rgba(135,97,255,.23); overflow:hidden; }
+.game-end-reveal-level.level-up { animation:gameEndLevelPulse .9s ease-out; }
+.game-end-reveal-level-badge { width:50px; height:50px; border-radius:50%; display:grid; place-items:center; align-content:center; color:#fff; background:radial-gradient(circle at 35% 25%,#7b61ff,#251a55 68%,#0e0c20); border:1px solid rgba(142,117,255,.5); box-shadow:0 0 22px rgba(114,90,255,.2); }
+.game-end-reveal-level-badge span { color:#b6aaff; font-family:'Space Mono',monospace; font-size:6px; line-height:1; }
+.game-end-reveal-level-badge strong { margin-top:2px; font-family:'Bebas Neue',sans-serif; font-size:26px; line-height:.9; font-weight:400; }
+.game-end-reveal-level-copy { min-width:0; }
+.game-end-reveal-level-copy>div:first-child { display:flex; justify-content:space-between; gap:8px; margin-bottom:7px; color:#8b8398; font-size:8px; }
+.game-end-reveal-level-copy b { color:#bbb4cb; font-family:'Space Mono',monospace; font-size:8px; }
+.game-end-reveal-progress { height:8px; overflow:hidden; border-radius:999px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.06); }
+.game-end-reveal-progress i { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#6e61ff,#4fd6ff 65%,#a86dff); box-shadow:0 0 14px rgba(79,214,255,.45); transition:width .5s cubic-bezier(.2,.85,.25,1.05); }
+.game-end-reveal-levelup-label { position:absolute; top:5px; right:8px; padding:3px 7px; border-radius:999px; color:#241407; background:#f5c451; font-family:'Space Mono',monospace; font-size:7px; font-weight:900; letter-spacing:.07em; animation:gameEndLevelLabel .65s cubic-bezier(.2,.9,.25,1.2) both; }
+.game-end-reveal-reward-totals { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+.game-end-reveal-reward-totals>div { min-height:79px; padding:11px 12px; border-radius:15px; text-align:left; background:rgba(9,11,28,.78); border:1px solid rgba(255,255,255,.08); transition:border-color .2s,box-shadow .2s,transform .2s; }
+.game-end-reveal-reward-totals>div.active { transform:translateY(-1px); }
+.game-end-reveal-reward-totals .xp.active { border-color:rgba(79,214,255,.32); box-shadow:0 0 22px rgba(79,214,255,.08); }
+.game-end-reveal-reward-totals .hitcoin.active { border-color:rgba(245,196,81,.35); box-shadow:0 0 22px rgba(245,196,81,.08); }
+.game-end-reveal-reward-totals span { display:block; color:#777184; font-family:'Space Mono',monospace; font-size:7px; letter-spacing:.1em; }
+.game-end-reveal-reward-totals strong { display:block; margin-top:5px; font-family:'Bebas Neue',sans-serif; font-size:31px; line-height:.9; font-weight:400; }
+.game-end-reveal-reward-totals .xp strong { color:#64e6ff; }
+.game-end-reveal-reward-totals .hitcoin strong { color:#f5c451; }
+.game-end-reveal-reward-totals small { display:block; margin-top:5px; color:#696373; font-size:7px; }
+.game-end-reveal-breakdown { margin-top:8px; padding:8px 10px; border-radius:13px; background:rgba(5,7,18,.52); border:1px solid rgba(255,255,255,.055); }
+.game-end-reveal-breakdown>div { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:5px 0; color:#c5bfd0; font-size:10px; animation:gameEndRewardIn .32s ease-out both; }
+.game-end-reveal-breakdown>div+div { border-top:1px solid rgba(255,255,255,.045); }
+.game-end-reveal-breakdown b { flex:0 0 auto; font-family:'Space Mono',monospace; font-size:9px; }
+.game-end-reveal-breakdown .xp b { color:#69e8ff; }
+.game-end-reveal-breakdown .hitcoin b { color:#f5c451; }
+.game-end-reveal-carddrop { margin-top:10px; display:grid; grid-template-columns:92px minmax(0,1fr); grid-template-rows:auto 1fr; gap:5px 13px; align-items:center; padding:11px; border-radius:17px; background:linear-gradient(125deg,rgba(255,95,201,.08),rgba(117,80,236,.11)); border:1px solid rgba(255,95,201,.24); animation:gameEndCardIn .55s cubic-bezier(.18,.9,.25,1.15) both; }
+.game-end-reveal-carddrop.duplicate { border-color:rgba(137,126,158,.2); filter:saturate(.9); }
+.game-end-reveal-carddrop>.game-end-reveal-card-label { grid-column:2; align-self:end; display:flex; align-items:center; gap:6px; color:#ff83d5; font-family:'Space Mono',monospace; font-size:7px; font-weight:900; letter-spacing:.08em; }
+.game-end-reveal-carddrop>.game-end-reveal-card-label svg { color:#f5c451; }
+.game-end-reveal-carddrop>.mgv-gameover-card,.game-end-reveal-carddrop>button,.game-end-reveal-carddrop>div:first-of-type:not(.game-end-reveal-card-label) { grid-row:1 / span 2; }
+.game-end-reveal-card-copy { grid-column:2; align-self:start; min-width:0; text-align:left; }
+.game-end-reveal-card-copy strong,.game-end-reveal-card-copy span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.game-end-reveal-card-copy strong { color:#fff; font-size:12px; }
+.game-end-reveal-card-copy span { margin-top:2px; color:#8f879f; font-size:10px; }
+.game-end-reveal-action { width:100%; min-height:48px; margin-top:13px; display:flex; align-items:center; justify-content:center; gap:8px; border:1px solid rgba(101,221,255,.28); border-radius:13px; color:#dffaff; background:linear-gradient(100deg,rgba(59,205,255,.15),rgba(121,81,255,.16)); font-family:'Bebas Neue',sans-serif; font-size:16px; letter-spacing:.045em; cursor:pointer; transition:transform .16s,border-color .16s,box-shadow .16s; }
+.game-end-reveal-action:hover { transform:translateY(-1px); border-color:rgba(101,221,255,.5); box-shadow:0 0 24px rgba(79,214,255,.1); }
+.game-end-reveal-action.ready { color:#170d22; border-color:rgba(255,116,213,.42); background:linear-gradient(100deg,#55ddff,#916cff 55%,#ff68cb); box-shadow:0 0 28px rgba(136,90,255,.16); }
+.game-end-reveal-hint { margin:8px 0 0; color:#686171; text-align:center; font-size:8px; }
+@keyframes gameEndBackdropIn { from{opacity:0} to{opacity:1} }
+@keyframes gameEndShellIn { from{opacity:0;transform:translateY(18px) scale(.965)} to{opacity:1;transform:none} }
+@keyframes gameEndRewardIn { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:none} }
+@keyframes gameEndCardIn { from{opacity:0;transform:translateY(10px) scale(.94) rotateX(8deg)} to{opacity:1;transform:none} }
+@keyframes gameEndLevelPulse { 0%{box-shadow:0 0 0 rgba(245,196,81,0)} 35%{box-shadow:0 0 42px rgba(245,196,81,.34);border-color:rgba(245,196,81,.55)} 100%{box-shadow:none} }
+@keyframes gameEndLevelLabel { from{opacity:0;transform:translateY(-6px) scale(.8)} to{opacity:1;transform:none} }
+@media (max-width:520px) {
+  .game-end-reveal-backdrop { padding:10px; align-items:end; }
+  .game-end-reveal-shell { width:100%; max-height:94dvh; padding:17px 14px 14px; border-radius:23px 23px 17px 17px; }
+  .game-end-reveal-header h2 { font-size:31px; }
+  .game-end-reveal-place { width:58px; height:58px; border-radius:17px; }
+  .game-end-reveal-stats { gap:5px; }
+  .game-end-reveal-stats>div { min-height:68px; padding:7px 3px; }
+  .game-end-reveal-stats span { font-size:5.5px; }
+  .game-end-reveal-stats strong { font-size:20px; }
+  .game-end-reveal-carddrop { grid-template-columns:82px minmax(0,1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .game-end-reveal-backdrop,.game-end-reveal-shell,.game-end-reveal-breakdown>div,.game-end-reveal-carddrop,.game-end-reveal-levelup-label { animation:none !important; }
+  .game-end-reveal-progress i { transition:none; }
+}
+.game-end-reveal-card-art { grid-column:1; grid-row:1 / span 2; display:flex; align-items:center; justify-content:center; }

@@ -31,7 +31,7 @@ import { HIT_RUSH_CONFIG, pickNextHitRushSong, computeHitRushPoints, checkHitRus
 import { updateHeadToHead, fetchHeadToHeadOpponents } from "./headToHead.js";
 import { getAchievementProgress, ACHIEVEMENTS } from "./achievements.js";
 import { playCorrectSound, playWrongSound, playApplause, playVictorySound, unlockAudio } from "./sounds.js";
-import { Play, Music4, Trophy, RotateCcw, Users, ChevronRight, Copy, Check, LogIn, LogOut, BarChart3, Flame, Crown, Shield, Search, Trash2, Pencil, Save, X, MessageCircle, Send } from "lucide-react";
+import { Play, Music4, Trophy, RotateCcw, Users, ChevronRight, Copy, Check, LogIn, LogOut, BarChart3, Flame, Crown, Shield, Search, Trash2, Pencil, Save, X, MessageCircle, Send, Sparkles } from "lucide-react";
 import logoImg from "./assets/logo-v2.png";
 import iconTrening from "./assets/icons/trening.png";
 import iconPiosenkaDnia from "./assets/icons/piosenka_dnia.png";
@@ -867,148 +867,161 @@ function GameEndRevealPopup({ data, onClose, levelFromXp }) {
   const xpItems = data?.xpItems || [];
   const hitcoinItems = data?.hitcoinItems || [];
   const card = data?.card || null;
+  const meta = data?.meta || {};
   const oldXp = data?.oldXp || 0;
-
   const totalSteps = xpItems.length + hitcoinItems.length + (card ? 1 : 0);
   const [revealed, setRevealed] = useState(0);
-  const settled = revealed >= totalSteps;
   const timerRef = useRef(null);
   const prevLevelRef = useRef(null);
   const [flashLevel, setFlashLevel] = useState(false);
 
-  useEffect(() => {
-    setRevealed(0);
-    prevLevelRef.current = null;
-  }, [data]);
-
-  useEffect(() => {
-    if (!data || settled) return;
-    const isCardStep = card && revealed === xpItems.length + hitcoinItems.length;
-    const delay = isCardStep ? 300 : 620;
-    timerRef.current = setTimeout(() => setRevealed((v) => v + 1), delay);
-    return () => clearTimeout(timerRef.current);
-  }, [data, revealed, settled, xpItems.length, hitcoinItems.length, card]);
-
-  if (!data) return null;
-
+  const settled = revealed >= totalSteps;
   const shownXpCount = Math.min(revealed, xpItems.length);
   const shownHcCount = Math.max(0, Math.min(revealed - xpItems.length, hitcoinItems.length));
   const cardShown = !!card && revealed >= xpItems.length + hitcoinItems.length + 1;
-
-  const xpSoFar = xpItems.slice(0, shownXpCount).reduce((sum, it) => sum + it.amount, 0);
-  const hcSoFar = hitcoinItems.slice(0, shownHcCount).reduce((sum, it) => sum + it.amount, 0);
+  const xpSoFar = xpItems.slice(0, shownXpCount).reduce((sum, item) => sum + item.amount, 0);
+  const hcSoFar = hitcoinItems.slice(0, shownHcCount).reduce((sum, item) => sum + item.amount, 0);
+  const xpTotal = xpItems.reduce((sum, item) => sum + item.amount, 0);
+  const hitcoinTotal = Number(data?.hitcoinTotal || hitcoinItems.reduce((sum, item) => sum + item.amount, 0));
   const currentXp = oldXp + xpSoFar;
   const lv = levelFromXp(currentXp);
-  const barPct = lv.xpForNextLevel ? Math.min(100, Math.round((lv.currentLevelXp / lv.xpForNextLevel) * 100)) : 0;
+  const barPct = lv.xpForNextLevel ? Math.min(100, Math.round((lv.currentLevelXp / lv.xpForNextLevel) * 100)) : 100;
 
-  if (prevLevelRef.current === null) prevLevelRef.current = lv.level;
   useEffect(() => {
-    if (prevLevelRef.current !== null && lv.level > prevLevelRef.current) {
-      setFlashLevel(true);
-      const t = setTimeout(() => setFlashLevel(false), 900);
+    setRevealed(0);
+    prevLevelRef.current = null;
+    setFlashLevel(false);
+  }, [data]);
+
+  useEffect(() => {
+    if (!data || settled) return undefined;
+    const isCardStep = !!card && revealed === xpItems.length + hitcoinItems.length;
+    const delay = isCardStep ? 420 : 560;
+    timerRef.current = setTimeout(() => setRevealed((value) => Math.min(totalSteps, value + 1)), delay);
+    return () => clearTimeout(timerRef.current);
+  }, [data, revealed, settled, xpItems.length, hitcoinItems.length, card, totalSteps]);
+
+  useEffect(() => {
+    if (!data) return undefined;
+    if (prevLevelRef.current === null) {
       prevLevelRef.current = lv.level;
-      return () => clearTimeout(t);
+      return undefined;
+    }
+    if (lv.level > prevLevelRef.current) {
+      setFlashLevel(true);
+      prevLevelRef.current = lv.level;
+      const timeout = setTimeout(() => setFlashLevel(false), 900);
+      return () => clearTimeout(timeout);
     }
     prevLevelRef.current = lv.level;
-  }, [lv.level]);
+    return undefined;
+  }, [data, lv.level]);
 
-  const handleTap = () => {
+  if (!data) return null;
+
+  const handleSkipOrClose = () => {
     if (!settled) {
       clearTimeout(timerRef.current);
       setRevealed(totalSteps);
-    } else {
-      onClose();
+      return;
     }
+    onClose();
   };
+
+  const phaseLabel = !settled
+    ? shownXpCount < xpItems.length
+      ? 'NALICZAM XP'
+      : shownHcCount < hitcoinItems.length
+        ? 'NALICZAM HITCOIN'
+        : card && !cardShown
+          ? 'ODBIERASZ KARTĘ'
+          : 'PODLICZAM WYNIK'
+    : 'PODSUMOWANIE GOTOWE';
 
   return (
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Podsumowanie nagród"
-      onClick={handleTap}
-      style={{ position: "fixed", inset: 0, zIndex: 270, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, background: "rgba(1,2,10,0.86)", backdropFilter: "blur(9px)", cursor: "pointer" }}
+      aria-label="Podsumowanie gry"
+      className="game-end-reveal-backdrop"
+      onClick={handleSkipOrClose}
     >
-      <style>{`
-        @keyframes goverPopIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
-        @keyframes goverCardIn { from { opacity:0; transform:scale(.72) rotateY(35deg); } to { opacity:1; transform:scale(1) rotateY(0deg); } }
-        @keyframes goverLevelFlash { 0%{ box-shadow:0 0 0 rgba(245,196,81,0); } 35%{ box-shadow:0 0 46px rgba(245,196,81,.75); } 100%{ box-shadow:0 0 0 rgba(245,196,81,0); } }
-        @keyframes goverBurst { from { opacity:.9; transform:scale(.4);} to { opacity:0; transform:scale(2.1);} }
-        @keyframes goverHint { 0%,100%{ opacity:.45; } 50%{ opacity:1; } }
-      `}</style>
-      <div style={{ width: "min(100%, 380px)", cursor: "default", position: "relative" }}>
-        <div style={{ padding: "26px 22px 20px", borderRadius: 24, textAlign: "center", background: "linear-gradient(165deg,#181228,#0a0714 65%)", border: "1px solid rgba(120,90,255,.28)", boxShadow: "0 30px 80px rgba(0,0,0,.6),0 0 40px rgba(120,90,255,.10)" }}>
-          <p style={{ margin: "0 0 16px", color: "#8f86a3", fontFamily: "'Space Mono', monospace", fontSize: 10, letterSpacing: ".14em" }}>PODSUMOWANIE ROZGRYWKI</p>
+      <div className="game-end-reveal-shell" onClick={(event) => event.stopPropagation()}>
+        <div className="game-end-reveal-glow game-end-reveal-glow-cyan" />
+        <div className="game-end-reveal-glow game-end-reveal-glow-pink" />
+        <div className="game-end-reveal-scan" />
 
-          <div style={{ position: "relative", display: "inline-flex", flexDirection: "column", alignItems: "center", marginBottom: 18 }}>
-            {flashLevel && (
-              <span style={{ position: "absolute", top: -6, left: "50%", transform: "translateX(-50%)", width: 96, height: 96, borderRadius: "50%", background: "radial-gradient(circle,rgba(245,196,81,.55),transparent 70%)", animation: "goverBurst .9s ease-out" }} />
-            )}
-            <div
-              style={{
-                width: 74, height: 74, borderRadius: "50%", display: "grid", placeItems: "center",
-                background: "linear-gradient(150deg,#241a3d,#120c22)", border: "1px solid rgba(180,150,255,.35)",
-                animation: flashLevel ? "goverLevelFlash .9s ease-out" : "none", position: "relative", zIndex: 1,
-                transition: "transform .25s ease", transform: flashLevel ? "scale(1.12)" : "scale(1)",
-              }}
-            >
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 8, color: "#9d94b8", letterSpacing: ".08em" }}>POZIOM</div>
-                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, color: "#fff", lineHeight: 1 }}>{lv.level}</div>
-              </div>
-            </div>
-            <div style={{ width: 190, height: 9, borderRadius: 999, background: "rgba(255,255,255,.08)", marginTop: 10, overflow: "hidden", border: "1px solid rgba(255,255,255,.08)" }}>
-              <div style={{ height: "100%", borderRadius: 999, width: `${barPct}%`, background: "linear-gradient(90deg,#845ef7,#4fd6ff)", transition: "width .55s cubic-bezier(.34,1.15,.64,1)" }} />
-            </div>
-            <div style={{ marginTop: 6, fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#9d94b8" }}>{lv.currentLevelXp} / {lv.xpForNextLevel} XP</div>
+        <header className="game-end-reveal-header">
+          <div className={`game-end-reveal-place ${meta.won ? 'winner' : ''}`}>
+            <Trophy size={25} />
+            <strong>{meta.place ? `#${meta.place}` : '★'}</strong>
           </div>
+          <div>
+            <span>HITSTERIADA · KONIEC GRY</span>
+            <h2>{meta.won ? 'ZWYCIĘSTWO!' : meta.place ? `${meta.place}. MIEJSCE` : 'PODSUMOWANIE'}</h2>
+            {meta.playerCount ? <p>{meta.playerCount} graczy · {phaseLabel}</p> : <p>{phaseLabel}</p>}
+          </div>
+        </header>
 
-          {xpItems.length ? (
-            <div style={{ textAlign: "left", marginBottom: 6 }}>
-              {xpItems.slice(0, shownXpCount).map((it, i) => (
-                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 2px", fontSize: 13, color: "#e4defa", animation: "goverPopIn .32s ease-out" }}>
-                  <span>{it.label}</span>
-                  <span style={{ fontFamily: "'Space Mono', monospace", fontWeight: 700, color: "#8ad0ff" }}>+{it.amount} XP</span>
-                </div>
-              ))}
-            </div>
-          ) : null}
-          {shownXpCount > 0 && (
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 2px", marginBottom: 16, borderTop: "1px solid rgba(255,255,255,.1)", fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: "#fff", letterSpacing: ".02em" }}>
-              <span>RAZEM XP</span>
-              <span>+{xpSoFar}</span>
-            </div>
-          )}
-
-          {hitcoinItems.length ? (
-            <div style={{ textAlign: "left", marginBottom: 6, paddingTop: xpItems.length ? 4 : 0 }}>
-              {hitcoinItems.slice(0, shownHcCount).map((it, i) => (
-                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 2px", fontSize: 13, color: "#e4defa", animation: "goverPopIn .32s ease-out" }}>
-                  <span>{it.label}</span>
-                  <span style={{ fontFamily: "'Space Mono', monospace", fontWeight: 700, color: "#f5c451" }}>+{it.amount} 🪙</span>
-                </div>
-              ))}
-            </div>
-          ) : null}
-          {shownHcCount > 0 && (
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 2px", marginBottom: cardShown || card ? 16 : 4, borderTop: "1px solid rgba(255,255,255,.1)", fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: "#fff", letterSpacing: ".02em" }}>
-              <span>RAZEM HITCOIN</span>
-              <span>+{hcSoFar} 🪙</span>
-            </div>
-          )}
-
-          {card && cardShown && (
-            <div style={{ animation: "goverCardIn .5s cubic-bezier(.34,1.1,.64,1)", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginTop: 4, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,.1)" }}>
-              <p style={{ margin: 0, fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#9d94b8", letterSpacing: ".1em" }}>{card.isDuplicate ? "DUPLIKAT — TA KARTA JEST JUŻ TWOJA" : "NOWA KARTA W KOLEKCJI"}</p>
-              <CollectibleCard song={card.song} size={92} />
-              <p style={{ margin: 0, fontSize: 13, fontWeight: "bold", color: "#fff" }}>{card.song?.artist} — {card.song?.title}</p>
-            </div>
-          )}
-
-          <p style={{ marginTop: 18, marginBottom: 0, fontSize: 11, color: "#8f86a3", animation: settled ? "goverHint 1.6s ease-in-out infinite" : "none" }}>
-            {settled ? "Dotknij, żeby zamknąć" : "Dotknij, żeby pominąć animację"}
-          </p>
+        <div className="game-end-reveal-stats">
+          <div><Crown size={16} /><span>WYNIK</span><strong>{meta.scoreValue ?? 0}</strong><small>{meta.scoreUnit || 'kart'}</small></div>
+          <div><Music4 size={16} /><span>ZGADNIĘTE</span><strong>{meta.guessesCorrect || 0}</strong><small>utworów</small></div>
+          <div><Flame size={16} /><span>SERIA</span><strong>{meta.bestStreak || 0}</strong><small>best</small></div>
+          <div><BarChart3 size={16} /><span>ŚR. CZAS</span><strong>{meta.avgDecisionMs ? (meta.avgDecisionMs / 1000).toFixed(1) : '—'}</strong><small>{meta.avgDecisionMs ? 'sek.' : 'brak'}</small></div>
         </div>
+
+        <section className={`game-end-reveal-level ${flashLevel ? 'level-up' : ''}`}>
+          <div className="game-end-reveal-level-badge">
+            <span>LVL</span>
+            <strong>{lv.level}</strong>
+          </div>
+          <div className="game-end-reveal-level-copy">
+            <div><span>POSTĘP POZIOMU</span><b>{lv.currentLevelXp} / {lv.xpForNextLevel || 'MAX'} XP</b></div>
+            <div className="game-end-reveal-progress"><i style={{ width: `${barPct}%` }} /></div>
+          </div>
+          {flashLevel ? <div className="game-end-reveal-levelup-label">LEVEL UP!</div> : null}
+        </section>
+
+        <div className="game-end-reveal-reward-totals">
+          <div className={`xp ${shownXpCount ? 'active' : ''}`}>
+            <span>ZDOBYTE XP</span>
+            <strong>+{xpSoFar}</strong>
+            <small>łącznie +{xpTotal}</small>
+          </div>
+          <div className={`hitcoin ${shownHcCount ? 'active' : ''}`}>
+            <span>HITCOIN</span>
+            <strong>+{hcSoFar}</strong>
+            <small>łącznie +{hitcoinTotal}</small>
+          </div>
+        </div>
+
+        {(shownXpCount > 0 || shownHcCount > 0) ? (
+          <div className="game-end-reveal-breakdown">
+            {xpItems.slice(0, shownXpCount).map((item, index) => (
+              <div className="xp" key={`xp-${index}`}><span>{item.label}</span><b>+{item.amount} XP</b></div>
+            ))}
+            {hitcoinItems.slice(0, shownHcCount).map((item, index) => (
+              <div className="hitcoin" key={`hc-${index}`}><span>{item.label}</span><b>+{item.amount} 🪙</b></div>
+            ))}
+          </div>
+        ) : null}
+
+        {card && cardShown ? (
+          <div className={`game-end-reveal-carddrop ${card.isDuplicate ? 'duplicate' : ''}`}>
+            <div className="game-end-reveal-card-label"><Sparkles size={15} /><span>{card.isDuplicate ? 'DUPLIKAT W KOLEKCJI' : 'NOWA KARTA!'}</span></div>
+            <div className="game-end-reveal-card-art"><CollectibleCard song={card.song} size={100} /></div>
+            <div className="game-end-reveal-card-copy">
+              <strong>{card.song?.artist}</strong>
+              <span>{card.song?.title}</span>
+            </div>
+          </div>
+        ) : null}
+
+        <button type="button" className={`game-end-reveal-action ${settled ? 'ready' : ''}`} onClick={handleSkipOrClose}>
+          {settled ? 'PRZEJDŹ DO PEŁNEGO PODSUMOWANIA' : 'POMIŃ ANIMACJĘ'}
+          <ChevronRight size={18} />
+        </button>
+        <p className="game-end-reveal-hint">{settled ? 'Wyniki i nagrody zostaną na ekranie końcowym.' : 'Możesz pominąć animację bez utraty nagród.'}</p>
       </div>
     </div>
   );
@@ -2618,6 +2631,7 @@ export default function App() {
 
   const xpAwardedRef = useRef(null);
   const [gameEndReveal, setGameEndReveal] = useState(null);
+  const [showGameEndRevealPopup, setShowGameEndRevealPopup] = useState(false);
   useEffect(() => {
     if (screen !== "gameover" || !room?.winnerIds?.length || !user || room.practiceMode) return;
     const marker = toMillis(room?.expireAt);
@@ -2698,7 +2712,33 @@ export default function App() {
         // jeden, spójny obiekt napędzający animowane podsumowanie
         // (poziom → XP → HITCOIN → karta), zamiast dwóch osobnych,
         // statycznych paneli sprzed tej zmiany
-        setGameEndReveal({ xpItems: xpItemsForReveal, oldXp, hitcoinItems: hcResult.items, hitcoinTotal: hcResult.total, card: drawResult });
+        const finalStandingsForReveal = room.yearGuessMode
+          ? [...(room.players || [])].sort((a, b) => (room.yearGuessScores?.[b.id] || 0) - (room.yearGuessScores?.[a.id] || 0))
+          : computeFinalStandings(room);
+        const finalPlaceIndex = finalStandingsForReveal.findIndex((p) => p.id === playerId);
+        const finalPlace = (room.winnerIds || []).includes(playerId) ? 1 : Math.max(1, finalPlaceIndex + 1);
+        const myDecisionTimes = room.decisionTimes?.[playerId] || [];
+        const avgDecisionMs = myDecisionTimes.length
+          ? Math.round(myDecisionTimes.reduce((sum, value) => sum + value, 0) / myDecisionTimes.length)
+          : 0;
+        setGameEndReveal({
+          xpItems: xpItemsForReveal,
+          oldXp,
+          hitcoinItems: hcResult.items,
+          hitcoinTotal: hcResult.total,
+          card: drawResult,
+          meta: {
+            place: finalPlace,
+            playerCount: room.players?.length || 0,
+            won: (room.winnerIds || []).includes(playerId),
+            scoreValue: room.yearGuessMode ? (room.yearGuessScores?.[playerId] || 0) : (room.timelines?.[playerId]?.length || 0),
+            scoreUnit: room.yearGuessMode ? "pkt" : "kart",
+            guessesCorrect: room.gameGuesses?.[playerId] || 0,
+            bestStreak: room.gameBestStreaks?.[playerId] || 0,
+            avgDecisionMs,
+          },
+        });
+        setShowGameEndRevealPopup(true);
       } catch (e) {
         // ciche niepowodzenie — najwyżej XP z tej gry się nie doliczy
       }
@@ -4879,6 +4919,7 @@ export default function App() {
     setBoughtCardRevealed(false);
     setSharedBoughtNotice(null);
     setGameEndReveal(null);
+    setShowGameEndRevealPopup(false);
   }
 
   async function kickPlayer(targetId) {
@@ -4930,6 +4971,8 @@ export default function App() {
 
   async function playAgain() {
     setBusy(true);
+    setGameEndReveal(null);
+    setShowGameEndRevealPopup(false);
     try {
       const ref = doc(db, "rooms", roomId);
       await updateDoc(ref, {
@@ -5683,7 +5726,7 @@ export default function App() {
       />
       <RoomInviteModal invite={incomingChallenge ? null : incomingRoomInvite} busy={roomInviteBusyUid === user?.uid} onAccept={handleAcceptRoomInvite} onDecline={handleDeclineRoomInvite} />
       <RewardNoticePopup notice={rewardNotice} onClose={() => setRewardNotice(null)} />
-      {gameEndReveal && <GameEndRevealPopup data={gameEndReveal} onClose={() => setGameEndReveal(null)} levelFromXp={levelFromXp} />}
+      {gameEndReveal && showGameEndRevealPopup && <GameEndRevealPopup data={gameEndReveal} onClose={() => setShowGameEndRevealPopup(false)} levelFromXp={levelFromXp} />}
     </>
   );
 
@@ -6242,7 +6285,7 @@ export default function App() {
           onSendChat={sendChatMessage}
           gameEndReveal={gameEndReveal}
         />
-        {gameEndReveal && <GameEndRevealPopup data={gameEndReveal} onClose={() => setGameEndReveal(null)} levelFromXp={levelFromXp} />}
+        {gameEndReveal && showGameEndRevealPopup && <GameEndRevealPopup data={gameEndReveal} onClose={() => setShowGameEndRevealPopup(false)} levelFromXp={levelFromXp} />}
       </>
     );
   }
@@ -6409,7 +6452,7 @@ export default function App() {
       <DuelChallengeModal challenge={incomingChallenge} busy={challengeBusy} onAccept={handleAcceptChallenge} onDecline={handleDeclineChallenge} />
       <RoomInviteModal invite={incomingChallenge ? null : incomingRoomInvite} busy={roomInviteBusyUid === user?.uid} onAccept={handleAcceptRoomInvite} onDecline={handleDeclineRoomInvite} />
       <RewardNoticePopup notice={rewardNotice} onClose={() => setRewardNotice(null)} />
-      {gameEndReveal && <GameEndRevealPopup data={gameEndReveal} onClose={() => setGameEndReveal(null)} levelFromXp={levelFromXp} />}
+      {gameEndReveal && showGameEndRevealPopup && <GameEndRevealPopup data={gameEndReveal} onClose={() => setShowGameEndRevealPopup(false)} levelFromXp={levelFromXp} />}
       </>
     );
   }
@@ -6579,7 +6622,7 @@ export default function App() {
       <DuelChallengeModal challenge={incomingChallenge} busy={challengeBusy} onAccept={handleAcceptChallenge} onDecline={handleDeclineChallenge} />
       <RoomInviteModal invite={incomingChallenge ? null : incomingRoomInvite} busy={roomInviteBusyUid === user?.uid} onAccept={handleAcceptRoomInvite} onDecline={handleDeclineRoomInvite} />
       <RewardNoticePopup notice={rewardNotice} onClose={() => setRewardNotice(null)} />
-      {gameEndReveal && <GameEndRevealPopup data={gameEndReveal} onClose={() => setGameEndReveal(null)} levelFromXp={levelFromXp} />}
+      {gameEndReveal && showGameEndRevealPopup && <GameEndRevealPopup data={gameEndReveal} onClose={() => setShowGameEndRevealPopup(false)} levelFromXp={levelFromXp} />}
       </>
     );
   }
@@ -9214,7 +9257,9 @@ export default function App() {
             })()}
 
             {user && !room.practiceMode && (() => {
-              const { items, total } = computeGameEndXp(room, playerId);
+              const fallbackXp = computeGameEndXp(room, playerId);
+              const items = gameEndReveal?.xpItems?.length ? gameEndReveal.xpItems : fallbackXp.items;
+              const total = items.reduce((sum, item) => sum + item.amount, 0);
               if (!items.length) return null;
               return (
                 <div className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(165,107,255,0.4)", boxShadow: "0 0 22px rgba(165,107,255,0.15)" }}>
@@ -9574,8 +9619,8 @@ export default function App() {
         </div>
       )}
 
-      {gameEndReveal && (
-        <GameEndRevealPopup data={gameEndReveal} onClose={() => setGameEndReveal(null)} levelFromXp={levelFromXp} />
+      {gameEndReveal && showGameEndRevealPopup && (
+        <GameEndRevealPopup data={gameEndReveal} onClose={() => setShowGameEndRevealPopup(false)} levelFromXp={levelFromXp} />
       )}
 
       {showDailySong && dailySong && (

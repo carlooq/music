@@ -1269,36 +1269,54 @@ export function MobileGameOverView({ room, playerId, isHost, onPlayAgain, onLeav
     : [...room.players].sort((a, b) => (room.timelines?.[b.id]?.length || 0) - (room.timelines?.[a.id]?.length || 0));
   const playedCards = Array.isArray(room.playedCards) ? room.playedCards : [];
   const visiblePlaylist = playlistScope === 'mine' ? playedCards.filter((card) => card.playerId === playerId) : playedCards;
+  const myStandingIndex = standings.findIndex((player) => player.id === playerId);
+  const myPlace = (room.winnerIds || []).includes(playerId) ? 1 : Math.max(1, myStandingIndex + 1);
+  const myScore = room.yearGuessMode ? (room.yearGuessScores?.[playerId] || 0) : (room.timelines?.[playerId]?.length || 0);
+  const myScoreLabel = room.yearGuessMode ? 'pkt' : 'kart';
+  const myGuesses = room.gameGuesses?.[playerId] || 0;
+  const myBestStreak = room.gameBestStreaks?.[playerId] || 0;
+  const myDecisionTimes = room.decisionTimes?.[playerId] || [];
+  const myAvgDecision = myDecisionTimes.length ? myDecisionTimes.reduce((sum, value) => sum + value, 0) / myDecisionTimes.length / 1000 : 0;
+  const rewardXpTotal = gameEndReveal?.xpItems?.reduce((sum, item) => sum + item.amount, 0) || 0;
   return (
     <MobileSession className="mgv-gameover-page">
       <MobileHeader eyebrow="KONIEC GRY" title="WYNIKI" onBack={onLeave} />
       <div className="mgv-final-mark gold"><Trophy size={18} /><span>ROZGRYWKA ZAKOŃCZONA</span></div>
       <Panel className="mgv-winner-panel" accent="gold"><Trophy size={50} /><span className="mgv-eyebrow">ZWYCIĘZCA</span><h1>{winners.length > 1 ? 'REMIS!' : `${winners[0]?.name || 'GRACZ'} WYGRYWA!`}</h1>{winners.length > 1 ? <p>{winners.map((winner) => winner.name).join(' · ')}</p> : null}</Panel>
+      <Panel><div className="mgv-section-title"><Crown size={18} /><span>KLASYFIKACJA</span></div><div className="mgv-final-standing">{standings.map((player, index) => <div key={player.id} className={`${index < 3 ? `podium p${index + 1}` : ''}${player.id === playerId ? ' is-me' : ''}`}><span>#{index + 1}</span><span className="mgv-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.name) : null}</span><strong>{player.name}</strong><b>{room.yearGuessMode ? `${room.yearGuessScores?.[player.id] || 0} pkt` : `${room.timelines?.[player.id]?.length || 0} kart`}</b></div>)}</div></Panel>
+      <Panel className="mgv-gameover-summary" accent="cyan">
+        <div className="mgv-section-title"><Sparkles size={18} /><span>TWOJE PODSUMOWANIE</span></div>
+        <div className="mgv-gameover-summary-grid">
+          <div className="place"><Crown size={17} /><span>MIEJSCE</span><strong>#{myPlace}</strong><small>z {room.players.length}</small></div>
+          <div><Disc3 size={17} /><span>WYNIK</span><strong>{myScore}</strong><small>{myScoreLabel}</small></div>
+          <div><Music2 size={17} /><span>ZGADNIĘTE</span><strong>{myGuesses}</strong><small>utworów</small></div>
+          <div><Flame size={17} /><span>BEST SERIA</span><strong>{myBestStreak}</strong><small>z rzędu</small></div>
+          <div className="wide"><Clock3 size={17} /><span>ŚREDNI CZAS DECYZJI</span><strong>{myAvgDecision ? `${myAvgDecision.toFixed(1)} s` : '—'}</strong><small>{myDecisionTimes.length ? `${myDecisionTimes.length} decyzji` : 'brak danych'}</small></div>
+        </div>
+      </Panel>
       {gameEndReveal ? (
-        <Panel className="mgv-reward-panel" accent="violet">
-          <span className="mgv-eyebrow">TWOJE NAGRODY Z TEJ GRY</span>
-          {gameEndReveal.xpItems.map((item, index) => (
-            <div className="mgv-reward-row" key={`xp-${index}`}><span>{item.label}</span><strong>+{item.amount} XP</strong></div>
-          ))}
-          {gameEndReveal.hitcoinItems.map((item, index) => (
-            <div className="mgv-reward-row" key={`hc-${index}`}><span>{item.label}</span><strong>+{item.amount} 🪙</strong></div>
-          ))}
-          <div className="mgv-reward-row total">
-            <span>RAZEM</span>
-            <strong>+{gameEndReveal.xpItems.reduce((s, i) => s + i.amount, 0)} XP · +{gameEndReveal.hitcoinTotal} 🪙</strong>
+        <Panel className="mgv-reward-panel mgv-gameover-persistent-rewards" accent="violet">
+          <div className="mgv-section-title"><Gift size={18} /><span>TWOJE NAGRODY</span></div>
+          <div className="mgv-gameover-reward-totals">
+            <div><span>XP</span><strong>+{rewardXpTotal}</strong></div>
+            <div><span>HITCOIN</span><strong>+{gameEndReveal.hitcoinTotal || 0}</strong></div>
+          </div>
+          <div className="mgv-gameover-reward-details">
+            {gameEndReveal.xpItems.map((item, index) => (
+              <div className="mgv-reward-row" key={`xp-${index}`}><span>{item.label}</span><strong>+{item.amount} XP</strong></div>
+            ))}
+            {gameEndReveal.hitcoinItems.map((item, index) => (
+              <div className="mgv-reward-row" key={`hc-${index}`}><span>{item.label}</span><strong>+{item.amount} 🪙</strong></div>
+            ))}
           </div>
           {gameEndReveal.card ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,.08)' }}>
+            <div className="mgv-gameover-earned-card">
               <GameOverCollectibleCard song={gameEndReveal.card.song} />
-              <div>
-                <p style={{ margin: 0, fontSize: 12, fontWeight: 'bold' }}>{gameEndReveal.card.song?.artist} — {gameEndReveal.card.song?.title}</p>
-                <p style={{ margin: 0, fontSize: 11, color: '#9d94b8' }}>{gameEndReveal.card.isDuplicate ? 'Duplikat — masz już tę kartę' : 'Nowa karta w kolekcji'}</p>
-              </div>
+              <div><span className="mgv-eyebrow">{gameEndReveal.card.isDuplicate ? 'DUPLIKAT' : 'NOWA KARTA'}</span><strong>{gameEndReveal.card.song?.artist}</strong><p>{gameEndReveal.card.song?.title}</p><small>{gameEndReveal.card.isDuplicate ? 'Masz już tę kartę w kolekcji.' : 'Karta została dodana do Twojej kolekcji.'}</small></div>
             </div>
           ) : null}
         </Panel>
       ) : null}
-      <Panel><div className="mgv-section-title"><Crown size={18} /><span>KLASYFIKACJA</span></div><div className="mgv-final-standing">{standings.map((player, index) => <div key={player.id} className={index < 3 ? `podium p${index + 1}` : ''}><span>#{index + 1}</span><span className="mgv-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.name) : null}</span><strong>{player.name}</strong><b>{room.yearGuessMode ? `${room.yearGuessScores?.[player.id] || 0} pkt` : `${room.timelines?.[player.id]?.length || 0} kart`}</b></div>)}</div></Panel>
       {playedCards.length > 0 ? (
         <Panel className="mgv-evening-playlist" accent="pink">
           <div className="mgv-playlist-head">
