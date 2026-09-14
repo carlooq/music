@@ -6388,6 +6388,7 @@ export default function App() {
         onCreateRoom={createRoom}
         onJoinRoom={joinRoom}
         onPractice={() => setScreen("practiceSetup")}
+        onYearGuess={createYearGuessRoom}
         onHitRush={() => setScreen("hitRushMenu")}
         onDailySong={openDailySong}
         onDailyPlaylist={openDailyPlaylistHub}

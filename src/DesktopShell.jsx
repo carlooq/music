@@ -545,6 +545,7 @@ export function DesktopHomeView(props) {
     onCreateRoom,
     onJoinRoom,
     onPractice,
+    onYearGuess,
     onHitRush,
     onDailySong,
     onDailyPlaylist,
@@ -688,6 +689,7 @@ export function DesktopHomeView(props) {
             <div className="desk-section-label"><Sparkles size={16} /> TRYBY GRY</div>
             <div className="desk-modes-grid">
               <DesktopModeCard icon={glTrening} title="TRENING" desc="Ćwicz i poznawaj kategorie" accent="cyan" footer={isGuest ? "Dostępny bez konta" : "Ćwicz w swoim tempie"} onClick={onPractice} />
+              <DesktopModeCard icon={glTrening} title="ZGADNIJ ROK" desc="Wszyscy słuchają tego samego utworu i typują rok" accent="pink" footer="15 rund · multiplayer" locked={isGuest} onClick={isGuest ? requestLogin : onYearGuess} />
               <DesktopModeCard icon={glHitRush} title="HIT RUSH" desc="Szybki tryb solo z presją czasu" accent="green" footer="Nowy rekord czeka" locked={isGuest} onClick={isGuest ? requestLogin : onHitRush} />
               <DesktopModeCard icon={glPiosenka} title="PIOSENKA DNIA" desc="Jedna piosenka dla wszystkich" accent="pink" footer="Codzienna szansa" locked={isGuest} onClick={isGuest ? requestLogin : onDailySong} />
               <DesktopModeCard icon={glPlaylista} title="PLAYLISTA DNIA" desc="Codzienna nowa playlista" accent="violet" footer="Porównaj się z innymi" locked={isGuest} onClick={isGuest ? requestLogin : onDailyPlaylist} />
