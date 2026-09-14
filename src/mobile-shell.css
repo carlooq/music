@@ -1863,3 +1863,55 @@
   .mob-duplicate-sale-head { padding-left: 12px; padding-right: 12px; }
   .mob-duplicate-sell-all { margin-left: 10px; margin-right: 10px; }
 }
+
+/* === Season rewards v1.7 === */
+.mob-season-reward-preview {
+  margin-top: 11px;
+  padding: 10px 11px;
+  border-radius: 12px;
+  border: 1px solid rgba(245,196,81,.16);
+  background: linear-gradient(110deg, rgba(245,196,81,.055), rgba(79,214,255,.035));
+}
+.mob-season-reward-preview-head { display:flex; align-items:center; gap:6px; color:#f3cf68; }
+.mob-season-reward-preview-head span { font-size:8px; font-weight:900; letter-spacing:.09em; }
+.mob-season-reward-preview > strong { display:block; margin-top:6px; color:#fff; font-family:'Space Mono',monospace; font-size:10.5px; line-height:1.3; }
+.mob-season-reward-preview > strong em { color:#716a78; font-style:normal; }
+.mob-season-reward-preview > small { display:block; margin-top:4px; color:#91899a; font-size:9px; line-height:1.35; }
+.mob-season-next-reward { display:block; margin-top:7px; padding-top:7px; border-top:1px solid rgba(255,255,255,.055); color:#9fdff0!important; font-size:8.5px!important; font-weight:750!important; white-space:normal!important; overflow:visible!important; }
+
+.mob-season-reward-ladder {
+  display:flex;
+  gap:7px;
+  overflow-x:auto;
+  padding:2px 1px 7px;
+  margin-top:-2px;
+  scrollbar-width:none;
+}
+.mob-season-reward-ladder::-webkit-scrollbar { display:none; }
+.mob-season-reward-ladder > div {
+  flex:0 0 103px;
+  min-height:58px;
+  padding:8px 9px;
+  border-radius:11px;
+  border:1px solid rgba(255,255,255,.10);
+  background:rgba(8,10,25,.82);
+  box-shadow:inset 0 0 18px rgba(255,255,255,.018);
+}
+.mob-season-reward-ladder span { display:block; color:var(--reward-color,#a59dab); font-family:'Bebas Neue',sans-serif; font-size:12px; letter-spacing:.04em; }
+.mob-season-reward-ladder b { display:block; margin-top:4px; color:#fff; font-size:9px; }
+.mob-season-reward-ladder small { display:block; margin-top:2px; color:#8d8598; font-size:8.5px; }
+.mob-season-reward-ladder > .top3 { flex-basis:116px; border-color:rgba(245,196,81,.28); background:linear-gradient(135deg,rgba(245,196,81,.09),rgba(255,95,201,.045)); }
+.mob-season-reward-ladder > .top3 span { color:#f5c451; }
+
+.mob-ranking-view .mob-rank-row { grid-template-columns:40px 44px minmax(0,1fr) minmax(86px,auto) 20px; }
+.mob-rank-season-meta { min-width:0; display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
+.mob-rank-season-meta .mob-rank-badge { max-width:100%; }
+.mob-rank-reward { color:#9f97aa; font-size:7.5px; font-weight:750; white-space:nowrap; }
+
+@media (max-width:390px) {
+  .mob-ranking-view .mob-rank-row { grid-template-columns:34px 40px minmax(0,1fr) minmax(72px,auto) 16px; gap:7px; }
+  .mob-rank-reward { font-size:7px; }
+  .mob-rank-season-meta .mob-rank-badge { padding-left:6px; padding-right:6px; }
+}
+.mob-season-placement-bonus { display:block; margin-top:5px; color:#f5d16b!important; font-size:8.5px!important; font-weight:850!important; white-space:normal!important; }
+.mob-season-claim-status { display:block; margin-top:7px; padding-top:7px; border-top:1px solid rgba(255,255,255,.055); color:#77e7b6!important; font-size:8.5px!important; font-weight:850!important; white-space:normal!important; }

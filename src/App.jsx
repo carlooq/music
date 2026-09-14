@@ -771,7 +771,62 @@ function RoomInviteModal({ invite, busy, onAccept, onDecline }) {
 
 function RewardNoticePopup({ notice, onClose }) {
   if (!notice) return null;
-  const medal = notice.place === 1 ? "🥇" : notice.place === 2 ? "🥈" : notice.place === 3 ? "🥉" : "🏆";
+  const isSeason = notice.source === "season" && Number(notice.seasonNumber || 0) >= 1;
+  const medal = notice.place === 1 ? "🥇" : notice.place === 2 ? "🥈" : notice.place === 3 ? "🥉" : isSeason ? "🏆" : "🎁";
+
+  if (isSeason) {
+    const hasPlacementBonus = Number(notice.placementXp || 0) > 0 || Number(notice.placementHitcoin || 0) > 0;
+    return (
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Podsumowanie Sezonu ${notice.seasonNumber}`}
+        onClick={onClose}
+        style={{ position: "fixed", inset: 0, zIndex: 260, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, background: "rgba(1,2,10,0.84)", backdropFilter: "blur(9px)" }}
+      >
+        <div onClick={(e) => e.stopPropagation()} style={{ width: "min(100%, 410px)", maxHeight: "min(88vh, 650px)", overflowY: "auto", padding: 22, borderRadius: 24, textAlign: "center", background: "linear-gradient(165deg,#171126,#0a0918 68%,#080915)", border: "1px solid rgba(245,196,81,.32)", boxShadow: "0 26px 80px rgba(0,0,0,.62),0 0 42px rgba(245,196,81,.12)" }}>
+          <div style={{ width: 64, height: 64, margin: "0 auto 11px", borderRadius: 19, display: "grid", placeItems: "center", fontSize: 32, background: "linear-gradient(135deg,rgba(245,196,81,.19),rgba(125,255,239,.10))", border: "1px solid rgba(245,196,81,.34)" }}>{medal}</div>
+          <div style={{ color: "#f5c451", fontFamily: "'Space Mono', monospace", fontSize: 10, letterSpacing: ".13em" }}>SEZON {notice.seasonNumber} ZAKOŃCZONY</div>
+          <h2 style={{ margin: "7px 0 4px", color: "#fff", fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, lineHeight: 1 }}>GRATULACJE!</h2>
+          <p style={{ margin: "0 0 14px", color: "#a49cad", fontSize: 13, lineHeight: 1.45 }}>Twój wynik sezonu został rozliczony, a nagroda dodana do konta.</p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9, marginBottom: 12 }}>
+            <div style={{ padding: "11px 10px", borderRadius: 14, background: "rgba(255,255,255,.025)", border: "1px solid rgba(255,255,255,.07)" }}>
+              <span style={{ display: "block", color: "#81798d", fontSize: 9, fontWeight: 800, letterSpacing: ".09em" }}>RANGA</span>
+              <strong style={{ display: "block", marginTop: 4, color: notice.tierKey === "diamond" ? "#7dffef" : notice.tierKey === "platinum" ? "#c4b5fd" : notice.tierKey === "gold" ? "#f5c451" : notice.tierKey === "silver" ? "#dbe6ee" : notice.tierKey === "bronze" ? "#c98a5a" : "#b6afbe", fontFamily: "'Bebas Neue', sans-serif", fontSize: 21 }}>{notice.seasonRank || "Bez rangi"}</strong>
+            </div>
+            <div style={{ padding: "11px 10px", borderRadius: 14, background: "rgba(255,255,255,.025)", border: "1px solid rgba(255,255,255,.07)" }}>
+              <span style={{ display: "block", color: "#81798d", fontSize: 9, fontWeight: 800, letterSpacing: ".09em" }}>MIEJSCE</span>
+              <strong style={{ display: "block", marginTop: 4, color: "#67e8ff", fontFamily: "'Bebas Neue', sans-serif", fontSize: 21 }}>#{notice.place || "—"}</strong>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gap: 8, marginBottom: 13, textAlign: "left" }}>
+            {(Number(notice.rankXp || 0) > 0 || Number(notice.rankHitcoin || 0) > 0) && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "11px 12px", borderRadius: 13, background: "rgba(79,214,255,.055)", border: "1px solid rgba(79,214,255,.16)" }}>
+                <div><span style={{ display: "block", color: "#fff", fontWeight: 850, fontSize: 12 }}>Nagroda za rangę</span><small style={{ color: "#8f879b", fontSize: 10 }}>{notice.seasonRank || "Aktywność sezonowa"}</small></div>
+                <strong style={{ color: "#dffaff", fontFamily: "'Space Mono', monospace", fontSize: 11 }}>+{notice.rankXp || 0} XP · +{notice.rankHitcoin || 0} HC</strong>
+              </div>
+            )}
+            {hasPlacementBonus && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "11px 12px", borderRadius: 13, background: "rgba(245,196,81,.065)", border: "1px solid rgba(245,196,81,.19)" }}>
+                <div><span style={{ display: "block", color: "#fff", fontWeight: 850, fontSize: 12 }}>Bonus za TOP {notice.place}</span><small style={{ color: "#9f9270", fontSize: 10 }}>Dodatkowa nagroda za miejsce w rankingu</small></div>
+                <strong style={{ color: "#ffe59a", fontFamily: "'Space Mono', monospace", fontSize: 11 }}>+{notice.placementXp || 0} XP · +{notice.placementHitcoin || 0} HC</strong>
+              </div>
+            )}
+          </div>
+
+          <div style={{ marginBottom: 17, padding: "13px", borderRadius: 15, background: "linear-gradient(100deg,rgba(245,196,81,.10),rgba(255,95,201,.07))", border: "1px solid rgba(245,196,81,.23)" }}>
+            <span style={{ display: "block", color: "#9e95a9", fontSize: 9, fontWeight: 850, letterSpacing: ".10em" }}>ŁĄCZNA NAGRODA</span>
+            <strong style={{ display: "block", marginTop: 5, color: "#fff", fontFamily: "'Space Mono', monospace", fontSize: 14 }}>+{notice.xp || 0} XP · +{notice.hitcoin || 0} HITCOIN</strong>
+          </div>
+
+          <button type="button" onClick={onClose} style={{ width: "100%", minHeight: 49, borderRadius: 13, border: "1px solid rgba(245,196,81,.3)", background: "linear-gradient(100deg,#f5c451,#ff8fd9)", color: "#241407", fontWeight: 900, fontFamily: "'Bebas Neue', sans-serif", fontSize: 17, letterSpacing: ".04em" }}>ODBIERZ I GRAJ DALEJ</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       role="dialog"
@@ -2379,17 +2434,26 @@ export default function App() {
       setAuthChecked(true);
       if (u) {
         await ensureStatsDoc(u.uid, u.displayName || authUsername);
-        getStats(u.uid).then((s) => {
-          setMyXp(s?.xp || 0);
-          setMyHitcoin(s?.hitcoin || 0);
-          setStats(s);
-        }).catch(() => {});
+        // Rozliczenie sezonu uruchamiamy przy zwykłym wejściu do aplikacji,
+        // a nie dopiero po otwarciu rankingu. Funkcja jest idempotentna:
+        // od Sezonu 1 każdy gracz ma osobny claim nagrody, więc przerwany
+        // proces można bezpiecznie dokończyć z innego klienta.
+        await processSeasonRewardsIfNeeded().catch((e) => console.error("Błąd rozliczania sezonu:", e));
+        try {
+          const freshStats = await getStats(u.uid);
+          setMyXp(freshStats?.xp || 0);
+          setMyHitcoin(freshStats?.hitcoin || 0);
+          setStats(freshStats);
+        } catch {}
         // sprawdzamy raz po zalogowaniu, czy czeka jakaś nieodebrana
         // karteczka (Playlista dnia / Hit Rush / Turniej / Sezon) —
-        // patrz komentarz przy pushRewardNotice w stats.js
-        consumeNextRewardNotice(u.uid).then((notice) => {
+        // patrz komentarz przy pushRewardNotice w stats.js. Robimy to po
+        // odświeżeniu statystyk, aby popup sezonu od razu pokazywał saldo
+        // zgodne z właśnie przyznaną nagrodą.
+        try {
+          const notice = await consumeNextRewardNotice(u.uid);
           if (notice) setRewardNotice(notice);
-        }).catch(() => {});
+        } catch {}
       }
     });
     return () => unsub();

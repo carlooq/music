@@ -30,7 +30,7 @@ import {
   UserPlus,
   Info,
 } from 'lucide-react';
-import { currentSeasonKey, seasonNumber, seasonRankForWins, seasonRankProgress, seasonMonthLabel, availableSeasonKeys, getPlayerSeasonResult } from './stats.js';
+import { currentSeasonKey, seasonNumber, seasonRankForWins, seasonRankProgress, seasonMonthLabel, availableSeasonKeys, getPlayerSeasonResult, seasonBaseRewardForResult, SEASON_RANK_REWARDS, SEASON_PLACEMENT_REWARDS, SEASON_PARTICIPATION_MIN_GAMES } from './stats.js';
 
 import logoImg from './assets/logo-v2.png';
 import heroBanner from './assets/home/hero-banner.webp';
@@ -831,7 +831,12 @@ export function DesktopStatsView(props) {
   const selectedSeasonPlayed = Number(selectedSeasonProgress?.gamesPlayed || 0);
   const selectedSeasonRank = seasonRankForWins(selectedSeasonWins);
   const selectedSeasonRankProgress = seasonRankProgress(selectedSeasonWins);
+  const selectedSeasonBaseReward = selectedSeasonNumber >= 1 ? seasonBaseRewardForResult(selectedSeasonProgress) : null;
+  const selectedSeasonNextReward = selectedSeasonRankProgress.next ? SEASON_RANK_REWARDS[selectedSeasonRankProgress.next.key] : null;
+  const selectedSeasonGamesToReward = Math.max(0, SEASON_PARTICIPATION_MIN_GAMES - selectedSeasonPlayed);
   const [selectedSeasonPosition, setSelectedSeasonPosition] = useState(props.seasonLeaderboardPosition || null);
+  const selectedSeasonPlacementReward = selectedSeasonNumber >= 1 && selectedSeasonPosition >= 1 && selectedSeasonPosition <= 3 ? SEASON_PLACEMENT_REWARDS[selectedSeasonPosition - 1] : null;
+  const selectedSeasonClaim = stats?.seasonRewardClaims?.[selectedStatsSeasonKey] || null;
   const [seasonPositionLoading, setSeasonPositionLoading] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
 
@@ -930,6 +935,18 @@ export function DesktopStatsView(props) {
           <div className="desk-season-next">
             <div><span>{selectedSeasonRankProgress.next ? `DO ${selectedSeasonRankProgress.next.label.toUpperCase()}` : 'MAKSYMALNA RANGA'}</span><b>{selectedSeasonRankProgress.next ? `BRAKUJE ${selectedSeasonRankProgress.winsToNext}` : 'DIAMENT'}</b></div>
             <div className="desk-season-progress"><i style={{ width: `${selectedSeasonRankProgress.progressPct}%`, '--next-rank-color': selectedSeasonRankProgress.next?.color || selectedSeasonRank?.color || '#7dffef' }} /></div>
+            <div className="desk-season-reward-preview">
+              <Gift size={13} />
+              {selectedSeasonNumber === 0 ? (
+                <span>System nagród rangowych działa od Sezonu 1.</span>
+              ) : selectedSeasonBaseReward ? (
+                <span><b>+{selectedSeasonBaseReward.xp} XP · +{selectedSeasonBaseReward.hitcoin} HC</b> za {selectedSeasonBaseReward.label}{selectedSeasonPlacementReward ? ` · TOP ${selectedSeasonPosition}: +${selectedSeasonPlacementReward.xp} XP · +${selectedSeasonPlacementReward.hitcoin} HC` : ''}</span>
+              ) : (
+                <span><b>+{SEASON_RANK_REWARDS.active.xp} XP · +{SEASON_RANK_REWARDS.active.hitcoin} HC</b> po {selectedSeasonGamesToReward > 0 ? `jeszcze ${selectedSeasonGamesToReward} ${selectedSeasonGamesToReward === 1 ? 'grze' : 'grach'}` : 'odblokowaniu aktywności'}{selectedSeasonPlacementReward ? ` · TOP ${selectedSeasonPosition}: +${selectedSeasonPlacementReward.xp} XP · +${selectedSeasonPlacementReward.hitcoin} HC` : ''}</span>
+              )}
+              {selectedSeasonClaim ? <small className="desk-season-claim-status">✓ Odebrano łącznie: +{selectedSeasonClaim.totalXp || 0} XP · +{selectedSeasonClaim.totalHitcoin || 0} HC</small> : null}
+              {selectedSeasonNumber >= 1 && selectedStatsSeasonKey === currentSeason && selectedSeasonNextReward ? <small>Po awansie do {selectedSeasonRankProgress.next.label}: +{selectedSeasonNextReward.xp} XP · +{selectedSeasonNextReward.hitcoin} HC</small> : null}
+            </div>
           </div>
           <button type="button" className="desk-season-ranking-cta" onClick={() => { props.onLoadSeasonLeaderboard?.('gamesWon', selectedStatsSeasonKey); onLeaderboard?.(); }}>ZOBACZ RANKING <ChevronRight size={17} /></button>
         </section>
@@ -1254,9 +1271,22 @@ function DesktopLeaderboardView({ common, leaderboard, sortBy, onSort, onViewPro
             <button className={mode === 'alltime' ? 'active' : ''} onClick={() => setMode('alltime')}>WSZECH CZASÓW</button>
           </div>
           {mode === 'season' ? (
-            <p className="desk-ranking-info"><Info size={14} /> {selectedSeasonIsCurrent
-              ? `Sezon ${selectedSeasonNumber} trwa jeden miesiąc kalendarzowy i resetuje się automatycznie 1. dnia miesiąca. Top 3 otrzyma nagrody w XP i HITCOIN.`
-              : `Sezon ${selectedSeasonNumber} jest zakończony. Oglądasz archiwalne wyniki tego sezonu — możesz przełączać WYGRANE i ZGADYWANIE.`}</p>
+            <>
+              <p className="desk-ranking-info"><Info size={14} /> {selectedSeasonNumber === 0
+                ? 'Sezon 0 jest sezonem archiwalnym sprzed systemu nagród rangowych.'
+                : selectedSeasonIsCurrent
+                  ? `Sezon ${selectedSeasonNumber} trwa jeden miesiąc i resetuje się 1. dnia miesiąca. Każdy aktywny gracz otrzymuje nagrodę za najwyższą rangę, a TOP 3 dodatkowy bonus.`
+                  : `Sezon ${selectedSeasonNumber} jest zakończony. Nagrody przyznano według najwyższej rangi, a TOP 3 otrzymało dodatkowy bonus za miejsce.`}</p>
+              {selectedSeasonNumber >= 1 ? (
+                <div className="desk-season-reward-ladder" aria-label="Nagrody za rangi sezonowe">
+                  {['active','bronze','silver','gold','platinum','diamond'].map((key) => {
+                    const reward = SEASON_RANK_REWARDS[key];
+                    return <div key={key} style={{ '--reward-color': reward.color }}><span>{key === 'active' ? 'Aktywny · 3 gry' : reward.label}</span><b>{reward.xp} XP</b><small>{reward.hitcoin} HC</small></div>;
+                  })}
+                  <div className="top3"><span>TOP 3</span><b>DODATKOWY BONUS</b><small>#1 +1500 XP / 400 HC · #2 +1000 / 250 · #3 +500 / 150</small></div>
+                </div>
+              ) : null}
+            </>
           ) : null}
           <div className="desk-ranking-tabs">
             <button className={sort === 'gamesWon' ? 'active' : ''} onClick={() => loadSort('gamesWon')}>WYGRANE</button>
@@ -1272,6 +1302,8 @@ function DesktopLeaderboardView({ common, leaderboard, sortBy, onSort, onViewPro
                 const seasonPlayed = Number(seasonData.gamesPlayed || 0);
                 const seasonGuesses = Number(seasonData.guessesCorrect || 0);
                 const rank = mode === 'season' ? seasonRankForWins(seasonWins) : null;
+                const seasonReward = mode === 'season' && selectedSeasonNumber >= 1 ? seasonBaseRewardForResult(seasonData) : null;
+                const placementReward = mode === 'season' && sort === 'gamesWon' && selectedSeasonNumber >= 1 && index < 3 ? SEASON_PLACEMENT_REWARDS[index] : null;
                 const realLevel = levelFromXp ? levelFromXp(Number(player.xp || 0)).level : 1;
                 return (
                   <button type="button" key={player.uid || index} className={`desk-ranking-row rank-${index + 1}`} onClick={() => player.uid && onViewProfile?.(player)}>
@@ -1281,7 +1313,10 @@ function DesktopLeaderboardView({ common, leaderboard, sortBy, onSort, onViewPro
                       <strong>{player.username || 'Gracz'}</strong>
                       <span>LVL {realLevel}{mode === 'season' && sort === 'gamesWon' ? ` · ${seasonPlayed} rozegranych` : ' · kliknij profil'}</span>
                     </div>
-                    {rank ? <span className="desk-rank-badge" style={{ '--rank-color': rank.color }}>{rank.label}</span> : mode === 'season' ? <span className="desk-rank-badge muted">Bez rangi</span> : null}
+                    <div className="desk-rank-season-meta">
+                      {rank ? <span className="desk-rank-badge" style={{ '--rank-color': rank.color }}>{rank.label}</span> : mode === 'season' ? <span className="desk-rank-badge muted">Bez rangi</span> : null}
+                      {seasonReward || placementReward ? <small className="desk-rank-reward">{seasonReward ? `+${seasonReward.xp} XP · ${seasonReward.hitcoin} HC` : 'BONUS TOP 3'}{placementReward ? ' + TOP' : ''}</small> : null}
+                    </div>
                     <div className="desk-ranking-score">
                       {mode === 'season'
                         ? (sort === 'gamesWon' ? `${formatCompact(seasonWins)} wygranych` : `${formatCompact(seasonGuesses)} trafień`)

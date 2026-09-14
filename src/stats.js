@@ -574,6 +574,25 @@ export function getPlayerSeasonResult(statsData, seasonKey = currentSeasonKey())
   return { seasonKey: sk, gamesPlayed: 0, gamesWon: 0, guessesCorrect: 0 };
 }
 
+function compareSeasonResults(aResult = {}, bResult = {}, aUid = "", bUid = "", sortBy = "gamesWon") {
+  const aWins = Number(aResult.gamesWon || 0);
+  const bWins = Number(bResult.gamesWon || 0);
+  const aGuesses = Number(aResult.guessesCorrect || 0);
+  const bGuesses = Number(bResult.guessesCorrect || 0);
+  const aPlayed = Number(aResult.gamesPlayed || 0);
+  const bPlayed = Number(bResult.gamesPlayed || 0);
+
+  if (sortBy === "guessesCorrect") {
+    if (bGuesses !== aGuesses) return bGuesses - aGuesses;
+    if (bWins !== aWins) return bWins - aWins;
+  } else {
+    if (bWins !== aWins) return bWins - aWins;
+    if (bGuesses !== aGuesses) return bGuesses - aGuesses;
+  }
+  if (aPlayed !== bPlayed) return aPlayed - bPlayed;
+  return String(aUid || "").localeCompare(String(bUid || ""));
+}
+
 const historicalSeasonLeaderboardCache = new Map();
 async function getHistoricalSeasonPlayers(seasonKey) {
   const sk = seasonKey || seasonZeroKey();
@@ -591,12 +610,54 @@ async function getHistoricalSeasonPlayers(seasonKey) {
   return request;
 }
 
-// Nagrody za czołowe miejsca na koniec sezonu.
-const SEASON_REWARDS = [
-  { xp: 1500, hitcoin: 400 },
-  { xp: 1000, hitcoin: 250 },
-  { xp: 500, hitcoin: 150 },
+// Nagrody sezonowe. Od Sezonu 1 każdy aktywny gracz dostaje nagrodę
+// zależną od najwyższej osiągniętej rangi, a TOP 3 dostaje dodatkowo
+// bonus za miejsce. Nagrody rangowe NIE sumują się między progami —
+// wypłacamy wyłącznie nagrodę za najwyższy osiągnięty poziom.
+export const SEASON_PARTICIPATION_MIN_GAMES = 3;
+
+export const SEASON_RANK_REWARDS = {
+  active: { key: "active", label: "Aktywny gracz", xp: 75, hitcoin: 25, color: "#8f879b" },
+  bronze: { key: "bronze", label: "Brąz", xp: 150, hitcoin: 50, color: "#c98a5a" },
+  silver: { key: "silver", label: "Srebro", xp: 300, hitcoin: 75, color: "#dbe6ee" },
+  gold: { key: "gold", label: "Złoto", xp: 500, hitcoin: 125, color: "#f5c451" },
+  platinum: { key: "platinum", label: "Platyna", xp: 750, hitcoin: 200, color: "#c4b5fd" },
+  diamond: { key: "diamond", label: "Diament", xp: 1000, hitcoin: 300, color: "#7dffef" },
+};
+
+export const SEASON_PLACEMENT_REWARDS = [
+  { place: 1, xp: 1500, hitcoin: 400 },
+  { place: 2, xp: 1000, hitcoin: 250 },
+  { place: 3, xp: 500, hitcoin: 150 },
 ];
+
+export function seasonBaseRewardForResult(result = {}) {
+  const gamesPlayed = Number(result.gamesPlayed || 0);
+  const gamesWon = Number(result.gamesWon || 0);
+  const rank = seasonRankForWins(gamesWon);
+  if (rank) return { ...SEASON_RANK_REWARDS[rank.key], rank };
+  if (gamesPlayed >= SEASON_PARTICIPATION_MIN_GAMES) return { ...SEASON_RANK_REWARDS.active, rank: null };
+  return null;
+}
+
+export function seasonRewardBreakdown(result = {}, place = null) {
+  const base = seasonBaseRewardForResult(result);
+  const placement = Number(place) >= 1 && Number(place) <= 3 ? SEASON_PLACEMENT_REWARDS[Number(place) - 1] : null;
+  const rankXp = Number(base?.xp || 0);
+  const rankHitcoin = Number(base?.hitcoin || 0);
+  const placementXp = Number(placement?.xp || 0);
+  const placementHitcoin = Number(placement?.hitcoin || 0);
+  return {
+    base,
+    placement,
+    rankXp,
+    rankHitcoin,
+    placementXp,
+    placementHitcoin,
+    totalXp: rankXp + placementXp,
+    totalHitcoin: rankHitcoin + placementHitcoin,
+  };
+}
 
 // Wywoływane przy końcu KAŻDEJ gry (obok już istniejących dożywotnich
 // liczników) — transakcja, więc bezpieczne nawet gdy leci równolegle z
@@ -645,14 +706,7 @@ export async function getSeasonLeaderboard(count = 10, sortBy = "gamesWon", seas
   if (sk !== currentSeasonKey()) {
     const players = await getHistoricalSeasonPlayers(sk);
     return [...players]
-      .sort((a, b) => {
-        const av = Number(a.selectedSeasonProgress?.[fieldName] || 0);
-        const bv = Number(b.selectedSeasonProgress?.[fieldName] || 0);
-        if (bv !== av) return bv - av;
-        const aw = Number(a.selectedSeasonProgress?.gamesWon || 0);
-        const bw = Number(b.selectedSeasonProgress?.gamesWon || 0);
-        return bw - aw;
-      })
+      .sort((a, b) => compareSeasonResults(a.selectedSeasonProgress, b.selectedSeasonProgress, a.uid, b.uid, fieldName))
       .slice(0, count);
   }
 
@@ -664,6 +718,7 @@ export async function getSeasonLeaderboard(count = 10, sortBy = "gamesWon", seas
       .map((d) => ({ uid: d.id, ...d.data() }))
       .filter((p) => p.seasonProgress?.seasonKey === sk)
       .map((p) => ({ ...p, selectedSeasonProgress: p.seasonProgress }))
+      .sort((a, b) => compareSeasonResults(a.selectedSeasonProgress, b.selectedSeasonProgress, a.uid, b.uid, fieldName))
       .slice(0, count);
   }
 
@@ -677,10 +732,9 @@ export async function getSeasonLeaderboardPosition(uid, seasonKey = currentSeaso
 
   if (sk !== currentSeasonKey()) {
     const players = await getHistoricalSeasonPlayers(sk);
-    const mine = players.find((p) => p.uid === uid);
-    if (!mine) return null;
-    const ownValue = Number(mine.selectedSeasonProgress?.[fieldName] || 0);
-    return players.filter((p) => Number(p.selectedSeasonProgress?.[fieldName] || 0) > ownValue).length + 1;
+    const ordered = [...players].sort((a, b) => compareSeasonResults(a.selectedSeasonProgress, b.selectedSeasonProgress, a.uid, b.uid, fieldName));
+    const index = ordered.findIndex((p) => p.uid === uid);
+    return index >= 0 ? index + 1 : null;
   }
 
   const ownSnap = await getDoc(doc(db, "userStats", uid));
@@ -690,53 +744,160 @@ export async function getSeasonLeaderboardPosition(uid, seasonKey = currentSeaso
   if (!ownResult || Number(ownResult.gamesPlayed || 0) <= 0) return null;
   const ownValue = Number(ownResult[fieldName] || 0);
 
-  const q = query(collection(db, "userStats"), where(`seasonProgress.${fieldName}`, ">", ownValue));
-  const higher = await getDocs(q);
-  return higher.docs.filter((d) => d.data().seasonProgress?.seasonKey === sk).length + 1;
+  // Bez indeksu złożonego: osobno liczymy graczy z większym głównym wynikiem
+  // oraz remisy na tym samym wyniku. Remisy rozstrzygamy dokładnie tak samo
+  // jak ranking i wypłata nagród (wygrane -> zgadnięte -> mniej gier -> UID).
+  const higherQuery = query(collection(db, "userStats"), where(`seasonProgress.${fieldName}`, ">", ownValue));
+  const tiedQuery = query(collection(db, "userStats"), where(`seasonProgress.${fieldName}`, "==", ownValue));
+  const [higher, tied] = await Promise.all([getDocs(higherQuery), getDocs(tiedQuery)]);
+  const higherCount = higher.docs.filter((d) => d.data().seasonProgress?.seasonKey === sk).length;
+  const tiedAhead = tied.docs
+    .filter((d) => d.id !== uid && d.data().seasonProgress?.seasonKey === sk)
+    .filter((d) => compareSeasonResults(d.data().seasonProgress, ownResult, d.id, uid, fieldName) < 0)
+    .length;
+  return higherCount + tiedAhead + 1;
 }
 
-// Rozdanie nagród za top 3 poprzedniego sezonu — bezpieczne wołać "na
-// wszelki wypadek" przy każdym wejściu w ranking, transakcja z markerem
-// gwarantuje że rozda się dokładnie raz, niezależnie ile razy/klientów to
-// wywoła. Wynik zakończonego sezonu odczytujemy zarówno z seasonHistory,
-// jak i ze starego seasonProgress, jeśli gracz nie zdążył jeszcze zagrać
-// w nowym miesiącu.
+// Rozliczenie poprzedniego sezonu. Nowy system działa od Sezonu 1:
+// - każdy aktywny gracz (min. 3 gry) dostaje nagrodę za najwyższą rangę,
+// - TOP 3 dostaje dodatkowy bonus za miejsce,
+// - wypłata jest idempotentna per gracz/per sezon.
+//
+// Kluczowa różnica względem starej wersji: globalnego markera NIE ustawiamy
+// przed wypłatami. Każdy userStats ma osobny seasonRewardClaims[seasonKey].
+// Jeśli klient padnie w połowie rozliczenia, kolejny klient ominie już
+// wypłaconych graczy i dokończy resztę. Dopiero po przejściu całej listy
+// zapisujemy completedAt w markerze sezonu.
 export async function processSeasonRewardsIfNeeded() {
   const endedSeason = previousSeasonKey(currentSeasonKey());
-  const markerRef = doc(db, "seasonRewardsProcessed", endedSeason);
-  let shouldProcess = false;
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(markerRef);
-    if (snap.exists()) return;
-    shouldProcess = true;
-    tx.set(markerRef, { processedAt: Date.now() });
-  });
-  if (!shouldProcess) return;
+  const endedNumber = seasonNumber(endedSeason);
 
-  // Czytamy użytkowników bezpośrednio, bo część z nich może jeszcze mieć
-  // zakończony sezon w seasonProgress (nie rozegrali pierwszej gry nowego
-  // miesiąca), a część mogła już zostać przeniesiona do seasonHistory.
-  // Dzięki temu pierwsza osoba otwierająca ranking w nowym miesiącu nie może
-  // przypadkowo zamknąć sezonu z niepełnymi wynikami.
+  // Sezon 0 był rozliczany według starego systemu / ręcznego seedowania.
+  // Nie dopłacamy do niego nowych nagród rangowych wstecz.
+  if (endedNumber < 1) return { skipped: true, reason: "pre-season", seasonKey: endedSeason };
+
+  const markerRef = doc(db, "seasonRewardsProcessed", `${endedSeason}-v2`);
+  const markerSnap = await getDoc(markerRef);
+  if (markerSnap.exists() && markerSnap.data()?.completedAt) {
+    return { alreadyProcessed: true, seasonKey: endedSeason };
+  }
+
   const snap = await getDocs(collection(db, "userStats"));
   const rankedAll = snap.docs
     .map((d) => {
       const data = d.data();
-      return { uid: d.id, username: data.username || "Gracz", avatarUrl: data.avatarUrl || null, result: historicalSeasonResult(data, endedSeason) };
+      return {
+        uid: d.id,
+        username: data.username || "Gracz",
+        avatarUrl: data.avatarUrl || null,
+        result: historicalSeasonResult(data, endedSeason),
+      };
     })
     .filter((p) => p.result && Number(p.result.gamesPlayed || 0) > 0)
-    .sort((a, b) => Number(b.result.gamesWon || 0) - Number(a.result.gamesWon || 0) || Number(b.result.guessesCorrect || 0) - Number(a.result.guessesCorrect || 0));
-  const ranked = rankedAll.slice(0, 3);
+    .sort((a, b) => compareSeasonResults(a.result, b.result, a.uid, b.uid, "gamesWon"));
 
-  const archive = rankedAll.slice(0, 50).map((p, i) => ({ uid: p.uid, username: p.username, avatarUrl: p.avatarUrl, place: i + 1, ...p.result }));
-  await setDoc(doc(db, "seasonArchive", endedSeason), { seasonKey: endedSeason, top: archive, finalizedAt: Date.now() });
+  const archive = rankedAll.slice(0, 50).map((p, i) => ({
+    uid: p.uid,
+    username: p.username,
+    avatarUrl: p.avatarUrl,
+    place: i + 1,
+    ...p.result,
+    rank: seasonRankForWins(p.result.gamesWon)?.key || null,
+  }));
+  await setDoc(doc(db, "seasonArchive", endedSeason), {
+    seasonKey: endedSeason,
+    top: archive,
+    finalizedAt: Date.now(),
+    rewardVersion: 2,
+  }, { merge: true });
 
-  for (let i = 0; i < ranked.length; i++) {
-    const reward = SEASON_REWARDS[i];
-    if (!reward) continue;
-    await updateDoc(doc(db, "userStats", ranked[i].uid), { xp: increment(reward.xp), hitcoin: increment(reward.hitcoin) });
-    pushRewardNotice(ranked[i].uid, { source: "season", place: i + 1, xp: reward.xp, hitcoin: reward.hitcoin, label: `Sezon ${seasonNumber(endedSeason)} (ranking)` }).catch(() => {});
+  const eligiblePlayers = rankedAll.filter((player, index) => {
+    const reward = seasonRewardBreakdown(player.result, index + 1);
+    return reward.totalXp > 0 || reward.totalHitcoin > 0;
+  }).length;
+  let rewarded = 0;
+  let skipped = 0;
+  for (let i = 0; i < rankedAll.length; i++) {
+    const player = rankedAll[i];
+    const place = i + 1;
+    const reward = seasonRewardBreakdown(player.result, place);
+    if (reward.totalXp <= 0 && reward.totalHitcoin <= 0) {
+      skipped += 1;
+      continue;
+    }
+
+    const ref = doc(db, "userStats", player.uid);
+    let granted = false;
+    await runTransaction(db, async (tx) => {
+      const userSnap = await tx.get(ref);
+      if (!userSnap.exists()) return;
+      const data = userSnap.data() || {};
+      const claims = { ...(data.seasonRewardClaims || {}) };
+      if (Number(claims?.[endedSeason]?.version || 0) >= 2) return;
+
+      const baseLabel = reward.base?.label || null;
+      const claim = {
+        version: 2,
+        seasonKey: endedSeason,
+        seasonNumber: endedNumber,
+        processedAt: Date.now(),
+        place,
+        tierKey: reward.base?.key || null,
+        tierLabel: baseLabel,
+        gamesPlayed: Number(player.result.gamesPlayed || 0),
+        gamesWon: Number(player.result.gamesWon || 0),
+        guessesCorrect: Number(player.result.guessesCorrect || 0),
+        rankXp: reward.rankXp,
+        rankHitcoin: reward.rankHitcoin,
+        placementXp: reward.placementXp,
+        placementHitcoin: reward.placementHitcoin,
+        totalXp: reward.totalXp,
+        totalHitcoin: reward.totalHitcoin,
+      };
+      claims[endedSeason] = claim;
+
+      const notice = {
+        id: `season-${endedSeason}-${player.uid}`,
+        source: "season",
+        seasonKey: endedSeason,
+        seasonNumber: endedNumber,
+        place,
+        seasonRank: baseLabel,
+        tierKey: reward.base?.key || null,
+        gamesPlayed: claim.gamesPlayed,
+        gamesWon: claim.gamesWon,
+        rankXp: reward.rankXp,
+        rankHitcoin: reward.rankHitcoin,
+        placementXp: reward.placementXp,
+        placementHitcoin: reward.placementHitcoin,
+        xp: reward.totalXp,
+        hitcoin: reward.totalHitcoin,
+        label: `Sezon ${endedNumber} zakończony`,
+      };
+
+      tx.set(ref, {
+        xp: Number(data.xp || 0) + reward.totalXp,
+        hitcoin: Number(data.hitcoin || 0) + reward.totalHitcoin,
+        seasonRewardClaims: claims,
+        rewardNotices: [...(data.rewardNotices || []), notice],
+      }, { merge: true });
+      granted = true;
+    });
+    if (granted) rewarded += 1;
   }
+
+  await setDoc(markerRef, {
+    seasonKey: endedSeason,
+    seasonNumber: endedNumber,
+    rewardVersion: 2,
+    completedAt: Date.now(),
+    playersInRanking: rankedAll.length,
+    eligiblePlayers,
+    newRewardsGrantedThisRun: rewarded,
+    playersWithoutReward: skipped,
+  }, { merge: true });
+
+  return { processed: true, seasonKey: endedSeason, rewarded, skipped, players: rankedAll.length };
 }
 
 // Historia sezonów danego gracza (do profilu/statystyk), bez dodatkowych
@@ -830,7 +991,7 @@ export async function seedSeasonZeroFromAllTime() {
     const result = { gamesWon: p.gamesWon || 0, gamesPlayed: p.gamesPlayed || 0, guessesCorrect: p.guessesCorrect || 0 };
     const ref = doc(db, "userStats", p.uid);
     await updateDoc(ref, { [`seasonHistory.${zeroKey}`]: result }).catch(() => {});
-    const reward = SEASON_REWARDS[i];
+    const reward = SEASON_PLACEMENT_REWARDS[i];
     if (reward) {
       await updateDoc(ref, { xp: increment(reward.xp), hitcoin: increment(reward.hitcoin) }).catch(() => {});
       await pushRewardNotice(p.uid, { source: "season", place: i + 1, xp: reward.xp, hitcoin: reward.hitcoin, label: "Sezon 0 (ranking)" }).catch(() => {});

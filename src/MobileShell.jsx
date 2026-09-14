@@ -30,7 +30,7 @@ import {
   Settings,
   Coins,
 } from 'lucide-react';
-import { currentSeasonKey, seasonNumber, seasonRankForWins, seasonRankProgress, seasonMonthLabel, availableSeasonKeys, getPlayerSeasonResult } from './stats.js';
+import { currentSeasonKey, seasonNumber, seasonRankForWins, seasonRankProgress, seasonMonthLabel, availableSeasonKeys, getPlayerSeasonResult, seasonBaseRewardForResult, SEASON_RANK_REWARDS, SEASON_PLACEMENT_REWARDS, SEASON_PARTICIPATION_MIN_GAMES } from './stats.js';
 
 import logoImg from './assets/logo-v2.png';
 import homeBg from './assets/home/bg.jpg';
@@ -453,7 +453,12 @@ function MobileStatsView(props) {
   const selectedSeasonPlayed = Number(selectedSeasonProgress?.gamesPlayed || 0);
   const selectedSeasonRank = seasonRankForWins(selectedSeasonWins);
   const selectedSeasonRankProgress = seasonRankProgress(selectedSeasonWins);
+  const selectedSeasonBaseReward = selectedSeasonNumber >= 1 ? seasonBaseRewardForResult(selectedSeasonProgress) : null;
+  const selectedSeasonNextReward = selectedSeasonRankProgress.next ? SEASON_RANK_REWARDS[selectedSeasonRankProgress.next.key] : null;
+  const selectedSeasonGamesToReward = Math.max(0, SEASON_PARTICIPATION_MIN_GAMES - selectedSeasonPlayed);
   const [selectedSeasonPosition, setSelectedSeasonPosition] = useState(props.seasonLeaderboardPosition || null);
+  const selectedSeasonPlacementReward = selectedSeasonNumber >= 1 && selectedSeasonPosition >= 1 && selectedSeasonPosition <= 3 ? SEASON_PLACEMENT_REWARDS[selectedSeasonPosition - 1] : null;
+  const selectedSeasonClaim = props.stats?.seasonRewardClaims?.[selectedStatsSeasonKey] || null;
   const [seasonPositionLoading, setSeasonPositionLoading] = useState(false);
   const [expandedDuel, setExpandedDuel] = useState(null);
   const [historyExpanded, setHistoryExpanded] = useState(false);
@@ -522,6 +527,27 @@ function MobileStatsView(props) {
         <div className="mob-season-rank-progress">
           <div><span>{selectedSeasonRankProgress.next ? `DO RANGI ${selectedSeasonRankProgress.next.label.toUpperCase()}` : 'NAJWYŻSZA RANGA'}</span><b>{selectedSeasonRankProgress.next ? `brakuje ${selectedSeasonRankProgress.winsToNext}` : 'DIAMENT'}</b></div>
           <i><em style={{ width: `${selectedSeasonRankProgress.progressPct}%`, '--next-rank-color': selectedSeasonRankProgress.next?.color || selectedSeasonRank?.color || '#7dffef' }} /></i>
+        </div>
+        <div className="mob-season-reward-preview">
+          <div className="mob-season-reward-preview-head"><Gift size={14} /><span>{selectedSeasonNumber === 0 ? 'NAGRODY SEZONOWE' : selectedStatsSeasonKey === currentSeason ? 'NAGRODA NA KONIEC SEZONU' : 'NAGRODA ZA OSIĄGNIĘTĄ RANGĘ'}</span></div>
+          {selectedSeasonNumber === 0 ? (
+            <small>System nagród za rangi działa od Sezonu 1.</small>
+          ) : selectedSeasonBaseReward ? (
+            <>
+              <strong>+{selectedSeasonBaseReward.xp} XP <em>·</em> +{selectedSeasonBaseReward.hitcoin} HITCOIN</strong>
+              <small>{selectedSeasonBaseReward.label}</small>{selectedSeasonPlacementReward ? <span className="mob-season-placement-bonus">TOP {selectedSeasonPosition}: +{selectedSeasonPlacementReward.xp} XP · +{selectedSeasonPlacementReward.hitcoin} HC</span> : null}
+            </>
+          ) : (
+            <>
+              <strong>+{SEASON_RANK_REWARDS.active.xp} XP <em>·</em> +{SEASON_RANK_REWARDS.active.hitcoin} HITCOIN</strong>
+              <small>{selectedSeasonGamesToReward > 0 ? `Rozegraj jeszcze ${selectedSeasonGamesToReward} ${selectedSeasonGamesToReward === 1 ? 'grę' : 'gry'}, aby odblokować nagrodę za aktywność.` : 'Nagroda za aktywność odblokowana.'}</small>
+              {selectedSeasonPlacementReward ? <span className="mob-season-placement-bonus">TOP {selectedSeasonPosition}: +{selectedSeasonPlacementReward.xp} XP · +{selectedSeasonPlacementReward.hitcoin} HC</span> : null}
+            </>
+          )}
+          {selectedSeasonClaim ? <span className="mob-season-claim-status">✓ ODEBRANO ŁĄCZNIE: +{selectedSeasonClaim.totalXp || 0} XP · +{selectedSeasonClaim.totalHitcoin || 0} HC</span> : null}
+          {selectedSeasonNumber >= 1 && selectedStatsSeasonKey === currentSeason && selectedSeasonNextReward ? (
+            <span className="mob-season-next-reward">Po awansie do {selectedSeasonRankProgress.next.label}: +{selectedSeasonNextReward.xp} XP · +{selectedSeasonNextReward.hitcoin} HC</span>
+          ) : null}
         </div>
       </section>
 
@@ -926,9 +952,22 @@ function MobileRankingView(props) {
         <button type="button" className={mode === 'alltime' ? 'active' : ''} onClick={() => setMode('alltime')}>WSZECH CZASÓW</button>
       </div>
       {mode === 'season' ? (
-        <p className="mob-ranking-info"><Info size={13} /> {selectedSeasonIsCurrent
-          ? `Sezon ${selectedSeasonNumber} trwa jeden miesiąc kalendarzowy. Top 3 na koniec sezonu otrzyma nagrody w XP i HITCOIN.`
-          : `Sezon ${selectedSeasonNumber} jest zakończony. Oglądasz jego archiwalne wyniki — możesz przełączać WYGRANE i ZGADYWANIE.`}</p>
+        <>
+          <p className="mob-ranking-info"><Info size={13} /> {selectedSeasonNumber === 0
+            ? 'Sezon 0 jest sezonem archiwalnym sprzed systemu nagród rangowych.'
+            : selectedSeasonIsCurrent
+              ? `Sezon ${selectedSeasonNumber} trwa jeden miesiąc. Każdy aktywny gracz zdobywa nagrodę za najwyższą rangę, a TOP 3 otrzymuje dodatkowy bonus.`
+              : `Sezon ${selectedSeasonNumber} jest zakończony. Nagroda zależała od najwyższej osiągniętej rangi, a TOP 3 otrzymało dodatkowy bonus.`}</p>
+          {selectedSeasonNumber >= 1 ? (
+            <div className="mob-season-reward-ladder" aria-label="Nagrody za rangi sezonowe">
+              {['active','bronze','silver','gold','platinum','diamond'].map((key) => {
+                const reward = SEASON_RANK_REWARDS[key];
+                return <div key={key} style={{ '--reward-color': reward.color }}><span>{key === 'active' ? 'Aktywny · 3 gry' : reward.label}</span><b>{reward.xp} XP</b><small>{reward.hitcoin} HC</small></div>;
+              })}
+              <div className="top3"><span>TOP 3</span><b>+ BONUS</b><small>500–1500 XP · 150–400 HC</small></div>
+            </div>
+          ) : null}
+        </>
       ) : null}
       <div className="mob-ranking-tabs">
         <button type="button" className={sort === 'gamesWon' ? 'active' : ''} onClick={() => loadSort('gamesWon')}>WYGRANE</button>
@@ -941,6 +980,8 @@ function MobileRankingView(props) {
           const seasonPlayed = Number(seasonData.gamesPlayed || 0);
           const seasonGuesses = Number(seasonData.guessesCorrect || 0);
           const rank = mode === 'season' ? seasonRankForWins(seasonWins) : null;
+          const seasonReward = mode === 'season' && selectedSeasonNumber >= 1 ? seasonBaseRewardForResult(seasonData) : null;
+          const placementReward = mode === 'season' && sort === 'gamesWon' && selectedSeasonNumber >= 1 && index < 3 ? SEASON_PLACEMENT_REWARDS[index] : null;
           return (
             <button type="button" className={`mob-rank-row place-${index + 1}`} key={player.uid || index} onClick={() => props.onViewProfile?.(player)}>
               <span className="mob-rank-place">{index < 3 ? ['🥇','🥈','🥉'][index] : `#${index + 1}`}</span>
@@ -956,7 +997,10 @@ function MobileRankingView(props) {
                   <span>{sort === 'gamesWon' ? `${player.gamesWon || 0} wygranych` : `${player.guessesCorrect || 0} trafień`}</span>
                 )}
               </div>
-              {rank ? <span className="mob-rank-badge" style={{ '--rank-color': rank.color }}>{rank.label}</span> : mode === 'season' ? <span className="mob-rank-badge muted">Bez rangi</span> : null}
+              <div className="mob-rank-season-meta">
+                {rank ? <span className="mob-rank-badge" style={{ '--rank-color': rank.color }}>{rank.label}</span> : mode === 'season' ? <span className="mob-rank-badge muted">Bez rangi</span> : null}
+                {seasonReward || placementReward ? <small className="mob-rank-reward">{seasonReward ? `+${seasonReward.xp} XP · ${seasonReward.hitcoin} HC` : 'BONUS TOP 3'}{placementReward ? ' + TOP' : ''}</small> : null}
+              </div>
               <ChevronRight size={16} />
             </button>
           );
