@@ -149,6 +149,30 @@ function toMillis(ts) {
   return null;
 }
 
+const RECENT_ROOM_STORAGE_KEY = "hitster-recent-room-v1";
+const RECENT_ROOM_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+function readRecentRoom() {
+  try {
+    const raw = localStorage.getItem(RECENT_ROOM_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const now = Date.now();
+    if (!parsed?.code || !parsed?.savedAt) {
+      localStorage.removeItem(RECENT_ROOM_STORAGE_KEY);
+      return null;
+    }
+    if (now - parsed.savedAt > RECENT_ROOM_MAX_AGE_MS || (parsed.expiresAt && parsed.expiresAt <= now)) {
+      localStorage.removeItem(RECENT_ROOM_STORAGE_KEY);
+      return null;
+    }
+    return parsed;
+  } catch {
+    localStorage.removeItem(RECENT_ROOM_STORAGE_KEY);
+    return null;
+  }
+}
+
 const CATEGORIES = [
   { slug: "najwieksze-hity", label: "Największe Hity" },
   { slug: "polskie", label: "Polskie" },
@@ -1096,7 +1120,27 @@ export default function App() {
   const VOTING_SECONDS = 20;
 
   const [user, setUser] = useState(null);
+  const [recentRoom, setRecentRoom] = useState(() => readRecentRoom());
   const [authUser, setAuthUser] = useState(null); // surowa sesja Firebase Auth (realna LUB anonimowa) — do playerId/zapisów; `user` zostaje `null` dla gości, dokładnie jak dotąd
+
+  const rememberRecentRoom = useCallback((code, mode = "POKÓJ", expiresAt = null) => {
+    if (!code || !user?.uid) return;
+    const next = { code: String(code).toUpperCase(), mode, uid: user.uid, savedAt: Date.now(), expiresAt: expiresAt || null };
+    try { localStorage.setItem(RECENT_ROOM_STORAGE_KEY, JSON.stringify(next)); } catch {}
+    setRecentRoom(next);
+  }, [user?.uid]);
+
+  const forgetRecentRoom = useCallback((code = null) => {
+    setRecentRoom((current) => {
+      if (code && current?.code && current.code !== code) return current;
+      try { localStorage.removeItem(RECENT_ROOM_STORAGE_KEY); } catch {}
+      return null;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (recentRoom?.uid && user?.uid && recentRoom.uid !== user.uid) forgetRecentRoom();
+  }, [user?.uid, recentRoom?.uid, forgetRecentRoom]);
   const [authChecked, setAuthChecked] = useState(false);
   const [authMode, setAuthMode] = useState("login"); // login | register
   const [authUsername, setAuthUsername] = useState("");
@@ -3329,12 +3373,14 @@ export default function App() {
       ref,
       (snap) => {
         if (!snap.exists()) {
+          forgetRecentRoom(roomId);
           setError("Ten pokój przestał istnieć.");
           setRoom(null);
           return;
         }
         const data = snap.data();
         if (data.players && !data.players.some((p) => p.id === playerId)) {
+          forgetRecentRoom(roomId);
           setRoomId(null);
           setRoom(null);
           setScreen("home");
@@ -3347,7 +3393,7 @@ export default function App() {
       (err) => setError("Błąd połączenia: " + err.message)
     );
     return () => unsub();
-  }, [roomId]);
+  }, [roomId, playerId, forgetRecentRoom]);
 
   // reset local per-round UI whenever the shared card changes
   const timeoutFiredRef = useRef(false);
@@ -3607,6 +3653,7 @@ export default function App() {
         joinLocked: false,
       });
       setRoomId(code);
+      rememberRecentRoom(code, "POKÓJ", Date.now() + 24 * 60 * 60 * 1000);
     } catch (e) {
       setError("Nie udało się stworzyć pokoju: " + e.message);
     } finally {
@@ -3640,6 +3687,7 @@ export default function App() {
       joinLocked: false,
     });
     setRoomId(code);
+    rememberRecentRoom(code, "POKÓJ 1V1", Date.now() + 24 * 60 * 60 * 1000);
     return code;
   }
 
@@ -3720,10 +3768,12 @@ export default function App() {
     try {
       if (user) checkQuickReturn(user.uid).catch(() => {});
       const ref = doc(db, "rooms", code);
+      let joinedRoomData = null;
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         if (!snap.exists()) throw new Error("Nie znaleziono pokoju o tym kodzie.");
         const data = snap.data();
+        joinedRoomData = data;
         const players = Array.isArray(data.players) ? data.players : [];
         const already = players.some((p) => p.id === playerId);
         if (!already && (data.status !== "lobby" || data.joinLocked)) {
@@ -3734,6 +3784,13 @@ export default function App() {
         }
       });
       setRoomId(code);
+      if (joinedRoomData && !joinedRoomData.practiceMode && !joinedRoomData.tournamentMode) {
+        rememberRecentRoom(
+          code,
+          joinedRoomData.yearGuessMode ? "ZGADNIJ ROK" : "POKÓJ",
+          toMillis(joinedRoomData.expireAt)
+        );
+      }
       return true;
     } catch (e) {
       setError(e.message || "Nie udało się dołączyć do pokoju.");
@@ -3773,6 +3830,7 @@ export default function App() {
         joinLocked: false,
       });
       setRoomId(code);
+      rememberRecentRoom(code, "ZGADNIJ ROK", Date.now() + 24 * 60 * 60 * 1000);
     } catch (e) {
       setError("Nie udało się stworzyć pokoju: " + e.message);
     } finally {
@@ -5042,6 +5100,12 @@ export default function App() {
   }
 
   function leaveRoom() {
+    const rememberThisRoom = roomId && user?.uid && room && !room.practiceMode && !room.tournamentMode && room.status !== "gameover";
+    if (rememberThisRoom) {
+      rememberRecentRoom(roomId, room.yearGuessMode ? "ZGADNIJ ROK" : "POKÓJ", toMillis(room.expireAt));
+    } else if (roomId && room?.status === "gameover") {
+      forgetRecentRoom(roomId);
+    }
     Object.keys(roomInviteSentTo).forEach((uid) => clearRoomInvite(uid, { fromUid: user?.uid, roomCode: roomId }).catch(() => {}));
     setRoomInviteSentTo({});
     setRoomId(null);
@@ -5057,6 +5121,12 @@ export default function App() {
     setSharedBoughtNotice(null);
     setGameEndReveal(null);
     setShowGameEndRevealPopup(false);
+  }
+
+  async function returnToRecentRoom() {
+    if (!recentRoom?.code || busy) return;
+    const joined = await joinRoom(recentRoom.code);
+    if (joined) setJoinCode("");
   }
 
   async function kickPlayer(targetId) {
@@ -6556,6 +6626,9 @@ export default function App() {
         setJoinCode={setJoinCode}
         onCreateRoom={createRoom}
         onJoinRoom={joinRoom}
+        recentRoom={user && recentRoom?.uid === user.uid ? recentRoom : null}
+        onReturnRecentRoom={returnToRecentRoom}
+        onForgetRecentRoom={() => forgetRecentRoom()}
         onPractice={() => setScreen("practiceSetup")}
         onYearGuess={createYearGuessRoom}
         onHitRush={() => setScreen("hitRushMenu")}
@@ -6709,6 +6782,9 @@ export default function App() {
         setJoinCode={setJoinCode}
         onCreateRoom={createRoom}
         onJoinRoom={joinRoom}
+        recentRoom={user && recentRoom?.uid === user.uid ? recentRoom : null}
+        onReturnRecentRoom={returnToRecentRoom}
+        onForgetRecentRoom={() => forgetRecentRoom()}
         onPractice={() => setScreen("practiceSetup")}
         onHitRush={() => setScreen("hitRushMenu")}
         onDailySong={openDailySong}

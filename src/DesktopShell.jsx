@@ -545,6 +545,9 @@ export function DesktopHomeView(props) {
     setJoinCode,
     onCreateRoom,
     onJoinRoom,
+    recentRoom,
+    onReturnRecentRoom,
+    onForgetRecentRoom,
     onPractice,
     onYearGuess,
     onHitRush,
@@ -645,6 +648,19 @@ export function DesktopHomeView(props) {
                 <div className="desk-room-note">{isGuest ? 'Dołączanie do pokoi wymaga darmowego konta.' : 'Masz kod od znajomego? Wskakuj od razu do rozgrywki.'}</div>
               </div>
             </div>
+            {!isGuest && recentRoom ? (
+              <div className="desk-recent-room">
+                <button type="button" className="desk-recent-room-main" onClick={onReturnRecentRoom}>
+                  <span className="desk-recent-room-icon"><DoorOpen size={18} /></span>
+                  <span className="desk-recent-room-copy">
+                    <small>OSTATNI POKÓJ</small>
+                    <strong>{recentRoom.mode || 'POKÓJ'} <b>{recentRoom.code}</b></strong>
+                  </span>
+                  <span className="desk-recent-room-action">WRÓĆ <ChevronRight size={16} /></span>
+                </button>
+                <button type="button" className="desk-recent-room-forget" onClick={onForgetRecentRoom} aria-label="Usuń ostatni pokój">×</button>
+              </div>
+            ) : null}
           </section>
 
           {isGuest ? (

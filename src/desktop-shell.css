@@ -3399,3 +3399,16 @@
     gap: 14px;
   }
 }
+
+/* v1.11 — szybki powrót do ostatniego pokoju */
+.desk-recent-room { margin-top:12px; display:grid; grid-template-columns:minmax(0,1fr) 38px; gap:8px; }
+.desk-recent-room-main { min-width:0; min-height:48px; padding:7px 12px; border-radius:11px; border:1px solid rgba(118,93,255,.30); background:linear-gradient(100deg,rgba(81,48,147,.20),rgba(35,150,190,.10)); color:#fff; display:grid; grid-template-columns:32px minmax(0,1fr) auto; gap:10px; align-items:center; text-align:left; box-shadow:inset 0 0 20px rgba(106,74,255,.04); transition:border-color .16s ease, transform .16s ease, background .16s ease; }
+.desk-recent-room-main:hover { transform:translateY(-1px); border-color:rgba(96,221,255,.45); background:linear-gradient(100deg,rgba(91,55,163,.28),rgba(37,161,204,.15)); }
+.desk-recent-room-icon { width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center; color:#63e8ff; border:1px solid rgba(84,220,255,.22); background:rgba(43,192,255,.06); }
+.desk-recent-room-copy { min-width:0; display:grid; gap:2px; }
+.desk-recent-room-copy small { color:#817a94; font-size:7px; letter-spacing:.16em; font-weight:800; }
+.desk-recent-room-copy strong { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#f3efff; font-family:'Bebas Neue',sans-serif; font-size:17px; letter-spacing:.04em; font-weight:400; }
+.desk-recent-room-copy strong b { margin-left:6px; color:#68e8ff; font-family:'Space Mono',monospace; font-size:11px; letter-spacing:.13em; }
+.desk-recent-room-action { display:flex; align-items:center; gap:4px; color:#c9b5ff; font-family:'Bebas Neue',sans-serif; font-size:15px; letter-spacing:.06em; }
+.desk-recent-room-forget { width:38px; border-radius:11px; border:1px solid rgba(117,106,148,.18); background:rgba(13,12,29,.66); color:#716a84; font-size:19px; line-height:1; }
+.desk-recent-room-forget:hover { color:#aaa2bd; border-color:rgba(150,136,190,.3); }

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Home,
+  DoorOpen,
   Disc3,
   BarChart3,
   Crown,
@@ -247,7 +248,7 @@ function MobileAuthCard(props) {
   );
 }
 
-function MobilePlayHero({ user, joinCode, setJoinCode, onCreateRoom, onJoinRoom, onRequireLogin, busy }) {
+function MobilePlayHero({ user, joinCode, setJoinCode, onCreateRoom, onJoinRoom, recentRoom, onReturnRecentRoom, onForgetRecentRoom, onRequireLogin, busy }) {
   return (
     <section className="mob-play-hero mob-panel">
       <div className="mob-play-hero-copy">
@@ -276,6 +277,19 @@ function MobilePlayHero({ user, joinCode, setJoinCode, onCreateRoom, onJoinRoom,
           />
           <button disabled={busy} onClick={() => user ? onJoinRoom?.() : onRequireLogin?.()} type="button">DOŁĄCZ</button>
         </div>
+        {user && recentRoom ? (
+          <div className="mob-recent-room-row">
+            <button type="button" className="mob-recent-room" disabled={busy} onClick={onReturnRecentRoom}>
+              <span className="mob-recent-room-icon"><DoorOpen size={18} /></span>
+              <span className="mob-recent-room-copy">
+                <small>OSTATNI POKÓJ</small>
+                <strong>{recentRoom.mode || 'POKÓJ'} <b>{recentRoom.code}</b></strong>
+              </span>
+              <span className="mob-recent-room-action">WRÓĆ <ChevronRight size={16} /></span>
+            </button>
+            <button type="button" className="mob-recent-room-forget" onClick={onForgetRecentRoom} aria-label="Usuń ostatni pokój"><X size={15} /></button>
+          </div>
+        ) : null}
       </div>
     </section>
   );

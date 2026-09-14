@@ -1915,3 +1915,15 @@
 }
 .mob-season-placement-bonus { display:block; margin-top:5px; color:#f5d16b!important; font-size:8.5px!important; font-weight:850!important; white-space:normal!important; }
 .mob-season-claim-status { display:block; margin-top:7px; padding-top:7px; border-top:1px solid rgba(255,255,255,.055); color:#77e7b6!important; font-size:8.5px!important; font-weight:850!important; white-space:normal!important; }
+
+/* v1.11 — szybki powrót do ostatniego pokoju */
+.mob-recent-room-row { display:grid; grid-template-columns:minmax(0,1fr) 38px; gap:7px; }
+.mob-recent-room { min-width:0; min-height:48px; padding:7px 10px; border-radius:12px; border:1px solid rgba(129,103,255,.35); background:linear-gradient(105deg,rgba(68,45,133,.25),rgba(34,109,153,.15)); color:#fff; display:grid; grid-template-columns:30px minmax(0,1fr) auto; align-items:center; gap:8px; text-align:left; box-shadow:inset 0 0 16px rgba(115,89,255,.05); }
+.mob-recent-room:disabled { opacity:.55; }
+.mob-recent-room-icon { width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; color:#6fe8ff; border:1px solid rgba(84,220,255,.24); background:rgba(45,193,255,.07); }
+.mob-recent-room-copy { min-width:0; display:grid; gap:2px; }
+.mob-recent-room-copy small { color:#8c85a2; font-size:7px; letter-spacing:.15em; font-weight:800; }
+.mob-recent-room-copy strong { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#f5f1ff; font-family:'Bebas Neue',sans-serif; font-size:15px; letter-spacing:.04em; font-weight:400; }
+.mob-recent-room-copy strong b { margin-left:4px; color:#67e8ff; font-family:'Space Mono',monospace; font-size:11px; letter-spacing:.12em; }
+.mob-recent-room-action { display:flex; align-items:center; gap:2px; color:#cfb6ff; font-family:'Bebas Neue',sans-serif; font-size:14px; letter-spacing:.05em; white-space:nowrap; }
+.mob-recent-room-forget { width:38px; border-radius:12px; border:1px solid rgba(117,106,148,.22); background:rgba(17,15,35,.7); color:#77708d; display:flex; align-items:center; justify-content:center; }
