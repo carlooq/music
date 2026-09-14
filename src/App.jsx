@@ -118,6 +118,8 @@ import "./mobile-game.css";
 import {
   DesktopLobbyView,
   DesktopOpenerView,
+  DesktopYearGuessView,
+  DesktopYearGuessResultView,
   DesktopPlayingView,
   DesktopPracticeSetupView,
   DesktopPracticeResultView,
@@ -3819,6 +3821,7 @@ export default function App() {
   // samego utworu i wpisuje rok wydania.
   // ============================================================
   const YEAR_GUESS_ROUNDS = 15;
+  const YEAR_GUESS_RESULT_SECONDS = 10;
 
   function computeYearGuessPoints(guessYear, actualYear) {
     const diff = Math.abs(guessYear - actualYear);
@@ -3881,6 +3884,7 @@ export default function App() {
         yearGuessStartSeconds: randomStartSeconds(),
         yearGuessRoundStartedAtMs: Date.now(),
         yearGuessLastRound: null,
+        yearGuessResultStartedAtMs: null,
         yearGuessGameOver: false,
         winnerIds: [],
       });
@@ -3915,6 +3919,7 @@ export default function App() {
       yearGuessAnswers: answers,
       yearGuessScores: newScores,
       yearGuessLastRound: { song, results },
+      yearGuessResultStartedAtMs: Date.now(),
     };
     if (isLastRound) {
       const maxScore = Math.max(...Object.values(newScores));
@@ -3978,6 +3983,7 @@ export default function App() {
           yearGuessAnswers: {},
           yearGuessStartSeconds: randomStartSeconds(),
           yearGuessRoundStartedAtMs: Date.now(),
+          yearGuessResultStartedAtMs: null,
         });
       });
     } catch (e) {}
@@ -3994,12 +4000,17 @@ export default function App() {
     return () => clearTimeout(t);
   }, [room?.status, room?.yearGuessRoundIndex, room?.yearGuessRoundStartedAtMs]);
 
-  // 5s na obejrzenie wyniku rundy, potem automatycznie dalej (albo koniec gry)
+  // Czytelne podsumowanie rundy: 10s na prawidłowy rok, odpowiedzi wszystkich
+  // graczy i naliczone punkty. Wspólny timestamp w dokumencie pokoju sprawia,
+  // że mobile i desktop widzą ten sam countdown i przechodzą dalej razem.
   useEffect(() => {
     if (!room || room.status !== "yearGuessResult") return;
-    const t = setTimeout(() => advanceYearGuessRound(), 5000);
+    const startedAt = room.yearGuessResultStartedAtMs || Date.now();
+    const remaining = Math.max(0, YEAR_GUESS_RESULT_SECONDS * 1000 - (Date.now() - startedAt));
+    if (remaining <= 0) { advanceYearGuessRound(); return; }
+    const t = setTimeout(() => advanceYearGuessRound(), remaining + 120);
     return () => clearTimeout(t);
-  }, [room?.status, room?.yearGuessRoundIndex]);
+  }, [room?.status, room?.yearGuessRoundIndex, room?.yearGuessResultStartedAtMs]);
 
   // XP/HITCOIN na tych samych zasadach co zwykła gra (30 za udział, wygrana
   // wg tego samego wzoru skalowanego liczbą graczy, podium przy 3+ graczach)
@@ -5872,6 +5883,7 @@ export default function App() {
         songPool={effectivePool}
         busy={busy}
         onStart={beginGame}
+        onStartYearGuess={beginYearGuessGame}
         onKick={(player) => {
           if (window.confirm(`Wyrzucić gracza ${player.name} z pokoju?`)) kickPlayer(player.id);
         }}
@@ -5901,6 +5913,33 @@ export default function App() {
         onAnswer={answerOpener}
         openerRevealCountdown={openerRevealCountdown}
         onLeave={leaveRoom}
+      />
+    );
+  }
+
+  if (useDesktopSessionViews && screen === "yearGuess" && room?.yearGuessSongs) {
+    return renderSessionUx(
+      <DesktopYearGuessView
+        room={room}
+        playerId={playerId}
+        isPlaying={isPlaying}
+        playElapsed={playElapsed}
+        playCapSeconds={PLAY_CAP_SECONDS}
+        iframeRef={iframeRef}
+        onTogglePlay={togglePlay}
+        onSubmit={submitYearGuessAnswer}
+        onLeave={leaveRoom}
+      />
+    );
+  }
+
+  if (useDesktopSessionViews && screen === "yearGuessResult" && room?.yearGuessLastRound) {
+    return renderSessionUx(
+      <DesktopYearGuessResultView
+        room={room}
+        playerId={playerId}
+        onLeave={leaveRoom}
+        resultDurationSeconds={YEAR_GUESS_RESULT_SECONDS}
       />
     );
   }
@@ -6187,6 +6226,7 @@ export default function App() {
         room={room}
         playerId={playerId}
         onLeave={leaveRoom}
+        resultDurationSeconds={YEAR_GUESS_RESULT_SECONDS}
       />
     );
   }

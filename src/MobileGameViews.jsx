@@ -528,6 +528,10 @@ export function MobileYearGuessView({ room, playerId, isPlaying, playElapsed, pl
   const [secondsLeft, setSecondsLeft] = useState(60);
 
   useEffect(() => {
+    setYearInput('');
+  }, [room.yearGuessRoundIndex]);
+
+  useEffect(() => {
     const tick = () => {
       const remaining = Math.max(0, Math.ceil(60 - (Date.now() - (room.yearGuessRoundStartedAtMs || Date.now())) / 1000));
       setSecondsLeft(remaining);
@@ -540,42 +544,78 @@ export function MobileYearGuessView({ room, playerId, isPlaying, playElapsed, pl
   if (!song) return null;
   const audioLeft = Math.max(0, Math.ceil(playCapSeconds - playElapsed));
   const currentYear = new Date().getFullYear();
+  const parsedYear = Number(yearInput);
+  const validYear = /^\d{4}$/.test(yearInput) && parsedYear >= 1900 && parsedYear <= currentYear;
+  const handleYearChange = (event) => {
+    const next = String(event.target.value || '').replace(/\D/g, '').slice(0, 4);
+    setYearInput(next);
+  };
+  const nudgeYear = (amount) => {
+    const base = validYear ? parsedYear : Math.min(currentYear, Math.max(1900, Number(yearInput) || 2000));
+    setYearInput(String(Math.min(currentYear, Math.max(1900, base + amount))));
+  };
 
   return (
     <MobileSession className="mgv-yearguess-page">
       <MobileHeader eyebrow={`RUNDA ${room.yearGuessRoundIndex + 1} / ${room.yearGuessSongs.length}`} title="ZGADNIJ ROK" onBack={onLeave} right={<span className={`mgv-live-pill ${secondsLeft <= 10 ? 'danger' : ''}`}><Clock3 size={13} />{secondsLeft}s</span>} />
 
-      <Panel className="mgv-audio-panel">
+      <Panel className="mgv-audio-panel mgv-yearguess-audio">
         <MobileVinyl spinning={isPlaying} progress={playElapsed / playCapSeconds} />
         <div className="mgv-hidden-player"><iframe key={`yg-${room.yearGuessRoundIndex}`} ref={iframeRef} title="yearguess-player" src={`https://www.youtube.com/embed/${song.videoId}?enablejsapi=1&autoplay=1&mute=1&start=${room.yearGuessStartSeconds}&controls=0&modestbranding=1&rel=0`} allow="autoplay; encrypted-media" /></div>
         <button type="button" className="mgv-audio-cta" onClick={onTogglePlay}><Play size={19} fill="currentColor" />{isPlaying ? 'ODTWARZANIE' : 'ODTWÓRZ PONOWNIE'}<span>{audioLeft}s</span></button>
       </Panel>
 
-      <Panel accent="pink">
-        <div className="mgv-section-title"><CalendarDays size={18} /><span>W KTÓRYM ROKU WYSZEDŁ TEN UTWÓR?</span></div>
+      <Panel accent="pink" className="mgv-yearguess-answer-panel">
+        <div className="mgv-yearguess-question">
+          <span className="mgv-yearguess-question-icon"><CalendarDays size={21} /></span>
+          <div><span className="mgv-eyebrow">TWÓJ TYP</span><h2>W KTÓRYM ROKU WYSZEDŁ TEN UTWÓR?</h2></div>
+        </div>
+
         {myAnswer ? (
-          <div className="mgv-waiting-host"><Check size={40} /><strong>ODPOWIEDŹ WYSŁANA: {myAnswer.year}</strong><p>Czekamy na pozostałych graczy ({answeredCount}/{totalPlayers})…</p></div>
+          <div className="mgv-yearguess-locked">
+            <span className="mgv-yearguess-lock-check"><Check size={27} /></span>
+            <span>ODPOWIEDŹ ZABLOKOWANA</span>
+            <strong>{myAnswer.year}</strong>
+            <p>Czekamy na pozostałych graczy <b>{answeredCount}/{totalPlayers}</b></p>
+            <div className="mgv-yearguess-wait-track"><i style={{ width: `${Math.min(100, (answeredCount / Math.max(1, totalPlayers)) * 100)}%` }} /></div>
+          </div>
         ) : (
           <>
-            <input
-              type="number"
-              inputMode="numeric"
-              className="mgv-year-input"
-              placeholder="np. 1994"
-              min="1900"
-              max={currentYear}
-              value={yearInput}
-              onChange={(e) => setYearInput(e.target.value)}
-            />
+            <div className={`mgv-yearguess-console ${validYear ? 'valid' : ''}`}>
+              <span className="mgv-yearguess-console-label">ROK WYDANIA</span>
+              <div className="mgv-yearguess-console-row">
+                <button type="button" className="mgv-yearguess-step" onClick={() => nudgeYear(-1)} aria-label="Rok wcześniej">−</button>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={4}
+                  className="mgv-year-input"
+                  placeholder="1994"
+                  value={yearInput}
+                  onChange={handleYearChange}
+                  aria-label="Wpisz rok wydania"
+                />
+                <button type="button" className="mgv-yearguess-step" onClick={() => nudgeYear(1)} aria-label="Rok później">+</button>
+              </div>
+              <small>{yearInput && !validYear ? `Podaj rok 1900–${currentYear}` : 'Wpisz 4 cyfry i zatwierdź swój typ'}</small>
+            </div>
+
+            <div className="mgv-yearguess-scoring">
+              <div><strong>+5</strong><span>dokładnie</span></div>
+              <div><strong>+3</strong><span>± 1 rok</span></div>
+              <div><strong>+1</strong><span>± 2–3 lata</span></div>
+            </div>
+
             <button
               type="button"
-              className="mgv-main-cta"
-              disabled={!yearInput || Number(yearInput) < 1900 || Number(yearInput) > currentYear}
-              onClick={() => onSubmit(Number(yearInput))}
+              className="mgv-main-cta mgv-yearguess-submit"
+              disabled={!validYear}
+              onClick={() => onSubmit(parsedYear)}
             >
-              <Check size={20} /> ZATWIERDŹ ODPOWIEDŹ
+              <Check size={20} /> ZATWIERDŹ {validYear ? parsedYear : 'ROK'}
             </button>
-            <p className="mgv-note">Uwaga: po zatwierdzeniu nie da się już zmienić odpowiedzi.</p>
+            <p className="mgv-note">Po zatwierdzeniu odpowiedzi nie można już zmienić.</p>
           </>
         )}
       </Panel>
@@ -583,46 +623,84 @@ export function MobileYearGuessView({ room, playerId, isPlaying, playElapsed, pl
   );
 }
 
-export function MobileYearGuessResultView({ room, playerId, onLeave }) {
+export function MobileYearGuessResultView({ room, playerId, onLeave, resultDurationSeconds = 10 }) {
   const last = room.yearGuessLastRound;
+  const [secondsLeft, setSecondsLeft] = useState(resultDurationSeconds);
+  const [localResultStartedAt] = useState(() => Date.now());
+
+  useEffect(() => {
+    const tick = () => {
+      const startedAt = room.yearGuessResultStartedAtMs || localResultStartedAt;
+      const left = Math.max(0, Math.ceil(resultDurationSeconds - (Date.now() - startedAt) / 1000));
+      setSecondsLeft(left);
+    };
+    tick();
+    const timer = setInterval(tick, 200);
+    return () => clearInterval(timer);
+  }, [room.yearGuessResultStartedAtMs, room.yearGuessRoundIndex, resultDurationSeconds, localResultStartedAt]);
+
   if (!last) return null;
   const isLastRound = room.yearGuessRoundIndex >= room.yearGuessSongs.length - 1;
-  const sorted = [...last.results].sort((a, b) => (room.yearGuessScores[b.playerId] || 0) - (room.yearGuessScores[a.playerId] || 0));
+  const actualYear = Number(last.song.year);
+  const sorted = [...last.results].sort((a, b) => {
+    if ((b.points || 0) !== (a.points || 0)) return (b.points || 0) - (a.points || 0);
+    const aDiff = a.diff === null ? Number.POSITIVE_INFINITY : a.diff;
+    const bDiff = b.diff === null ? Number.POSITIVE_INFINITY : b.diff;
+    if (aDiff !== bDiff) return aDiff - bDiff;
+    return (room.yearGuessScores?.[b.playerId] || 0) - (room.yearGuessScores?.[a.playerId] || 0);
+  });
+  const myResult = last.results.find((result) => result.playerId === playerId);
+  const yearWord = (value) => value === 1 ? 'ROK' : (value >= 2 && value <= 4 ? 'LATA' : 'LAT');
+  const yearWordLower = (value) => value === 1 ? 'rok' : (value >= 2 && value <= 4 ? 'lata' : 'lat');
+  const answerText = (result) => {
+    if (result.year === null) return 'BRAK ODPOWIEDZI';
+    if (result.diff === 0) return 'IDEALNIE!';
+    return result.year < actualYear ? `${result.diff} ${yearWord(result.diff)} ZA WCZEŚNIE` : `${result.diff} ${yearWord(result.diff)} ZA PÓŹNO`;
+  };
 
   return (
-    <MobileSession className="mgv-yearguess-page">
-      <MobileHeader eyebrow={`RUNDA ${room.yearGuessRoundIndex + 1} / ${room.yearGuessSongs.length}`} title="WYNIK RUNDY" onBack={onLeave} />
+    <MobileSession className="mgv-yearguess-page mgv-yearguess-result-page">
+      <MobileHeader eyebrow={`RUNDA ${room.yearGuessRoundIndex + 1} / ${room.yearGuessSongs.length}`} title="WYNIK RUNDY" onBack={onLeave} right={<span className="mgv-live-pill result"><Clock3 size={13} />{secondsLeft}s</span>} />
 
-      <Panel className="mgv-winner-panel" accent="gold">
-        <Music2 size={40} />
-        <span className="mgv-eyebrow">TO BYŁO</span>
-        <h1 style={{ fontSize: 22 }}>{last.song.artist} — {last.song.title}</h1>
-        <p>Rok wydania: <strong>{last.song.year}</strong></p>
+      <Panel className="mgv-yearguess-reveal" accent="gold">
+        <span className="mgv-yearguess-reveal-kicker">PRAWIDŁOWY ROK</span>
+        <strong className="mgv-yearguess-correct-year">{actualYear}</strong>
+        <div className="mgv-yearguess-song-copy"><Music2 size={18} /><div><strong>{last.song.title}</strong><span>{last.song.artist}</span></div></div>
       </Panel>
 
-      <Panel>
-        <div className="mgv-section-title"><Trophy size={18} /><span>PUNKTACJA</span></div>
-        <div className="mgv-final-standing">
-          {sorted.map((r) => {
-            const totalNow = room.yearGuessScores[r.playerId] || 0;
-            const totalBefore = totalNow - r.points;
+      {myResult ? (
+        <Panel className={`mgv-yearguess-my-result ${myResult.points >= 3 ? 'great' : myResult.points > 0 ? 'close' : 'miss'}`}>
+          <div><span>TWÓJ TYP</span><strong>{myResult.year ?? '—'}</strong></div>
+          <div><span>RÓŻNICA</span><strong>{myResult.diff === null ? '—' : myResult.diff === 0 ? '0' : `${myResult.diff} ${yearWordLower(myResult.diff)}`}</strong></div>
+          <div><span>PUNKTY</span><strong>+{myResult.points || 0}</strong></div>
+          <p>{answerText(myResult)}</p>
+        </Panel>
+      ) : null}
+
+      <Panel className="mgv-yearguess-round-board">
+        <div className="mgv-section-title"><Users size={18} /><span>ODPOWIEDZI GRACZY</span><b>{last.results.length}</b></div>
+        <div className="mgv-yearguess-result-list">
+          {sorted.map((result, index) => {
+            const player = room.players.find((item) => item.id === result.playerId);
+            const totalNow = room.yearGuessScores?.[result.playerId] || 0;
+            const rowTone = result.diff === 0 ? 'exact' : result.points >= 3 ? 'great' : result.points > 0 ? 'close' : 'miss';
             return (
-              <div key={r.playerId} className={r.playerId === playerId ? 'podium p1' : ''}>
-                <span className="mgv-avatar">{initials(r.name)}</span>
-                <strong>{r.name}</strong>
-                <small style={{ display: 'block', color: '#9d94b8', fontSize: 11 }}>
-                  {r.year === null ? 'brak odpowiedzi' : `typował ${r.year} · różnica ${r.diff} lat`}
-                </small>
-                <b>{totalBefore} <span style={{ color: r.points > 0 ? '#7dffef' : '#7a7288' }}>+{r.points}!</span></b>
+              <div key={result.playerId} className={`mgv-yearguess-result-row ${rowTone} ${result.playerId === playerId ? 'is-me' : ''}`} style={{ '--yg-row': index }}>
+                <span className="mgv-yearguess-result-place">{index + 1}</span>
+                <span className="mgv-avatar" style={player?.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player?.avatarUrl ? initials(result.name) : null}</span>
+                <div className="mgv-yearguess-result-player"><strong>{result.name}{result.playerId === playerId ? ' · TY' : ''}</strong><small>{answerText(result)}</small></div>
+                <div className="mgv-yearguess-result-guess"><span>TYP</span><strong>{result.year ?? '—'}</strong></div>
+                <div className="mgv-yearguess-result-points"><strong>+{result.points || 0}</strong><span>{totalNow} pkt</span></div>
               </div>
             );
           })}
         </div>
       </Panel>
 
-      <p className="mgv-note" style={{ textAlign: 'center' }}>
-        {isLastRound ? 'To była ostatnia runda — za chwilę podsumowanie całej gry…' : 'Kolejna runda zaraz się zacznie…'}
-      </p>
+      <div className="mgv-yearguess-next-round">
+        <div><span>{isLastRound ? 'PODSUMOWANIE GRY' : 'KOLEJNA RUNDA'}</span><strong>{secondsLeft}s</strong></div>
+        <i><b style={{ width: `${Math.max(0, Math.min(100, (secondsLeft / resultDurationSeconds) * 100))}%` }} /></i>
+      </div>
     </MobileSession>
   );
 }

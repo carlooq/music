@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
+  CalendarDays,
   Check,
   ChevronRight,
   Clock3,
@@ -501,6 +502,7 @@ export function DesktopLobbyView({
   songPool,
   busy,
   onStart,
+  onStartYearGuess,
   onKick,
   playerLevels,
   levelFromXp,
@@ -548,7 +550,7 @@ export function DesktopLobbyView({
             <div>
               <div className="dgv-eyebrow">GOTOWI?</div>
               <h2>{isHost ? 'USTAW ZASADY I RUSZAJCIE' : 'CZEKAMY NA HOSTA'}</h2>
-              <p>{isHost ? 'Wybierz liczbę kart i kategorie, a następnie rozpocznij rozgrywkę.' : `Host: ${room.players.find((p) => p.id === room.hostId)?.name || 'Gracz'}`}</p>
+              <p>{isHost ? (room.yearGuessMode ? 'Wybierz kategorie i rozpocznij 15-rundowe Zgadnij Rok.' : 'Wybierz liczbę kart i kategorie, a następnie rozpocznij rozgrywkę.') : `Host: ${room.players.find((p) => p.id === room.hostId)?.name || 'Gracz'}`}</p>
             </div>
           </div>
         </section>
@@ -596,17 +598,27 @@ export function DesktopLobbyView({
             <div className="dgv-section-heading"><Gamepad2 size={19} /> ZASADY GRY</div>
             {isHost ? (
               <>
-                <div className="dgv-setting-row">
-                  <div>
-                    <div className="dgv-setting-label">KART DO WYGRANIA</div>
-                    <div className="dgv-setting-desc">Pierwszy gracz, który osiągnie ten wynik, wygrywa.</div>
+                {room.yearGuessMode ? (
+                  <div className="dgv-setting-row dgv-yearguess-lobby-mode">
+                    <div>
+                      <div className="dgv-setting-label">ZGADNIJ ROK</div>
+                      <div className="dgv-setting-desc">15 rund. Wszyscy słuchają tego samego utworu i jednocześnie typują rok wydania.</div>
+                    </div>
+                    <div className="dgv-yearguess-lobby-badge"><CalendarDays size={18} /><strong>15</strong><span>RUND</span></div>
                   </div>
-                  <div className="dgv-stepper">
-                    <button type="button" onClick={() => setTarget(Math.max(1, Number(target || 1) - 1))}>−</button>
-                    <input type="number" min="1" value={target} onChange={(e) => setTarget(e.target.value === '' ? '' : parseInt(e.target.value, 10))} />
-                    <button type="button" onClick={() => setTarget(Number(target || 0) + 1)}>+</button>
+                ) : (
+                  <div className="dgv-setting-row">
+                    <div>
+                      <div className="dgv-setting-label">KART DO WYGRANIA</div>
+                      <div className="dgv-setting-desc">Pierwszy gracz, który osiągnie ten wynik, wygrywa.</div>
+                    </div>
+                    <div className="dgv-stepper">
+                      <button type="button" onClick={() => setTarget(Math.max(1, Number(target || 1) - 1))}>−</button>
+                      <input type="number" min="1" value={target} onChange={(e) => setTarget(e.target.value === '' ? '' : parseInt(e.target.value, 10))} />
+                      <button type="button" onClick={() => setTarget(Number(target || 0) + 1)}>+</button>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="dgv-category-block">
                   <div className="dgv-setting-label">KATEGORIE</div>
@@ -619,9 +631,15 @@ export function DesktopLobbyView({
                 </div>
 
                 <div className="dgv-library-info"><Music2 size={17} /> <strong>{playableCount}</strong> utworów pasuje do obecnych zasad.</div>
-                <button type="button" className="dgv-start-button" disabled={busy || !target || room.players.length < 2} onClick={onStart}>
-                  <Play size={22} fill="currentColor" /> ROZPOCZNIJ GRĘ <ChevronRight size={22} />
-                </button>
+                {room.yearGuessMode ? (
+                  <button type="button" className="dgv-start-button dgv-yearguess-lobby-start" disabled={busy || room.players.length < 2} onClick={onStartYearGuess}>
+                    <Play size={22} fill="currentColor" /> ROZPOCZNIJ ZGADNIJ ROK <ChevronRight size={22} />
+                  </button>
+                ) : (
+                  <button type="button" className="dgv-start-button" disabled={busy || !target || room.players.length < 2} onClick={onStart}>
+                    <Play size={22} fill="currentColor" /> ROZPOCZNIJ GRĘ <ChevronRight size={22} />
+                  </button>
+                )}
                 {room.players.length < 2 ? <div className="dgv-warning">Czekamy na co najmniej jednego dodatkowego gracza.</div> : null}
               </>
             ) : (
@@ -1084,6 +1102,167 @@ export function DesktopOpenerView({
             )}
           </section>
         </div>
+      </div>
+    </SessionBackground>
+  );
+}
+
+
+export function DesktopYearGuessView({ room, playerId, isPlaying, playElapsed, playCapSeconds, iframeRef, onTogglePlay, onSubmit, onLeave }) {
+  const [yearInput, setYearInput] = useState('');
+  const [secondsLeft, setSecondsLeft] = useState(60);
+  const song = room.yearGuessSongs?.[room.yearGuessRoundIndex];
+  const myAnswer = room.yearGuessAnswers?.[playerId];
+  const answeredCount = Object.keys(room.yearGuessAnswers || {}).length;
+  const totalPlayers = room.players.length;
+  const currentYear = new Date().getFullYear();
+
+  useEffect(() => {
+    setYearInput('');
+  }, [room.yearGuessRoundIndex]);
+
+  useEffect(() => {
+    const tick = () => setSecondsLeft(Math.max(0, Math.ceil(60 - (Date.now() - (room.yearGuessRoundStartedAtMs || Date.now())) / 1000)));
+    tick();
+    const timer = setInterval(tick, 250);
+    return () => clearInterval(timer);
+  }, [room.yearGuessRoundStartedAtMs]);
+
+  if (!song) return null;
+  const parsedYear = Number(yearInput);
+  const validYear = /^\d{4}$/.test(yearInput) && parsedYear >= 1900 && parsedYear <= currentYear;
+  const audioLeft = Math.max(0, Math.ceil(playCapSeconds - playElapsed));
+  const setSanitizedYear = (value) => setYearInput(String(value || '').replace(/\D/g, '').slice(0, 4));
+  const nudgeYear = (amount) => {
+    const base = validYear ? parsedYear : Math.min(currentYear, Math.max(1900, Number(yearInput) || 2000));
+    setYearInput(String(Math.min(currentYear, Math.max(1900, base + amount))));
+  };
+
+  return (
+    <SessionBackground className="dgv-yearguess-page">
+      <div className="dgv-shell">
+        <SessionHeader
+          eyebrow={`RUNDA ${room.yearGuessRoundIndex + 1} / ${room.yearGuessSongs.length}`}
+          title="ZGADNIJ ROK"
+          onBack={onLeave}
+          backLabel="Opuść"
+          right={<div className={`dgv-yearguess-timer ${secondsLeft <= 10 ? 'danger' : ''}`}><Clock3 size={16} /> {secondsLeft}s</div>}
+        />
+
+        <div className="dgv-yearguess-game-grid">
+          <section className="dgv-panel dgv-yearguess-audio-panel">
+            <div className="dgv-section-heading"><Headphones size={18} /> POSŁUCHAJ UTWORU</div>
+            <DesktopVinyl spinning={isPlaying} progress={playElapsed / playCapSeconds} />
+            <div className="dgv-hidden-player"><iframe key={`yg-${room.yearGuessRoundIndex}`} ref={iframeRef} title="yearguess-player" src={`https://www.youtube.com/embed/${song.videoId}?enablejsapi=1&autoplay=1&mute=1&start=${room.yearGuessStartSeconds}&controls=0&modestbranding=1&rel=0`} allow="autoplay; encrypted-media" /></div>
+            <button type="button" className="dgv-audio-button dgv-yearguess-audio-cta" onClick={onTogglePlay}><Play size={20} fill="currentColor" /> {isPlaying ? 'ODTWARZANIE' : 'ODTWÓRZ PONOWNIE'} <span>{audioLeft}s</span></button>
+            <div className="dgv-yearguess-answer-progress"><span>ODPOWIEDZIAŁO {answeredCount}/{totalPlayers}</span><i><b style={{ width: `${Math.min(100, (answeredCount / Math.max(1, totalPlayers)) * 100)}%` }} /></i></div>
+          </section>
+
+          <section className="dgv-panel dgv-yearguess-answer-panel">
+            <div className="dgv-yearguess-question"><span><CalendarDays size={23} /></span><div><div className="dgv-eyebrow">TWÓJ TYP</div><h1>W KTÓRYM ROKU WYSZEDŁ TEN UTWÓR?</h1></div></div>
+
+            {myAnswer ? (
+              <div className="dgv-yearguess-locked">
+                <div className="check"><Check size={30} /></div>
+                <span>ODPOWIEDŹ ZABLOKOWANA</span>
+                <strong>{myAnswer.year}</strong>
+                <p>Czekamy na pozostałych graczy. Wynik rundy pojawi się, gdy wszyscy odpowiedzą albo minie czas.</p>
+              </div>
+            ) : (
+              <>
+                <div className={`dgv-yearguess-console ${validYear ? 'valid' : ''}`}>
+                  <span>ROK WYDANIA</span>
+                  <div className="dgv-yearguess-console-row">
+                    <button type="button" onClick={() => nudgeYear(-1)}>−</button>
+                    <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={4} placeholder="1994" value={yearInput} onChange={(e) => setSanitizedYear(e.target.value)} aria-label="Wpisz rok wydania" />
+                    <button type="button" onClick={() => nudgeYear(1)}>+</button>
+                  </div>
+                  <small>{yearInput && !validYear ? `Podaj rok 1900–${currentYear}` : 'Wpisz cztery cyfry. Po zatwierdzeniu odpowiedzi nie można zmienić.'}</small>
+                </div>
+                <div className="dgv-yearguess-scoring"><div><strong>+5</strong><span>DOKŁADNIE</span></div><div><strong>+3</strong><span>± 1 ROK</span></div><div><strong>+1</strong><span>± 2–3 LATA</span></div></div>
+                <button type="button" className="dgv-start-button dgv-yearguess-submit" disabled={!validYear} onClick={() => onSubmit(parsedYear)}><Check size={21} /> ZATWIERDŹ {validYear ? parsedYear : 'ROK'}</button>
+              </>
+            )}
+          </section>
+        </div>
+      </div>
+    </SessionBackground>
+  );
+}
+
+export function DesktopYearGuessResultView({ room, playerId, onLeave, resultDurationSeconds = 10 }) {
+  const last = room.yearGuessLastRound;
+  const [secondsLeft, setSecondsLeft] = useState(resultDurationSeconds);
+  const [localResultStartedAt] = useState(() => Date.now());
+
+  useEffect(() => {
+    const tick = () => {
+      const startedAt = room.yearGuessResultStartedAtMs || localResultStartedAt;
+      setSecondsLeft(Math.max(0, Math.ceil(resultDurationSeconds - (Date.now() - startedAt) / 1000)));
+    };
+    tick();
+    const timer = setInterval(tick, 200);
+    return () => clearInterval(timer);
+  }, [room.yearGuessResultStartedAtMs, room.yearGuessRoundIndex, resultDurationSeconds, localResultStartedAt]);
+
+  if (!last) return null;
+  const actualYear = Number(last.song.year);
+  const isLastRound = room.yearGuessRoundIndex >= room.yearGuessSongs.length - 1;
+  const sorted = [...last.results].sort((a, b) => {
+    if ((b.points || 0) !== (a.points || 0)) return (b.points || 0) - (a.points || 0);
+    const aDiff = a.diff === null ? Number.POSITIVE_INFINITY : a.diff;
+    const bDiff = b.diff === null ? Number.POSITIVE_INFINITY : b.diff;
+    if (aDiff !== bDiff) return aDiff - bDiff;
+    return (room.yearGuessScores?.[b.playerId] || 0) - (room.yearGuessScores?.[a.playerId] || 0);
+  });
+  const myResult = last.results.find((result) => result.playerId === playerId);
+  const yearWord = (value) => value === 1 ? 'ROK' : (value >= 2 && value <= 4 ? 'LATA' : 'LAT');
+  const yearWordLower = (value) => value === 1 ? 'rok' : (value >= 2 && value <= 4 ? 'lata' : 'lat');
+  const resultLabel = (result) => {
+    if (result.year === null) return 'BRAK ODPOWIEDZI';
+    if (result.diff === 0) return 'IDEALNIE';
+    return result.year < actualYear ? `${result.diff} ${yearWord(result.diff)} ZA WCZEŚNIE` : `${result.diff} ${yearWord(result.diff)} ZA PÓŹNO`;
+  };
+
+  return (
+    <SessionBackground className="dgv-yearguess-page dgv-yearguess-result-page">
+      <div className="dgv-shell">
+        <SessionHeader
+          eyebrow={`RUNDA ${room.yearGuessRoundIndex + 1} / ${room.yearGuessSongs.length}`}
+          title="WYNIK RUNDY"
+          onBack={onLeave}
+          backLabel="Opuść"
+          right={<div className="dgv-yearguess-timer result"><Clock3 size={16} /> {secondsLeft}s</div>}
+        />
+
+        <section className="dgv-panel dgv-yearguess-reveal">
+          <div className="dgv-yearguess-reveal-copy"><div className="dgv-eyebrow">PRAWIDŁOWY ROK</div><strong>{actualYear}</strong><h2>{last.song.title}</h2><p>{last.song.artist}</p></div>
+          {myResult ? <div className={`dgv-yearguess-my-result ${myResult.points >= 3 ? 'great' : myResult.points > 0 ? 'close' : 'miss'}`}><div><span>TWÓJ TYP</span><strong>{myResult.year ?? '—'}</strong></div><div><span>RÓŻNICA</span><strong>{myResult.diff === null ? '—' : myResult.diff}</strong></div><div><span>PUNKTY</span><strong>+{myResult.points || 0}</strong></div><p>{resultLabel(myResult)}</p></div> : null}
+        </section>
+
+        <section className="dgv-panel dgv-yearguess-round-board">
+          <div className="dgv-section-heading"><Users size={18} /> ODPOWIEDZI GRACZY <span>{last.results.length}</span></div>
+          <div className="dgv-yearguess-result-head"><span>#</span><span>GRACZ</span><span>ODPOWIEDŹ</span><span>RÓŻNICA</span><span>RUNDA</span><span>ŁĄCZNIE</span></div>
+          <div className="dgv-yearguess-result-list">
+            {sorted.map((result, index) => {
+              const player = room.players.find((item) => item.id === result.playerId);
+              const total = room.yearGuessScores?.[result.playerId] || 0;
+              const tone = result.diff === 0 ? 'exact' : result.points >= 3 ? 'great' : result.points > 0 ? 'close' : 'miss';
+              return (
+                <div key={result.playerId} className={`dgv-yearguess-result-row ${tone} ${result.playerId === playerId ? 'is-me' : ''}`} style={{ '--yg-row': index }}>
+                  <span className="place">{index + 1}</span>
+                  <div className="player"><span className="avatar" style={player?.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player?.avatarUrl ? initials(result.name) : null}</span><div><strong>{result.name}{result.playerId === playerId ? ' · TY' : ''}</strong><small>{resultLabel(result)}</small></div></div>
+                  <strong className="guess">{result.year ?? '—'}</strong>
+                  <span className="diff">{result.diff === null ? '—' : result.diff === 0 ? '0' : `${result.diff} ${yearWordLower(result.diff)}`}</span>
+                  <strong className="round">+{result.points || 0}</strong>
+                  <strong className="total">{total} pkt</strong>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <div className="dgv-yearguess-next"><div><span>{isLastRound ? 'PODSUMOWANIE GRY' : 'KOLEJNA RUNDA'}</span><strong>{secondsLeft}s</strong></div><i><b style={{ width: `${Math.max(0, Math.min(100, (secondsLeft / resultDurationSeconds) * 100))}%` }} /></i></div>
       </div>
     </SessionBackground>
   );

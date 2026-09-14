@@ -1682,3 +1682,114 @@
 .dgv-online-invite-row button { min-width: 78px; min-height: 32px; padding: 0 10px; border-radius: 9px; border: 1px solid rgba(65,223,255,.27); background: linear-gradient(110deg,rgba(52,226,167,.13),rgba(68,213,255,.10)); color: #72eadb; font-family: 'Space Mono',monospace; font-size: 7px; font-weight: 900; }
 .dgv-online-invite-row button:disabled { opacity: .5; color: #8b8598; border-color: rgba(130,120,160,.14); background: rgba(255,255,255,.02); }
 .dgv-online-invite-empty { padding: 11px 6px; color: #746e80; font-size: 9px; text-align: center; }
+
+/* v1.9 — Zgadnij Rok: pełny desktopowy UX + czytelne podsumowanie rundy */
+.dgv-yearguess-lobby-mode { border-color:rgba(255,91,199,.15); background:linear-gradient(90deg,rgba(255,74,192,.055),rgba(77,219,255,.035)); }
+.dgv-yearguess-lobby-badge { min-width:112px; min-height:62px; padding:8px 12px; border-radius:15px; display:grid; grid-template-columns:26px auto; grid-template-rows:auto auto; align-items:center; justify-content:center; column-gap:8px; border:1px solid rgba(255,91,199,.20); background:rgba(10,7,27,.72); color:#ff7dd3; }
+.dgv-yearguess-lobby-badge svg { grid-row:1 / span 2; }
+.dgv-yearguess-lobby-badge strong { font-family:'Bebas Neue',sans-serif; font-size:25px; line-height:.9; color:#fff; }
+.dgv-yearguess-lobby-badge span { color:#8d8498; font-family:'Space Mono',monospace; font-size:7px; letter-spacing:.12em; }
+.dgv-yearguess-lobby-start { background:linear-gradient(100deg,#d932ef 0%,#8f5eff 48%,#43dfff 100%); box-shadow:0 0 28px rgba(159,74,255,.14); }
+
+.dgv-yearguess-page .dgv-shell { max-width:1540px; }
+.dgv-yearguess-timer { min-height:40px; padding:0 13px; border-radius:999px; display:flex; align-items:center; gap:7px; border:1px solid rgba(71,222,255,.28); background:rgba(5,18,29,.75); color:#68e9ff; font-family:'Space Mono',monospace; font-size:10px; font-weight:800; }
+.dgv-yearguess-timer.danger { color:#ff718d; border-color:rgba(255,78,120,.44); background:rgba(44,8,21,.70); box-shadow:0 0 18px rgba(255,63,106,.09); }
+.dgv-yearguess-timer.result { color:#f6cf66; border-color:rgba(246,201,85,.31); background:rgba(42,31,5,.55); }
+.dgv-yearguess-game-grid { display:grid; grid-template-columns:minmax(560px,1.12fr) minmax(460px,.88fr); gap:22px; margin-top:20px; align-items:stretch; }
+.dgv-yearguess-audio-panel,.dgv-yearguess-answer-panel { min-height:620px; padding:24px; }
+.dgv-yearguess-audio-panel { display:flex; flex-direction:column; align-items:center; justify-content:center; overflow:hidden; background:radial-gradient(circle at 50% 45%,rgba(70,219,255,.065),transparent 32%),linear-gradient(155deg,rgba(7,12,32,.97),rgba(5,7,22,.98)); }
+.dgv-yearguess-audio-panel .dgv-section-heading { align-self:stretch; }
+.dgv-yearguess-audio-panel .dgv-v3-turntable { margin-top:8px; transform:scale(.95); }
+.dgv-yearguess-audio-cta { margin-top:16px; min-width:330px; justify-content:center; }
+.dgv-yearguess-audio-cta span { margin-left:7px; padding-left:9px; border-left:1px solid rgba(255,255,255,.16); color:#a8f4ff; font-family:'Space Mono',monospace; font-size:9px; }
+.dgv-yearguess-answer-progress { width:min(580px,92%); margin-top:20px; }
+.dgv-yearguess-answer-progress>span { display:block; margin-bottom:7px; color:#777081; font-family:'Space Mono',monospace; font-size:8px; letter-spacing:.11em; text-align:center; }
+.dgv-yearguess-answer-progress>i { display:block; height:6px; overflow:hidden; border-radius:99px; background:rgba(255,255,255,.055); }
+.dgv-yearguess-answer-progress>i>b { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#8d62ff,#57e8ff); box-shadow:0 0 12px rgba(78,225,255,.28); transition:width .3s ease; }
+.dgv-yearguess-answer-panel { display:flex; flex-direction:column; justify-content:center; background:radial-gradient(circle at 100% 0%,rgba(255,74,197,.075),transparent 35%),linear-gradient(155deg,rgba(13,8,34,.97),rgba(6,8,24,.98)); }
+.dgv-yearguess-question { display:grid; grid-template-columns:58px minmax(0,1fr); gap:14px; align-items:center; margin-bottom:20px; }
+.dgv-yearguess-question>span { width:58px; height:58px; border-radius:17px; display:grid; place-items:center; color:#ff72cf; border:1px solid rgba(255,84,199,.27); background:radial-gradient(circle at 35% 25%,rgba(255,88,203,.19),rgba(103,48,148,.05)); box-shadow:0 0 24px rgba(255,72,191,.07); }
+.dgv-yearguess-question h1 { margin:4px 0 0; max-width:520px; color:#f8f5ff; font-family:'Bebas Neue',sans-serif; font-size:39px; line-height:.96; font-weight:400; letter-spacing:.02em; }
+.dgv-yearguess-console { position:relative; padding:21px 19px 16px; border-radius:22px; border:1px solid rgba(255,87,200,.22); background:linear-gradient(145deg,rgba(19,9,39,.97),rgba(5,8,25,.99)); box-shadow:inset 0 0 32px rgba(255,52,186,.025),0 18px 40px rgba(0,0,0,.22); overflow:hidden; }
+.dgv-yearguess-console::before,.dgv-yearguess-console::after { content:''; position:absolute; top:0; width:110px; height:1px; background:linear-gradient(90deg,#ff5fc9,transparent); box-shadow:0 0 14px rgba(255,91,201,.7); }
+.dgv-yearguess-console::before { left:0; }
+.dgv-yearguess-console::after { right:0; transform:scaleX(-1); }
+.dgv-yearguess-console.valid { border-color:rgba(75,226,255,.34); box-shadow:inset 0 0 32px rgba(68,218,255,.035),0 0 25px rgba(68,218,255,.055); }
+.dgv-yearguess-console>span { display:block; margin-bottom:11px; color:#8e869a; font-family:'Space Mono',monospace; font-size:8px; letter-spacing:.18em; text-align:center; }
+.dgv-yearguess-console-row { display:grid; grid-template-columns:58px minmax(0,1fr) 58px; align-items:center; gap:12px; }
+.dgv-yearguess-console-row button { height:58px; border-radius:16px; border:1px solid rgba(89,220,255,.19); background:rgba(51,191,233,.055); color:#61e7ff; font-family:'Bebas Neue',sans-serif; font-size:34px; }
+.dgv-yearguess-console-row input { height:104px; min-width:0; width:100%; padding:0 18px; border-radius:20px; border:1px solid rgba(255,255,255,.095); outline:0; background:linear-gradient(180deg,rgba(1,3,12,.97),rgba(11,7,25,.97)); color:#fff; text-align:center; font-family:'Space Mono',monospace; font-size:56px; font-weight:900; letter-spacing:.14em; caret-color:#ff61c9; box-shadow:inset 0 0 26px rgba(0,0,0,.46); }
+.dgv-yearguess-console-row input::placeholder { color:#4c4657; }
+.dgv-yearguess-console-row input:focus { border-color:rgba(255,85,199,.54); box-shadow:0 0 0 4px rgba(255,74,194,.055),inset 0 0 28px rgba(255,50,178,.03); }
+.dgv-yearguess-console.valid input { color:#79ecff; border-color:rgba(69,224,255,.40); text-shadow:0 0 20px rgba(68,225,255,.20); }
+.dgv-yearguess-console>small { display:block; margin-top:11px; color:#756e7f; font-size:9px; text-align:center; }
+.dgv-yearguess-scoring { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin:13px 0; }
+.dgv-yearguess-scoring>div { min-height:70px; border-radius:15px; display:flex; flex-direction:column; align-items:center; justify-content:center; border:1px solid rgba(116,106,169,.13); background:rgba(5,7,21,.66); }
+.dgv-yearguess-scoring strong { color:#f5cc61; font-family:'Bebas Neue',sans-serif; font-size:30px; line-height:1; font-weight:400; }
+.dgv-yearguess-scoring span { margin-top:4px; color:#777083; font-family:'Space Mono',monospace; font-size:7px; letter-spacing:.1em; }
+.dgv-yearguess-submit { width:100%; justify-content:center; margin-top:0; }
+.dgv-yearguess-locked { min-height:360px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:25px; text-align:center; border-radius:22px; border:1px solid rgba(76,222,255,.18); background:linear-gradient(150deg,rgba(46,25,89,.19),rgba(5,8,24,.74)); }
+.dgv-yearguess-locked .check { width:66px; height:66px; border-radius:50%; display:grid; place-items:center; color:#07141c; background:linear-gradient(135deg,#55eaff,#4ef0a6); box-shadow:0 0 28px rgba(73,229,219,.17); }
+.dgv-yearguess-locked>span { margin-top:15px; color:#918a9b; font-family:'Space Mono',monospace; font-size:8px; letter-spacing:.17em; }
+.dgv-yearguess-locked>strong { margin-top:3px; color:#fff; font-family:'Bebas Neue',sans-serif; font-size:78px; line-height:.9; font-weight:400; text-shadow:0 0 24px rgba(82,224,255,.18); }
+.dgv-yearguess-locked>p { max-width:430px; margin:13px 0 0; color:#817a8d; font-size:10px; line-height:1.55; }
+
+.dgv-yearguess-result-page .dgv-shell { padding-bottom:28px; }
+.dgv-yearguess-reveal { min-height:250px; padding:27px 32px; display:grid; grid-template-columns:minmax(0,1fr) 430px; align-items:center; gap:35px; background:radial-gradient(circle at 17% 50%,rgba(246,201,85,.12),transparent 31%),radial-gradient(circle at 86% 48%,rgba(78,219,255,.06),transparent 33%),linear-gradient(155deg,rgba(21,14,29,.97),rgba(5,7,22,.98)); border-color:rgba(246,201,85,.26); overflow:hidden; }
+.dgv-yearguess-reveal-copy .dgv-eyebrow { color:#a38d58; }
+.dgv-yearguess-reveal-copy>strong { display:block; margin-top:2px; color:#ffe079; font-family:'Bebas Neue',sans-serif; font-size:104px; line-height:.78; font-weight:400; letter-spacing:.035em; text-shadow:0 0 30px rgba(246,199,75,.23); animation:dgv-yg-year-pop .5s cubic-bezier(.2,.9,.2,1.18) both; }
+.dgv-yearguess-reveal-copy h2 { margin:16px 0 2px; color:#f6f3fb; font-size:20px; }
+.dgv-yearguess-reveal-copy p { margin:0; color:#978f9c; font-size:12px; }
+.dgv-yearguess-my-result { min-height:160px; padding:18px; border-radius:21px; display:grid; grid-template-columns:repeat(3,1fr); gap:9px; border:1px solid rgba(112,105,165,.17); background:rgba(5,8,23,.70); }
+.dgv-yearguess-my-result>div { min-height:90px; border-radius:15px; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(2,4,15,.55); border:1px solid rgba(255,255,255,.05); }
+.dgv-yearguess-my-result span { color:#766f81; font-family:'Space Mono',monospace; font-size:7px; letter-spacing:.11em; }
+.dgv-yearguess-my-result strong { margin-top:5px; color:#fff; font-family:'Bebas Neue',sans-serif; font-size:38px; line-height:1; font-weight:400; }
+.dgv-yearguess-my-result>p { grid-column:1/-1; margin:0; color:#8a8291; text-align:center; font-family:'Space Mono',monospace; font-size:8px; letter-spacing:.1em; }
+.dgv-yearguess-my-result.great { border-color:rgba(51,238,158,.24); }
+.dgv-yearguess-my-result.great>div:last-of-type strong { color:#4cefac; }
+.dgv-yearguess-my-result.close { border-color:rgba(246,201,85,.21); }
+.dgv-yearguess-my-result.close>div:last-of-type strong { color:#f5ce62; }
+.dgv-yearguess-my-result.miss { border-color:rgba(255,79,120,.17); }
+.dgv-yearguess-my-result.miss>div:last-of-type strong { color:#ff6f8c; }
+.dgv-yearguess-round-board { margin-top:18px; padding:20px 22px 16px; overflow:hidden; }
+.dgv-yearguess-round-board .dgv-section-heading>span { margin-left:auto; color:#5be8ff; }
+.dgv-yearguess-result-head,.dgv-yearguess-result-row { display:grid; grid-template-columns:50px minmax(260px,1.5fr) 130px 150px 100px 120px; gap:12px; align-items:center; }
+.dgv-yearguess-result-head { min-height:32px; padding:0 13px; color:#696273; font-family:'Space Mono',monospace; font-size:7px; letter-spacing:.11em; }
+.dgv-yearguess-result-list { display:flex; flex-direction:column; gap:6px; }
+.dgv-yearguess-result-row { min-height:68px; padding:7px 13px; border-radius:15px; border:1px solid rgba(113,105,165,.11); background:rgba(4,7,21,.66); animation:dgv-yg-row-in .35s ease both; animation-delay:calc(var(--yg-row,0) * 55ms); }
+.dgv-yearguess-result-row.is-me { background:linear-gradient(90deg,rgba(70,218,255,.075),rgba(91,58,159,.05)); box-shadow:inset 0 0 0 1px rgba(73,217,255,.13); }
+.dgv-yearguess-result-row.exact { border-color:rgba(51,238,159,.28); }
+.dgv-yearguess-result-row.great { border-color:rgba(73,222,255,.20); }
+.dgv-yearguess-result-row.close { border-color:rgba(246,201,85,.18); }
+.dgv-yearguess-result-row.miss { opacity:.80; }
+.dgv-yearguess-result-row>.place { color:#6e6678; font-family:'Bebas Neue',sans-serif; font-size:24px; }
+.dgv-yearguess-result-row .player { min-width:0; display:grid; grid-template-columns:43px minmax(0,1fr); gap:10px; align-items:center; }
+.dgv-yearguess-result-row .avatar { width:42px; height:42px; border-radius:13px; display:grid; place-items:center; background:linear-gradient(135deg,#7f4cff,#3ddfff); background-size:cover; background-position:center; color:#fff; font-family:'Bebas Neue',sans-serif; font-size:16px; border:1px solid rgba(255,255,255,.12); }
+.dgv-yearguess-result-row .player>div { min-width:0; }
+.dgv-yearguess-result-row .player strong,.dgv-yearguess-result-row .player small { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dgv-yearguess-result-row .player strong { color:#eeeaf3; font-size:11px; }
+.dgv-yearguess-result-row .player small { margin-top:3px; color:#766f80; font-size:8px; }
+.dgv-yearguess-result-row.exact .player small { color:#4be2a2; }
+.dgv-yearguess-result-row>.guess { color:#fff; font-family:'Bebas Neue',sans-serif; font-size:28px; font-weight:400; }
+.dgv-yearguess-result-row>.diff { color:#8a8290; font-size:9px; }
+.dgv-yearguess-result-row>.round { color:#65e9ff; font-family:'Bebas Neue',sans-serif; font-size:26px; font-weight:400; }
+.dgv-yearguess-result-row.exact>.round { color:#4ceaaa; }
+.dgv-yearguess-result-row.close>.round { color:#f5ce62; }
+.dgv-yearguess-result-row.miss>.round { color:#746d7c; }
+.dgv-yearguess-result-row>.total { color:#c8c2ce; font-family:'Bebas Neue',sans-serif; font-size:23px; font-weight:400; }
+.dgv-yearguess-next { margin:13px 4px 0; }
+.dgv-yearguess-next>div { display:flex; justify-content:space-between; align-items:center; color:#756e80; font-family:'Space Mono',monospace; font-size:8px; letter-spacing:.12em; }
+.dgv-yearguess-next>div strong { color:#9d95a4; }
+.dgv-yearguess-next>i { display:block; height:5px; margin-top:7px; border-radius:99px; overflow:hidden; background:rgba(255,255,255,.055); }
+.dgv-yearguess-next>i>b { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#9e5eff,#ff5fc9,#5ce8ff); box-shadow:0 0 12px rgba(158,94,255,.33); transition:width .2s linear; }
+@keyframes dgv-yg-year-pop { 0% { opacity:0; transform:scale(.72) translateY(12px); filter:blur(5px); } 70% { opacity:1; transform:scale(1.05); filter:blur(0); } 100% { transform:scale(1); } }
+@keyframes dgv-yg-row-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+@media (max-width:1450px) {
+  .dgv-yearguess-game-grid { grid-template-columns:minmax(520px,1fr) minmax(420px,.88fr); gap:16px; }
+  .dgv-yearguess-audio-panel,.dgv-yearguess-answer-panel { min-height:580px; padding:20px; }
+  .dgv-yearguess-console-row input { font-size:48px; height:94px; }
+  .dgv-yearguess-result-head,.dgv-yearguess-result-row { grid-template-columns:42px minmax(220px,1.4fr) 110px 130px 90px 105px; gap:10px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .dgv-yearguess-reveal-copy>strong,.dgv-yearguess-result-row { animation:none; }
+}
