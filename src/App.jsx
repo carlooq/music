@@ -1652,6 +1652,36 @@ export default function App() {
     }
   }
 
+  async function handleSellDuplicate(song) {
+    if (!user || !song?.id) return false;
+    const rarity = effectiveRarity(song);
+    const price = SELL_PRICES[rarity] || 0;
+    setAlbumSellBusy(true);
+    try {
+      await sellDuplicateCard(user.uid, song.id, rarity);
+      setMyHitcoin((prev) => (prev || 0) + price);
+      setStats((prev) => {
+        if (!prev) return prev;
+        const cardCollection = { ...(prev.cardCollection || {}) };
+        const currentCount = Number(cardCollection[song.id] || 0);
+        if (currentCount > 1) cardCollection[song.id] = currentCount - 1;
+        return {
+          ...prev,
+          cardCollection,
+          hitcoin: Number(prev.hitcoin || 0) + price,
+          duplicatesSold: Number(prev.duplicatesSold || 0) + 1,
+        };
+      });
+      setError("");
+      return true;
+    } catch (e) {
+      setError("Błąd sprzedaży: " + e.message);
+      return false;
+    } finally {
+      setAlbumSellBusy(false);
+    }
+  }
+
   async function handleSellAllDuplicates() {
     if (!user) return;
     setAlbumSellBusy(true);
@@ -1666,8 +1696,10 @@ export default function App() {
         setStats(s);
         setError("");
       }
+      return result;
     } catch (e) {
       setError("Błąd sprzedaży: " + e.message);
+      return { totalEarned: 0, totalSold: 0 };
     } finally {
       setAlbumSellBusy(false);
     }
@@ -6175,6 +6207,8 @@ export default function App() {
       <DesktopAppView
         onLogout={handleLogout}
         onSellDuplicates={handleSellAllDuplicates}
+        onSellDuplicate={handleSellDuplicate}
+        onEnsureLibrary={ensureLibraryLoaded}
         albumSellBusy={albumSellBusy}
         seasonLeaderboard={seasonLeaderboard}
         seasonLeaderboardSort={seasonLeaderboardSort}
@@ -6324,6 +6358,8 @@ export default function App() {
       <MobileAppView
         onLogout={handleLogout}
         onSellDuplicates={handleSellAllDuplicates}
+        onSellDuplicate={handleSellDuplicate}
+        onEnsureLibrary={ensureLibraryLoaded}
         albumSellBusy={albumSellBusy}
         seasonLeaderboard={seasonLeaderboard}
         seasonLeaderboardSort={seasonLeaderboardSort}

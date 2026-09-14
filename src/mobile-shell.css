@@ -1662,3 +1662,204 @@
   .mob-profile-season-summary-grid > div { min-height:48px; }
   .mob-season-status-select { max-width:128px; }
 }
+
+/* =========================================================
+   MOBILE — duplicate card sale modal
+   ========================================================= */
+.mob-duplicate-sale-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 230;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(2, 3, 12, .88);
+  backdrop-filter: blur(12px);
+}
+.mob-duplicate-sale-modal {
+  width: min(100%, 560px);
+  max-height: 90dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(245, 196, 81, .24);
+  border-bottom: 0;
+  border-radius: 24px 24px 0 0;
+  background:
+    radial-gradient(circle at 50% -10%, rgba(245,196,81,.12), transparent 34%),
+    linear-gradient(180deg, rgba(11,12,31,.995), rgba(5,7,20,.995));
+  box-shadow: 0 -22px 70px rgba(0,0,0,.58), 0 0 35px rgba(245,196,81,.06);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.mob-duplicate-sale-head {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0,1fr) 40px;
+  gap: 12px;
+  align-items: start;
+  padding: 17px 16px 12px;
+  border-bottom: 1px solid rgba(255,255,255,.055);
+}
+.mob-duplicate-sale-head > div { min-width: 0; }
+.mob-duplicate-sale-head span {
+  display: block;
+  color: #847d8d;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .13em;
+}
+.mob-duplicate-sale-head strong {
+  display: block;
+  margin-top: 2px;
+  color: #f6c951;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 400;
+  letter-spacing: .02em;
+}
+.mob-duplicate-sale-head small {
+  display: block;
+  margin-top: 7px;
+  color: #9690a1;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.mob-duplicate-sale-head small b { color: #f6d26c; }
+.mob-duplicate-sale-head > button {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.035);
+  color: #d9d4e2;
+}
+.mob-duplicate-sale-head > button:disabled { opacity: .42; }
+.mob-duplicate-sell-all {
+  flex: 0 0 auto;
+  min-height: 48px;
+  margin: 12px 14px 4px;
+  padding: 0 14px;
+  display: grid;
+  grid-template-columns: 22px minmax(0,1fr) auto;
+  gap: 8px;
+  align-items: center;
+  border-radius: 14px;
+  border: 1px solid rgba(245,196,81,.40);
+  background: linear-gradient(90deg, rgba(245,196,81,.13), rgba(255,95,201,.055));
+  color: #f6cd61;
+  box-shadow: inset 0 0 18px rgba(245,196,81,.04);
+}
+.mob-duplicate-sell-all > span {
+  text-align: left;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 17px;
+  letter-spacing: .035em;
+}
+.mob-duplicate-sell-all > strong {
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  color: #fff0b0;
+}
+.mob-duplicate-sell-all:disabled { opacity: .5; }
+.mob-duplicate-sale-list {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  align-items: start;
+  gap: 10px;
+  padding: 10px 14px 18px;
+}
+.mob-duplicate-sale-item {
+  --duplicate-rarity: #93a7bb;
+  min-width: 0;
+  padding: 10px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--duplicate-rarity) 25%, transparent);
+  background:
+    radial-gradient(circle at 50% 0, color-mix(in srgb,var(--duplicate-rarity) 8%,transparent), transparent 48%),
+    rgba(7,9,25,.86);
+  box-shadow: inset 0 0 18px color-mix(in srgb,var(--duplicate-rarity) 3%,transparent);
+}
+.mob-duplicate-card-preview {
+  width: min(100%, 132px);
+  margin: 0 auto;
+}
+.mob-duplicate-card-preview .mob-collectible-card { pointer-events: none; }
+.mob-duplicate-card-preview .mob-collectible-year { font-size: clamp(17px,6vw,24px); }
+.mob-duplicate-sale-info {
+  min-height: 65px;
+  padding: 7px 1px 6px;
+  text-align: center;
+}
+.mob-duplicate-sale-info > span {
+  display: block;
+  color: var(--duplicate-rarity);
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.mob-duplicate-sale-info > strong {
+  display: block;
+  margin-top: 4px;
+  color: #f2edf8;
+  font-size: 11px;
+}
+.mob-duplicate-sale-info > small {
+  display: block;
+  margin-top: 3px;
+  color: #f4ca62;
+  font-size: 10px;
+  font-weight: 700;
+}
+.mob-duplicate-sale-info > em {
+  display: block;
+  margin-top: 3px;
+  color: #777183;
+  font-size: 8px;
+  font-style: normal;
+}
+.mob-duplicate-sale-item > button {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-radius: 11px;
+  border: 1px solid color-mix(in srgb,var(--duplicate-rarity) 38%,transparent);
+  background: color-mix(in srgb,var(--duplicate-rarity) 7%,rgba(7,9,25,.95));
+  color: #ece7f3;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .04em;
+}
+.mob-duplicate-sale-item > button b {
+  color: #f4ca62;
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+}
+.mob-duplicate-sale-item > button:disabled { opacity: .45; }
+.mob-duplicate-sale-empty {
+  grid-column: 1 / -1;
+  min-height: 160px;
+  display: grid;
+  place-items: center;
+  color: #858092;
+  font-size: 12px;
+  text-align: center;
+}
+
+@media (max-width: 350px) {
+  .mob-duplicate-sale-list { gap: 7px; padding-left: 9px; padding-right: 9px; }
+  .mob-duplicate-sale-item { padding: 8px; }
+  .mob-duplicate-sale-head { padding-left: 12px; padding-right: 12px; }
+  .mob-duplicate-sell-all { margin-left: 10px; margin-right: 10px; }
+}

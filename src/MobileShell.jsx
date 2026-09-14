@@ -60,7 +60,7 @@ import cardZlotoImg from './assets/icons/card-zlota.webp';
 import cardPlatynaImg from './assets/icons/card-platynowa.webp';
 import cardDiamentImg from './assets/icons/card-diamentowa.webp';
 import cardRewersImg from './assets/icons/card-rewers-v2.webp';
-import { effectiveRarity } from './cards.js';
+import { effectiveRarity, SELL_PRICES } from './cards.js';
 import './mobile-shell.css';
 
 const RARITIES = [
@@ -669,6 +669,7 @@ function MobileCollectionView(props) {
   const [ownedOnly, setOwnedOnly] = useState(true);
   const [visibleCount, setVisibleCount] = useState(40);
   const [zoomedSong, setZoomedSong] = useState(null);
+  const [duplicateSaleOpen, setDuplicateSaleOpen] = useState(false);
   const collection = props.stats?.cardCollection || {};
   const songs = Array.isArray(props.songs) ? props.songs : [];
 
@@ -698,7 +699,28 @@ function MobileCollectionView(props) {
 
   const uniqueOwned = Object.keys(collection).filter((id) => Number(collection[id] || 0) > 0).length;
   const duplicates = Object.values(collection).reduce((sum, count) => sum + Math.max(0, Number(count || 0) - 1), 0);
+  const duplicateItems = useMemo(() => {
+    const rarityWeight = { diamentowa: 5, platynowa: 4, zlota: 3, srebrna: 2, winyl: 1 };
+    const songById = new Map(songs.map((song) => [song.id, song]));
+    return Object.entries(collection)
+      .map(([songId, rawCount]) => {
+        const ownedCount = Number(rawCount || 0);
+        if (ownedCount < 2) return null;
+        const song = songById.get(songId) || { id: songId, artist: 'Karta archiwalna', title: 'Poza aktualną bazą', year: '—', rarity: 'winyl' };
+        const songRarity = effectiveRarity(song);
+        const extraCount = ownedCount - 1;
+        const unitPrice = Number(SELL_PRICES[songRarity] || 0);
+        return { song, ownedCount, extraCount, rarity: songRarity, unitPrice, totalValue: extraCount * unitPrice };
+      })
+      .filter(Boolean)
+      .sort((a, b) => (rarityWeight[b.rarity] || 0) - (rarityWeight[a.rarity] || 0) || String(a.song.artist || '').localeCompare(String(b.song.artist || ''), 'pl'));
+  }, [songs, collection]);
+  const duplicateSaleValue = duplicateItems.reduce((sum, item) => sum + item.totalValue, 0);
   const shown = filtered.slice(0, visibleCount);
+
+  useEffect(() => {
+    if (duplicateSaleOpen && duplicates === 0) setDuplicateSaleOpen(false);
+  }, [duplicateSaleOpen, duplicates]);
 
   return (
     <div className="mob-stack mob-inner-view">
@@ -714,10 +736,11 @@ function MobileCollectionView(props) {
             className="mob-sell-duplicates-btn"
             disabled={props.albumSellBusy}
             onClick={() => {
-              if (window.confirm(`Sprzedać wszystkie duplikaty (${duplicates} kart)? Zostanie po 1 sztuce każdej.`)) props.onSellDuplicates?.();
+              props.onEnsureLibrary?.();
+              setDuplicateSaleOpen(true);
             }}
           >
-            <Coins size={16} /> {props.albumSellBusy ? 'SPRZEDAJĘ…' : `SPRZEDAJ DUPLIKATY (${duplicates})`}
+            <Coins size={16} /> {`SPRZEDAJ DUPLIKATY (${duplicates})`}
           </button>
         ) : null}
       </section>
@@ -748,6 +771,56 @@ function MobileCollectionView(props) {
       {filtered.length > visibleCount ? <button type="button" className="mob-load-more" onClick={() => setVisibleCount((v) => v + 40)}>POKAŻ WIĘCEJ <small>({filtered.length - visibleCount} pozostało)</small></button> : null}
 
       <MobileCardZoom song={zoomedSong} count={zoomedSong ? Number(collection[zoomedSong.id] || 1) : 1} onClose={() => setZoomedSong(null)} />
+
+      {duplicateSaleOpen ? (
+        <div className="mob-duplicate-sale-backdrop" role="dialog" aria-modal="true" aria-label="Sprzedaż duplikatów" onClick={() => !props.albumSellBusy && setDuplicateSaleOpen(false)}>
+          <div className="mob-duplicate-sale-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="mob-duplicate-sale-head">
+              <div>
+                <span>DUPLIKATY W KOLEKCJI</span>
+                <strong>SPRZEDAJ KARTY</strong>
+                <small>{duplicates} {duplicates === 1 ? 'karta na sprzedaż' : 'kart na sprzedaż'} · łącznie <b>{compact(duplicateSaleValue)} HITCOIN</b></small>
+              </div>
+              <button type="button" aria-label="Zamknij" disabled={props.albumSellBusy} onClick={() => setDuplicateSaleOpen(false)}><X size={19} /></button>
+            </div>
+
+            <button
+              type="button"
+              className="mob-duplicate-sell-all"
+              disabled={props.albumSellBusy || duplicates === 0}
+              onClick={() => {
+                if (window.confirm(`Sprzedać wszystkie duplikaty (${duplicates} kart) za ${duplicateSaleValue} HITCOIN? Zostanie po 1 sztuce każdej karty.`)) props.onSellDuplicates?.();
+              }}
+            >
+              <Coins size={17} />
+              <span>{props.albumSellBusy ? 'SPRZEDAJĘ…' : 'SPRZEDAJ WSZYSTKIE'}</span>
+              <strong>+{compact(duplicateSaleValue)}</strong>
+            </button>
+
+            <div className="mob-duplicate-sale-list">
+              {duplicateItems.length ? duplicateItems.map((item) => (
+                <article className="mob-duplicate-sale-item" key={item.song.id} style={{ '--duplicate-rarity': RARITIES.find((entry) => entry.key === item.rarity)?.color || '#93a7bb' }}>
+                  <div className="mob-duplicate-card-preview">
+                    <MobileCollectibleCard song={item.song} count={item.ownedCount} />
+                  </div>
+                  <div className="mob-duplicate-sale-info">
+                    <span>{RARITIES.find((entry) => entry.key === item.rarity)?.label || item.rarity}</span>
+                    <strong>{item.extraCount > 1 ? `${item.extraCount} duplikaty` : '1 duplikat'}</strong>
+                    <small>{item.unitPrice} HITCOIN / szt.</small>
+                    {item.extraCount > 1 ? <em>Wszystkie: {item.totalValue} HITCOIN</em> : null}
+                  </div>
+                  <button type="button" disabled={props.albumSellBusy} onClick={() => props.onSellDuplicate?.(item.song)}>
+                    {props.albumSellBusy ? '…' : 'SPRZEDAJ'}
+                    <b>+{item.unitPrice}</b>
+                  </button>
+                </article>
+              )) : (
+                <div className="mob-duplicate-sale-empty">{props.libraryLoading ? 'Ładowanie duplikatów…' : 'Brak duplikatów do sprzedaży.'}</div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

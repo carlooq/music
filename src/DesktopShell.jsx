@@ -62,7 +62,7 @@ import cardSrebroImg from './assets/icons/card-srebro.webp';
 import cardZlotoImg from './assets/icons/card-zlota.webp';
 import cardPlatynaImg from './assets/icons/card-platynowa.webp';
 import cardDiamentImg from './assets/icons/card-diamentowa.webp';
-import { effectiveRarity } from './cards.js';
+import { effectiveRarity, SELL_PRICES } from './cards.js';
 
 const DESKTOP_RARITY_ORDER = ['winyl', 'srebrna', 'zlota', 'platynowa', 'diamentowa'];
 const DESKTOP_RARITY_INFO = {
@@ -1299,12 +1299,13 @@ function DesktopLeaderboardView({ common, leaderboard, sortBy, onSort, onViewPro
 }
 
 
-function DesktopCollectionView({ common, songs, stats, libraryLoading, songPoolSize, onSellDuplicates, albumSellBusy }) {
+function DesktopCollectionView({ common, songs, stats, libraryLoading, songPoolSize, onSellDuplicates, onSellDuplicate, onEnsureLibrary, albumSellBusy }) {
   const [selectedRarity, setSelectedRarity] = useState('winyl');
   const [onlyOwned, setOnlyOwned] = useState(true);
   const [query, setQuery] = useState('');
   const [visibleCount, setVisibleCount] = useState(60);
   const [selectedCard, setSelectedCard] = useState(null);
+  const [duplicateSaleOpen, setDuplicateSaleOpen] = useState(false);
   const collection = stats?.cardCollection || {};
 
   const rarityCounts = useMemo(() => {
@@ -1332,8 +1333,29 @@ function DesktopCollectionView({ common, songs, stats, libraryLoading, songPoolS
 
   useEffect(() => setVisibleCount(60), [selectedRarity, onlyOwned, query, songs?.length]);
   const shown = filtered.slice(0, visibleCount);
-  const totalOwned = Object.keys(collection).length;
+  const totalOwned = Object.keys(collection).filter((id) => Number(collection[id] || 0) > 0).length;
   const totalDuplicates = Object.values(collection).reduce((sum, count) => sum + Math.max(0, Number(count || 0) - 1), 0);
+  const duplicateItems = useMemo(() => {
+    const rarityWeight = { diamentowa: 5, platynowa: 4, zlota: 3, srebrna: 2, winyl: 1 };
+    const songById = new Map((songs || []).map((song) => [song.id, song]));
+    return Object.entries(collection)
+      .map(([songId, rawCount]) => {
+        const ownedCount = Number(rawCount || 0);
+        if (ownedCount < 2) return null;
+        const song = songById.get(songId) || { id: songId, artist: 'Karta archiwalna', title: 'Poza aktualną bazą', year: '—', rarity: 'winyl' };
+        const rarity = effectiveRarity(song);
+        const extraCount = ownedCount - 1;
+        const unitPrice = Number(SELL_PRICES[rarity] || 0);
+        return { song, ownedCount, extraCount, rarity, unitPrice, totalValue: extraCount * unitPrice };
+      })
+      .filter(Boolean)
+      .sort((a, b) => (rarityWeight[b.rarity] || 0) - (rarityWeight[a.rarity] || 0) || String(a.song.artist || '').localeCompare(String(b.song.artist || ''), 'pl'));
+  }, [songs, collection]);
+  const duplicateSaleValue = duplicateItems.reduce((sum, item) => sum + item.totalValue, 0);
+
+  useEffect(() => {
+    if (duplicateSaleOpen && totalDuplicates === 0) setDuplicateSaleOpen(false);
+  }, [duplicateSaleOpen, totalDuplicates]);
 
   return (
     <DesktopLayout active="collection" {...common}>
@@ -1351,10 +1373,11 @@ function DesktopCollectionView({ common, songs, stats, libraryLoading, songPoolS
             className="desk-sell-duplicates-btn"
             disabled={albumSellBusy}
             onClick={() => {
-              if (window.confirm(`Sprzedać wszystkie duplikaty (${totalDuplicates} kart)? Zostanie po 1 sztuce każdej.`)) onSellDuplicates?.();
+              onEnsureLibrary?.();
+              setDuplicateSaleOpen(true);
             }}
           >
-            <Coins size={18} /> {albumSellBusy ? 'SPRZEDAJĘ…' : `SPRZEDAJ DUPLIKATY (${totalDuplicates})`}
+            <Coins size={18} /> {`SPRZEDAJ DUPLIKATY (${totalDuplicates})`}
           </button>
         ) : null}
 
@@ -1416,6 +1439,58 @@ function DesktopCollectionView({ common, songs, stats, libraryLoading, songPoolS
             <div className="desk-card-modal-meta">
               <span style={{ color: DESKTOP_RARITY_INFO[effectiveRarity(selectedCard)]?.color }}>{DESKTOP_RARITY_INFO[effectiveRarity(selectedCard)]?.label}</span>
               <strong>{selectedCard.artist} — {selectedCard.title}</strong>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {duplicateSaleOpen ? (
+        <div className="desk-duplicate-sale-backdrop" role="dialog" aria-modal="true" aria-label="Sprzedaż duplikatów" onClick={() => !albumSellBusy && setDuplicateSaleOpen(false)}>
+          <div className="desk-duplicate-sale-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="desk-duplicate-sale-head">
+              <div>
+                <span>DUPLIKATY W KOLEKCJI</span>
+                <h2>SPRZEDAJ KARTY</h2>
+                <p>Masz <strong>{totalDuplicates}</strong> {totalDuplicates === 1 ? 'kartę' : 'kart'} na sprzedaż o łącznej wartości <b>{formatCompact(duplicateSaleValue)} HITCOIN</b>.</p>
+              </div>
+              <button type="button" aria-label="Zamknij" disabled={albumSellBusy} onClick={() => setDuplicateSaleOpen(false)}>×</button>
+            </div>
+
+            <div className="desk-duplicate-sale-toolbar">
+              <div><Coins size={19} /><span>ŁĄCZNA WARTOŚĆ</span><strong>{formatCompact(duplicateSaleValue)} HITCOIN</strong></div>
+              <button
+                type="button"
+                disabled={albumSellBusy || totalDuplicates === 0}
+                onClick={() => {
+                  if (window.confirm(`Sprzedać wszystkie duplikaty (${totalDuplicates} kart) za ${duplicateSaleValue} HITCOIN? Zostanie po 1 sztuce każdej karty.`)) onSellDuplicates?.();
+                }}
+              >
+                <Coins size={17} /> {albumSellBusy ? 'SPRZEDAJĘ…' : 'SPRZEDAJ WSZYSTKIE'}
+              </button>
+            </div>
+
+            <div className="desk-duplicate-sale-grid">
+              {duplicateItems.length ? duplicateItems.map((item) => {
+                const info = DESKTOP_RARITY_INFO[item.rarity] || DESKTOP_RARITY_INFO.winyl;
+                return (
+                  <article className="desk-duplicate-sale-item" key={item.song.id} style={{ '--rarity-color': info.color }}>
+                    <div className="desk-duplicate-card-preview">
+                      <DesktopCollectibleCard song={item.song} ownedCount={item.ownedCount} />
+                    </div>
+                    <div className="desk-duplicate-sale-copy">
+                      <span>{info.label}</span>
+                      <strong>{item.extraCount > 1 ? `${item.extraCount} DUPLIKATY` : '1 DUPLIKAT'}</strong>
+                      <small>{item.unitPrice} HITCOIN / SZT.</small>
+                      {item.extraCount > 1 ? <em>Łącznie: {item.totalValue} HITCOIN</em> : null}
+                    </div>
+                    <button type="button" disabled={albumSellBusy} onClick={() => onSellDuplicate?.(item.song)}>
+                      <span>SPRZEDAJ 1</span><strong>+{item.unitPrice}</strong>
+                    </button>
+                  </article>
+                );
+              }) : (
+                <div className="desk-duplicate-sale-empty">{libraryLoading ? 'Ładowanie duplikatów…' : 'Brak duplikatów do sprzedaży.'}</div>
+              )}
             </div>
           </div>
         </div>
@@ -1605,7 +1680,7 @@ export function DesktopAppView(props) {
   if (section === 'stats') view = <DesktopStatsView {...props} {...common} />;
   else if (section === 'achievements') view = <DesktopAchievementsView common={common} progress={props.achievementProgress || []} onClaim={props.onClaimAchievement} />;
   else if (section === 'ranking') view = <DesktopLeaderboardView common={common} leaderboard={props.leaderboard} sortBy={props.leaderboardSort} onSort={props.onLoadLeaderboard} onViewProfile={props.onViewProfile} seasonLeaderboard={props.seasonLeaderboard} seasonLeaderboardSort={props.seasonLeaderboardSort} seasonLeaderboardKey={props.seasonLeaderboardKey} onLoadSeasonLeaderboard={props.onLoadSeasonLeaderboard} levelFromXp={props.levelFromXp} />;
-  else if (section === 'collection') view = <DesktopCollectionView common={common} songs={props.songs} stats={props.stats} libraryLoading={props.libraryLoading} songPoolSize={props.songPoolSize} onSellDuplicates={props.onSellDuplicates} albumSellBusy={props.albumSellBusy} />;
+  else if (section === 'collection') view = <DesktopCollectionView common={common} songs={props.songs} stats={props.stats} libraryLoading={props.libraryLoading} songPoolSize={props.songPoolSize} onSellDuplicates={props.onSellDuplicates} onSellDuplicate={props.onSellDuplicate} onEnsureLibrary={props.onEnsureLibrary} albumSellBusy={props.albumSellBusy} />;
   else if (section === 'shop') view = <DesktopShopView common={common} hitcoin={props.hitcoin} packConfigs={props.packConfigs} busy={props.packBusy} openResult={props.packOpenResult} onBuy={props.onBuyPack} onClearResult={props.onClearPackResult} />;
   else if (section === 'community') view = <DesktopCommunityView common={common} onlinePlayers={props.onlinePlayers} challengeSentTo={props.challengeSentTo} challengeBusy={props.challengeBusy} onChallenge={props.onChallenge} onViewProfile={props.onViewProfile} currentUserUid={props.user?.uid} />;
   else if (section === 'propose') view = <DesktopProposeView common={common} draft={props.proposeDraft} setDraft={props.setProposeDraft} categories={props.categories} onToggleCategory={props.onToggleProposeCategory} onSubmit={props.onSubmitProposal} busy={props.proposeBusy} error={props.proposeError} success={props.proposeSuccess} />;
