@@ -3161,8 +3161,15 @@ export default function App() {
   }, [screen, toMillis(room?.resultAt), room?.currentPlayerId, room?.lastResult?.correct]);
 
   // 20s na głosowanie — kto nie zdąży zagłosować, liczy się jako "TAK";
-  // każdy klient odpowiada tylko za swój własny (domyślny) głos
+  // każdy klient odpowiada tylko za swój własny (domyślny) głos. DODATKOWO:
+  // jeśli czyjeś urządzenie akurat "zasnęło" (zablokowany ekran, karta w tle)
+  // i jego automatyczny głos nigdy się nie odpali, gra utknęłaby w głosowaniu
+  // na zawsze — dlatego gracz który zgadywał (najbardziej zainteresowany
+  // zakończeniem rundy) po dodatkowych 8s sam rozstrzyga głosowanie,
+  // traktując wszystkie brakujące głosy jako "TAK", dokładnie tak samo jak
+  // zrobiłby to każdy z automatycznych głosów z osobna.
   const votingAutoVoteFiredRef = useRef(null);
+  const votingForceResolveFiredRef = useRef(null);
   const [votingCountdown, setVotingCountdown] = useState(null);
   useEffect(() => {
     const votingStartedAtMs = toMillis(room?.votingStartedAt);
@@ -3171,6 +3178,7 @@ export default function App() {
       return;
     }
     const votingDeadlineMs = votingStartedAtMs + VOTING_SECONDS * 1000;
+    const FORCE_RESOLVE_EXTRA_MS = 8000; // tyle dodatkowo czekamy, zanim gracz-zgadujący sam rozstrzyga
     const tick = () => {
       const left = Math.max(0, Math.ceil((votingDeadlineMs - Date.now()) / 1000));
       setVotingCountdown(left);
@@ -3183,6 +3191,15 @@ export default function App() {
       ) {
         votingAutoVoteFiredRef.current = votingStartedAtMs;
         castVote(true);
+      }
+      const overdueMs = Date.now() - votingDeadlineMs;
+      if (
+        playerId === room.currentPlayerId &&
+        overdueMs >= FORCE_RESOLVE_EXTRA_MS &&
+        votingForceResolveFiredRef.current !== votingStartedAtMs
+      ) {
+        votingForceResolveFiredRef.current = votingStartedAtMs;
+        forceResolveVoting();
       }
     };
     tick();
@@ -4153,6 +4170,78 @@ export default function App() {
       setError("Błąd głosowania: " + e.message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  // Awaryjne rozstrzygnięcie głosowania — wywoływane WYŁĄCZNIE przez gracza,
+  // który zgadywał, i tylko gdy minęło już 20s+8s bez rozstrzygnięcia (patrz
+  // komentarz przy liczniku głosowania). Traktuje wszystkie BRAKUJĄCE głosy
+  // jako "TAK", dokładnie tak jak zrobiłby to każdy pojedynczy automatyczny
+  // głos — różnica jest tylko taka, że nie czekamy aż zawiodące urządzenie
+  // samo się obudzi.
+  async function forceResolveVoting() {
+    if (!room || room.status !== "voting" || playerId !== room.currentPlayerId) return;
+    const ref = doc(db, "rooms", roomId);
+    let awardedGuessTo = null;
+    let awardedGuessVideoId = null;
+    let awardedGuessYear = null;
+    let newGuessStreakValue = null;
+    try {
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const data = snap.data();
+        if (data.status !== "voting") return;
+        const newVotes = { ...(data.votes || {}) };
+        data.players.forEach((p) => {
+          if (p.id !== data.currentPlayerId && newVotes[p.id] === undefined) newVotes[p.id] = true;
+        });
+        const approvals = Object.values(newVotes).filter((v) => v === true).length;
+        const required = data.requiredApprovals;
+
+        if (approvals >= required) {
+          const guesser = data.players.find((p) => p.id === data.currentPlayerId);
+          if (guesser?.authed) {
+            awardedGuessTo = data.currentPlayerId;
+            awardedGuessVideoId = data.lastResult?.card?.videoId;
+            awardedGuessYear = data.lastResult?.card?.year;
+          }
+          const playedCards = data.playedCards || [];
+          const updatedPlayedCards = playedCards.map((pc, i) => (i === playedCards.length - 1 ? { ...pc, guessedCorrect: true } : pc));
+          const newStreak = (data.gameGuessStreaks?.[data.currentPlayerId] || 0) + 1;
+          newGuessStreakValue = newStreak;
+          tx.update(ref, {
+            status: "roundResult",
+            votes: newVotes,
+            lastResult: { ...data.lastResult, tokenAwarded: true },
+            resultAt: serverTimestamp(),
+            [`tokens.${data.currentPlayerId}`]: increment(1),
+            playedCards: updatedPlayedCards,
+            [`gameGuessStreaks.${data.currentPlayerId}`]: newStreak,
+            [`gameGuesses.${data.currentPlayerId}`]: increment(1),
+          });
+        } else {
+          const playedCards = data.playedCards || [];
+          const updatedPlayedCards = playedCards.map((pc, i) => (i === playedCards.length - 1 ? { ...pc, guessedCorrect: false } : pc));
+          tx.update(ref, {
+            status: "roundResult",
+            votes: newVotes,
+            lastResult: { ...data.lastResult, tokenAwarded: false },
+            resultAt: serverTimestamp(),
+            playedCards: updatedPlayedCards,
+            [`gameGuessStreaks.${data.currentPlayerId}`]: 0,
+          });
+        }
+      });
+      if (awardedGuessTo) {
+        recordSuccessfulGuess(awardedGuessTo, awardedGuessVideoId, awardedGuessYear).catch(() => {});
+        bumpWeeklyChallengeProgress(awardedGuessTo, "guessesCorrect", 1).catch(() => {});
+        let xp = 20;
+        if (newGuessStreakValue === 5) xp += 30;
+        awardXp(awardedGuessTo, xp).catch(() => {});
+        if (newGuessStreakValue) updateLongestGuessStreak(awardedGuessTo, newGuessStreakValue).catch(() => {});
+      }
+    } catch (e) {
+      // ciche niepowodzenie — spróbuje ponownie przy kolejnym "tick" licznika
     }
   }
 
