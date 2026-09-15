@@ -63,6 +63,7 @@ import cardSrebroImg from './assets/icons/card-srebro.webp';
 import cardZlotoImg from './assets/icons/card-zlota.webp';
 import cardPlatynaImg from './assets/icons/card-platynowa.webp';
 import cardDiamentImg from './assets/icons/card-diamentowa.webp';
+import cardRewersImg from './assets/icons/card-rewers-v2.webp';
 import { effectiveRarity, SELL_PRICES } from './cards.js';
 
 const DESKTOP_RARITY_ORDER = ['winyl', 'srebrna', 'zlota', 'platynowa', 'diamentowa'];
@@ -1666,46 +1667,198 @@ function DesktopCollectionView({ common, songs, stats, libraryLoading, songPoolS
 }
 function DesktopShopView({ common, hitcoin, packConfigs, busy, openResult, onBuy, onClearResult }) {
   const packs = [
-    { key: '50', title: 'PODSTAWOWA', img: packPodstawowa, accent: 'cyan' },
-    { key: '75', title: 'ROZSZERZONA', img: packRozszerzona, accent: 'violet' },
-    { key: '100', title: 'PREMIUM', img: packPremium, accent: 'gold' },
+    { key: '50', title: 'PODSTAWOWA', img: packPodstawowa, accent: 'cyan', note: 'Szybkie uzupełnienie kolekcji', diamond: '0,5%' },
+    { key: '75', title: 'ROZSZERZONA', img: packRozszerzona, accent: 'violet', note: 'Więcej kart i większa szansa na rzadkie', diamond: '1%' },
+    { key: '100', title: 'PREMIUM', img: packPremium, accent: 'gold', note: 'Największa szansa na Diament', diamond: '2%' },
   ];
+  const [revealStarted, setRevealStarted] = useState(false);
+  const [revealed, setRevealed] = useState(() => new Set());
+  const [revealFx, setRevealFx] = useState(null);
+
+  useEffect(() => {
+    setRevealStarted(false);
+    setRevealed(new Set());
+    setRevealFx(null);
+  }, [openResult]);
+
+  useEffect(() => {
+    if (!revealFx) return undefined;
+    const durations = { winyl: 520, srebrna: 720, zlota: 930, platynowa: 1180, diamentowa: 1500 };
+    const timer = window.setTimeout(() => setRevealFx(null), durations[revealFx.rarity] || 760);
+    return () => window.clearTimeout(timer);
+  }, [revealFx]);
+
+  const openedPack = useMemo(() => {
+    if (!openResult?.length) return null;
+    return packs.find((pack) => Number(packConfigs?.[pack.key]?.cards || 0) === openResult.length) || packs[0];
+  }, [openResult, packConfigs]);
+
+  const revealCard = (index) => {
+    if (!revealStarted || revealed.has(index)) return;
+    const item = openResult?.[index];
+    const rarity = item?.song ? effectiveRarity(item.song) : 'winyl';
+    setRevealed((current) => {
+      const next = new Set(current);
+      next.add(index);
+      return next;
+    });
+    setRevealFx({ index, rarity, nonce: Date.now() });
+  };
+
+  const revealAll = () => {
+    if (!openResult?.length) return;
+    setRevealStarted(true);
+    setRevealed(new Set(openResult.map((_, index) => index)));
+    const rarest = openResult
+      .map((item, index) => ({ index, rarity: effectiveRarity(item.song) }))
+      .sort((a, b) => DESKTOP_RARITY_ORDER.indexOf(b.rarity) - DESKTOP_RARITY_ORDER.indexOf(a.rarity))[0];
+    if (rarest) setRevealFx({ ...rarest, nonce: Date.now() });
+  };
+
+  const allRevealed = Boolean(openResult?.length) && revealed.size >= openResult.length;
+  const newCount = openResult?.filter((item) => !item.isDuplicate).length || 0;
+  const duplicateCount = openResult?.filter((item) => item.isDuplicate).length || 0;
+
+  const renderRevealCard = (item, index) => {
+    const isRevealed = revealed.has(index);
+    const rarity = effectiveRarity(item.song);
+    const rarityInfo = DESKTOP_RARITY_INFO[rarity] || DESKTOP_RARITY_INFO.winyl;
+    const thumbUrl = item.song?.videoId ? `https://img.youtube.com/vi/${item.song.videoId}/hqdefault.jpg` : null;
+    const isActive = revealFx?.index === index;
+    return (
+      <div
+        key={item.song?.id || index}
+        className={`desk-pack-reveal-slot rarity-${rarity} ${isRevealed ? 'revealed' : ''} ${isActive ? 'reveal-active' : ''}`}
+        style={{ '--pack-rarity': rarityInfo.color }}
+      >
+        {!isRevealed ? (
+          <button type="button" className="desk-pack-card-back" onClick={() => revealCard(index)} aria-label={`Odkryj kartę ${index + 1}`}>
+            <img src={cardRewersImg} alt="Zakryta karta" />
+            <span>{index + 1}</span>
+          </button>
+        ) : (
+          <div className="desk-pack-revealed-wrap">
+            <div className="desk-pack-card-aura" aria-hidden="true" />
+            <div className="desk-pack-revealed-card">
+              <img src={rarityInfo.frame} alt="" className="desk-pack-reveal-frame" />
+              <div className="desk-pack-reveal-thumb">{thumbUrl ? <img src={thumbUrl} alt="" /> : <Music2 size={42} />}</div>
+              <div className="desk-pack-reveal-copy">
+                <strong>{item.song?.year || '—'}</strong>
+                <span>{item.song?.artist || '—'}</span>
+                <b>{item.song?.title || '—'}</b>
+              </div>
+            </div>
+            <div className="desk-pack-reveal-meta">
+              <strong>{rarityInfo.label}</strong>
+              <span className={item.isDuplicate ? 'duplicate' : 'new'}>{item.isDuplicate ? 'DUPLIKAT' : 'NOWA KARTA'}</span>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <DesktopLayout active="shop" {...common}>
       <HeaderBar {...common.header} />
       <div className="desk-main-stack">
-        <DesktopSimpleHeader title="SKLEP" subtitle={`Saldo: ${formatCompact(hitcoin)} HITCOIN. Kupuj paczki i rozbudowuj album.`} icon={<ShoppingCart size={28} />} />
+        <DesktopSimpleHeader title="SKLEP" subtitle={`Saldo: ${formatCompact(hitcoin)} HITCOIN. Otwieraj paczki i rozbudowuj swoją kolekcję.`} icon={<ShoppingCart size={28} />} />
+
         {openResult?.length ? (
-          <section className="desk-shop-result desk-panel">
-            <div className="desk-section-label solo">OTWARTA PACZKA</div>
-            <div className="desk-shop-result-grid">
-              {openResult.map((item, index) => (
-                <div key={`${item.song?.id || index}`} className="desk-shop-result-card">
-                  <div className="desk-song-card-year">{item.song?.year || '—'}</div>
-                  <div className="desk-song-card-title">{item.song?.title || 'Karta'}</div>
-                  <div className="desk-song-card-artist">{item.song?.artist || ''}</div>
+          <section className={`desk-pack-opening desk-panel ${revealStarted ? 'is-open' : 'is-sealed'}`}>
+            {!revealStarted ? (
+              <div className="desk-pack-opening-intro">
+                <div className="desk-pack-opening-kicker"><Sparkles size={17} /> PACZKA GOTOWA DO OTWARCIA</div>
+                <div className={`desk-pack-opening-art ${openedPack?.accent || 'violet'}`}>
+                  <span className="desk-pack-opening-ring ring-a" />
+                  <span className="desk-pack-opening-ring ring-b" />
+                  <span className="desk-pack-opening-flash" />
+                  <img src={openedPack?.img || packPremium} alt={openedPack?.title || 'Paczka'} />
                 </div>
-              ))}
-            </div>
-            <button className="desk-primary-small" onClick={onClearResult}>WRÓĆ DO PACZEK</button>
+                <div className="desk-pack-opening-copy">
+                  <span>PACZKA {openedPack?.title || ''}</span>
+                  <h2>CO TRAFIŁO DO TWOJEJ KOLEKCJI?</h2>
+                  <p>Otwórz paczkę, a potem odkrywaj karty jedna po drugiej. Rzadsze karty mają mocniejszy efekt reveal.</p>
+                </div>
+                <button type="button" className="desk-pack-open-cta" onClick={() => setRevealStarted(true)}>
+                  <Sparkles size={19} /> OTWÓRZ PACZKĘ
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="desk-pack-reveal-head">
+                  <div>
+                    <span>PACZKA {openedPack?.title || ''}</span>
+                    <h2>ODKRYJ SWOJE KARTY</h2>
+                    <p>Kliknij rewers, aby odkryć kartę. Najrzadsze trafienia dostają specjalny efekt.</p>
+                  </div>
+                  <div className="desk-pack-reveal-summary">
+                    <div><b>{revealed.size}</b><span>ODKRYTE</span></div>
+                    <div><b>{newCount}</b><span>NOWE</span></div>
+                    <div><b>{duplicateCount}</b><span>DUPLIKATY</span></div>
+                  </div>
+                </div>
+
+                <div className={`desk-pack-reveal-grid cards-${openResult.length}`}>
+                  {openResult.map(renderRevealCard)}
+                </div>
+
+                {revealFx ? (
+                  <div className={`desk-pack-rarity-fx rarity-${revealFx.rarity}`} key={revealFx.nonce} aria-hidden="true">
+                    <span className="fx-flash" />
+                    <span className="fx-ring ring-one" />
+                    <span className="fx-ring ring-two" />
+                    <span className="fx-ray ray-one" />
+                    <span className="fx-ray ray-two" />
+                    <span className="fx-particle p1" /><span className="fx-particle p2" /><span className="fx-particle p3" />
+                    <span className="fx-particle p4" /><span className="fx-particle p5" /><span className="fx-particle p6" />
+                  </div>
+                ) : null}
+
+                <div className="desk-pack-reveal-progress">
+                  <div><span>POSTĘP ODKRYWANIA</span><b>{revealed.size} / {openResult.length}</b></div>
+                  <i><em style={{ width: `${(revealed.size / openResult.length) * 100}%` }} /></i>
+                </div>
+
+                <div className="desk-pack-reveal-actions">
+                  {!allRevealed ? <button type="button" className="secondary" onClick={revealAll}>ODKRYJ WSZYSTKIE</button> : null}
+                  {allRevealed ? <button type="button" className="primary" onClick={onClearResult}>GOTOWE — WRÓĆ DO PACZEK</button> : <span>Odkryj wszystkie karty, aby zakończyć otwieranie.</span>}
+                </div>
+              </>
+            )}
           </section>
         ) : (
-          <div className="desk-pack-grid">
-            {packs.map((pack) => {
-              const cfg = packConfigs?.[pack.key] || {};
-              const canBuy = Number(hitcoin || 0) >= Number(cfg.price || 0);
-              return (
-                <div key={pack.key} className={`desk-pack-card ${pack.accent}`}>
-                  <img src={pack.img} alt={pack.title} />
-                  <div className="desk-pack-title">{pack.title}</div>
-                  <div className="desk-pack-note">{cfg.cards || '?'} kart w paczce</div>
-                  <div className="desk-pack-price"><img src={iconHitcoin} alt="" /> {cfg.price || 0}</div>
-                  <button disabled={busy || !canBuy} onClick={() => onBuy(pack.key)}>{canBuy ? 'KUP PACZKĘ' : 'ZA MAŁO HITCOINÓW'}</button>
-                </div>
-              );
-            })}
-          </div>
+          <>
+            <section className="desk-shop-hero desk-panel">
+              <div>
+                <span className="desk-panel-tag">PACZKI KART</span>
+                <h2>ROZBUDUJ SWOJĄ KOLEKCJĘ</h2>
+                <p>Każda paczka to nowe szanse na rzadkie karty. Im wyższy poziom paczki, tym więcej kart i większa szansa na Diament.</p>
+              </div>
+              <div className="desk-shop-balance"><span>TWOJE SALDO</span><strong><img src={iconHitcoin} alt="" /> {formatCompact(hitcoin)}</strong></div>
+            </section>
+
+            <div className="desk-pack-grid">
+              {packs.map((pack) => {
+                const cfg = packConfigs?.[pack.key] || {};
+                const canBuy = Number(hitcoin || 0) >= Number(cfg.price || 0);
+                return (
+                  <div key={pack.key} className={`desk-pack-card ${pack.accent}`}>
+                    <div className="desk-pack-card-badge">{pack.key === '100' ? 'PREMIUM' : `${cfg.cards || '?'} KART`}</div>
+                    <img src={pack.img} alt={pack.title} />
+                    <div className="desk-pack-title">{pack.title}</div>
+                    <div className="desk-pack-note">{pack.note}</div>
+                    <div className="desk-pack-stats">
+                      <span><b>{cfg.cards || '?'}</b> kart</span>
+                      <span><b>{pack.diamond}</b> Diament / kartę</span>
+                    </div>
+                    <div className="desk-pack-price"><img src={iconHitcoin} alt="" /> {cfg.price || 0}</div>
+                    <button disabled={busy || !canBuy} onClick={() => onBuy(pack.key)}>{busy ? 'OTWIERAM...' : canBuy ? 'KUP PACZKĘ' : 'ZA MAŁO HITCOINÓW'}</button>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
     </DesktopLayout>
