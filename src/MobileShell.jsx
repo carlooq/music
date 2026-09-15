@@ -41,6 +41,7 @@ import logoImg from './assets/logo-v2.png';
 import homeBg from './assets/home/bg.jpg';
 import heroMobile from './assets/home/hero-mobile-generated.png';
 import glTrening from './assets/icons/gl-trening.png';
+import glZgadnijRok from './assets/icons/gl-zgadnij-rok.png';
 import glHitRush from './assets/icons/gl-hitrush.png';
 import glPiosenka from './assets/icons/gl-piosenka.png';
 import glPlaylista from './assets/icons/gl-playlista.png';
@@ -380,7 +381,7 @@ function MobileHomeView(props) {
         <div className="mob-block-title"><Sparkles size={15} /> TRYBY GRY</div>
         <div className="mob-mode-grid">
           <MobileModeCard icon={glTrening} title="TRENING" desc="Ćwicz bez presji i poznawaj muzykę" tone="cyan" onClick={props.onPractice} />
-          <MobileModeCard icon={glTrening} title="ZGADNIJ ROK" desc="Wszyscy słuchają tego samego utworu i typują rok" tone="pink" locked={locked} onClick={requireUser(() => { props.onClearAppError?.(); props.onNavigate?.('yearGuess'); })} />
+          <MobileModeCard icon={glZgadnijRok} title="ZGADNIJ ROK" desc="Wszyscy słuchają tego samego utworu i typują rok" tone="pink" locked={locked} onClick={requireUser(() => { props.onClearAppError?.(); props.onNavigate?.('yearGuess'); })} />
           <MobileModeCard icon={glHitRush} title="HIT RUSH" desc="Wcześniej czy później? Liczy się tempo" tone="green" locked={locked} onClick={requireUser(props.onHitRush)} />
           <MobileModeCard icon={glPiosenka} title="PIOSENKA DNIA" desc="Jedno wyzwanie dla wszystkich" tone="pink" locked={locked} onClick={requireUser(props.onDailySong)} />
           <MobileModeCard icon={glPlaylista} title="PLAYLISTA DNIA" desc="Codzienna playlista i ranking" tone="violet" locked={locked} onClick={requireUser(props.onDailyPlaylist)} />
@@ -466,7 +467,7 @@ function MobileYearGuessHub(props) {
 
   return (
     <div className="mob-stack mob-inner-view mob-yearguess-hub">
-      <MobileSectionHeader title="ZGADNIJ ROK" subtitle="15 rund · multiplayer · osobny ranking" icon={<CalendarDays size={24} />} onBack={() => props.onNavigate?.('home')} />
+      <MobileSectionHeader title="ZGADNIJ ROK" subtitle="15 rund · multiplayer · osobny ranking" icon={<img src={glZgadnijRok} alt="" />} onBack={() => props.onNavigate?.('home')} />
 
       <section className="mob-yearguess-hero mob-panel">
         <div className="mob-yearguess-hero-icon"><CalendarDays size={34} /></div>

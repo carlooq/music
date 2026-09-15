@@ -197,6 +197,7 @@
 .mob-section-head:has(.mob-back-btn) { grid-template-columns:34px 42px 1fr; }
 .mob-back-btn { width:34px; height:34px; border-radius:12px; border:1px solid rgba(79,212,255,.18); background:rgba(8,11,29,.8); color:#63e7ff; display:flex; align-items:center; justify-content:center; }
 .mob-section-head-icon { width:42px; height:42px; border-radius:14px; display:flex; align-items:center; justify-content:center; color:#54e6ff; border:1px solid rgba(81,217,255,.22); background:linear-gradient(145deg,rgba(42,197,255,.08),rgba(140,67,255,.08)); }
+.mob-section-head-icon img { width:26px; height:26px; object-fit:contain; filter:drop-shadow(0 0 10px rgba(100,230,255,.3)); }
 .mob-section-head h1 { margin:0; font-family:'Bebas Neue',sans-serif; font-size:31px; line-height:.95; font-weight:400; }
 .mob-section-head p { margin:3px 0 0; color:#8e879c; font-size:7px; line-height:1.4; }
 

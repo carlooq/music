@@ -1092,6 +1092,12 @@
   border: 1px solid rgba(79,214,255,0.24);
   box-shadow: 0 0 22px rgba(79,214,255,0.1);
 }
+.desk-page-heading-icon img {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 12px rgba(100,230,255,.28));
+}
 
 .desk-page-heading h1 {
   margin: 0;

@@ -37,6 +37,7 @@ import heroBanner from './assets/home/hero-banner.webp';
 import homeBg from './assets/home/bg.jpg';
 import footerStrip from './assets/home/footer-strip.webp';
 import glTrening from './assets/icons/gl-trening.png';
+import glZgadnijRok from './assets/icons/gl-zgadnij-rok.png';
 import glHitRush from './assets/icons/gl-hitrush.png';
 import glPiosenka from './assets/icons/gl-piosenka.png';
 import glPlaylista from './assets/icons/gl-playlista.png';
@@ -706,7 +707,7 @@ export function DesktopHomeView(props) {
             <div className="desk-section-label"><Sparkles size={16} /> TRYBY GRY</div>
             <div className="desk-modes-grid">
               <DesktopModeCard icon={glTrening} title="TRENING" desc="Ćwicz i poznawaj kategorie" accent="cyan" footer={isGuest ? "Dostępny bez konta" : "Ćwicz w swoim tempie"} onClick={onPractice} />
-              <DesktopModeCard icon={glTrening} title="ZGADNIJ ROK" desc="Wszyscy słuchają tego samego utworu i typują rok" accent="pink" footer="15 rund · multiplayer" locked={isGuest} onClick={isGuest ? requestLogin : onYearGuess} />
+              <DesktopModeCard icon={glZgadnijRok} title="ZGADNIJ ROK" desc="Wszyscy słuchają tego samego utworu i typują rok" accent="pink" footer="15 rund · multiplayer" locked={isGuest} onClick={isGuest ? requestLogin : onYearGuess} />
               <DesktopModeCard icon={glHitRush} title="HIT RUSH" desc="Szybki tryb solo z presją czasu" accent="green" footer="Nowy rekord czeka" locked={isGuest} onClick={isGuest ? requestLogin : onHitRush} />
               <DesktopModeCard icon={glPiosenka} title="PIOSENKA DNIA" desc="Jedna piosenka dla wszystkich" accent="pink" footer="Codzienna szansa" locked={isGuest} onClick={isGuest ? requestLogin : onDailySong} />
               <DesktopModeCard icon={glPlaylista} title="PLAYLISTA DNIA" desc="Codzienna nowa playlista" accent="violet" footer="Porównaj się z innymi" locked={isGuest} onClick={isGuest ? requestLogin : onDailyPlaylist} />
@@ -1213,7 +1214,7 @@ function DesktopYearGuessHub({ common, ...props }) {
     <DesktopLayout active="home" {...common}>
       <HeaderBar {...common.header} />
       <div className="desk-main-stack desk-yearguess-hub">
-        <DesktopSimpleHeader title="ZGADNIJ ROK" subtitle="15 rund · multiplayer · osobny ranking" icon={<CalendarDays size={28} />} />
+        <DesktopSimpleHeader title="ZGADNIJ ROK" subtitle="15 rund · multiplayer · osobny ranking" icon={<img src={glZgadnijRok} alt="" />} />
 
         <div className="desk-yearguess-hero-grid">
           <section className="desk-panel desk-yearguess-hero-card pink-glow">
