@@ -22,6 +22,7 @@ import {
   Send,
   Shield,
   Sparkles,
+  Target,
   Trophy,
   UserPlus,
   Users,
@@ -34,6 +35,7 @@ import homeBg from './assets/home/bg.jpg';
 import iconToken from './assets/icons/icon-token.png';
 import iconHitcoin from './assets/icons/icon-hitcoin.png';
 import glTrening from './assets/icons/gl-trening.png';
+import glZgadnijRok from './assets/icons/gl-zgadnij-rok.png';
 import glPlaylista from './assets/icons/gl-playlista.png';
 import glPiosenka from './assets/icons/gl-piosenka.png';
 import glTurniej from './assets/icons/gl-turniej.png';
@@ -46,6 +48,27 @@ import cardPlatynaImg from './assets/icons/card-platynowa.webp';
 import cardDiamentImg from './assets/icons/card-diamentowa.webp';
 import { effectiveRarity } from './cards.js';
 import { getTournamentUserState, tournamentTimeLeftLabel } from './tournaments.js';
+
+const PRACTICE_DECADES = [
+  { key: 'pre70', label: 'Do 1969', from: null, to: 1969 },
+  { key: '70s', label: 'Lata 70.', from: 1970, to: 1979 },
+  { key: '80s', label: 'Lata 80.', from: 1980, to: 1989 },
+  { key: '90s', label: 'Lata 90.', from: 1990, to: 1999 },
+  { key: '00s', label: 'Lata 00.', from: 2000, to: 2009 },
+  { key: '2010plus', label: '2010+', from: 2010, to: null },
+];
+
+function practiceSongYear(song) {
+  const year = Number.parseInt(String(song?.year ?? '').match(/\d{4}/)?.[0] || '', 10);
+  return Number.isFinite(year) ? year : null;
+}
+
+function practiceDecadeMatch(song, selected = []) {
+  if (!selected.length || selected.includes('wszystkie')) return true;
+  const year = practiceSongYear(song);
+  if (!year) return false;
+  return PRACTICE_DECADES.some((decade) => selected.includes(decade.key) && (decade.from === null || year >= decade.from) && (decade.to === null || year <= decade.to));
+}
 
 function initials(label) {
   const raw = String(label || 'G').trim();
@@ -348,39 +371,115 @@ function MobileChat({ open, setOpen, messages = [], playerId, chatInput, setChat
   );
 }
 
-export function MobilePracticeSetupView({ practiceTarget, setPracticeTarget, selectedCategories, categories = [], onToggleCategory, songPool = [], busy, onStart, onHome }) {
+export function MobilePracticeSetupView({
+  practiceTarget,
+  setPracticeTarget,
+  practiceVariant = 'classic',
+  setPracticeVariant,
+  practiceFilterMode = 'categories',
+  setPracticeFilterMode,
+  selectedPracticeDecades = ['wszystkie'],
+  onTogglePracticeDecade,
+  selectedCategories,
+  categories = [],
+  onToggleCategory,
+  songPool = [],
+  busy,
+  onStart,
+  onHome,
+}) {
   const normalized = (values) => (values || []).map((value) => String(value || '').trim().toLowerCase());
-  const activeFilter = !selectedCategories.includes('wszystkie') && selectedCategories.length > 0;
-  const playableCount = activeFilter
-    ? songPool.filter((song) => normalized(song.categories).some((category) => selectedCategories.includes(category))).length
-    : songPool.filter((song) => !normalized(song.categories).includes('religijne')).length;
+  const nonReligiousPool = songPool.filter((song) => !normalized(song.categories).includes('religijne'));
+  const categoryFilterActive = !selectedCategories.includes('wszystkie') && selectedCategories.length > 0;
+  const decadeFilterActive = !selectedPracticeDecades.includes('wszystkie') && selectedPracticeDecades.length > 0;
+  const playableCount = practiceFilterMode === 'decades'
+    ? (decadeFilterActive ? nonReligiousPool.filter((song) => practiceDecadeMatch(song, selectedPracticeDecades)).length : nonReligiousPool.length)
+    : (categoryFilterActive ? songPool.filter((song) => normalized(song.categories).some((category) => selectedCategories.includes(category))).length : nonReligiousPool.length);
+  const decadeCounts = Object.fromEntries(PRACTICE_DECADES.map((decade) => [
+    decade.key,
+    nonReligiousPool.filter((song) => practiceDecadeMatch(song, [decade.key])).length,
+  ]));
+  const target = Number(practiceTarget || 15);
+  const required = practiceVariant === 'yearGuess' ? target : target + 7;
+  const yearGuess = practiceVariant === 'yearGuess';
+  const selectionLabel = practiceFilterMode === 'decades'
+    ? (decadeFilterActive ? selectedPracticeDecades.map((key) => PRACTICE_DECADES.find((d) => d.key === key)?.label).filter(Boolean).join(' + ') : 'Wszystkie dekady')
+    : (categoryFilterActive ? selectedCategories.map((key) => categories.find((c) => c.slug === key)?.label || key).join(' + ') : 'Wszystkie kategorie');
 
   return (
     <MobileSession className="mgv-practice-setup">
       <MobileHeader eyebrow="TRYB SOLO" title="TRENING" onBack={onHome} />
-      <ModeHero icon={glTrening} eyebrow="BEZ PRESJI" title="TRENING SOLO" description="Ćwicz ustawianie utworów na osi czasu. Bez rankingu, tokenów i innych graczy." accent="cyan">
-        <div className="mgv-hero-chips"><span><Music2 size={14} /> {playableCount} utworów</span><span><Zap size={14} /> bez limitu prób</span></div>
+      <ModeHero
+        icon={yearGuess ? glZgadnijRok : glTrening}
+        eyebrow="BEZ RANKINGU · BEZ PRESJI"
+        title={yearGuess ? 'TRENING · ZGADNIJ ROK' : 'TRENING KLASYCZNY'}
+        description={yearGuess ? 'Ćwicz rozpoznawanie roku wydania. Wynik zobaczysz od razu po każdej odpowiedzi.' : 'Ćwicz ustawianie utworów na osi czasu. Bez rankingu, tokenów i innych graczy.'}
+        accent={yearGuess ? 'pink' : 'cyan'}
+      >
+        <div className="mgv-hero-chips"><span><Music2 size={14} /> {playableCount} utworów</span><span><Zap size={14} /> wynik bez statystyk multiplayer</span></div>
       </ModeHero>
 
-      <Panel className="mgv-settings-card">
+      <Panel className="mgv-settings-card mgv-practice-settings">
         <div className="mgv-section-title"><Gamepad2 size={18} /><span>USTAW TRENING</span></div>
-        <div className="mgv-setting-block">
-          <div><strong>CEL TRENINGU</strong><small>Ile poprawnych kart chcesz umieścić na osi?</small></div>
-          <div className="mgv-stepper">
-            <button type="button" onClick={() => setPracticeTarget(Math.max(1, Number(practiceTarget || 1) - 1))}>−</button>
+
+        <div className="mgv-practice-choice-section">
+          <strong>1. TRYB TRENINGU</strong>
+          <div className="mgv-practice-segment two">
+            <button type="button" className={practiceVariant === 'classic' ? 'active' : ''} onClick={() => setPracticeVariant?.('classic')}><Disc3 size={17} /><span>KLASYCZNY<small>Oś czasu</small></span></button>
+            <button type="button" className={practiceVariant === 'yearGuess' ? 'active' : ''} onClick={() => setPracticeVariant?.('yearGuess')}><CalendarDays size={17} /><span>ZGADNIJ ROK<small>Typowanie dat</small></span></button>
+          </div>
+        </div>
+
+        <div className="mgv-practice-choice-section">
+          <strong>2. WYBIERZ UTWORY</strong>
+          <div className="mgv-practice-segment two compact">
+            <button type="button" className={practiceFilterMode === 'categories' ? 'active' : ''} onClick={() => setPracticeFilterMode?.('categories')}><Music2 size={16} /> KATEGORIE</button>
+            <button type="button" className={practiceFilterMode === 'decades' ? 'active' : ''} onClick={() => setPracticeFilterMode?.('decades')}><CalendarDays size={16} /> DEKADY</button>
+          </div>
+        </div>
+
+        {practiceFilterMode === 'categories' ? (
+          <div className="mgv-category-section mgv-practice-filter-list">
+            <div className="mgv-category-head"><strong>KATEGORIE</strong><span>{playableCount} utworów</span></div>
+            <div className="mgv-category-grid">
+              {[{ slug: 'wszystkie', label: 'Wszystkie' }, ...categories].map((category) => (
+                <button key={category.slug} type="button" className={selectedCategories.includes(category.slug) ? 'active' : ''} onClick={() => onToggleCategory(category.slug)}>{category.label}</button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="mgv-category-section mgv-practice-filter-list">
+            <div className="mgv-category-head"><strong>DEKADY</strong><span>{playableCount} utworów</span></div>
+            <div className="mgv-decade-grid">
+              <button type="button" className={selectedPracticeDecades.includes('wszystkie') ? 'active' : ''} onClick={() => onTogglePracticeDecade?.('wszystkie')}><strong>WSZYSTKIE</strong><small>{nonReligiousPool.length} utw.</small></button>
+              {PRACTICE_DECADES.map((decade) => (
+                <button key={decade.key} type="button" className={selectedPracticeDecades.includes(decade.key) ? 'active' : ''} onClick={() => onTogglePracticeDecade?.(decade.key)}><strong>{decade.label}</strong><small>{decadeCounts[decade.key]} utw.</small></button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="mgv-practice-target-section">
+          <div className="mgv-category-head"><strong>{yearGuess ? 'LICZBA UTWORÓW' : 'CEL TRENINGU'}</strong><span>{target}</span></div>
+          <div className="mgv-practice-presets">
+            {[10, 15, 20, 30].map((value) => <button type="button" key={value} className={target === value ? 'active' : ''} onClick={() => setPracticeTarget(value)}>{value}</button>)}
+          </div>
+          <div className="mgv-stepper mgv-practice-stepper">
+            <button type="button" onClick={() => setPracticeTarget(Math.max(1, target - 1))}>−</button>
             <input type="number" min="1" value={practiceTarget} onChange={(event) => setPracticeTarget(event.target.value === '' ? '' : parseInt(event.target.value, 10))} />
-            <button type="button" onClick={() => setPracticeTarget(Number(practiceTarget || 0) + 1)}>+</button>
+            <button type="button" onClick={() => setPracticeTarget(target + 1)}>+</button>
           </div>
         </div>
-        <div className="mgv-category-section">
-          <strong>KATEGORIE</strong>
-          <div className="mgv-category-grid">
-            {[{ slug: 'wszystkie', label: 'Wszystkie' }, ...categories].map((category) => (
-              <button key={category.slug} type="button" className={selectedCategories.includes(category.slug) ? 'active' : ''} onClick={() => onToggleCategory(category.slug)}>{category.label}</button>
-            ))}
-          </div>
+
+        <div className="mgv-practice-ready-note">
+          <span>{yearGuess ? 'ZGADNIJ ROK' : 'KLASYCZNY'}</span>
+          <strong>{selectionLabel}</strong>
+          <small>{target} {target === 1 ? 'utwór' : 'utworów'} · {playableCount} dostępnych</small>
         </div>
-        <button type="button" className="mgv-main-cta" disabled={busy || !practiceTarget || playableCount < 2} onClick={onStart}><Play size={20} fill="currentColor" /> ROZPOCZNIJ TRENING <ChevronRight size={20} /></button>
+
+        <button type="button" className="mgv-main-cta" disabled={busy || !practiceTarget || playableCount < required} onClick={onStart}>
+          <Play size={20} fill="currentColor" /> {yearGuess ? 'ROZPOCZNIJ ZGADNIJ ROK' : 'ROZPOCZNIJ TRENING'} <ChevronRight size={20} />
+        </button>
       </Panel>
     </MobileSession>
   );
@@ -569,7 +668,7 @@ export function MobileYearGuessView({ room, playerId, isPlaying, playElapsed, pl
 
   return (
     <MobileSession className="mgv-yearguess-page">
-      <MobileHeader eyebrow={`RUNDA ${room.yearGuessRoundIndex + 1} / ${room.yearGuessSongs.length}`} title="ZGADNIJ ROK" onBack={onLeave} right={<span className={`mgv-live-pill ${secondsLeft <= 10 ? 'danger' : ''}`}><Clock3 size={13} />{secondsLeft}s</span>} />
+      <MobileHeader eyebrow={`${room.practiceYearGuessMode ? 'TRENING SOLO · ' : ''}RUNDA ${room.yearGuessRoundIndex + 1} / ${room.yearGuessSongs.length}`} title="ZGADNIJ ROK" onBack={onLeave} right={<span className={`mgv-live-pill ${secondsLeft <= 10 ? 'danger' : ''}`}><Clock3 size={13} />{secondsLeft}s</span>} />
 
       <Panel className="mgv-audio-panel mgv-yearguess-audio">
         <MobileVinyl spinning={isPlaying} progress={playElapsed / playCapSeconds} />
@@ -672,7 +771,7 @@ export function MobileYearGuessResultView({ room, playerId, onLeave, resultDurat
 
   return (
     <MobileSession className="mgv-yearguess-page mgv-yearguess-result-page">
-      <MobileHeader eyebrow={`RUNDA ${room.yearGuessRoundIndex + 1} / ${room.yearGuessSongs.length}`} title="WYNIK RUNDY" onBack={onLeave} right={<span className="mgv-live-pill result"><Clock3 size={13} />{secondsLeft}s</span>} />
+      <MobileHeader eyebrow={`${room.practiceYearGuessMode ? 'TRENING SOLO · ' : ''}RUNDA ${room.yearGuessRoundIndex + 1} / ${room.yearGuessSongs.length}`} title="WYNIK RUNDY" onBack={onLeave} right={<span className="mgv-live-pill result"><Clock3 size={13} />{secondsLeft}s</span>} />
 
       <Panel className="mgv-yearguess-reveal" accent="gold">
         <span className="mgv-yearguess-reveal-kicker">PRAWIDŁOWY ROK</span>
@@ -689,6 +788,7 @@ export function MobileYearGuessResultView({ room, playerId, onLeave, resultDurat
         </Panel>
       ) : null}
 
+      {!room.practiceYearGuessMode ? (
       <Panel className="mgv-yearguess-round-board">
         <div className="mgv-section-title"><Users size={18} /><span>ODPOWIEDZI GRACZY</span><b>{last.results.length}</b></div>
         <div className="mgv-yearguess-result-list">
@@ -708,6 +808,7 @@ export function MobileYearGuessResultView({ room, playerId, onLeave, resultDurat
           })}
         </div>
       </Panel>
+      ) : null}
 
       <div className="mgv-yearguess-next-round">
         <div><span>{isLastRound ? 'PODSUMOWANIE GRY' : 'KOLEJNA RUNDA'}</span><strong>{secondsLeft}s</strong></div>
@@ -939,18 +1040,40 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
 }
 
 export function MobilePracticeResultView({ room, playerId, onAgain, onHome }) {
+  const isYearGuess = !!room.practiceYearGuessMode;
   const timeline = [...(room.timelines?.[playerId] || [])].sort((a, b) => a.year - b.year);
   const played = (room.playedCards || []).filter((card) => card.playerId === playerId);
   const correct = played.filter((card) => card.correct).length;
   const wrong = played.filter((card) => !card.correct).length;
   const accuracy = played.length ? Math.round((correct / played.length) * 100) : 0;
+  const ygScore = Number(room.yearGuessScores?.[playerId] || 0);
+  const ygExact = Number(room.yearGuessExactCounts?.[playerId] || 0);
+  const ygRounds = room.yearGuessSongs?.length || room.target || 0;
+  const ygMax = ygRounds * 5;
+  const ygAccuracy = ygMax ? Math.round((ygScore / ygMax) * 100) : 0;
+
   return (
     <MobileSession className="mgv-finish-page">
       <MobileHeader eyebrow="TRENING" title="GOTOWE!" onBack={onHome} />
       <div className="mgv-final-mark cyan"><Check size={18} /><span>SESJA ZAKOŃCZONA</span></div>
-      <ModeHero icon={glTrening} eyebrow="PODSUMOWANIE" title="TRENING UKOŃCZONY" description="Twoja oś jest gotowa. Zobacz wynik i spróbuj ponownie, kiedy chcesz." accent="cyan" />
-      <div className="mgv-result-stat-grid"><div><Check size={18} /><strong>{correct}</strong><span>trafień</span></div><div><X size={18} /><strong>{wrong}</strong><span>pomyłek</span></div><div><Zap size={18} /><strong>{accuracy}%</strong><span>skuteczność</span></div></div>
-      <Panel><div className="mgv-section-title"><Music2 size={18} /><span>TWOJA OŚ CZASU</span><b>{timeline.length}/{room.target}</b></div><MobileTimeline timeline={timeline} interactive={false} compact /></Panel>
+      <ModeHero
+        icon={isYearGuess ? glZgadnijRok : glTrening}
+        eyebrow="PODSUMOWANIE"
+        title={isYearGuess ? 'ZGADNIJ ROK UKOŃCZONE' : 'TRENING UKOŃCZONY'}
+        description={isYearGuess ? 'To był trening — wynik nie trafia do rankingu. Sprawdź rezultat i spróbuj ponownie.' : 'Twoja oś jest gotowa. Zobacz wynik i spróbuj ponownie, kiedy chcesz.'}
+        accent={isYearGuess ? 'pink' : 'cyan'}
+      />
+      {isYearGuess ? (
+        <>
+          <div className="mgv-result-stat-grid"><div><CalendarDays size={18} /><strong>{ygScore}</strong><span>punktów</span></div><div><Target size={18} /><strong>{ygExact}</strong><span>idealnych lat</span></div><div><Zap size={18} /><strong>{ygAccuracy}%</strong><span>maks. wyniku</span></div></div>
+          <Panel><div className="mgv-section-title"><Music2 size={18} /><span>WYNIK TRENINGU</span><b>{ygRounds} rund</b></div><div className="mgv-practice-year-summary"><strong>{ygScore} / {ygMax}</strong><span>punktów · bez wpływu na ranking Zgadnij Rok</span></div></Panel>
+        </>
+      ) : (
+        <>
+          <div className="mgv-result-stat-grid"><div><Check size={18} /><strong>{correct}</strong><span>trafień</span></div><div><X size={18} /><strong>{wrong}</strong><span>pomyłek</span></div><div><Zap size={18} /><strong>{accuracy}%</strong><span>skuteczność</span></div></div>
+          <Panel><div className="mgv-section-title"><Music2 size={18} /><span>TWOJA OŚ CZASU</span><b>{timeline.length}/{room.target}</b></div><MobileTimeline timeline={timeline} interactive={false} compact /></Panel>
+        </>
+      )}
       <div className="mgv-action-stack"><button type="button" className="mgv-main-cta" onClick={onAgain}><RotateCcw size={19} /> NOWY TRENING</button><button type="button" className="mgv-secondary-cta" onClick={onHome}>STRONA GŁÓWNA</button></div>
     </MobileSession>
   );

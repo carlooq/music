@@ -22,6 +22,7 @@ import {
   Send,
   Shield,
   Sparkles,
+  Target,
   Trophy,
   UserPlus,
   Users,
@@ -35,12 +36,34 @@ import heroBanner from './assets/home/hero-banner.webp';
 import iconToken from './assets/icons/icon-token.png';
 import glPlaylista from './assets/icons/gl-playlista.png';
 import glTrening from './assets/icons/gl-trening.png';
+import glZgadnijRok from './assets/icons/gl-zgadnij-rok.png';
 import glHitRush from './assets/icons/gl-hitrush.png';
 import glKorona from './assets/icons/gl-korona.png';
 import glPrezent from './assets/icons/gl-prezent.png';
 import glTurniej from './assets/icons/gl-turniej.png';
 import { getTournamentUserState, tournamentTimeLeftLabel } from './tournaments.js';
 import { DesktopPlayerProfileModal } from './DesktopShell.jsx';
+
+const PRACTICE_DECADES = [
+  { key: 'pre70', label: 'Do 1969', from: null, to: 1969 },
+  { key: '70s', label: 'Lata 70.', from: 1970, to: 1979 },
+  { key: '80s', label: 'Lata 80.', from: 1980, to: 1989 },
+  { key: '90s', label: 'Lata 90.', from: 1990, to: 1999 },
+  { key: '00s', label: 'Lata 00.', from: 2000, to: 2009 },
+  { key: '2010plus', label: '2010+', from: 2010, to: null },
+];
+
+function practiceSongYear(song) {
+  const year = Number.parseInt(String(song?.year ?? '').match(/\d{4}/)?.[0] || '', 10);
+  return Number.isFinite(year) ? year : null;
+}
+
+function practiceDecadeMatch(song, selected = []) {
+  if (!selected.length || selected.includes('wszystkie')) return true;
+  const year = practiceSongYear(song);
+  if (!year) return false;
+  return PRACTICE_DECADES.some((decade) => selected.includes(decade.key) && (decade.from === null || year >= decade.from) && (decade.to === null || year <= decade.to));
+}
 
 function initials(label) {
   const raw = String(label || 'G').trim();
@@ -524,6 +547,12 @@ export function DesktopHitRushLeaderboardView({ rows = [], period, onPeriod, onB
 export function DesktopPracticeSetupView({
   practiceTarget,
   setPracticeTarget,
+  practiceVariant = 'classic',
+  setPracticeVariant,
+  practiceFilterMode = 'categories',
+  setPracticeFilterMode,
+  selectedPracticeDecades = ['wszystkie'],
+  onTogglePracticeDecade,
   selectedCategories,
   categories,
   onToggleCategory,
@@ -532,62 +561,96 @@ export function DesktopPracticeSetupView({
   onStart,
   onHome,
 }) {
-  const activeFilter = !selectedCategories.includes('wszystkie') && selectedCategories.length > 0;
   const normalized = (values) => (values || []).map((v) => String(v || '').trim().toLowerCase());
-  const playableCount = activeFilter
-    ? songPool.filter((song) => normalized(song.categories).some((c) => selectedCategories.includes(c))).length
-    : songPool.filter((song) => !normalized(song.categories).includes('religijne')).length;
+  const nonReligiousPool = songPool.filter((song) => !normalized(song.categories).includes('religijne'));
+  const categoryFilterActive = !selectedCategories.includes('wszystkie') && selectedCategories.length > 0;
+  const decadeFilterActive = !selectedPracticeDecades.includes('wszystkie') && selectedPracticeDecades.length > 0;
+  const playableCount = practiceFilterMode === 'decades'
+    ? (decadeFilterActive ? nonReligiousPool.filter((song) => practiceDecadeMatch(song, selectedPracticeDecades)).length : nonReligiousPool.length)
+    : (categoryFilterActive ? songPool.filter((song) => normalized(song.categories).some((c) => selectedCategories.includes(c))).length : nonReligiousPool.length);
+  const decadeCounts = Object.fromEntries(PRACTICE_DECADES.map((decade) => [decade.key, nonReligiousPool.filter((song) => practiceDecadeMatch(song, [decade.key])).length]));
+  const target = Number(practiceTarget || 15);
+  const yearGuess = practiceVariant === 'yearGuess';
+  const required = yearGuess ? target : target + 7;
+  const selectionLabel = practiceFilterMode === 'decades'
+    ? (decadeFilterActive ? selectedPracticeDecades.map((key) => PRACTICE_DECADES.find((d) => d.key === key)?.label).filter(Boolean).join(' + ') : 'Wszystkie dekady')
+    : (categoryFilterActive ? selectedCategories.map((key) => categories.find((c) => c.slug === key)?.label || key).join(' + ') : 'Wszystkie kategorie');
 
   return (
     <SessionBackground className="dgv-practice-setup">
       <div className="dgv-shell">
         <SessionHeader eyebrow="TRYB SOLO" title="TRENING" onBack={onHome} backLabel="Strona główna" />
 
-        <section className="dgv-practice-hero dgv-panel">
+        <section className={`dgv-practice-hero dgv-panel ${yearGuess ? 'year-guess' : ''}`}>
           <div className="dgv-practice-hero-copy">
-            <img src={glTrening} alt="" />
+            <img src={yearGuess ? glZgadnijRok : glTrening} alt="" />
             <div>
-              <div className="dgv-eyebrow">TRENING BEZ PRESJI</div>
-              <h1>ĆWICZ OŚ CZASU.<br /><span>BIJ WŁASNY WYNIK.</span></h1>
-              <p>Grasz solo. Słuchasz utworu, wybierasz jego miejsce na osi czasu i od razu przechodzisz do kolejnej karty.</p>
+              <div className="dgv-eyebrow">TRENING BEZ PRESJI · BEZ RANKINGU</div>
+              <h1>{yearGuess ? <>ZGADUJ ROK.<br /><span>ĆWICZ PAMIĘĆ.</span></> : <>ĆWICZ OŚ CZASU.<br /><span>BIJ WŁASNY WYNIK.</span></>}</h1>
+              <p>{yearGuess ? 'Grasz solo. Wpisujesz rok wydania, od razu widzisz prawidłową odpowiedź i przechodzisz dalej. Wyniki treningu nie trafiają do rankingu Zgadnij Rok.' : 'Grasz solo. Słuchasz utworu, wybierasz jego miejsce na osi czasu i od razu przechodzisz do kolejnej karty.'}</p>
             </div>
           </div>
           <div className="dgv-practice-hero-stats">
             <div><strong>{playableCount}</strong><span>utworów w puli</span></div>
-            <div><strong>{practiceTarget || 15}</strong><span>kart do zebrania</span></div>
+            <div><strong>{target}</strong><span>{yearGuess ? 'rund treningu' : 'kart do zebrania'}</span></div>
+          </div>
+        </section>
+
+        <section className="dgv-panel dgv-practice-control-panel">
+          <div className="dgv-practice-control-group">
+            <div className="dgv-section-heading"><Gamepad2 size={19} /> 1. TRYB TRENINGU</div>
+            <div className="dgv-practice-mode-switch">
+              <button type="button" className={practiceVariant === 'classic' ? 'active' : ''} onClick={() => setPracticeVariant?.('classic')}><Disc3 size={20} /><span><strong>KLASYCZNY</strong><small>Układanie na osi czasu</small></span></button>
+              <button type="button" className={practiceVariant === 'yearGuess' ? 'active' : ''} onClick={() => setPracticeVariant?.('yearGuess')}><CalendarDays size={20} /><span><strong>ZGADNIJ ROK</strong><small>Typowanie roku wydania</small></span></button>
+            </div>
+          </div>
+          <div className="dgv-practice-control-group">
+            <div className="dgv-section-heading"><Music2 size={19} /> 2. WYBIERZ UTWORY</div>
+            <div className="dgv-practice-filter-switch">
+              <button type="button" className={practiceFilterMode === 'categories' ? 'active' : ''} onClick={() => setPracticeFilterMode?.('categories')}><Music2 size={18} /> KATEGORIE</button>
+              <button type="button" className={practiceFilterMode === 'decades' ? 'active' : ''} onClick={() => setPracticeFilterMode?.('decades')}><CalendarDays size={18} /> DEKADY</button>
+            </div>
           </div>
         </section>
 
         <div className="dgv-practice-grid">
           <section className="dgv-panel dgv-practice-target-panel">
-            <div className="dgv-section-heading"><Gamepad2 size={19} /> CEL TRENINGU</div>
-            <p className="dgv-practice-lead">Ile poprawnie ułożonych kart chcesz zebrać, aby zakończyć sesję?</p>
-            <div className="dgv-practice-target-value">{practiceTarget || 15}</div>
+            <div className="dgv-section-heading"><Target size={19} /> {yearGuess ? 'LICZBA UTWORÓW' : 'CEL TRENINGU'}</div>
+            <p className="dgv-practice-lead">{yearGuess ? 'Ile utworów chcesz rozpoznać w jednej sesji?' : 'Ile poprawnie ułożonych kart chcesz zebrać, aby zakończyć sesję?'}</p>
+            <div className="dgv-practice-target-value">{target}</div>
+            <div className="dgv-practice-presets">{[10, 15, 20, 30].map((value) => <button type="button" key={value} className={target === value ? 'active' : ''} onClick={() => setPracticeTarget(value)}>{value}</button>)}</div>
             <div className="dgv-stepper large">
-              <button type="button" onClick={() => setPracticeTarget(Math.max(1, Number(practiceTarget || 1) - 1))}>−</button>
+              <button type="button" onClick={() => setPracticeTarget(Math.max(1, target - 1))}>−</button>
               <input type="number" min="1" value={practiceTarget} onChange={(e) => setPracticeTarget(e.target.value === '' ? '' : parseInt(e.target.value, 10))} />
-              <button type="button" onClick={() => setPracticeTarget(Number(practiceTarget || 0) + 1)}>+</button>
+              <button type="button" onClick={() => setPracticeTarget(target + 1)}>+</button>
             </div>
-            <div className="dgv-practice-tip"><Sparkles size={16} /> Na start polecam 10–15 kart. Dłuższy trening daje większą oś czasu i trudniejsze decyzje.</div>
+            <div className="dgv-practice-tip"><Sparkles size={16} /> {yearGuess ? 'Po każdej odpowiedzi wynik rundy zostaje na ekranie około 4 sekundy. Trening nie nalicza XP, HITCOIN ani rankingu.' : 'Na start polecam 10–15 kart. Dłuższy trening daje większą oś czasu i trudniejsze decyzje.'}</div>
           </section>
 
           <section className="dgv-panel dgv-practice-categories-panel">
-            <div className="dgv-section-heading"><Music2 size={19} /> KATEGORIE</div>
-            <p className="dgv-practice-lead">Wybierz repertuar. „Wszystkie” pomija kategorię Religijne — możesz ją włączyć ręcznie.</p>
-            <div className="dgv-category-grid practice">
-              {[{ slug: 'wszystkie', label: 'Wszystkie' }, ...categories].map((category) => {
-                const active = selectedCategories.includes(category.slug);
-                return <button type="button" key={category.slug} className={active ? 'active' : ''} onClick={() => onToggleCategory(category.slug)}>{category.label}</button>;
-              })}
-            </div>
+            <div className="dgv-section-heading">{practiceFilterMode === 'decades' ? <CalendarDays size={19} /> : <Music2 size={19} />} {practiceFilterMode === 'decades' ? 'DEKADY' : 'KATEGORIE'}</div>
+            <p className="dgv-practice-lead">{practiceFilterMode === 'decades' ? 'Możesz połączyć kilka dekad. „Wszystkie” obejmuje cały repertuar treningowy poza kategorią Religijne.' : 'Wybierz repertuar. „Wszystkie” pomija kategorię Religijne — możesz ją włączyć ręcznie.'}</p>
+            {practiceFilterMode === 'categories' ? (
+              <div className="dgv-category-grid practice">
+                {[{ slug: 'wszystkie', label: 'Wszystkie' }, ...categories].map((category) => {
+                  const active = selectedCategories.includes(category.slug);
+                  return <button type="button" key={category.slug} className={active ? 'active' : ''} onClick={() => onToggleCategory(category.slug)}>{category.label}</button>;
+                })}
+              </div>
+            ) : (
+              <div className="dgv-practice-decade-grid">
+                <button type="button" className={selectedPracticeDecades.includes('wszystkie') ? 'active' : ''} onClick={() => onTogglePracticeDecade?.('wszystkie')}><strong>WSZYSTKIE</strong><span>{nonReligiousPool.length} utworów</span></button>
+                {PRACTICE_DECADES.map((decade) => <button type="button" key={decade.key} className={selectedPracticeDecades.includes(decade.key) ? 'active' : ''} onClick={() => onTogglePracticeDecade?.(decade.key)}><strong>{decade.label}</strong><span>{decadeCounts[decade.key]} utworów</span></button>)}
+              </div>
+            )}
             <div className="dgv-library-info"><Music2 size={17} /> Do treningu pasuje teraz <strong>{playableCount}</strong> utworów.</div>
           </section>
         </div>
 
         <section className="dgv-practice-startbar dgv-panel">
-          <div><span className="dgv-eyebrow">GOTOWY?</span><strong>{practiceTarget || 15} kart · {playableCount} utworów w puli</strong></div>
-          <button type="button" className="dgv-start-button practice" disabled={busy || !practiceTarget || playableCount < Number(practiceTarget || 15) + 7} onClick={onStart}>
-            <Play size={22} fill="currentColor" /> ROZPOCZNIJ TRENING <ChevronRight size={22} />
+          <div><span className="dgv-eyebrow">GOTOWY?</span><strong>{yearGuess ? 'Zgadnij Rok' : 'Klasyczny'} · {selectionLabel} · {target} utworów</strong></div>
+          <button type="button" className="dgv-start-button practice" disabled={busy || !practiceTarget || playableCount < required} onClick={onStart}>
+            <Play size={22} fill="currentColor" /> {yearGuess ? 'ROZPOCZNIJ ZGADNIJ ROK' : 'ROZPOCZNIJ TRENING'} <ChevronRight size={22} />
           </button>
         </section>
       </div>
@@ -1251,7 +1314,7 @@ export function DesktopYearGuessView({ room, playerId, isPlaying, playElapsed, p
     <SessionBackground className="dgv-yearguess-page">
       <div className="dgv-shell">
         <SessionHeader
-          eyebrow={`RUNDA ${room.yearGuessRoundIndex + 1} / ${room.yearGuessSongs.length}`}
+          eyebrow={`${room.practiceYearGuessMode ? 'TRENING SOLO · ' : ''}RUNDA ${room.yearGuessRoundIndex + 1} / ${room.yearGuessSongs.length}`}
           title="ZGADNIJ ROK"
           onBack={onLeave}
           backLabel="Opuść"
@@ -1337,7 +1400,7 @@ export function DesktopYearGuessResultView({ room, playerId, onLeave, resultDura
     <SessionBackground className="dgv-yearguess-page dgv-yearguess-result-page">
       <div className="dgv-shell">
         <SessionHeader
-          eyebrow={`RUNDA ${room.yearGuessRoundIndex + 1} / ${room.yearGuessSongs.length}`}
+          eyebrow={`${room.practiceYearGuessMode ? 'TRENING SOLO · ' : ''}RUNDA ${room.yearGuessRoundIndex + 1} / ${room.yearGuessSongs.length}`}
           title="WYNIK RUNDY"
           onBack={onLeave}
           backLabel="Opuść"
@@ -1349,6 +1412,7 @@ export function DesktopYearGuessResultView({ room, playerId, onLeave, resultDura
           {myResult ? <div className={`dgv-yearguess-my-result ${myResult.points >= 3 ? 'great' : myResult.points > 0 ? 'close' : 'miss'}`}><div><span>TWÓJ TYP</span><strong>{myResult.year ?? '—'}</strong></div><div><span>RÓŻNICA</span><strong>{myResult.diff === null ? '—' : myResult.diff}</strong></div><div><span>PUNKTY</span><strong>+{myResult.points || 0}</strong></div><p>{resultLabel(myResult)}</p></div> : null}
         </section>
 
+        {!room.practiceYearGuessMode ? (
         <section className="dgv-panel dgv-yearguess-round-board">
           <div className="dgv-section-heading"><Users size={18} /> ODPOWIEDZI GRACZY <span>{last.results.length}</span></div>
           <div className="dgv-yearguess-result-head"><span>#</span><span>GRACZ</span><span>ODPOWIEDŹ</span><span>RÓŻNICA</span><span>RUNDA</span><span>ŁĄCZNIE</span></div>
@@ -1370,6 +1434,7 @@ export function DesktopYearGuessResultView({ room, playerId, onLeave, resultDura
             })}
           </div>
         </section>
+        ) : null}
 
         <div className="dgv-yearguess-next"><div><span>{isLastRound ? 'PODSUMOWANIE GRY' : 'KOLEJNA RUNDA'}</span><strong>{secondsLeft}s</strong></div><i><b style={{ width: `${Math.max(0, Math.min(100, (secondsLeft / resultDurationSeconds) * 100))}%` }} /></i></div>
       </div>
@@ -1521,49 +1586,63 @@ export function DesktopDailySongView({
 
 
 export function DesktopPracticeResultView({ room, playerId, onAgain, onHome }) {
+  const isYearGuess = !!room.practiceYearGuessMode;
   const timeline = [...(room.timelines?.[playerId] || [])].sort((a, b) => a.year - b.year);
   const played = (room.playedCards || []).filter((card) => card.playerId === playerId);
   const correct = played.filter((card) => card.correct).length;
   const wrong = played.filter((card) => !card.correct).length;
+  const ygScore = Number(room.yearGuessScores?.[playerId] || 0);
+  const ygExact = Number(room.yearGuessExactCounts?.[playerId] || 0);
+  const ygRounds = room.yearGuessSongs?.length || room.target || 0;
+  const ygMax = ygRounds * 5;
+  const ygPct = ygMax ? Math.round((ygScore / ygMax) * 100) : 0;
 
   return (
     <SessionBackground className="dgv-practice-result-page">
       <div className="dgv-shell">
-        <SessionHeader eyebrow="TRYB SOLO" title="TRENING UKOŃCZONY" onBack={onHome} backLabel="Strona główna" />
-        <section className="dgv-practice-result-hero dgv-panel">
-          <img src={glTrening} alt="" />
+        <SessionHeader eyebrow="TRYB SOLO" title={isYearGuess ? 'ZGADNIJ ROK · TRENING UKOŃCZONY' : 'TRENING UKOŃCZONY'} onBack={onHome} backLabel="Strona główna" />
+        <section className={`dgv-practice-result-hero dgv-panel ${isYearGuess ? 'year-guess' : ''}`}>
+          <img src={isYearGuess ? glZgadnijRok : glTrening} alt="" />
           <div>
-            <div className="dgv-eyebrow">CEL OSIĄGNIĘTY</div>
-            <h1>{timeline.length} <span>KART</span></h1>
-            <p>Zbudowałeś pełną oś czasu. Sprawdź przebieg sesji albo rozpocznij kolejny trening z innymi kategoriami.</p>
+            <div className="dgv-eyebrow">{isYearGuess ? 'SESJA ZAKOŃCZONA · BEZ RANKINGU' : 'CEL OSIĄGNIĘTY'}</div>
+            <h1>{isYearGuess ? ygScore : timeline.length} <span>{isYearGuess ? 'PKT' : 'KART'}</span></h1>
+            <p>{isYearGuess ? `Rozpoznałeś ${ygRounds} utworów. Ten wynik jest tylko treningowy i nie wpływa na ranking Zgadnij Rok.` : 'Zbudowałeś pełną oś czasu. Sprawdź przebieg sesji albo rozpocznij kolejny trening z innymi kategoriami.'}</p>
           </div>
           <div className="dgv-practice-result-stats">
-            <div className="good"><Check size={22} /><strong>{correct}</strong><span>trafień</span></div>
-            <div className="bad"><X size={22} /><strong>{wrong}</strong><span>pomyłek</span></div>
+            {isYearGuess ? <><div className="good"><Target size={22} /><strong>{ygExact}</strong><span>idealnych lat</span></div><div className="info"><Zap size={22} /><strong>{ygPct}%</strong><span>maks. wyniku</span></div></> : <><div className="good"><Check size={22} /><strong>{correct}</strong><span>trafień</span></div><div className="bad"><X size={22} /><strong>{wrong}</strong><span>pomyłek</span></div></>}
           </div>
         </section>
 
-        <section className="dgv-panel dgv-practice-final-timeline">
-          <div className="dgv-section-heading"><Music2 size={18} /> TWOJA OŚ CZASU</div>
-          <div className="dgv-final-years">
-            {timeline.map((card, index) => <span key={card.id || `${card.videoId}-${index}`}>{card.year}</span>)}
-          </div>
-        </section>
-
-        {played.length ? (
-          <section className="dgv-panel dgv-practice-history">
-            <div className="dgv-section-heading"><Headphones size={18} /> OSTATNIE UTWORY</div>
-            <div className="dgv-practice-history-list">
-              {played.slice(-10).reverse().map((card, index) => (
-                <div key={`${card.videoId || index}-${index}`} className={card.correct ? 'correct' : 'wrong'}>
-                  <span>{card.correct ? <Check size={17} /> : <X size={17} />}</span>
-                  <div><strong>{card.artist || '—'}</strong><small>{card.title || '—'}</small></div>
-                  <b>{card.year}</b>
-                </div>
-              ))}
-            </div>
+        {isYearGuess ? (
+          <section className="dgv-panel dgv-practice-year-result">
+            <div className="dgv-section-heading"><CalendarDays size={18} /> PODSUMOWANIE ZGADNIJ ROK</div>
+            <div className="dgv-practice-year-score"><strong>{ygScore} / {ygMax}</strong><span>punktów</span><small>{ygExact} idealnych trafień · {ygRounds} rund · wynik nie jest zapisywany w rankingu</small></div>
           </section>
-        ) : null}
+        ) : (
+          <>
+            <section className="dgv-panel dgv-practice-final-timeline">
+              <div className="dgv-section-heading"><Music2 size={18} /> TWOJA OŚ CZASU</div>
+              <div className="dgv-final-years">
+                {timeline.map((card, index) => <span key={card.id || `${card.videoId}-${index}`}>{card.year}</span>)}
+              </div>
+            </section>
+
+            {played.length ? (
+              <section className="dgv-panel dgv-practice-history">
+                <div className="dgv-section-heading"><Headphones size={18} /> OSTATNIE UTWORY</div>
+                <div className="dgv-practice-history-list">
+                  {played.slice(-10).reverse().map((card, index) => (
+                    <div key={`${card.videoId || index}-${index}`} className={card.correct ? 'correct' : 'wrong'}>
+                      <span>{card.correct ? <Check size={17} /> : <X size={17} />}</span>
+                      <div><strong>{card.artist || '—'}</strong><small>{card.title || '—'}</small></div>
+                      <b>{card.year}</b>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+          </>
+        )}
 
         <div className="dgv-practice-result-actions">
           <button type="button" className="dgv-start-button" onClick={onAgain}><RotateCcw size={20} /> NOWY TRENING</button>

@@ -195,6 +195,32 @@ function normCategories(categories) {
   return (categories || []).map((c) => (c || "").trim().toLowerCase());
 }
 
+const PRACTICE_DECADES = [
+  { key: "pre70", label: "Do 1969", from: null, to: 1969 },
+  { key: "70s", label: "Lata 70.", from: 1970, to: 1979 },
+  { key: "80s", label: "Lata 80.", from: 1980, to: 1989 },
+  { key: "90s", label: "Lata 90.", from: 1990, to: 1999 },
+  { key: "00s", label: "Lata 00.", from: 2000, to: 2009 },
+  { key: "2010plus", label: "2010+", from: 2010, to: null },
+];
+
+function songYearNumber(song) {
+  const year = Number.parseInt(String(song?.year ?? "").match(/\d{4}/)?.[0] || "", 10);
+  return Number.isFinite(year) ? year : null;
+}
+
+function matchesPracticeDecades(song, selectedDecades = []) {
+  if (!selectedDecades.length || selectedDecades.includes("wszystkie")) return true;
+  const year = songYearNumber(song);
+  if (!year) return false;
+  return PRACTICE_DECADES.some((decade) => {
+    if (!selectedDecades.includes(decade.key)) return false;
+    if (decade.from !== null && year < decade.from) return false;
+    if (decade.to !== null && year > decade.to) return false;
+    return true;
+  });
+}
+
 // Wspólne metadane 5 poziomów rzadkości kart — używane wszędzie, gdzie
 // pokazujemy kartę (koniec gry, album, paczki), żeby kolory/etykiety były
 // spójne w całej appce. Ikony to tymczasowy placeholder — do podmiany na
@@ -1096,6 +1122,9 @@ export default function App() {
   const [target, setTarget] = useState(10);
   const [selectedCategories, setSelectedCategories] = useState(["wszystkie"]);
   const [practiceTarget, setPracticeTarget] = useState(15);
+  const [practiceVariant, setPracticeVariant] = useState("classic"); // classic | yearGuess
+  const [practiceFilterMode, setPracticeFilterMode] = useState("categories"); // categories | decades
+  const [selectedPracticeDecades, setSelectedPracticeDecades] = useState(["wszystkie"]);
 
   const [chosenSlot, setChosenSlot] = useState(null);
   const [heldCard, setHeldCard] = useState(null);
@@ -3721,55 +3750,100 @@ export default function App() {
     setError("");
     try {
       const basePool = await getLiveLibraryPool();
-      const filterActive = !selectedCategories.includes("wszystkie") && selectedCategories.length > 0;
-      const pool = filterActive
-        ? basePool.filter((s) => normCategories(s.categories).some((c) => selectedCategories.includes(c)))
-        : basePool.filter((s) => !normCategories(s.categories).includes("religijne"));
-      const target = practiceTarget && practiceTarget > 0 ? practiceTarget : 15;
-      const needed = target + 7;
+      const categoryFilterActive = !selectedCategories.includes("wszystkie") && selectedCategories.length > 0;
+      const decadeFilterActive = !selectedPracticeDecades.includes("wszystkie") && selectedPracticeDecades.length > 0;
+
+      let pool = basePool;
+      if (practiceFilterMode === "decades") {
+        // W widoku dekad nie ma osobnego przełącznika Religijne, więc zachowujemy
+        // dotychczasową zasadę "Wszystkie" i nie wrzucamy ich do puli automatycznie.
+        pool = basePool.filter((song) => !normCategories(song.categories).includes("religijne"));
+        if (decadeFilterActive) pool = pool.filter((song) => matchesPracticeDecades(song, selectedPracticeDecades));
+      } else {
+        pool = categoryFilterActive
+          ? basePool.filter((song) => normCategories(song.categories).some((category) => selectedCategories.includes(category)))
+          : basePool.filter((song) => !normCategories(song.categories).includes("religijne"));
+      }
+
+      const target = practiceTarget && practiceTarget > 0 ? Number(practiceTarget) : 15;
+      const needed = practiceVariant === "yearGuess" ? target : target + 7;
       if (pool.length < needed) {
-        const catNote = filterActive ? ` w wybranych kategoriach (${selectedCategories.join(", ")})` : "";
-        setError(`Za mało utworów${catNote} (masz ${pool.length}, potrzeba ${needed}).`);
-        setBusy(false);
+        const filterNote = practiceFilterMode === "decades" && decadeFilterActive
+          ? ` dla wybranych dekad (${selectedPracticeDecades.join(", ")})`
+          : practiceFilterMode === "categories" && categoryFilterActive
+            ? ` w wybranych kategoriach (${selectedCategories.join(", ")})`
+            : "";
+        setError(`Za mało utworów${filterNote} (masz ${pool.length}, potrzeba ${needed}).`);
         return;
       }
+
       const code = generateRoomCode();
       const ref = doc(db, "rooms", code);
-      const deck = shuffle(pool).slice(0, needed);
       const me = { id: playerId, uid: user?.uid || null, name: name.trim() || user?.displayName || "Gracz", authed: !!user, avatarUrl: stats?.avatarUrl || null };
-      await setDoc(ref, {
+      const commonPracticeData = {
         code,
         hostId: playerId,
-        target,
-        status: "playing",
         players: [me],
-        deck,
-        deckIndex: 2,
-        currentPlayerId: playerId,
-        startingPlayerId: playerId,
-        currentCard: deck[1],
-        startSeconds: randomStartSeconds(),
-        turnStartedAt: serverTimestamp(),
-        timelines: { [playerId]: [deck[0]] },
-        tokens: { [playerId]: 0 },
-        lastResult: null,
-        pendingGuess: null,
-        votes: {},
-        requiredApprovals: 0,
-        resultAt: null,
         winnerIds: [],
-        finishingRound: false,
-        decisionTimes: {},
-        gameStreaks: {},
-        gameGuessStreaks: {},
-        gameGuesses: {},
-        gameBestStreaks: {},
-        playedCards: [],
         messages: [],
         practiceMode: true,
+        practiceVariant,
+        practiceFilterMode,
+        practiceDecades: practiceFilterMode === "decades" ? [...selectedPracticeDecades] : [],
+        categories: practiceFilterMode === "categories" ? [...selectedCategories] : [],
         createdAt: serverTimestamp(),
-        expireAt: new Date(Date.now() + 3 * 60 * 60 * 1000), // TTL: sesje treningowe znikają po 3h
-      });
+        expireAt: new Date(Date.now() + 3 * 60 * 60 * 1000),
+      };
+
+      if (practiceVariant === "yearGuess") {
+        const songs = shuffle(pool).slice(0, target);
+        await setDoc(ref, {
+          ...commonPracticeData,
+          target,
+          status: "yearGuess",
+          yearGuessMode: true,
+          practiceYearGuessMode: true,
+          gameSessionStartedAt: serverTimestamp(),
+          yearGuessSongs: songs,
+          yearGuessRoundIndex: 0,
+          yearGuessScores: { [playerId]: 0 },
+          yearGuessExactCounts: { [playerId]: 0 },
+          yearGuessAnswers: {},
+          yearGuessStartSeconds: randomStartSeconds(),
+          yearGuessRoundStartedAtMs: Date.now(),
+          yearGuessLastRound: null,
+          yearGuessResultStartedAtMs: null,
+          yearGuessGameOver: false,
+        });
+      } else {
+        const deck = shuffle(pool).slice(0, needed);
+        await setDoc(ref, {
+          ...commonPracticeData,
+          target,
+          status: "playing",
+          deck,
+          deckIndex: 2,
+          currentPlayerId: playerId,
+          startingPlayerId: playerId,
+          currentCard: deck[1],
+          startSeconds: randomStartSeconds(),
+          turnStartedAt: serverTimestamp(),
+          timelines: { [playerId]: [deck[0]] },
+          tokens: { [playerId]: 0 },
+          lastResult: null,
+          pendingGuess: null,
+          votes: {},
+          requiredApprovals: 0,
+          resultAt: null,
+          finishingRound: false,
+          decisionTimes: {},
+          gameStreaks: {},
+          gameGuessStreaks: {},
+          gameGuesses: {},
+          gameBestStreaks: {},
+          playedCards: [],
+        });
+      }
       setRoomId(code);
     } catch (e) {
       setError("Nie udało się rozpocząć treningu: " + e.message);
@@ -3879,6 +3953,15 @@ export default function App() {
       const has = withoutAll.includes(slug);
       const next = has ? withoutAll.filter((c) => c !== slug) : [...withoutAll, slug];
       return next.length === 0 ? ["wszystkie"] : next;
+    });
+  }
+
+  function togglePracticeDecade(key) {
+    setSelectedPracticeDecades((prev) => {
+      if (key === "wszystkie") return ["wszystkie"];
+      const withoutAll = prev.filter((item) => item !== "wszystkie");
+      const next = withoutAll.includes(key) ? withoutAll.filter((item) => item !== key) : [...withoutAll, key];
+      return next.length ? next : ["wszystkie"];
     });
   }
 
@@ -4227,11 +4310,12 @@ export default function App() {
   useEffect(() => {
     if (!room || room.status !== "yearGuessResult") return;
     const startedAt = room.yearGuessResultStartedAtMs || Date.now();
-    const remaining = Math.max(0, YEAR_GUESS_RESULT_SECONDS * 1000 - (Date.now() - startedAt));
+    const resultSeconds = room.practiceYearGuessMode ? 4 : YEAR_GUESS_RESULT_SECONDS;
+    const remaining = Math.max(0, resultSeconds * 1000 - (Date.now() - startedAt));
     if (remaining <= 0) { advanceYearGuessRound(); return; }
     const t = setTimeout(() => advanceYearGuessRound(), remaining + 120);
     return () => clearTimeout(t);
-  }, [room?.status, room?.yearGuessRoundIndex, room?.yearGuessResultStartedAtMs]);
+  }, [room?.status, room?.yearGuessRoundIndex, room?.yearGuessResultStartedAtMs, room?.practiceYearGuessMode]);
 
   // XP/HITCOIN na tych samych zasadach co zwykła gra (30 za udział, wygrana
   // wg tego samego wzoru skalowanego liczbą graczy, podium przy 3+ graczach)
@@ -6088,6 +6172,12 @@ export default function App() {
       <DesktopPracticeSetupView
         practiceTarget={practiceTarget}
         setPracticeTarget={setPracticeTarget}
+        practiceVariant={practiceVariant}
+        setPracticeVariant={setPracticeVariant}
+        practiceFilterMode={practiceFilterMode}
+        setPracticeFilterMode={setPracticeFilterMode}
+        selectedPracticeDecades={selectedPracticeDecades}
+        onTogglePracticeDecade={togglePracticeDecade}
         selectedCategories={selectedCategories}
         categories={CATEGORIES}
         onToggleCategory={toggleCategory}
@@ -6191,7 +6281,7 @@ export default function App() {
         room={room}
         playerId={playerId}
         onLeave={leaveRoom}
-        resultDurationSeconds={YEAR_GUESS_RESULT_SECONDS}
+        resultDurationSeconds={room?.practiceYearGuessMode ? 4 : YEAR_GUESS_RESULT_SECONDS}
       />
     );
   }
@@ -6392,6 +6482,12 @@ export default function App() {
       <MobilePracticeSetupView
         practiceTarget={practiceTarget}
         setPracticeTarget={setPracticeTarget}
+        practiceVariant={practiceVariant}
+        setPracticeVariant={setPracticeVariant}
+        practiceFilterMode={practiceFilterMode}
+        setPracticeFilterMode={setPracticeFilterMode}
+        selectedPracticeDecades={selectedPracticeDecades}
+        onTogglePracticeDecade={togglePracticeDecade}
         selectedCategories={selectedCategories}
         categories={CATEGORIES}
         onToggleCategory={toggleCategory}
@@ -6491,7 +6587,7 @@ export default function App() {
         room={room}
         playerId={playerId}
         onLeave={leaveRoom}
-        resultDurationSeconds={YEAR_GUESS_RESULT_SECONDS}
+        resultDurationSeconds={room?.practiceYearGuessMode ? 4 : YEAR_GUESS_RESULT_SECONDS}
       />
     );
   }
