@@ -3412,3 +3412,98 @@
 .desk-recent-room-action { display:flex; align-items:center; gap:4px; color:#c9b5ff; font-family:'Bebas Neue',sans-serif; font-size:15px; letter-spacing:.06em; }
 .desk-recent-room-forget { width:38px; border-radius:11px; border:1px solid rgba(117,106,148,.18); background:rgba(13,12,29,.66); color:#716a84; font-size:19px; line-height:1; }
 .desk-recent-room-forget:hover { color:#aaa2bd; border-color:rgba(150,136,190,.3); }
+
+/* ============================================================
+   ZGADNIJ ROK — HUB / RANKING
+   ============================================================ */
+.desk-yearguess-hub { gap: 18px; }
+.desk-yearguess-hero-grid {
+  display: grid;
+  grid-template-columns: 1.35fr .9fr .95fr;
+  gap: 14px;
+}
+.desk-yearguess-hero-card, .desk-yearguess-action-card, .desk-yearguess-own-card { min-height: 255px; padding: 22px; position: relative; overflow: hidden; }
+.desk-yearguess-hero-card {
+  background: radial-gradient(circle at 88% 8%, rgba(255,88,203,.18), transparent 34%), rgba(8,10,24,.92);
+  border-color: rgba(255,88,203,.25);
+}
+.desk-yearguess-hero-card::after {
+  content: ''; position: absolute; width: 230px; height: 230px; right: -92px; bottom: -125px; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.055); box-shadow: 0 0 0 28px rgba(139,92,246,.025),0 0 0 56px rgba(79,214,255,.018);
+}
+.desk-yearguess-hero-icon {
+  width: 60px; height: 60px; display: grid; place-items: center; border-radius: 18px; margin-bottom: 14px;
+  background: linear-gradient(135deg,#ff58cb,#8b5cf6); color: #fff; box-shadow: 0 0 28px rgba(255,88,203,.2);
+}
+.desk-yearguess-hero-card h2 { position: relative; z-index: 1; margin: 5px 0 9px; font-size: clamp(27px,2.1vw,38px); line-height: .98; letter-spacing: -1px; }
+.desk-yearguess-hero-card h2 span { color: #ff58cb; }
+.desk-yearguess-hero-card > p { position: relative; z-index: 1; max-width: 600px; margin: 0; color: #988da8; font-size: 12px; line-height: 1.55; }
+.desk-yearguess-score-key { position: relative; z-index: 1; display: flex; gap: 7px; margin-top: 17px; }
+.desk-yearguess-score-key span { padding: 8px 10px; border-radius: 9px; border: 1px solid rgba(255,255,255,.065); background: rgba(255,255,255,.03); color: #777084; font-size: 8px; font-weight: 800; }
+.desk-yearguess-score-key b { margin-right: 4px; color: #fff; font-size: 14px; }
+
+.desk-yearguess-action-card { display: flex; flex-direction: column; justify-content: center; }
+.desk-yearguess-create {
+  width: 100%; display: grid; grid-template-columns: 38px 1fr auto; gap: 11px; align-items: center; padding: 13px;
+  border: 1px solid rgba(79,214,255,.28); border-radius: 12px; background: linear-gradient(100deg,rgba(79,214,255,.11),rgba(139,92,246,.10)); color: #fff; text-align: left;
+}
+.desk-yearguess-create > svg { width: 34px; height: 34px; padding: 8px; border-radius: 10px; background: #4fd6ff; color: #06131d; }
+.desk-yearguess-create span { display: flex; flex-direction: column; }
+.desk-yearguess-create small { color: #728395; font-size: 7px; letter-spacing: 1px; }
+.desk-yearguess-create strong { font-size: 13px; }
+.desk-yearguess-join-label { margin: 15px 0 7px; color: #716a7e; font-size: 8px; font-weight: 900; letter-spacing: 1px; }
+.desk-yearguess-join-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 7px; }
+.desk-yearguess-join-row input { min-width: 0; height: 42px; border: 1px solid rgba(255,255,255,.08); border-radius: 9px; background: #070a16; color: #fff; padding: 0 12px; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; }
+.desk-yearguess-join-row button { border: 1px solid rgba(255,88,203,.3); border-radius: 9px; padding: 0 15px; background: linear-gradient(120deg,#ff58cb,#8b5cf6); color: #fff; font-size: 9px; font-weight: 900; display: flex; align-items: center; gap: 5px; }
+.desk-yearguess-create:disabled,.desk-yearguess-join-row button:disabled { opacity: .42; }
+.desk-yearguess-error { margin-top: 8px; padding: 8px 9px; border-radius: 8px; color: #ff8ca8; background: rgba(255,56,104,.09); font-size: 9px; }
+
+.desk-yearguess-own-card { background: radial-gradient(circle at 90% 15%,rgba(139,92,246,.15),transparent 40%),rgba(8,10,24,.92); }
+.desk-yearguess-own-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 13px; }
+.desk-yearguess-own-head span { color: #9c91ab; font-size: 9px; font-weight: 900; letter-spacing: 1px; }
+.desk-yearguess-own-head b { color: #c6b5ff; font-size: 8px; padding: 5px 8px; border: 1px solid rgba(139,92,246,.25); border-radius: 20px; background: rgba(139,92,246,.07); }
+.desk-yearguess-own-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 7px; }
+.desk-yearguess-own-grid > div { padding: 12px 6px; border: 1px solid rgba(255,255,255,.06); border-radius: 10px; background: rgba(255,255,255,.025); text-align: center; }
+.desk-yearguess-own-grid span { display: block; color: #746d81; font-size: 7px; margin-bottom: 5px; }
+.desk-yearguess-own-grid strong { display: block; color: #fff; font-size: 18px; }
+.desk-yearguess-own-grid .featured { border-color: rgba(255,208,79,.22); background: rgba(255,208,79,.05); }
+.desk-yearguess-own-grid .featured strong { color: #ffd04f; font-size: 23px; }
+.desk-yearguess-own-card > p { margin: 12px 2px 0; color: #7f768d; font-size: 9px; line-height: 1.45; }
+.desk-yearguess-own-card > p b { color: #c4b5fd; }
+
+.desk-yearguess-ranking-panel { padding: 20px; }
+.desk-yearguess-ranking-head { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 15px; }
+.desk-yearguess-ranking-head h2 { margin: 4px 0 0; font-size: 24px; }
+.desk-yearguess-tabs { display: flex; padding: 4px; gap: 3px; border-radius: 10px; background: rgba(255,255,255,.035); }
+.desk-yearguess-tabs button { border: 0; border-radius: 8px; padding: 8px 13px; background: transparent; color: #7f768d; font-size: 8px; font-weight: 900; }
+.desk-yearguess-tabs button.active { color: #fff; background: linear-gradient(120deg,rgba(255,88,203,.75),rgba(139,92,246,.72)); box-shadow: 0 0 16px rgba(255,88,203,.12); }
+.desk-yearguess-rank-columns,.desk-yearguess-rank-row { display: grid; grid-template-columns: 58px minmax(180px,1.5fr) .8fr .7fr .7fr .6fr; align-items: center; gap: 12px; }
+.desk-yearguess-rank-columns { padding: 0 14px 7px; color: #655f70; font-size: 7px; font-weight: 900; letter-spacing: .7px; }
+.desk-yearguess-rank-list { display: flex; flex-direction: column; gap: 6px; }
+.desk-yearguess-rank-row { width: 100%; min-height: 54px; padding: 8px 14px; border: 1px solid rgba(255,255,255,.055); border-radius: 11px; background: rgba(255,255,255,.022); color: #fff; text-align: left; }
+button.desk-yearguess-rank-row { cursor: pointer; }
+.desk-yearguess-rank-row.p1 { background: linear-gradient(90deg,rgba(255,208,79,.075),rgba(255,255,255,.018)); border-color: rgba(255,208,79,.17); }
+.desk-yearguess-rank-row.is-me { border-color: rgba(79,214,255,.3); box-shadow: inset 0 0 24px rgba(79,214,255,.03); }
+.desk-yearguess-rank-row.outside-top { margin-top: 7px; border-style: dashed; }
+.desk-yearguess-rank-row .place { font-size: 15px; font-weight: 900; color: #958ba2; }
+.desk-yearguess-rank-row .player { min-width: 0; display: flex; align-items: center; gap: 9px; }
+.desk-yearguess-rank-row .player i { width: 32px; height: 32px; flex: 0 0 32px; border-radius: 50%; display: grid; place-items: center; background-color: #171326; background-size: cover; background-position: center; color: #d9cee7; font-size: 9px; font-style: normal; }
+.desk-yearguess-rank-row .player b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.desk-yearguess-rank-row > strong { color: #ff72d3; font-size: 15px; }
+.desk-yearguess-rank-row > span:not(.place):not(.player) { color: #aaa0b5; font-size: 10px; }
+.desk-yearguess-rules { padding: 17px 20px; }
+.desk-yearguess-rules > div:last-child { display: flex; gap: 26px; flex-wrap: wrap; }
+.desk-yearguess-rules p { margin: 0; color: #887f94; font-size: 9px; }
+.desk-yearguess-rules b { color: #d7cde2; }
+
+@media (max-width: 1500px) {
+  .desk-yearguess-hero-grid { grid-template-columns: 1.2fr 1fr; }
+  .desk-yearguess-own-card { grid-column: 1 / -1; min-height: 0; }
+  .desk-yearguess-own-grid { grid-template-columns: repeat(6,1fr); }
+}
+@media (max-width: 1200px) {
+  .desk-yearguess-hero-grid { grid-template-columns: 1fr; }
+  .desk-yearguess-own-card { grid-column: auto; }
+  .desk-yearguess-own-grid { grid-template-columns: repeat(3,1fr); }
+  .desk-yearguess-rank-columns,.desk-yearguess-rank-row { grid-template-columns: 48px minmax(150px,1.5fr) .8fr .7fr .7fr .6fr; gap: 8px; }
+}

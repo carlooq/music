@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, updateDoc, increment, arrayUnion, collection, query, orderBy, limit, getDocs, runTransaction, where } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, increment, arrayUnion, collection, query, orderBy, limit, getDocs, runTransaction, where, getCountFromServer } from "firebase/firestore";
 import { db } from "./firebase-config.js";
 
 export function decadeLabel(year) {
@@ -322,6 +322,194 @@ export async function getLeaderboardPosition(uid, sortBy = "gamesWon") {
   const q = query(collection(db, "userStats"), where(sortBy, ">", ownValue));
   const higher = await getDocs(q);
   return higher.size + 1;
+}
+
+// ============================================================
+// ZGADNIJ ROK — osobny ranking trybu, niezależny od głównego
+// rankingu/sezonów Hitsteriady. Ranking tygodniowy bierze sumę
+// 5 najlepszych wyników w bieżącym tygodniu, a ogólny sumę
+// wszystkich punktów zdobytych od wdrożenia tego systemu.
+// ============================================================
+function yearGuessWeekOrdinal(weekKey) {
+  const match = String(weekKey || "").match(/^(\d{4})-W(\d{1,2})$/);
+  if (!match) return 0;
+  return Number(match[1]) * 100 + Number(match[2]);
+}
+
+function yearGuessWeeklySortValue(weekKey, top5Points) {
+  // Tydzień ma dużo większą wagę niż wynik (max 375 pkt przy 15 rundach),
+  // dzięki czemu stare tygodnie nigdy nie wchodzą przed bieżący bez potrzeby
+  // złożonego indeksu Firestore.
+  return yearGuessWeekOrdinal(weekKey) * 1_000_000 + Math.max(0, Number(top5Points || 0));
+}
+
+export function getYearGuessRankingStats(statsData, period = "weekly") {
+  const ranking = statsData?.yearGuessRanking || {};
+  if (period === "all") {
+    return {
+      points: Number(ranking.totalPoints || 0),
+      gamesPlayed: Number(ranking.gamesPlayed || 0),
+      gamesWon: Number(ranking.gamesWon || 0),
+      exactYears: Number(ranking.exactYears || 0),
+      rankingExactYears: Number(ranking.exactYears || 0),
+      rankingWins: Number(ranking.gamesWon || 0),
+      bestScore: Number(ranking.bestScore || 0),
+      bestScores: [],
+    };
+  }
+  const wk = currentWeekKey();
+  const week = ranking.week?.weekKey === wk ? ranking.week : null;
+  return {
+    points: Number(week?.top5Points || 0),
+    gamesPlayed: Number(week?.gamesPlayed || 0),
+    gamesWon: Number(week?.gamesWon || 0),
+    exactYears: Number(week?.exactYears || 0),
+    rankingExactYears: Number(week?.top5ExactYears ?? week?.exactYears ?? 0),
+    rankingWins: Number(week?.top5Wins ?? week?.gamesWon ?? 0),
+    bestScore: Number(week?.bestScore || 0),
+    bestScores: Array.isArray(week?.bestScores) ? week.bestScores : [],
+  };
+}
+
+function compareYearGuessEntries(a = {}, b = {}, period = "weekly") {
+  const aStats = a.selectedYearGuessStats || {};
+  const bStats = b.selectedYearGuessStats || {};
+  const aPoints = Number(aStats.points || 0);
+  const bPoints = Number(bStats.points || 0);
+  if (bPoints !== aPoints) return bPoints - aPoints;
+  const aExact = Number(aStats.rankingExactYears ?? aStats.exactYears ?? 0);
+  const bExact = Number(bStats.rankingExactYears ?? bStats.exactYears ?? 0);
+  if (bExact !== aExact) return bExact - aExact;
+  const aWins = Number(aStats.rankingWins ?? aStats.gamesWon ?? 0);
+  const bWins = Number(bStats.rankingWins ?? bStats.gamesWon ?? 0);
+  if (bWins !== aWins) return bWins - aWins;
+  const aPlayed = Number(aStats.gamesPlayed || 0);
+  const bPlayed = Number(bStats.gamesPlayed || 0);
+  if (aPlayed !== bPlayed) return aPlayed - bPlayed;
+  return String(a.uid || "").localeCompare(String(b.uid || ""));
+}
+
+// Idempotentny zapis wyniku jednego meczu Zgadnij Rok. Korzysta z tego
+// samego dokumentu markera co nagrody końca gry, ale z osobną flagą, więc
+// nawet przerwane naliczanie może zostać bezpiecznie dokończone po reloadzie.
+export async function recordYearGuessRankingResult(uid, rewardMarkerId, { score = 0, won = false, exactYears = 0 } = {}) {
+  if (!uid || !rewardMarkerId) return false;
+  const statsRef = doc(db, "userStats", uid);
+  const markerRef = doc(db, "gameRewardsProcessed", rewardMarkerId);
+  const wk = currentWeekKey();
+  let updated = false;
+
+  await runTransaction(db, async (tx) => {
+    const statsSnap = await tx.get(statsRef);
+    const markerSnap = await tx.get(markerRef);
+    if (markerSnap.exists() && markerSnap.data()?.yearGuessRankingProcessedAt) return;
+
+    const data = statsSnap.exists() ? statsSnap.data() : {};
+    const previous = data.yearGuessRanking || {};
+    const points = Math.max(0, Number(score || 0));
+    const exact = Math.max(0, Number(exactYears || 0));
+    const previousWeek = previous.week?.weekKey === wk ? previous.week : {
+      weekKey: wk,
+      gamesPlayed: 0,
+      gamesWon: 0,
+      exactYears: 0,
+      bestScore: 0,
+      bestScores: [],
+      bestRuns: [],
+      top5Points: 0,
+      top5ExactYears: 0,
+      top5Wins: 0,
+      sortValue: yearGuessWeeklySortValue(wk, 0),
+    };
+    const legacyRuns = Array.isArray(previousWeek.bestRuns) && previousWeek.bestRuns.length
+      ? previousWeek.bestRuns
+      : (Array.isArray(previousWeek.bestScores) ? previousWeek.bestScores.map((value) => ({ score: Number(value || 0), exactYears: 0, won: false })) : []);
+    const bestRuns = [...legacyRuns, { score: points, exactYears: exact, won: !!won }]
+      .sort((a, b) => Number(b.score || 0) - Number(a.score || 0) || Number(b.exactYears || 0) - Number(a.exactYears || 0) || Number(!!b.won) - Number(!!a.won))
+      .slice(0, 5);
+    const bestScores = bestRuns.map((run) => Number(run.score || 0));
+    const top5Points = bestScores.reduce((sum, value) => sum + value, 0);
+    const top5ExactYears = bestRuns.reduce((sum, run) => sum + Number(run.exactYears || 0), 0);
+    const top5Wins = bestRuns.reduce((sum, run) => sum + (run.won ? 1 : 0), 0);
+
+    const next = {
+      totalPoints: Number(previous.totalPoints || 0) + points,
+      gamesPlayed: Number(previous.gamesPlayed || 0) + 1,
+      gamesWon: Number(previous.gamesWon || 0) + (won ? 1 : 0),
+      exactYears: Number(previous.exactYears || 0) + exact,
+      bestScore: Math.max(Number(previous.bestScore || 0), points),
+      week: {
+        weekKey: wk,
+        gamesPlayed: Number(previousWeek.gamesPlayed || 0) + 1,
+        gamesWon: Number(previousWeek.gamesWon || 0) + (won ? 1 : 0),
+        exactYears: Number(previousWeek.exactYears || 0) + exact,
+        bestScore: Math.max(Number(previousWeek.bestScore || 0), points),
+        bestScores,
+        bestRuns,
+        top5Points,
+        top5ExactYears,
+        top5Wins,
+        sortValue: yearGuessWeeklySortValue(wk, top5Points),
+      },
+    };
+
+    tx.set(statsRef, { yearGuessRanking: next }, { merge: true });
+    tx.set(markerRef, { yearGuessRankingProcessedAt: Date.now() }, { merge: true });
+    updated = true;
+  });
+
+  return updated;
+}
+
+export async function getYearGuessLeaderboard(count = 10, period = "weekly") {
+  const safeCount = Math.max(1, Math.min(50, Number(count || 10)));
+  const field = period === "all" ? "yearGuessRanking.totalPoints" : "yearGuessRanking.week.sortValue";
+  // Pobieramy mały zapas, żeby poprawnie rozstrzygnąć remisy na granicy TOP10
+  // dokładnymi trafieniami / wygranymi / liczbą gier.
+  const q = query(collection(db, "userStats"), orderBy(field, "desc"), limit(Math.max(30, safeCount * 3)));
+  const snap = await getDocs(q);
+  const players = snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+  const mapped = players.map((player) => ({
+    ...player,
+    selectedYearGuessStats: getYearGuessRankingStats(player, period),
+  })).filter((player) => player.selectedYearGuessStats.gamesPlayed > 0);
+  return mapped.sort((a, b) => compareYearGuessEntries(a, b, period)).slice(0, safeCount);
+}
+
+export async function getYearGuessLeaderboardPosition(uid, period = "weekly") {
+  if (!uid) return null;
+  const ownSnap = await getDoc(doc(db, "userStats", uid));
+  if (!ownSnap.exists()) return null;
+  const ownData = ownSnap.data();
+  const ownStats = getYearGuessRankingStats(ownData, period);
+  if (ownStats.gamesPlayed <= 0) return null;
+
+  const collectionRef = collection(db, "userStats");
+  if (period === "all") {
+    const ownPrimary = Number(ownStats.points || 0);
+    const higherQ = query(collectionRef, where("yearGuessRanking.totalPoints", ">", ownPrimary));
+    const tiedQ = query(collectionRef, where("yearGuessRanking.totalPoints", "==", ownPrimary));
+    const [higherCountSnap, tiedSnap] = await Promise.all([getCountFromServer(higherQ), getDocs(tiedQ)]);
+    const ownEntry = { uid, ...ownData, selectedYearGuessStats: ownStats };
+    const tiedAhead = tiedSnap.docs
+      .filter((d) => d.id !== uid)
+      .map((d) => ({ uid: d.id, ...d.data(), selectedYearGuessStats: getYearGuessRankingStats(d.data(), "all") }))
+      .filter((entry) => compareYearGuessEntries(entry, ownEntry, "all") < 0).length;
+    return Number(higherCountSnap.data().count || 0) + tiedAhead + 1;
+  }
+
+  const week = ownData.yearGuessRanking?.week;
+  if (!week || week.weekKey !== currentWeekKey()) return null;
+  const ownSort = Number(week.sortValue || yearGuessWeeklySortValue(week.weekKey, week.top5Points));
+  const higherQ = query(collectionRef, where("yearGuessRanking.week.sortValue", ">", ownSort));
+  const tiedQ = query(collectionRef, where("yearGuessRanking.week.sortValue", "==", ownSort));
+  const [higherCountSnap, tiedSnap] = await Promise.all([getCountFromServer(higherQ), getDocs(tiedQ)]);
+  const ownEntry = { uid, ...ownData, selectedYearGuessStats: ownStats };
+  const tiedAhead = tiedSnap.docs
+    .filter((d) => d.id !== uid)
+    .map((d) => ({ uid: d.id, ...d.data(), selectedYearGuessStats: getYearGuessRankingStats(d.data(), "weekly") }))
+    .filter((entry) => compareYearGuessEntries(entry, ownEntry, "weekly") < 0).length;
+  return Number(higherCountSnap.data().count || 0) + tiedAhead + 1;
 }
 
 // ============================================================

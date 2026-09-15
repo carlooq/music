@@ -15,7 +15,7 @@ import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
 import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId, fuzzyMatch } from "./utils.js";
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError, ensureSignedIn } from "./auth.js";
-import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, getLeaderboardPosition, awardXp, xpForLevel, levelFromXp, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag, getWeeklyChallenges, bumpWeeklyChallengeProgress, claimWeeklyChallenge, currentSeasonKey, seasonNumber, seasonRankForWins, SEASON_RANKS, updateSeasonProgress, getSeasonLeaderboard, getSeasonLeaderboardPosition, processSeasonRewardsIfNeeded, getPlayerSeasonHistory, consumeNextRewardNotice } from "./stats.js";
+import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, getLeaderboardPosition, awardXp, xpForLevel, levelFromXp, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag, getWeeklyChallenges, bumpWeeklyChallengeProgress, claimWeeklyChallenge, currentSeasonKey, seasonNumber, seasonRankForWins, SEASON_RANKS, updateSeasonProgress, getSeasonLeaderboard, getSeasonLeaderboardPosition, processSeasonRewardsIfNeeded, getPlayerSeasonHistory, consumeNextRewardNotice, recordYearGuessRankingResult, getYearGuessLeaderboard, getYearGuessLeaderboardPosition } from "./stats.js";
 import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss, incrementSongPlayCount, getSongCount } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
 import { heartbeat, clearPresence, getOnlinePlayers } from "./presence.js";
@@ -2804,8 +2804,8 @@ export default function App() {
     const marker = toMillis(room?.expireAt);
     if (!marker || xpAwardedRef.current === marker) return;
     xpAwardedRef.current = marker;
-    updateHeadToHead(room).catch(() => {});
-    if (room.players?.length === 2 && (room.winnerIds || []).includes(playerId)) {
+    if (!room.yearGuessMode) updateHeadToHead(room).catch(() => {});
+    if (!room.yearGuessMode && room.players?.length === 2 && (room.winnerIds || []).includes(playerId)) {
       bumpWeeklyChallengeProgress(user.uid, "duelWins", 1).catch(() => {});
     }
     (async () => {
@@ -2814,13 +2814,29 @@ export default function App() {
         // gdyby to samo konto było zalogowane naraz na dwóch urządzeniach,
         // każde z nich niezależnie próbowałoby przyznać nagrody za tę samą
         // grę. Transakcja w Firestore gwarantuje, że wygra dokładnie jedno.
-        const rewardMarkerRef = doc(db, "gameRewardsProcessed", `${roomId}_${marker}_${user.uid}`);
+        const rewardMarkerId = `${roomId}_${marker}_${user.uid}`;
+        const rewardMarkerRef = doc(db, "gameRewardsProcessed", rewardMarkerId);
+
+        // Zgadnij Rok ma od tej wersji całkowicie osobny ranking. Zapisujemy
+        // go idempotentnie PRZED głównym markerem nagród, żeby ewentualne
+        // przerwanie procesu można było dokończyć po ponownym wejściu.
+        if (room.yearGuessMode) {
+          await recordYearGuessRankingResult(user.uid, rewardMarkerId, {
+            score: room.yearGuessScores?.[playerId] || 0,
+            won: (room.winnerIds || []).includes(playerId),
+            exactYears: room.yearGuessExactCounts?.[playerId] || 0,
+          }).catch(() => false);
+          // Odświeżamy profil nawet wtedy, gdy wynik zapisało już drugie
+          // urządzenie tego samego konta — hub rankingu od razu pokaże stan aktualny.
+          getStats(user.uid).then((fresh) => fresh && setStats(fresh)).catch(() => {});
+        }
+
         let shouldProcess = false;
         await runTransaction(db, async (tx) => {
           const snap = await tx.get(rewardMarkerRef);
-          if (snap.exists()) return;
+          if (snap.exists() && snap.data()?.processedAt) return;
           shouldProcess = true;
-          tx.set(rewardMarkerRef, { processedAt: Date.now() });
+          tx.set(rewardMarkerRef, { processedAt: Date.now() }, { merge: true });
         });
         if (!shouldProcess) return;
 
@@ -2839,18 +2855,20 @@ export default function App() {
         // wyzwania tygodniowe (jeśli akurat wypadły w tym tygodniu — funkcja
         // sama sprawdza i nic nie robi gdy dany typ nie jest w aktualnej 5)
         bumpWeeklyChallengeProgress(user.uid, "gamesPlayed", 1).catch(() => {});
-        if ((room.winnerIds || []).includes(playerId)) {
+        if (!room.yearGuessMode && (room.winnerIds || []).includes(playerId)) {
           bumpWeeklyChallengeProgress(user.uid, "gamesWon", 1).catch(() => {});
         }
         const myBestStreak = room.gameBestStreaks?.[playerId] || 0;
         if (myBestStreak > 0) bumpWeeklyChallengeProgress(user.uid, "bestStreak", myBestStreak).catch(() => {});
 
-        // ranking sezonowy (miesięczny) — osobno od dożywotnich liczników,
-        // transakcja więc bezpieczne obok powyższych wywołań na tym samym dokumencie
-        updateSeasonProgress(user.uid, {
-          won: (room.winnerIds || []).includes(playerId),
-          guessesCorrect: room.gameGuesses?.[playerId] || 0,
-        }).catch(() => {});
+        // Główny ranking sezonowy dotyczy wyłącznie klasycznej Hitsteriady.
+        // Zgadnij Rok ma od teraz własny ranking tygodniowy i ogólny.
+        if (!room.yearGuessMode) {
+          updateSeasonProgress(user.uid, {
+            won: (room.winnerIds || []).includes(playerId),
+            guessesCorrect: room.gameGuesses?.[playerId] || 0,
+          }).catch(() => {});
+        }
 
         setMyXp(oldXp + grandTotal);
 
@@ -3754,7 +3772,7 @@ export default function App() {
     }
   }
 
-  async function joinRoom(explicitCode) {
+  async function joinRoom(explicitCode, options = {}) {
     if (!user) {
       setShowAuthForm(true);
       setError("Zaloguj się lub załóż konto, aby dołączać do pokoi. Trening jest dostępny bez konta.");
@@ -3774,6 +3792,9 @@ export default function App() {
         if (!snap.exists()) throw new Error("Nie znaleziono pokoju o tym kodzie.");
         const data = snap.data();
         joinedRoomData = data;
+        if (options.yearGuessOnly && !data.yearGuessMode) {
+          throw new Error("Ten kod prowadzi do zwykłego pokoju. Wpisz kod pokoju Zgadnij Rok.");
+        }
         const players = Array.isArray(data.players) ? data.players : [];
         const already = players.some((p) => p.id === playerId);
         if (!already && (data.status !== "lobby" || data.joinLocked)) {
@@ -4053,7 +4074,8 @@ export default function App() {
 
       const songs = shuffle(pool).slice(0, YEAR_GUESS_ROUNDS);
       const scores = {};
-      players.forEach((p) => { scores[p.id] = 0; });
+      const exactCounts = {};
+      players.forEach((p) => { scores[p.id] = 0; exactCounts[p.id] = 0; });
 
       await updateDoc(ref, {
         status: "yearGuess",
@@ -4064,6 +4086,7 @@ export default function App() {
         yearGuessSongs: songs,
         yearGuessRoundIndex: 0,
         yearGuessScores: scores,
+        yearGuessExactCounts: exactCounts,
         yearGuessAnswers: {},
         yearGuessStartSeconds: randomStartSeconds(),
         yearGuessRoundStartedAtMs: Date.now(),
@@ -4095,13 +4118,18 @@ export default function App() {
       return { playerId: p.id, name: p.name, year: guessYear, diff: guessYear === null ? null : Math.abs(guessYear - song.year), points };
     });
     const newScores = { ...(data.yearGuessScores || {}) };
-    results.forEach((r) => { newScores[r.playerId] = (newScores[r.playerId] || 0) + r.points; });
+    const newExactCounts = { ...(data.yearGuessExactCounts || {}) };
+    results.forEach((r) => {
+      newScores[r.playerId] = (newScores[r.playerId] || 0) + r.points;
+      if (r.diff === 0) newExactCounts[r.playerId] = (newExactCounts[r.playerId] || 0) + 1;
+    });
 
     const isLastRound = data.yearGuessRoundIndex >= (data.yearGuessSongs.length - 1);
     const update = {
       status: "yearGuessResult",
       yearGuessAnswers: answers,
       yearGuessScores: newScores,
+      yearGuessExactCounts: newExactCounts,
       yearGuessLastRound: { song, results },
       yearGuessResultStartedAtMs: Date.now(),
     };
@@ -4158,7 +4186,10 @@ export default function App() {
         const data = snap.data();
         if (data.status !== "yearGuessResult") return;
         if (data.yearGuessGameOver) {
-          tx.update(ref, { status: "gameover" });
+          // Tak samo jak w klasycznej grze nadajemy nowy marker końca meczu.
+          // Dzięki temu rewanż Zgadnij Rok w tym samym pokoju dostaje osobne
+          // nagrody i osobny wpis rankingu zamiast wpadać pod marker poprzedniej gry.
+          tx.update(ref, { status: "gameover", expireAt: new Date(Date.now() + 60 * 60 * 1000) });
           return;
         }
         tx.update(ref, {
@@ -6569,6 +6600,20 @@ export default function App() {
     );
   }
 
+  async function loadYearGuessLeaderboardData(period = "weekly") {
+    if (!user?.uid) return { leaderboard: [], position: null };
+    try {
+      const [leaderboard, position] = await Promise.all([
+        getYearGuessLeaderboard(10, period),
+        getYearGuessLeaderboardPosition(user.uid, period),
+      ]);
+      return { leaderboard, position };
+    } catch (e) {
+      setError("Nie udało się wczytać rankingu Zgadnij Rok: " + (e?.message || "błąd Firebase"));
+      return { leaderboard: [], position: null };
+    }
+  }
+
   async function loadDesktopLeaderboard(sortBy = "gamesWon") {
     setLeaderboardSort(sortBy);
     setLeaderboard(null);
@@ -6624,13 +6669,18 @@ export default function App() {
         todayKey={currentDayKey()}
         joinCode={joinCode}
         setJoinCode={setJoinCode}
+        actionBusy={busy}
+        appError={error}
+        onClearAppError={() => setError("")}
         onCreateRoom={createRoom}
         onJoinRoom={joinRoom}
         recentRoom={user && recentRoom?.uid === user.uid ? recentRoom : null}
         onReturnRecentRoom={returnToRecentRoom}
         onForgetRecentRoom={() => forgetRecentRoom()}
         onPractice={() => setScreen("practiceSetup")}
-        onYearGuess={createYearGuessRoom}
+        onCreateYearGuessRoom={createYearGuessRoom}
+        onJoinYearGuessRoom={() => joinRoom(undefined, { yearGuessOnly: true })}
+        onLoadYearGuessLeaderboard={loadYearGuessLeaderboardData}
         onHitRush={() => setScreen("hitRushMenu")}
         onDailySong={openDailySong}
         onDailyPlaylist={openDailyPlaylistHub}
@@ -6780,6 +6830,9 @@ export default function App() {
         todayKey={currentDayKey()}
         joinCode={joinCode}
         setJoinCode={setJoinCode}
+        actionBusy={busy}
+        appError={error}
+        onClearAppError={() => setError("")}
         onCreateRoom={createRoom}
         onJoinRoom={joinRoom}
         recentRoom={user && recentRoom?.uid === user.uid ? recentRoom : null}
@@ -6790,7 +6843,9 @@ export default function App() {
         onDailySong={openDailySong}
         onDailyPlaylist={openDailyPlaylistHub}
         onTournament={activeTournament ? openTournamentHub : undefined}
-        onYearGuess={createYearGuessRoom}
+        onCreateYearGuessRoom={createYearGuessRoom}
+        onJoinYearGuessRoom={() => joinRoom(undefined, { yearGuessOnly: true })}
+        onLoadYearGuessLeaderboard={loadYearGuessLeaderboardData}
         activeTournament={activeTournament}
         lastCompletedTournament={lastCompletedTournament}
         weeklySummary={{ current: desktopCurrentWeekly, achievementClaimed: desktopAchievementClaimed }}

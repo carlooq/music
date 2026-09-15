@@ -30,8 +30,12 @@ import {
   Info,
   Settings,
   Coins,
+  CalendarDays,
+  Plus,
+  Play,
+  Target,
 } from 'lucide-react';
-import { currentSeasonKey, seasonNumber, seasonRankForWins, seasonRankProgress, seasonMonthLabel, availableSeasonKeys, getPlayerSeasonResult, seasonBaseRewardForResult, SEASON_RANK_REWARDS, SEASON_PLACEMENT_REWARDS, SEASON_PARTICIPATION_MIN_GAMES } from './stats.js';
+import { currentSeasonKey, seasonNumber, seasonRankForWins, seasonRankProgress, seasonMonthLabel, availableSeasonKeys, getPlayerSeasonResult, seasonBaseRewardForResult, SEASON_RANK_REWARDS, SEASON_PLACEMENT_REWARDS, SEASON_PARTICIPATION_MIN_GAMES, getYearGuessRankingStats } from './stats.js';
 
 import logoImg from './assets/logo-v2.png';
 import homeBg from './assets/home/bg.jpg';
@@ -376,7 +380,7 @@ function MobileHomeView(props) {
         <div className="mob-block-title"><Sparkles size={15} /> TRYBY GRY</div>
         <div className="mob-mode-grid">
           <MobileModeCard icon={glTrening} title="TRENING" desc="Ćwicz bez presji i poznawaj muzykę" tone="cyan" onClick={props.onPractice} />
-          <MobileModeCard icon={glTrening} title="ZGADNIJ ROK" desc="Wszyscy słuchają tego samego utworu i typują rok" tone="pink" locked={locked} onClick={requireUser(props.onYearGuess)} />
+          <MobileModeCard icon={glTrening} title="ZGADNIJ ROK" desc="Wszyscy słuchają tego samego utworu i typują rok" tone="pink" locked={locked} onClick={requireUser(() => { props.onClearAppError?.(); props.onNavigate?.('yearGuess'); })} />
           <MobileModeCard icon={glHitRush} title="HIT RUSH" desc="Wcześniej czy później? Liczy się tempo" tone="green" locked={locked} onClick={requireUser(props.onHitRush)} />
           <MobileModeCard icon={glPiosenka} title="PIOSENKA DNIA" desc="Jedno wyzwanie dla wszystkich" tone="pink" locked={locked} onClick={requireUser(props.onDailySong)} />
           <MobileModeCard icon={glPlaylista} title="PLAYLISTA DNIA" desc="Codzienna playlista i ranking" tone="violet" locked={locked} onClick={requireUser(props.onDailyPlaylist)} />
@@ -427,6 +431,119 @@ function MobileHomeView(props) {
           <div><strong>Trening jest darmowy bez konta.</strong><span>Załóż konto, aby odblokować całą Hitsteriadę.</span></div>
         </section>
       )}
+    </div>
+  );
+}
+
+function MobileYearGuessHub(props) {
+  const [period, setPeriod] = useState('weekly');
+  const [ranking, setRanking] = useState(null);
+  const [position, setPosition] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const own = getYearGuessRankingStats(props.stats, period);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    props.onLoadYearGuessLeaderboard?.(period)
+      .then((result) => {
+        if (!active) return;
+        setRanking(result?.leaderboard || []);
+        setPosition(result?.position ?? null);
+      })
+      .catch(() => {
+        if (!active) return;
+        setRanking([]);
+        setPosition(null);
+      })
+      .finally(() => active && setLoading(false));
+    return () => { active = false; };
+  }, [period, props.user?.uid]);
+
+  const rows = ranking || [];
+  const myInTop = rows.some((row) => row.uid === props.user?.uid);
+  const periodLabel = period === 'weekly' ? 'TYDZIEŃ' : 'WSZECH CZASÓW';
+
+  return (
+    <div className="mob-stack mob-inner-view mob-yearguess-hub">
+      <MobileSectionHeader title="ZGADNIJ ROK" subtitle="15 rund · multiplayer · osobny ranking" icon={<CalendarDays size={24} />} onBack={() => props.onNavigate?.('home')} />
+
+      <section className="mob-yearguess-hero mob-panel">
+        <div className="mob-yearguess-hero-icon"><CalendarDays size={34} /></div>
+        <div className="mob-yearguess-hero-copy">
+          <span className="mob-eyebrow">TRYB RANKINGOWY</span>
+          <h2>JAK DOBRZE ZNASZ <span>ROK HITÓW?</span></h2>
+          <p>Wszyscy słuchają tego samego utworu. Im bliżej prawidłowego roku, tym więcej punktów.</p>
+        </div>
+        <div className="mob-yearguess-score-key">
+          <span><b>+5</b> dokładnie</span><span><b>+3</b> ±1 rok</span><span><b>+1</b> ±2–3 lata</span>
+        </div>
+      </section>
+
+      <section className="mob-yearguess-actions mob-panel">
+        <button type="button" className="mob-yearguess-create" disabled={props.actionBusy} onClick={props.onCreateYearGuessRoom}>
+          <span><Plus size={18} /></span><div><small>NOWA GRA</small><strong>STWÓRZ POKÓJ</strong></div><ChevronRight size={19} />
+        </button>
+        <div className="mob-yearguess-join-label">MASZ KOD POKOJU?</div>
+        <div className="mob-yearguess-join-row">
+          <input value={props.joinCode || ''} onChange={(e) => props.setJoinCode?.(e.target.value.toUpperCase())} maxLength={6} placeholder="ABCD" aria-label="Kod pokoju Zgadnij Rok" />
+          <button type="button" disabled={props.actionBusy || !String(props.joinCode || '').trim()} onClick={props.onJoinYearGuessRoom}><Play size={16} fill="currentColor" /> DOŁĄCZ</button>
+        </div>
+        {props.appError ? <div className="mob-yearguess-error">{props.appError}</div> : null}
+      </section>
+
+      <section className="mob-yearguess-my mob-panel">
+        <div className="mob-block-title"><Target size={15} /> TWOJE WYNIKI · {periodLabel}</div>
+        <div className="mob-yearguess-my-grid">
+          <div className="featured"><span>MIEJSCE</span><strong>{position ? `#${position}` : '—'}</strong></div>
+          <div><span>PUNKTY</span><strong>{compact(own.points)}</strong></div>
+          <div><span>NAJLEPSZA GRA</span><strong>{own.bestScore || 0}</strong></div>
+          <div><span>IDEALNE LATA</span><strong>{own.exactYears || 0} 🎯</strong></div>
+          <div><span>WYGRANE</span><strong>{own.gamesWon || 0}</strong></div>
+          <div><span>GRY</span><strong>{own.gamesPlayed || 0}</strong></div>
+        </div>
+        {period === 'weekly' ? <p className="mob-yearguess-week-note">Ranking tygodnia liczy sumę <b>5 najlepszych wyników</b>. Możesz grać częściej — słabszy wynik nie obniża rankingu.</p> : null}
+      </section>
+
+      <section className="mob-yearguess-ranking mob-panel">
+        <div className="mob-yearguess-ranking-head">
+          <div><span className="mob-eyebrow">🏆 RANKING ZGADNIJ ROK</span><strong>TOP 10</strong></div>
+          <div className="mob-yearguess-tabs">
+            <button type="button" className={period === 'weekly' ? 'active' : ''} onClick={() => setPeriod('weekly')}>TYDZIEŃ</button>
+            <button type="button" className={period === 'all' ? 'active' : ''} onClick={() => setPeriod('all')}>OGÓLNY</button>
+          </div>
+        </div>
+        {loading ? <div className="mob-empty">Ładowanie rankingu…</div> : rows.length ? (
+          <div className="mob-yearguess-ranking-list">
+            {rows.map((player, index) => {
+              const row = player.selectedYearGuessStats || {};
+              return (
+                <button type="button" key={player.uid} className={`mob-yearguess-rank-row ${index < 3 ? `podium p${index + 1}` : ''} ${player.uid === props.user?.uid ? 'is-me' : ''}`} onClick={() => props.onViewProfile?.(player)}>
+                  <span className="place">{index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}</span>
+                  <span className="avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.username || 'G') : null}</span>
+                  <span className="name"><strong>{player.username || 'Gracz'}{player.uid === props.user?.uid ? ' · TY' : ''}</strong><small>{row.gamesWon || 0} wygr. · {row.gamesPlayed || 0} gier · 🎯 {row.exactYears || 0}</small></span>
+                  <span className="points"><strong>{compact(row.points)}</strong><small>PKT</small></span>
+                </button>
+              );
+            })}
+            {!myInTop && position ? (
+              <div className="mob-yearguess-rank-row is-me outside-top">
+                <span className="place">#{position}</span>
+                <span className="avatar" style={props.stats?.avatarUrl ? { backgroundImage: `url(${props.stats.avatarUrl})` } : undefined}>{!props.stats?.avatarUrl ? initials(props.playerName) : null}</span>
+                <span className="name"><strong>{props.playerName || 'TY'} · TY</strong><small>{own.gamesWon || 0} wygr. · {own.gamesPlayed || 0} gier · 🎯 {own.exactYears || 0}</small></span>
+                <span className="points"><strong>{compact(own.points)}</strong><small>PKT</small></span>
+              </div>
+            ) : null}
+          </div>
+        ) : <div className="mob-empty">Brak wyników. Zagraj pierwszą grę i rozpocznij ranking!</div>}
+      </section>
+
+      <section className="mob-yearguess-rules mob-panel">
+        <div className="mob-block-title"><Info size={15} /> JAK LICZYMY RANKING?</div>
+        <p><b>Tydzień:</b> suma 5 najlepszych gier od poniedziałku do niedzieli.</p>
+        <p><b>Ogólny:</b> suma wszystkich punktów zdobytych w Zgadnij Rok od uruchomienia rankingu.</p>
+        <p>Przy remisie decydują kolejno: <b>idealne trafienia roku → wygrane → mniej rozegranych gier.</b></p>
+      </section>
     </div>
   );
 }
@@ -1412,7 +1529,8 @@ export function MobileAppView(props) {
   };
 
   let content;
-  if (section === 'stats') content = <MobileStatsView {...common} />;
+  if (section === 'yearGuess') content = <MobileYearGuessHub {...common} />;
+  else if (section === 'stats') content = <MobileStatsView {...common} />;
   else if (section === 'collection') content = <MobileCollectionView {...common} />;
   else if (section === 'achievements') content = <MobileAchievementsView {...common} />;
   else if (section === 'ranking') content = <MobileRankingView {...common} />;

@@ -30,7 +30,7 @@ import {
   UserPlus,
   Info,
 } from 'lucide-react';
-import { currentSeasonKey, seasonNumber, seasonRankForWins, seasonRankProgress, seasonMonthLabel, availableSeasonKeys, getPlayerSeasonResult, seasonBaseRewardForResult, SEASON_RANK_REWARDS, SEASON_PLACEMENT_REWARDS, SEASON_PARTICIPATION_MIN_GAMES } from './stats.js';
+import { currentSeasonKey, seasonNumber, seasonRankForWins, seasonRankProgress, seasonMonthLabel, availableSeasonKeys, getPlayerSeasonResult, seasonBaseRewardForResult, SEASON_RANK_REWARDS, SEASON_PLACEMENT_REWARDS, SEASON_PARTICIPATION_MIN_GAMES, getYearGuessRankingStats } from './stats.js';
 
 import logoImg from './assets/logo-v2.png';
 import heroBanner from './assets/home/hero-banner.webp';
@@ -1180,6 +1180,116 @@ export function DesktopStatsView(props) {
   );
 }
 
+function DesktopYearGuessHub({ common, ...props }) {
+  const [period, setPeriod] = useState('weekly');
+  const [ranking, setRanking] = useState(null);
+  const [position, setPosition] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const own = getYearGuessRankingStats(props.stats, period);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    props.onLoadYearGuessLeaderboard?.(period)
+      .then((result) => {
+        if (!active) return;
+        setRanking(result?.leaderboard || []);
+        setPosition(result?.position ?? null);
+      })
+      .catch(() => {
+        if (!active) return;
+        setRanking([]);
+        setPosition(null);
+      })
+      .finally(() => active && setLoading(false));
+    return () => { active = false; };
+  }, [period, props.user?.uid]);
+
+  const rows = ranking || [];
+  const myInTop = rows.some((row) => row.uid === props.user?.uid);
+  const periodLabel = period === 'weekly' ? 'TYDZIEŃ' : 'WSZECH CZASÓW';
+
+  return (
+    <DesktopLayout active="home" {...common}>
+      <HeaderBar {...common.header} />
+      <div className="desk-main-stack desk-yearguess-hub">
+        <DesktopSimpleHeader title="ZGADNIJ ROK" subtitle="15 rund · multiplayer · osobny ranking" icon={<CalendarDays size={28} />} />
+
+        <div className="desk-yearguess-hero-grid">
+          <section className="desk-panel desk-yearguess-hero-card pink-glow">
+            <div className="desk-yearguess-hero-icon"><CalendarDays size={42} /></div>
+            <div className="desk-panel-tag">TRYB RANKINGOWY</div>
+            <h2>JAK DOBRZE ZNASZ <span>ROK HITÓW?</span></h2>
+            <p>Wszyscy słuchają tego samego utworu i wpisują rok wydania. 15 rund, jedna playlista, jeden zwycięzca.</p>
+            <div className="desk-yearguess-score-key"><span><b>+5</b> DOKŁADNIE</span><span><b>+3</b> ±1 ROK</span><span><b>+1</b> ±2–3 LATA</span></div>
+          </section>
+
+          <section className="desk-panel desk-yearguess-action-card cyan-glow">
+            <div className="desk-section-label solo"><Play size={16} /> ZACZNIJ GRĘ</div>
+            <button type="button" className="desk-yearguess-create" disabled={props.actionBusy} onClick={props.onCreateYearGuessRoom}><Plus size={20} /><span><small>NOWA GRA</small><strong>STWÓRZ POKÓJ</strong></span><ChevronRight size={20} /></button>
+            <div className="desk-yearguess-join-label">MASZ KOD POKOJU?</div>
+            <div className="desk-yearguess-join-row">
+              <input value={props.joinCode || ''} onChange={(e) => props.setJoinCode?.(e.target.value.toUpperCase())} maxLength={6} placeholder="ABCD" aria-label="Kod pokoju Zgadnij Rok" />
+              <button type="button" disabled={props.actionBusy || !String(props.joinCode || '').trim()} onClick={props.onJoinYearGuessRoom}>DOŁĄCZ <ChevronRight size={17} /></button>
+            </div>
+            {props.appError ? <div className="desk-yearguess-error">{props.appError}</div> : null}
+          </section>
+
+          <section className="desk-panel desk-yearguess-own-card violet-glow">
+            <div className="desk-yearguess-own-head"><span>TWOJE WYNIKI</span><b>{periodLabel}</b></div>
+            <div className="desk-yearguess-own-grid">
+              <div className="featured"><span>MIEJSCE</span><strong>{position ? `#${position}` : '—'}</strong></div>
+              <div><span>PUNKTY</span><strong>{formatCompact(own.points)}</strong></div>
+              <div><span>NAJLEPSZA GRA</span><strong>{own.bestScore || 0}</strong></div>
+              <div><span>IDEALNE LATA</span><strong>{own.exactYears || 0} 🎯</strong></div>
+              <div><span>WYGRANE</span><strong>{own.gamesWon || 0}</strong></div>
+              <div><span>GRY</span><strong>{own.gamesPlayed || 0}</strong></div>
+            </div>
+            {period === 'weekly' ? <p>Suma <b>5 najlepszych gier</b> w tym tygodniu. Słabsze podejście nie obniży Twojego rankingu.</p> : <p>Ranking ogólny sumuje wszystkie punkty zdobyte od uruchomienia tego systemu.</p>}
+          </section>
+        </div>
+
+        <section className="desk-panel desk-yearguess-ranking-panel">
+          <div className="desk-yearguess-ranking-head">
+            <div><div className="desk-panel-tag">🏆 RANKING ZGADNIJ ROK</div><h2>TOP 10 GRACZY</h2></div>
+            <div className="desk-yearguess-tabs">
+              <button type="button" className={period === 'weekly' ? 'active' : ''} onClick={() => setPeriod('weekly')}>TYDZIEŃ</button>
+              <button type="button" className={period === 'all' ? 'active' : ''} onClick={() => setPeriod('all')}>WSZECH CZASÓW</button>
+            </div>
+          </div>
+          <div className="desk-yearguess-rank-columns"><span>#</span><span>GRACZ</span><span>PUNKTY</span><span>IDEALNE</span><span>WYGRANE</span><span>GRY</span></div>
+          {loading ? <div className="desk-h2h-empty">Ładowanie rankingu…</div> : rows.length ? (
+            <div className="desk-yearguess-rank-list">
+              {rows.map((player, index) => {
+                const row = player.selectedYearGuessStats || {};
+                return (
+                  <button type="button" key={player.uid} className={`desk-yearguess-rank-row ${index < 3 ? `podium p${index + 1}` : ''} ${player.uid === props.user?.uid ? 'is-me' : ''}`} onClick={() => props.onViewProfile?.(player)}>
+                    <span className="place">{index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}</span>
+                    <span className="player"><i style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.username || 'G') : null}</i><b>{player.username || 'Gracz'}{player.uid === props.user?.uid ? ' · TY' : ''}</b></span>
+                    <strong>{formatCompact(row.points)}</strong><span>{row.exactYears || 0}</span><span>{row.gamesWon || 0}</span><span>{row.gamesPlayed || 0}</span>
+                  </button>
+                );
+              })}
+              {!myInTop && position ? (
+                <div className="desk-yearguess-rank-row is-me outside-top">
+                  <span className="place">#{position}</span>
+                  <span className="player"><i style={props.stats?.avatarUrl ? { backgroundImage: `url(${props.stats.avatarUrl})` } : undefined}>{!props.stats?.avatarUrl ? initials(props.playerName) : null}</i><b>{props.playerName || 'TY'} · TY</b></span>
+                  <strong>{formatCompact(own.points)}</strong><span>{own.exactYears || 0}</span><span>{own.gamesWon || 0}</span><span>{own.gamesPlayed || 0}</span>
+                </div>
+              ) : null}
+            </div>
+          ) : <div className="desk-h2h-empty">Brak wyników. Zagraj pierwszą grę i rozpocznij ranking!</div>}
+        </section>
+
+        <section className="desk-panel desk-yearguess-rules">
+          <div className="desk-section-label solo"><Info size={16} /> JAK LICZYMY RANKING?</div>
+          <div><p><b>Tydzień:</b> suma 5 najlepszych wyników od poniedziałku do niedzieli.</p><p><b>Ogólny:</b> suma wszystkich punktów w Zgadnij Rok.</p><p><b>Remis:</b> idealne trafienia → wygrane → mniej rozegranych gier.</p></div>
+        </section>
+      </div>
+    </DesktopLayout>
+  );
+}
+
 function DesktopSimpleHeader({ title, subtitle, icon }) {
   return (
     <div className="desk-page-heading">
@@ -1728,11 +1838,13 @@ export function DesktopAppView(props) {
     onShop: common.onShop,
     onCommunity: common.onCommunity,
     onPropose: () => props.user ? setSection('propose') : requestLogin(),
+    onYearGuess: () => { if (!props.user) return requestLogin(); props.onClearAppError?.(); setSection('yearGuess'); },
     onRequestLogin: requestLogin,
   };
 
   let view;
-  if (section === 'stats') view = <DesktopStatsView {...props} {...common} />;
+  if (section === 'yearGuess') view = <DesktopYearGuessHub common={common} {...props} />;
+  else if (section === 'stats') view = <DesktopStatsView {...props} {...common} />;
   else if (section === 'achievements') view = <DesktopAchievementsView common={common} progress={props.achievementProgress || []} onClaim={props.onClaimAchievement} />;
   else if (section === 'ranking') view = <DesktopLeaderboardView common={common} leaderboard={props.leaderboard} sortBy={props.leaderboardSort} onSort={props.onLoadLeaderboard} onViewProfile={props.onViewProfile} seasonLeaderboard={props.seasonLeaderboard} seasonLeaderboardSort={props.seasonLeaderboardSort} seasonLeaderboardKey={props.seasonLeaderboardKey} onLoadSeasonLeaderboard={props.onLoadSeasonLeaderboard} levelFromXp={props.levelFromXp} />;
   else if (section === 'collection') view = <DesktopCollectionView common={common} songs={props.songs} stats={props.stats} libraryLoading={props.libraryLoading} songPoolSize={props.songPoolSize} onSellDuplicates={props.onSellDuplicates} onSellDuplicate={props.onSellDuplicate} onEnsureLibrary={props.onEnsureLibrary} albumSellBusy={props.albumSellBusy} />;
