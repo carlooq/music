@@ -1037,7 +1037,7 @@ function GameEndRevealPopup({ data, onClose, levelFromXp }) {
             <small>łącznie +{xpTotal}</small>
           </div>
           <div className={`hitcoin ${shownHcCount ? 'active' : ''}`}>
-            <span>HITCOIN</span>
+            <span><img src={iconHitcoin} alt="" /> HITCOIN</span>
             <strong>+{hcSoFar}</strong>
             <small>łącznie +{hitcoinTotal}</small>
           </div>
@@ -1046,10 +1046,16 @@ function GameEndRevealPopup({ data, onClose, levelFromXp }) {
         {(shownXpCount > 0 || shownHcCount > 0) ? (
           <div className="game-end-reveal-breakdown">
             {xpItems.slice(0, shownXpCount).map((item, index) => (
-              <div className="xp" key={`xp-${index}`}><span>{item.label}</span><b>+{item.amount} XP</b></div>
+              <div className="xp" key={`xp-${index}`}>
+                <span className="game-end-reveal-breakdown-label">{item.label}</span>
+                <b>+{item.amount} XP</b>
+              </div>
             ))}
             {hitcoinItems.slice(0, shownHcCount).map((item, index) => (
-              <div className="hitcoin" key={`hc-${index}`}><span>{item.label}</span><b>+{item.amount} 🪙</b></div>
+              <div className="hitcoin" key={`hc-${index}`}>
+                <span className="game-end-reveal-breakdown-label">{item.label}</span>
+                <b className="with-icon">+{item.amount} <img src={iconHitcoin} alt="" /></b>
+              </div>
             ))}
           </div>
         ) : null}

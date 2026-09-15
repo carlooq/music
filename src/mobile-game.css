@@ -1055,23 +1055,34 @@
 .mgv-gameover-summary-grid span { color:#756e7f; font-family:"Space Mono",monospace; font-size:7px; letter-spacing:.08em; }
 .mgv-gameover-summary-grid strong { margin-top:3px; color:#fff; font-family:"Bebas Neue",sans-serif; font-size:29px; line-height:.95; font-weight:400; }
 .mgv-gameover-summary-grid small { margin-top:3px; color:#6f6878; font-size:8px; }
-.mgv-gameover-persistent-rewards { border-color:rgba(139,92,246,.28); background:linear-gradient(155deg,rgba(88,60,180,.08),rgba(11,9,28,.94)); }
-.mgv-gameover-reward-totals { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-bottom:8px; }
-.mgv-gameover-reward-totals>div { min-height:69px; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:13px; background:rgba(7,9,25,.72); border:1px solid rgba(255,255,255,.07); }
-.mgv-gameover-reward-totals>div:first-child { border-color:rgba(79,214,255,.18); }
-.mgv-gameover-reward-totals>div:last-child { border-color:rgba(245,196,81,.2); }
-.mgv-gameover-reward-totals span { color:#756e80; font-family:"Space Mono",monospace; font-size:7px; letter-spacing:.1em; }
-.mgv-gameover-reward-totals strong { margin-top:3px; font-family:"Bebas Neue",sans-serif; font-size:27px; line-height:1; font-weight:400; color:#63e6ff; }
-.mgv-gameover-reward-totals>div:last-child strong { color:#f5c451; }
-.mgv-gameover-reward-details { padding:3px 8px 7px; border-radius:12px; background:rgba(5,6,18,.42); }
-.mgv-gameover-earned-card { display:grid; grid-template-columns:112px minmax(0,1fr); gap:12px; align-items:center; margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,.08); }
-.mgv-gameover-earned-card>.mgv-gameover-card { width:108px; }
+.mgv-gameover-persistent-rewards { overflow:hidden; border-color:rgba(139,92,246,.28); background:linear-gradient(155deg,rgba(88,60,180,.09),rgba(11,9,28,.96)); }
+.mgv-gameover-reward-totals { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
+.mgv-gameover-reward-totals>div { min-height:96px; display:flex; flex-direction:column; align-items:flex-start; justify-content:center; padding:14px 15px; border-radius:16px; background:linear-gradient(160deg,rgba(8,11,31,.96),rgba(10,13,34,.86)); border:1px solid rgba(255,255,255,.08); box-shadow:inset 0 0 0 1px rgba(255,255,255,.02); }
+.mgv-gameover-reward-totals>div.xp { border-color:rgba(79,214,255,.24); }
+.mgv-gameover-reward-totals>div.hitcoin { border-color:rgba(245,196,81,.24); }
+.mgv-gameover-reward-totals span { display:flex; align-items:center; gap:7px; color:#7a7385; font-family:"Space Mono",monospace; font-size:8px; letter-spacing:.12em; }
+.mgv-gameover-reward-totals span img { width:15px; height:15px; object-fit:contain; }
+.mgv-gameover-reward-totals strong { margin-top:6px; font-family:"Bebas Neue",sans-serif; font-size:37px; line-height:.92; font-weight:400; color:#63e6ff; }
+.mgv-gameover-reward-totals>div.hitcoin strong { color:#f5c451; }
+.mgv-gameover-reward-totals small { margin-top:6px; color:#6b6474; font-size:9px; }
+.mgv-gameover-reward-details { padding:8px 12px; border-radius:14px; background:linear-gradient(160deg,rgba(5,7,20,.74),rgba(8,10,24,.54)); border:1px solid rgba(255,255,255,.05); }
+.mgv-gameover-reward-details .mgv-reward-row { min-height:50px; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:center; padding:10px 2px; border-bottom:1px solid rgba(255,255,255,.06); color:#d4cedf; font-size:11px; }
+.mgv-gameover-reward-details .mgv-reward-row:last-child { border-bottom:0; }
+.mgv-reward-row-label { min-width:0; display:flex; align-items:center; gap:10px; }
+.mgv-reward-row-label > span:last-child { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#d8d3e2; font-size:11px; }
+.mgv-reward-row-icon { width:28px; height:28px; flex:0 0 auto; display:grid; place-items:center; border-radius:10px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); color:#8fe9ff; }
+.mgv-reward-row.hitcoin .mgv-reward-row-icon { color:#f5c451; }
+.mgv-reward-row-value { flex:0 0 auto; display:flex; align-items:center; gap:6px; color:#7ee7ff; font-family:"Space Mono",monospace; font-size:11px; font-weight:700; white-space:nowrap; }
+.mgv-reward-row.hitcoin .mgv-reward-row-value { color:#f5c451; }
+.mgv-reward-row-value.with-hitcoin img { width:16px; height:16px; object-fit:contain; }
+.mgv-gameover-earned-card { display:grid; grid-template-columns:110px minmax(0,1fr); gap:14px; align-items:center; margin-top:12px; padding:13px; border-radius:16px; background:linear-gradient(160deg,rgba(255,95,201,.08),rgba(73,41,126,.11)); border:1px solid rgba(255,255,255,.07); }
+.mgv-gameover-earned-card>.mgv-gameover-card { width:104px; justify-self:center; }
 .mgv-gameover-earned-card>div:last-child { min-width:0; text-align:left; }
 .mgv-gameover-earned-card>div:last-child>strong,.mgv-gameover-earned-card>div:last-child>p { display:block; margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.mgv-gameover-earned-card>div:last-child>strong { margin-top:4px; color:#fff; font-size:12px; }
-.mgv-gameover-earned-card>div:last-child>p { margin-top:2px; color:#a69ead; font-size:10px; }
-.mgv-gameover-earned-card>div:last-child>small { display:block; margin-top:7px; color:#777080; font-size:9px; line-height:1.35; }
-@media (max-width:370px) { .mgv-gameover-earned-card { grid-template-columns:96px minmax(0,1fr); } .mgv-gameover-earned-card>.mgv-gameover-card { width:92px; } }
+.mgv-gameover-earned-card>div:last-child>strong { margin-top:5px; color:#fff; font-size:15px; }
+.mgv-gameover-earned-card>div:last-child>p { margin-top:3px; color:#b2acba; font-size:12px; }
+.mgv-gameover-earned-card>div:last-child>small { display:block; margin-top:8px; color:#817a8c; font-size:10px; line-height:1.45; }
+@media (max-width:370px) { .mgv-gameover-earned-card { grid-template-columns:94px minmax(0,1fr); } .mgv-gameover-earned-card>.mgv-gameover-card { width:88px; } .mgv-gameover-reward-totals strong { font-size:33px; } }
 
 /* v1.9 — Zgadnij Rok: czytelny typ roku + pełny wynik rundy */
 .mgv-yearguess-page .mgv-panel { overflow:visible; }

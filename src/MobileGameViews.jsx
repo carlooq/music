@@ -32,6 +32,7 @@ import {
 import logoImg from './assets/logo-v2.png';
 import homeBg from './assets/home/bg.jpg';
 import iconToken from './assets/icons/icon-token.png';
+import iconHitcoin from './assets/icons/icon-hitcoin.png';
 import glTrening from './assets/icons/gl-trening.png';
 import glPlaylista from './assets/icons/gl-playlista.png';
 import glPiosenka from './assets/icons/gl-piosenka.png';
@@ -134,6 +135,14 @@ function MobileCardPreview({ song, onClose }) {
       </div>
     </div>
   );
+}
+
+function rewardTypeIcon(label, kind = 'xp') {
+  const raw = String(label || '').toLowerCase();
+  if (raw.includes('wygran')) return <Trophy size={16} />;
+  if (raw.includes('miejsce')) return <Crown size={16} />;
+  if (kind === 'hitcoin') return <Gift size={16} />;
+  return <Gamepad2 size={16} />;
 }
 
 function MobileSession({ children, className = '' }) {
@@ -1428,21 +1437,48 @@ export function MobileGameOverView({ room, playerId, isHost, onPlayAgain, onLeav
         <Panel className="mgv-reward-panel mgv-gameover-persistent-rewards" accent="violet">
           <div className="mgv-section-title"><Gift size={18} /><span>TWOJE NAGRODY</span></div>
           <div className="mgv-gameover-reward-totals">
-            <div><span>XP</span><strong>+{rewardXpTotal}</strong></div>
-            <div><span>HITCOIN</span><strong>+{gameEndReveal.hitcoinTotal || 0}</strong></div>
+            <div className="xp">
+              <span>ZDOBYTE XP</span>
+              <strong>+{rewardXpTotal}</strong>
+              <small>łącznie +{rewardXpTotal}</small>
+            </div>
+            <div className="hitcoin">
+              <span><img src={iconHitcoin} alt="" /> HITCOIN</span>
+              <strong>+{gameEndReveal.hitcoinTotal || 0}</strong>
+              <small>łącznie +{gameEndReveal.hitcoinTotal || 0}</small>
+            </div>
           </div>
           <div className="mgv-gameover-reward-details">
             {gameEndReveal.xpItems.map((item, index) => (
-              <div className="mgv-reward-row" key={`xp-${index}`}><span>{item.label}</span><strong>+{item.amount} XP</strong></div>
+              <div className="mgv-reward-row xp" key={`xp-${index}`}>
+                <span className="mgv-reward-row-label">
+                  <i className="mgv-reward-row-icon">{rewardTypeIcon(item.label, 'xp')}</i>
+                  <span>{item.label}</span>
+                </span>
+                <strong className="mgv-reward-row-value">+{item.amount} XP</strong>
+              </div>
             ))}
             {gameEndReveal.hitcoinItems.map((item, index) => (
-              <div className="mgv-reward-row" key={`hc-${index}`}><span>{item.label}</span><strong>+{item.amount} 🪙</strong></div>
+              <div className="mgv-reward-row hitcoin" key={`hc-${index}`}>
+                <span className="mgv-reward-row-label">
+                  <i className="mgv-reward-row-icon">{rewardTypeIcon(item.label, 'hitcoin')}</i>
+                  <span>{item.label}</span>
+                </span>
+                <strong className="mgv-reward-row-value with-hitcoin">
+                  +{item.amount} <img src={iconHitcoin} alt="" />
+                </strong>
+              </div>
             ))}
           </div>
           {gameEndReveal.card ? (
             <div className="mgv-gameover-earned-card">
               <GameOverCollectibleCard song={gameEndReveal.card.song} />
-              <div><span className="mgv-eyebrow">{gameEndReveal.card.isDuplicate ? 'DUPLIKAT' : 'NOWA KARTA'}</span><strong>{gameEndReveal.card.song?.artist}</strong><p>{gameEndReveal.card.song?.title}</p><small>{gameEndReveal.card.isDuplicate ? 'Masz już tę kartę w kolekcji.' : 'Karta została dodana do Twojej kolekcji.'}</small></div>
+              <div>
+                <span className="mgv-eyebrow">{gameEndReveal.card.isDuplicate ? 'DUPLIKAT W KOLEKCJI' : 'NOWA KARTA'}</span>
+                <strong>{gameEndReveal.card.song?.artist}</strong>
+                <p>{gameEndReveal.card.song?.title}</p>
+                <small>{gameEndReveal.card.isDuplicate ? 'Masz już tę kartę w kolekcji.' : 'Karta została dodana do Twojej kolekcji.'}</small>
+              </div>
             </div>
           ) : null}
         </Panel>
