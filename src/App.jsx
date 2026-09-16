@@ -15,7 +15,7 @@ import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
 import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId, fuzzyMatch } from "./utils.js";
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError, ensureSignedIn } from "./auth.js";
-import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, getLeaderboardPosition, awardXp, xpForLevel, levelFromXp, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag, getWeeklyChallenges, bumpWeeklyChallengeProgress, claimWeeklyChallenge, currentSeasonKey, seasonNumber, seasonRankForWins, SEASON_RANKS, updateSeasonProgress, getSeasonLeaderboard, getSeasonLeaderboardPosition, processSeasonRewardsIfNeeded, getPlayerSeasonHistory, consumeNextRewardNotice, recordYearGuessRankingResult, getYearGuessLeaderboard, getYearGuessLeaderboardPosition } from "./stats.js";
+import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, getLeaderboardPosition, awardXp, xpForLevel, levelFromXp, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag, getWeeklyChallenges, bumpWeeklyChallengeProgress, claimWeeklyChallenge, currentSeasonKey, seasonNumber, seasonRankForWins, SEASON_RANKS, updateSeasonProgress, getSeasonLeaderboard, getSeasonLeaderboardPosition, processSeasonRewardsIfNeeded, getPlayerSeasonHistory, consumeNextRewardNotice, recordYearGuessRankingResult, getYearGuessLeaderboard, getYearGuessLeaderboardPosition, freezeSeasonZeroForRemainingPlayers } from "./stats.js";
 import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss, incrementSongPlayCount, getSongCount } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
 import { heartbeat, clearPresence, getOnlinePlayers } from "./presence.js";
@@ -1237,6 +1237,8 @@ export default function App() {
   const [duplicateSongs, setDuplicateSongs] = useState(null);
   const [duplicateScanBusy, setDuplicateScanBusy] = useState(false);
   const [cleanupBusy, setCleanupBusy] = useState(false);
+  const [seasonZeroFreezeBusy, setSeasonZeroFreezeBusy] = useState(false);
+  const [seasonZeroFreezeResult, setSeasonZeroFreezeResult] = useState(null);
   const [cleanupResult, setCleanupResult] = useState(null);
   const [cleanupProgress, setCleanupProgress] = useState(null);
   const [brokenLinkReports, setBrokenLinkReports] = useState(null);
@@ -1336,13 +1338,20 @@ export default function App() {
   async function getLiveLibraryPool() {
     let pool = librarySongs;
     if (!pool || pool.length === 0) {
-      try {
-        pool = await fetchAllSongsFromDb();
-        setLibrarySongs(pool);
-        saveLibraryCache(pool);
-      } catch (e) {
-        pool = REAL_SONGS; // ostateczny fallback, gdyby Firestore było niedostępne
+      // Bez cichego planu B — jeśli appka nie może dociągnąć prawdziwej,
+      // aktualnej bazy z Firestore, każdy tryb ma o tym jawnie wiedzieć
+      // (i pokazać błąd), zamiast po cichu grać na starej, wbudowanej w kod
+      // liście sprzed miesięcy. Firestore w trybie offline potrafi też
+      // "po cichu" zwrócić pustą, ale formalnie udaną odpowiedź (0 dokumentów)
+      // zamiast rzucić błędem — dlatego sprawdzamy też realną długość wyniku,
+      // nie tylko czy coś rzuciło wyjątek.
+      const fresh = await fetchAllSongsFromDb();
+      if (!Array.isArray(fresh) || fresh.length === 0) {
+        throw new Error("Nie udało się pobrać bazy utworów z serwera. Sprawdź połączenie z internetem i spróbuj ponownie.");
       }
+      pool = fresh;
+      setLibrarySongs(pool);
+      saveLibraryCache(pool);
     } else {
       // Obrona przed nieaktualnym stanem w pamięci: `librarySongs` mogło zostać
       // ustawione wcześniej w tej sesji (np. ze starego cache w localStorage)
@@ -1360,6 +1369,8 @@ export default function App() {
         }
       } catch (e) {
         // brak internetu/Firestore w tej chwili — gramy dalej z tym co mamy
+        // w pamięci (to i tak jest już PRAWDZIWA baza z poprzedniego,
+        // udanego pobrania w tej sesji, nie wbudowana lista zapasowa)
       }
     }
     return pool;
@@ -3232,13 +3243,27 @@ export default function App() {
     }
   }
 
-  function startHitRush() {
+  async function startHitRush() {
     if (!user) {
       setShowAuthForm(true);
       setError("Zaloguj się lub załóż konto, aby zagrać w Hit Rush. Trening jest dostępny bez konta.");
       return;
     }
-    const pool = effectivePool.filter((s) => s.year && s.videoId);
+    setBusy(true);
+    let pool;
+    try {
+      const livePool = await getLiveLibraryPool();
+      pool = livePool.filter((s) => s.year && s.videoId);
+    } catch (e) {
+      setBusy(false);
+      setError("Nie udało się pobrać bazy utworów. Sprawdź internet i spróbuj ponownie.");
+      return;
+    }
+    setBusy(false);
+    if (pool.length < 15) {
+      pool = effectivePool.filter((s) => s.year && s.videoId);
+    }
+    setBusy(false);
     if (pool.length < 15) {
       setError("Za mało utworów w bazie, żeby uruchomić Hit Rush.");
       return;
@@ -5512,6 +5537,39 @@ export default function App() {
             </section>
 
             <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🧊 Dopełnij zamrożenie Sezonu 0</p>
+              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
+                Zamraża na stałe wynik Sezonu 0 dla wszystkich graczy, którzy jeszcze go nie mają (top 3 ma to już zrobione wcześniej i nie zostanie tknięte). Bez tego wynik Sezonu 0 rośnie bez końca wraz z kolejnymi grami — po tym zamrożeniu przestanie się zmieniać.
+              </p>
+              <button
+                onClick={async () => {
+                  setSeasonZeroFreezeBusy(true);
+                  setSeasonZeroFreezeResult(null);
+                  try {
+                    const res = await freezeSeasonZeroForRemainingPlayers();
+                    setSeasonZeroFreezeResult(res);
+                  } catch (e) {
+                    setSeasonZeroFreezeResult({ error: e.message });
+                  } finally {
+                    setSeasonZeroFreezeBusy(false);
+                  }
+                }}
+                disabled={seasonZeroFreezeBusy}
+                className="px-4 py-2 rounded-lg text-sm font-bold"
+                style={{ background: "var(--surface2)", border: "1px solid var(--accent)", color: "var(--accent)" }}
+              >
+                {seasonZeroFreezeBusy ? "Zamrażam…" : "Dopełnij zamrożenie Sezonu 0"}
+              </button>
+              {seasonZeroFreezeResult && (
+                <p style={{ fontSize: 12, marginTop: 8, color: seasonZeroFreezeResult.error ? "var(--bad)" : "var(--good)" }}>
+                  {seasonZeroFreezeResult.error
+                    ? `Błąd: ${seasonZeroFreezeResult.error}`
+                    : `✓ Zamrożono ${seasonZeroFreezeResult.frozen} nowych, pominięto ${seasonZeroFreezeResult.skippedAlready} już zamrożonych i ${seasonZeroFreezeResult.skippedNoGames} bez gier sprzed sezonów.`}
+                </p>
+              )}
+            </section>
+
+            <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
               <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>
                 🚨 Zgłoszone uszkodzone linki
               </p>
@@ -6040,6 +6098,15 @@ export default function App() {
   const renderSessionUx = (content) => (
     <>
       {content}
+      {error && (
+        <div
+          role="alert"
+          style={{ position: "fixed", left: "50%", bottom: "calc(18px + env(safe-area-inset-bottom))", transform: "translateX(-50%)", zIndex: 400, width: "min(92vw, 420px)", padding: "12px 16px", borderRadius: 14, background: "rgba(40,10,12,0.96)", border: "1px solid var(--bad)", color: "#ffb3b0", fontSize: 13, boxShadow: "0 10px 30px rgba(0,0,0,.5)", display: "flex", alignItems: "center", gap: 10 }}
+        >
+          <span style={{ flex: 1 }}>{error}</span>
+          <button onClick={() => setError("")} style={{ color: "#ffb3b0", textDecoration: "underline", flexShrink: 0 }}>ukryj</button>
+        </div>
+      )}
       <GlobalSessionUx
         playbackUx={playbackUx}
         sharedBoughtNotice={sharedBoughtNotice}
@@ -6078,7 +6145,7 @@ export default function App() {
   }
 
   if (useDesktopSessionViews && screen === "hitRushMenu") {
-    return (
+    return renderSessionUx(
       <DesktopHitRushMenuView
         stats={stats}
         bonusEvery={HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO}
@@ -6416,7 +6483,7 @@ export default function App() {
   }
 
   if (useMobileSessionViews && screen === "hitRushMenu") {
-    return (
+    return renderSessionUx(
       <MobileHitRushMenuView
         stats={stats}
         bonusEvery={HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO}

@@ -791,7 +791,7 @@ async function getHistoricalSeasonPlayers(seasonKey) {
     .then((snap) => snap.docs.map((d) => {
       const data = d.data();
       const selectedSeasonProgress = sk === seasonZeroKey()
-        ? reconstructedSeasonZeroResult(data)
+        ? (data.seasonHistory?.[sk] || reconstructedSeasonZeroResult(data))
         : historicalSeasonResult(data, sk);
       return { uid: d.id, ...data, selectedSeasonProgress };
     }).filter((p) => p.selectedSeasonProgress && Number(p.selectedSeasonProgress.gamesPlayed || 0) > 0))
@@ -1190,4 +1190,33 @@ export async function seedSeasonZeroFromAllTime() {
   }
   await setDoc(doc(db, "seasonArchive", zeroKey), { seasonKey: zeroKey, top: archive, finalizedAt: Date.now(), seeded: true });
   return { seeded: true, zeroKey, top: archive };
+}
+
+// ============================================================
+// JEDNORAZOWE (dopełniające): zamrożenie Sezonu 0 dla WSZYSTKICH
+// pozostałych graczy, nie tylko top 3
+// ============================================================
+// seedSeasonZeroFromAllTime() zamroziło na stałe wynik tylko dla top 3
+// (bo wtedy chodziło głównie o przetestowanie nagród). Reszta graczy nie
+// miała żadnego zamrożonego wpisu, więc ranking historyczny liczył im
+// wynik NA ŻYWO (reconstructedSeasonZeroResult) — a to rośnie bez końca
+// wraz z każdą kolejną rozegraną grą, bo nie ma jak odróżnić "wygranej
+// z Sezonu 0" od "wygranej z bieżącego sezonu" bez zamrożonego punktu
+// odniesienia. Ta funkcja dopełnia brakujące wpisy — NIE rusza tych, które
+// już istnieją (top 3 zostaje z ich oryginalnym, poprawnym zamrożeniem).
+export async function freezeSeasonZeroForRemainingPlayers() {
+  const zeroKey = seasonZeroKey();
+  const snap = await getDocs(collection(db, "userStats"));
+  let frozen = 0;
+  let skippedAlready = 0;
+  let skippedNoGames = 0;
+  for (const docSnap of snap.docs) {
+    const data = docSnap.data();
+    if (data.seasonHistory?.[zeroKey]) { skippedAlready++; continue; }
+    const result = reconstructedSeasonZeroResult(data);
+    if (Number(result.gamesPlayed || 0) <= 0) { skippedNoGames++; continue; }
+    await updateDoc(doc(db, "userStats", docSnap.id), { [`seasonHistory.${zeroKey}`]: result }).catch(() => {});
+    frozen++;
+  }
+  return { frozen, skippedAlready, skippedNoGames };
 }
