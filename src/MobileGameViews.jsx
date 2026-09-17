@@ -630,7 +630,8 @@ export function MobileOpenerView({ room, openerPhase, openerCountdownNum, isPlay
 // ============================================================
 // TRYB "ZGADNIJ ROK" — aktywna runda i wynik rundy
 // ============================================================
-export function MobileYearGuessView({ room, playerId, isPlaying, playElapsed, playCapSeconds, iframeRef, onTogglePlay, onSubmit, onLeave }) {
+export function MobileYearGuessView({ room, playerId, isPlaying, playElapsed, playCapSeconds, iframeRef, onTogglePlay, onSubmit, onLeave, chatInput, setChatInput, onSendChat }) {
+  const [chatOpen, setChatOpen] = useState(false);
   const [yearInput, setYearInput] = useState('');
   const song = room.yearGuessSongs?.[room.yearGuessRoundIndex];
   const myAnswer = room.yearGuessAnswers?.[playerId];
@@ -730,11 +731,13 @@ export function MobileYearGuessView({ room, playerId, isPlaying, playElapsed, pl
           </>
         )}
       </Panel>
+      {!room.practiceYearGuessMode ? <MobileChat open={chatOpen} setOpen={setChatOpen} messages={room.messages || []} playerId={playerId} chatInput={chatInput} setChatInput={setChatInput} onSend={onSendChat} /> : null}
     </MobileSession>
   );
 }
 
-export function MobileYearGuessResultView({ room, playerId, onLeave, resultDurationSeconds = 10 }) {
+export function MobileYearGuessResultView({ room, playerId, onLeave, resultDurationSeconds = 10, chatInput, setChatInput, onSendChat }) {
+  const [chatOpen, setChatOpen] = useState(false);
   const last = room.yearGuessLastRound;
   const [secondsLeft, setSecondsLeft] = useState(resultDurationSeconds);
   const [localResultStartedAt] = useState(() => Date.now());
@@ -814,6 +817,7 @@ export function MobileYearGuessResultView({ room, playerId, onLeave, resultDurat
         <div><span>{isLastRound ? 'PODSUMOWANIE GRY' : 'KOLEJNA RUNDA'}</span><strong>{secondsLeft}s</strong></div>
         <i><b style={{ width: `${Math.max(0, Math.min(100, (secondsLeft / resultDurationSeconds) * 100))}%` }} /></i>
       </div>
+      {!room.practiceYearGuessMode ? <MobileChat open={chatOpen} setOpen={setChatOpen} messages={room.messages || []} playerId={playerId} chatInput={chatInput} setChatInput={setChatInput} onSend={onSendChat} /> : null}
     </MobileSession>
   );
 }

@@ -2898,23 +2898,13 @@ export default function App() {
         if (hadDoubleXp) consumeDoubleXpFlag(user.uid).catch(() => {});
         const xpItemsForReveal = hadDoubleXp ? [...xpItems, { label: "✨ Podwójne XP", amount: baseTotal }] : xpItems;
 
-        // wyzwania tygodniowe (jeśli akurat wypadły w tym tygodniu — funkcja
-        // sama sprawdza i nic nie robi gdy dany typ nie jest w aktualnej 5)
-        bumpWeeklyChallengeProgress(user.uid, "gamesPlayed", 1).catch(() => {});
-        if (!room.yearGuessMode && (room.winnerIds || []).includes(playerId)) {
-          bumpWeeklyChallengeProgress(user.uid, "gamesWon", 1).catch(() => {});
-        }
+        // wyzwania tygodniowe "gamesPlayed"/"gamesWon" oraz ranking sezonowy
+        // przeniesione do niezawodnego, wspólnego miejsca przy końcu gry
+        // (patrz komentarz przy recordGameResult) — tu zostaje tylko seria,
+        // bo to jedyna wartość liczona per-gracz, do której akurat ten
+        // efekt i tak ma już dostęp
         const myBestStreak = room.gameBestStreaks?.[playerId] || 0;
         if (myBestStreak > 0) bumpWeeklyChallengeProgress(user.uid, "bestStreak", myBestStreak).catch(() => {});
-
-        // Główny ranking sezonowy dotyczy wyłącznie klasycznej Hitsteriady.
-        // Zgadnij Rok ma od teraz własny ranking tygodniowy i ogólny.
-        if (!room.yearGuessMode) {
-          updateSeasonProgress(user.uid, {
-            won: (room.winnerIds || []).includes(playerId),
-            guessesCorrect: room.gameGuesses?.[playerId] || 0,
-          }).catch(() => {});
-        }
 
         setMyXp(oldXp + grandTotal);
 
@@ -4792,6 +4782,51 @@ export default function App() {
   // potwierdzonym błędzie bierzemy nową kartę z zapasu talii pokoju i
   // resetujemy zegar minigry. Transakcja zabezpiecza przed kilkukrotną reakcją
   // kilku telefonów jednocześnie.
+  // Zgadnij Rok losuje wszystkie utwory na start (bez zapasowej talii jak
+  // w klasycznej grze) — dlatego zamiennik trzeba dociągnąć z tej samej puli
+  // (z uwzględnieniem kategorii ustawionych przy starcie), pomijając utwory
+  // już wykorzystane w TEJ rozgrywce. Reset odpowiedzi jest celowy: skoro
+  // podmieniamy utwór w trakcie rundy, każdy ma dostać szansę na nowo.
+  async function handleBrokenYearGuessLink(card) {
+    if (!room || !roomId || !card) return;
+    try {
+      const basePool = await getLiveLibraryPool();
+      const cats = room.categories || [];
+      const filterActive = !cats.includes("wszystkie") && cats.length > 0;
+      const pool = filterActive
+        ? basePool.filter((s) => normCategories(s.categories).some((c) => cats.includes(c)))
+        : basePool.filter((s) => !normCategories(s.categories).includes("religijne"));
+      const usedIds = new Set((room.yearGuessSongs || []).map((s) => s.id));
+      const candidates = pool.filter((s) => s.year && s.videoId && !usedIds.has(s.id));
+      if (candidates.length === 0) return; // brak zamiennika — zostaje jak jest
+      const replacement = candidates[Math.floor(Math.random() * candidates.length)];
+
+      const ref = doc(db, "rooms", roomId);
+      let claimed = false;
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const data = snap.data();
+        if (!data || data.status !== "yearGuess") return;
+        const currentSong = data.yearGuessSongs?.[data.yearGuessRoundIndex];
+        if (!currentSong || currentSong.id !== card.id) return; // ktoś już obsłużył tę kartę
+        if (data.brokenLinkHandledVideoId === card.videoId) return;
+        claimed = true;
+        const newSongs = [...data.yearGuessSongs];
+        newSongs[data.yearGuessRoundIndex] = replacement;
+        tx.update(ref, {
+          yearGuessSongs: newSongs,
+          yearGuessStartSeconds: randomStartSeconds(),
+          yearGuessRoundStartedAtMs: Date.now(),
+          yearGuessAnswers: {},
+          brokenLinkHandledVideoId: card.videoId,
+        });
+      });
+      if (claimed) logBrokenLink(card).catch(() => {});
+    } catch (e) {
+      // ciche niepowodzenie — runda po prostu zostaje z zepsutym linkiem do tej rundy
+    }
+  }
+
   async function handleBrokenOpenerLink(card) {
     if (!room || !roomId || !card) return;
     try {
@@ -4943,22 +4978,26 @@ export default function App() {
       ? "opener"
       : screen === "playing" && room?.currentCard
         ? "room"
-        : screen === "hitRush" && hitRush?.running && hitRush?.currentCard && !hitRush?.feedback
-          ? "hitRush"
-          : screen === "home" && showDailySong && dailySong && !dailyResult
-            ? "dailySong"
-            : null;
+        : screen === "yearGuess" && room?.yearGuessSongs?.[room.yearGuessRoundIndex] && !room?.yearGuessAnswers?.[playerId]
+          ? "yearGuess"
+          : screen === "hitRush" && hitRush?.running && hitRush?.currentCard && !hitRush?.feedback
+            ? "hitRush"
+            : screen === "home" && showDailySong && dailySong && !dailyResult
+              ? "dailySong"
+              : null;
 
   const brokenValidationCard =
     brokenValidationMode === "opener"
       ? room?.openerCard
       : brokenValidationMode === "room"
         ? room?.currentCard
-        : brokenValidationMode === "hitRush"
-          ? hitRush?.currentCard
-          : brokenValidationMode === "dailySong"
-            ? dailySong
-            : null;
+        : brokenValidationMode === "yearGuess"
+          ? room?.yearGuessSongs?.[room.yearGuessRoundIndex]
+          : brokenValidationMode === "hitRush"
+            ? hitRush?.currentCard
+            : brokenValidationMode === "dailySong"
+              ? dailySong
+              : null;
 
   // Jeden validator dla wszystkich ekranów odtwarzania. Błąd musi wystąpić
   // dwa razy dla TEJ SAMEJ karty. Dopiero wtedy logujemy ją do brokenLinks i
@@ -5004,6 +5043,7 @@ export default function App() {
       confirmedFired = true;
       if (currentMode === "room") handleBrokenRoomLink(currentCard);
       else if (currentMode === "opener") handleBrokenOpenerLink(currentCard);
+      else if (currentMode === "yearGuess") handleBrokenYearGuessLink(currentCard);
       else if (currentMode === "hitRush") handleBrokenHitRushLink(currentCard);
       else if (currentMode === "dailySong") handleBrokenDailySongLink(currentCard);
     };
@@ -5213,7 +5253,7 @@ export default function App() {
               finishedAtMs: Date.now(),
             });
           }
-          gameOverInfo = { winnerIds, players, practiceMode: !!data.practiceMode };
+          gameOverInfo = { winnerIds, players, practiceMode: !!data.practiceMode, gameGuesses: data.gameGuesses || {} };
           return;
         }
 
@@ -5236,6 +5276,24 @@ export default function App() {
           .filter((p) => p.authed)
           .forEach((p) => {
             recordGameResult(p.id, gameOverInfo.winnerIds.includes(p.id)).catch(() => {});
+            // Statystyki sezonowe MUSZĄ być liczone tu, w tym samym,
+            // niezawodnym miejscu co dożywotnie statystyki (wywoływanym
+            // przez KTÓREGOKOLWIEK gracza, którego klient akurat kończy
+            // grę) — a nie w osobnym efekcie na WŁASNYM kliencie każdego
+            // gracza z osobna. Ten drugi sposób zawodził, gdy ktoś zamknął
+            // appkę zaraz po końcu gry: dożywotnie statystyki i tak się
+            // zapisywały (bo robił to KTOŚ INNY), ale sezonowe — nie,
+            // bo nikt nie uruchomił efektu na JEGO własnym urządzeniu.
+            // Stąd rozjazd między sumą sezonów a kafelkiem dożywotnich
+            // statystyk.
+            bumpWeeklyChallengeProgress(p.id, "gamesPlayed", 1).catch(() => {});
+            if (gameOverInfo.winnerIds.includes(p.id)) {
+              bumpWeeklyChallengeProgress(p.id, "gamesWon", 1).catch(() => {});
+            }
+            updateSeasonProgress(p.id, {
+              won: gameOverInfo.winnerIds.includes(p.id),
+              guessesCorrect: gameOverInfo.gameGuesses?.[p.id] || 0,
+            }).catch(() => {});
           });
       }
     } catch (e) {
@@ -6338,6 +6396,9 @@ export default function App() {
         onTogglePlay={togglePlay}
         onSubmit={submitYearGuessAnswer}
         onLeave={leaveRoom}
+        chatInput={chatInput}
+        setChatInput={setChatInput}
+        onSendChat={sendChatMessage}
       />
     );
   }
@@ -6349,6 +6410,9 @@ export default function App() {
         playerId={playerId}
         onLeave={leaveRoom}
         resultDurationSeconds={room?.practiceYearGuessMode ? 4 : YEAR_GUESS_RESULT_SECONDS}
+        chatInput={chatInput}
+        setChatInput={setChatInput}
+        onSendChat={sendChatMessage}
       />
     );
   }
@@ -6644,6 +6708,9 @@ export default function App() {
         onTogglePlay={togglePlay}
         onSubmit={submitYearGuessAnswer}
         onLeave={leaveRoom}
+        chatInput={chatInput}
+        setChatInput={setChatInput}
+        onSendChat={sendChatMessage}
       />
     );
   }
@@ -6655,6 +6722,9 @@ export default function App() {
         playerId={playerId}
         onLeave={leaveRoom}
         resultDurationSeconds={room?.practiceYearGuessMode ? 4 : YEAR_GUESS_RESULT_SECONDS}
+        chatInput={chatInput}
+        setChatInput={setChatInput}
+        onSendChat={sendChatMessage}
       />
     );
   }

@@ -1280,7 +1280,8 @@ export function DesktopOpenerView({
 }
 
 
-export function DesktopYearGuessView({ room, playerId, isPlaying, playElapsed, playCapSeconds, iframeRef, onTogglePlay, onSubmit, onLeave }) {
+export function DesktopYearGuessView({ room, playerId, isPlaying, playElapsed, playCapSeconds, iframeRef, onTogglePlay, onSubmit, onLeave, chatInput, setChatInput, onSendChat }) {
+  const [chatOpen, setChatOpen] = useState(false);
   const [yearInput, setYearInput] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(60);
   const song = room.yearGuessSongs?.[room.yearGuessRoundIndex];
@@ -1358,11 +1359,13 @@ export function DesktopYearGuessView({ room, playerId, isPlaying, playElapsed, p
           </section>
         </div>
       </div>
+      {!room.practiceYearGuessMode ? <ChatDrawer open={chatOpen} setOpen={setChatOpen} messages={room.messages || []} playerId={playerId} chatInput={chatInput} setChatInput={setChatInput} onSend={onSendChat} /> : null}
     </SessionBackground>
   );
 }
 
-export function DesktopYearGuessResultView({ room, playerId, onLeave, resultDurationSeconds = 10 }) {
+export function DesktopYearGuessResultView({ room, playerId, onLeave, resultDurationSeconds = 10, chatInput, setChatInput, onSendChat }) {
+  const [chatOpen, setChatOpen] = useState(false);
   const last = room.yearGuessLastRound;
   const [secondsLeft, setSecondsLeft] = useState(resultDurationSeconds);
   const [localResultStartedAt] = useState(() => Date.now());
@@ -1438,6 +1441,7 @@ export function DesktopYearGuessResultView({ room, playerId, onLeave, resultDura
 
         <div className="dgv-yearguess-next"><div><span>{isLastRound ? 'PODSUMOWANIE GRY' : 'KOLEJNA RUNDA'}</span><strong>{secondsLeft}s</strong></div><i><b style={{ width: `${Math.max(0, Math.min(100, (secondsLeft / resultDurationSeconds) * 100))}%` }} /></i></div>
       </div>
+      {!room.practiceYearGuessMode ? <ChatDrawer open={chatOpen} setOpen={setChatOpen} messages={room.messages || []} playerId={playerId} chatInput={chatInput} setChatInput={setChatInput} onSend={onSendChat} /> : null}
     </SessionBackground>
   );
 }
