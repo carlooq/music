@@ -9,7 +9,7 @@ import {
   increment,
   arrayUnion,
 } from "firebase/firestore";
-import { db, storage } from "./firebase-config.js";
+import { db, storage, auth } from "./firebase-config.js";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
 import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId, fuzzyMatch } from "./utils.js";
@@ -1105,6 +1105,32 @@ function GameEndRevealPopup({ data, onClose, levelFromXp }) {
       </div>
     </div>
   );
+}
+
+// Zapisy do Firestore czasem padają z powodu wygasłego tokenu logowania —
+// najczęściej gdy telefon miał zablokowany ekran / kartę w tle przez dłuższy
+// czas, i przeglądarka nie zdążyła odświeżyć sesji w tle, zanim gracz wrócił
+// i coś kliknął. Zamiast od razu pokazywać techniczny błąd (i zawieszać
+// rundę, bo czekamy na odpowiedź która nigdy nie doszła), próbujemy raz
+// wymusić świeży token i ponowić zapis — to naprawia się samo w zdecydowanej
+// większości takich przypadków, bez potrzeby ręcznego przelogowania.
+function isLikelyAuthTokenError(e) {
+  const msg = String(e?.message || e?.code || "").toLowerCase();
+  return msg.includes("permission") || msg.includes("unauthenticated") || msg.includes("insufficient");
+}
+
+async function withAuthRetry(fn) {
+  try {
+    return await fn();
+  } catch (e) {
+    if (!isLikelyAuthTokenError(e) || !auth.currentUser) throw e;
+    try {
+      await auth.currentUser.getIdToken(true); // wymuś świeży token, pomijając cache
+    } catch (refreshError) {
+      throw e; // token faktycznie nieważny (naprawdę wylogowany) — oddajemy oryginalny błąd
+    }
+    return await fn(); // druga, ostatnia próba na świeżym tokenie
+  }
 }
 
 export default function App() {
@@ -4249,7 +4275,7 @@ export default function App() {
     if (!room || room.status !== "yearGuess") return;
     const ref = doc(db, "rooms", roomId);
     try {
-      await runTransaction(db, async (tx) => {
+      await withAuthRetry(() => runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
         if (data.status !== "yearGuess") return; // runda już rozstrzygnięta
@@ -4262,7 +4288,7 @@ export default function App() {
         } else {
           tx.update(ref, { yearGuessAnswers: answers });
         }
-      });
+      }));
     } catch (e) {
       setError("Błąd zapisu odpowiedzi: " + e.message);
     }
@@ -4416,7 +4442,7 @@ export default function App() {
       const ref = doc(db, "rooms", roomId);
       let capturedResult = null;
       let instantGuessAwardedTo = null;
-      await runTransaction(db, async (tx) => {
+      await withAuthRetry(() => runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
         if (data.status !== "playing") return; // runda już się rozstrzygnęła (np. timeout) — nie dokładamy karty drugi raz
@@ -4482,7 +4508,7 @@ export default function App() {
             ...(hasGuess ? { [`tokens.${data.currentPlayerId}`]: increment(1) } : {}),
           });
         }
-      });
+      }));
       if (capturedResult && !capturedResult.practiceMode && capturedResult.card?.id) {
         incrementSongPlayCount(capturedResult.card.id).catch(() => {});
       }
