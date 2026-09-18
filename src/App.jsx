@@ -27,7 +27,7 @@ import { getOrCreateDailyPlaylist, hasPlayedPlaylistToday, recordDailyPlaylistSc
 import { createTournament, cancelTournament, fetchActiveTournament, fetchLastCompletedTournament, fetchTournament, signUpForTournament, recordTournamentMatchResult, checkAndAdvanceTournament, settleTournamentXpIfNeeded, pickMatchPlaylist, getTournamentUserState } from "./tournaments.js";
 import { awardHitcoin, computeWinHitcoin, computeSecondPlaceHitcoin, computeThirdPlaceHitcoin, claimDailyHitcoin, drawCardAfterGame, effectiveRarity, PACKS, openPack, SELL_PRICES, sellDuplicateCard, sellAllDuplicates } from "./cards.js";
 import { DAILY_REWARD_SEGMENTS, claimDailyWheelReward } from "./dailyWheel.js";
-import { HIT_RUSH_CONFIG, pickNextHitRushSong, computeHitRushPoints, checkHitRushTimeBonus, difficultyLabel, submitHitRushRun, fetchHitRushLeaderboard, processHitRushWeeklyRewardsIfNeeded } from "./hitRush.js";
+import { HIT_RUSH_CONFIG, pickNextHitRushSong, computeHitRushPoints, checkHitRushTimeBonus, nextHitRushTimeBonus, difficultyLabel, submitHitRushRun, fetchHitRushLeaderboard, processHitRushWeeklyRewardsIfNeeded } from "./hitRush.js";
 import { updateHeadToHead, fetchHeadToHeadOpponents } from "./headToHead.js";
 import { getAchievementProgress, ACHIEVEMENTS } from "./achievements.js";
 import { playCorrectSound, playWrongSound, playApplause, playVictorySound, unlockAudio } from "./sounds.js";
@@ -3328,6 +3328,7 @@ export default function App() {
       timeLeft: HIT_RUSH_CONFIG.ROUND_SECONDS,
       running: true,
       feedback: null,
+      answerReady: false,
       maxDifficulty: "easy",
     });
     setScreen("hitRush");
@@ -3335,33 +3336,39 @@ export default function App() {
 
   function answerHitRush(guess) {
     setHitRush((prev) => {
-      if (!prev || !prev.running || prev.feedback) return prev;
+      // answerReady blokuje spamowanie zanim utwór faktycznie przejdzie walidację
+      // i gracz usłyszy co najmniej krótki fragment.
+      if (!prev || !prev.running || prev.feedback || !prev.answerReady) return prev;
       const isCorrect = guess === "earlier" ? prev.currentCard.year < prev.referenceCard.year : prev.currentCard.year > prev.referenceCard.year;
       const newCombo = isCorrect ? prev.combo + 1 : 0;
       const points = isCorrect ? computeHitRushPoints(newCombo) : 0;
       const timeBonus = isCorrect ? checkHitRushTimeBonus(newCombo) : 0;
+      const timePenalty = isCorrect ? 0 : HIT_RUSH_CONFIG.WRONG_ANSWER_TIME_PENALTY;
+      const nextTimeLeft = Math.max(0, prev.timeLeft + timeBonus - timePenalty);
       return {
         ...prev,
-        feedback: { correct: isCorrect, year: prev.currentCard.year, points, timeBonus },
+        feedback: { correct: isCorrect, year: prev.currentCard.year, points, timeBonus, timePenalty },
         score: prev.score + points,
         combo: newCombo,
         bestCombo: Math.max(prev.bestCombo, newCombo),
         correct: prev.correct + (isCorrect ? 1 : 0),
         wrong: prev.wrong + (isCorrect ? 0 : 1),
-        timeLeft: prev.timeLeft + timeBonus,
+        timeLeft: nextTimeLeft,
+        running: nextTimeLeft > 0,
+        answerReady: false,
         maxDifficulty: isCorrect ? difficultyLabel(newCombo) : prev.maxDifficulty,
       };
     });
     setTimeout(() => {
       setHitRush((prev) => {
-        if (!prev || !prev.feedback) return prev;
+        if (!prev || !prev.feedback || !prev.running || prev.timeLeft <= 0) return prev;
         const newReference = prev.currentCard;
         const usedIds = new Set(prev.usedIds);
         usedIds.add(newReference.id);
         const nextCard = pickNextHitRushSong(prev.pool, newReference.year, prev.combo, usedIds);
-        if (!nextCard) return { ...prev, running: false, timeLeft: 0, feedback: null };
+        if (!nextCard) return { ...prev, running: false, timeLeft: 0, feedback: null, answerReady: false };
         usedIds.add(nextCard.id);
-        return { ...prev, referenceCard: newReference, currentCard: nextCard, currentStartSeconds: randomStartSeconds(), usedIds, feedback: null };
+        return { ...prev, referenceCard: newReference, currentCard: nextCard, currentStartSeconds: randomStartSeconds(), usedIds, feedback: null, answerReady: false };
       });
     }, 900);
   }
@@ -3394,6 +3401,9 @@ export default function App() {
     const id = setInterval(() => {
       setHitRush((prev) => {
         if (!prev || !prev.running) return prev;
+        // Nie zjadamy czasu, gdy YouTube jeszcze się ładuje, trwa minimalny
+        // odsłuch albo pokazujemy 900 ms informacji po odpowiedzi.
+        if (!prev.answerReady || prev.feedback) return prev;
         const timeLeft = prev.timeLeft - 1;
         return { ...prev, timeLeft: Math.max(0, timeLeft), running: timeLeft > 0 };
       });
@@ -3416,11 +3426,41 @@ export default function App() {
     }
   }
 
+  function replayHitRushAudio() {
+    const win = hitRushIframeRef.current?.contentWindow;
+    if (win) {
+      win.postMessage(JSON.stringify({ event: "command", func: "seekTo", args: [Number(hitRush?.currentStartSeconds || 0), true] }), "*");
+    }
+    unlockHitRushAudio();
+  }
+
+  // Autoplay na części przeglądarek potrafi nie ruszyć za pierwszym razem.
+  // Ponawiamy bez zmiany punktów/czasu; przyciski pozostają zablokowane do
+  // czasu potwierdzenia filmu przez validator + minimalnego odsłuchu.
   useEffect(() => {
     if (!hitRush?.currentCard || !hitRush.running) return;
-    const t = setTimeout(unlockHitRushAudio, 600);
-    return () => clearTimeout(t);
-  }, [hitRush?.currentCard?.id, hitRush?.running]);
+    const timers = [180, 650, 1250].map((delay) => setTimeout(unlockHitRushAudio, delay));
+    return () => timers.forEach(clearTimeout);
+  }, [hitRush?.currentCard?.id, hitRush?.currentCard?.videoId, hitRush?.running]);
+
+  const hitRushCurrentCardId = hitRush?.currentCard?.id || hitRush?.currentCard?.videoId || null;
+  useEffect(() => {
+    if (!hitRushCurrentCardId || !hitRush?.running || hitRush?.feedback) return;
+    const validatorReady =
+      playbackUx?.status === "ready" &&
+      playbackUx?.mode === "hitRush" &&
+      playbackUx?.cardId === hitRushCurrentCardId;
+    if (!validatorReady) return;
+
+    const timer = setTimeout(() => {
+      setHitRush((prev) => {
+        const prevCardId = prev?.currentCard?.id || prev?.currentCard?.videoId || null;
+        if (!prev || !prev.running || prev.feedback || prevCardId !== hitRushCurrentCardId || prev.answerReady) return prev;
+        return { ...prev, answerReady: true };
+      });
+    }, HIT_RUSH_CONFIG.MIN_LISTEN_MS);
+    return () => clearTimeout(timer);
+  }, [hitRushCurrentCardId, hitRush?.running, hitRush?.feedback, playbackUx?.status, playbackUx?.mode, playbackUx?.cardId]);
 
   async function handleClaimWeeklyChallengeReward(challengeId) {
     if (!user) return;
@@ -4954,6 +4994,7 @@ export default function App() {
         currentStartSeconds: randomStartSeconds(),
         usedIds,
         feedback: null,
+        answerReady: false,
       };
     });
   }
@@ -6277,7 +6318,8 @@ export default function App() {
       <DesktopHitRushMenuView
         stats={stats}
         bonusEvery={HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO}
-        bonusSeconds={HIT_RUSH_CONFIG.TIME_BONUS_SECONDS}
+        bonusSchedule={HIT_RUSH_CONFIG.TIME_BONUS_SCHEDULE}
+        wrongPenalty={HIT_RUSH_CONFIG.WRONG_ANSWER_TIME_PENALTY}
         onStart={startHitRush}
         onLeaderboard={() => {
           setScreen("hitRushLeaderboard");
@@ -6293,7 +6335,7 @@ export default function App() {
       <DesktopHitRushGameView
         hitRush={hitRush}
         iframeRef={hitRushIframeRef}
-        onReplay={unlockHitRushAudio}
+        onReplay={replayHitRushAudio}
         onAnswer={answerHitRush}
         onExit={() => {
           setHitRush(null);
@@ -6302,7 +6344,8 @@ export default function App() {
         }}
         roundSeconds={HIT_RUSH_CONFIG.ROUND_SECONDS}
         bonusEvery={HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO}
-        bonusSeconds={HIT_RUSH_CONFIG.TIME_BONUS_SECONDS}
+        bonusSchedule={HIT_RUSH_CONFIG.TIME_BONUS_SCHEDULE}
+        wrongPenalty={HIT_RUSH_CONFIG.WRONG_ANSWER_TIME_PENALTY}
         difficulty={difficultyLabel(hitRush.combo)}
       />
     );
@@ -6621,7 +6664,8 @@ export default function App() {
       <MobileHitRushMenuView
         stats={stats}
         bonusEvery={HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO}
-        bonusSeconds={HIT_RUSH_CONFIG.TIME_BONUS_SECONDS}
+        bonusSchedule={HIT_RUSH_CONFIG.TIME_BONUS_SCHEDULE}
+        wrongPenalty={HIT_RUSH_CONFIG.WRONG_ANSWER_TIME_PENALTY}
         onStart={startHitRush}
         onLeaderboard={() => {
           setScreen("hitRushLeaderboard");
@@ -6637,7 +6681,7 @@ export default function App() {
       <MobileHitRushGameView
         hitRush={hitRush}
         iframeRef={hitRushIframeRef}
-        onReplay={unlockHitRushAudio}
+        onReplay={replayHitRushAudio}
         onAnswer={answerHitRush}
         onExit={() => {
           setHitRush(null);
@@ -6646,7 +6690,8 @@ export default function App() {
         }}
         roundSeconds={HIT_RUSH_CONFIG.ROUND_SECONDS}
         bonusEvery={HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO}
-        bonusSeconds={HIT_RUSH_CONFIG.TIME_BONUS_SECONDS}
+        bonusSchedule={HIT_RUSH_CONFIG.TIME_BONUS_SCHEDULE}
+        wrongPenalty={HIT_RUSH_CONFIG.WRONG_ANSWER_TIME_PENALTY}
         difficulty={difficultyLabel(hitRush.combo)}
       />
     );
@@ -9077,7 +9122,7 @@ export default function App() {
                 title="hitrush-audio"
                 width="280"
                 height="158"
-                src={`https://www.youtube.com/embed/${hitRush.currentCard.videoId}?enablejsapi=1&autoplay=1&mute=0&start=${hitRush.currentStartSeconds}&controls=0&modestbranding=1&rel=0`}
+                src={`https://www.youtube.com/embed/${hitRush.currentCard.videoId}?enablejsapi=1&autoplay=1&mute=0&start=${hitRush.currentStartSeconds}&controls=0&modestbranding=1&rel=0&playsinline=1`}
                 allow="autoplay; encrypted-media"
                 style={{ border: "none" }}
                 onLoad={unlockHitRushAudio}
@@ -9100,18 +9145,18 @@ export default function App() {
               </div>
               <div className="text-center" style={{ minWidth: 74 }}>
                 <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "var(--gold)" }}>
-                  🔥 {hitRush.combo % HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO || (hitRush.combo > 0 ? HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO : 0)}/{HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO}
+                  🔥 {hitRush.combo % HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO}/{HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO}
                 </p>
                 <div className="w-full rounded-full" style={{ height: 4, background: "#0d0a17", overflow: "hidden", marginTop: 2 }}>
                   <div
                     style={{
                       height: "100%",
-                      width: `${((hitRush.combo % HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO) / HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO) * 100 || (hitRush.combo > 0 ? 100 : 0)}%`,
+                      width: `${((hitRush.combo % HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO) / HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO) * 100}%`,
                       background: "linear-gradient(90deg,#ff5fc9,#f5c451)",
                     }}
                   />
                 </div>
-                <p style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase" }}>Combo +{HIT_RUSH_CONFIG.TIME_BONUS_SECONDS}s</p>
+                <p style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase" }}>Następny bonus +{nextHitRushTimeBonus(hitRush.combo).seconds}s</p>
               </div>
             </div>
 
@@ -9149,7 +9194,7 @@ export default function App() {
             </div>
 
             <button
-              onClick={unlockHitRushAudio}
+              onClick={replayHitRushAudio}
               className="flex items-center justify-center font-bold"
               style={{
                 width: "62%",
@@ -9167,24 +9212,30 @@ export default function App() {
             </button>
 
             <div style={{ minHeight: 44, textAlign: "center" }}>
-              {hitRush.feedback && (
+              {hitRush.feedback ? (
                 <div style={{ animation: "scale-pop-in 0.25s ease" }}>
                   <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: hitRush.feedback.correct ? "var(--good)" : "var(--bad)" }}>
                     {hitRush.feedback.correct ? "✓ DOBRZE" : "✕ ŹLE"} — {hitRush.feedback.year}
                   </p>
-                  {hitRush.feedback.points > 0 && (
+                  {hitRush.feedback.correct ? (
                     <p style={{ fontSize: 13, color: "#2af598" }}>
                       +{hitRush.feedback.points} pkt{hitRush.feedback.timeBonus > 0 ? ` · +${hitRush.feedback.timeBonus}s COMBO ${hitRush.combo}!` : ""}
                     </p>
+                  ) : (
+                    <p style={{ fontSize: 13, color: "var(--bad)" }}>−{hitRush.feedback.timePenalty || HIT_RUSH_CONFIG.WRONG_ANSWER_TIME_PENALTY}s · combo od zera</p>
                   )}
                 </div>
+              ) : (
+                <p style={{ fontSize: 12, color: hitRush.answerReady ? "var(--good)" : "var(--muted)" }}>
+                  {hitRush.answerReady ? "Możesz odpowiadać." : "Uruchamiam fragment… zegar czeka."}
+                </p>
               )}
             </div>
 
             <div className="flex gap-3 w-full">
               <button
                 onClick={() => answerHitRush("earlier")}
-                disabled={!!hitRush.feedback}
+                disabled={!!hitRush.feedback || !hitRush.answerReady}
                 className="flex-1 flex items-center justify-center font-bold"
                 style={{
                   aspectRatio: "1672 / 941",
@@ -9194,14 +9245,14 @@ export default function App() {
                   border: "none",
                   color: "#bfeeff",
                   fontSize: 16,
-                  opacity: hitRush.feedback ? 0.5 : 1,
+                  opacity: hitRush.feedback || !hitRush.answerReady ? 0.5 : 1,
                 }}
               >
                 ← WCZEŚNIEJ
               </button>
               <button
                 onClick={() => answerHitRush("later")}
-                disabled={!!hitRush.feedback}
+                disabled={!!hitRush.feedback || !hitRush.answerReady}
                 className="flex-1 flex items-center justify-center font-bold"
                 style={{
                   aspectRatio: "1672 / 941",
@@ -9211,7 +9262,7 @@ export default function App() {
                   border: "none",
                   color: "#ffd7f3",
                   fontSize: 16,
-                  opacity: hitRush.feedback ? 0.5 : 1,
+                  opacity: hitRush.feedback || !hitRush.answerReady ? 0.5 : 1,
                 }}
               >
                 PÓŹNIEJ →
@@ -10237,13 +10288,12 @@ export default function App() {
               <p>🔄 Po każdej odpowiedzi aktualny utwór staje się nową kartą referencyjną.</p>
               <p>🔥 Poprawne odpowiedzi budują combo i zwiększają zdobywane punkty.</p>
               <p>📈 Im większe combo, tym trudniejsze porównania — różnica między latami będzie coraz mniejsza.</p>
-              <p>
-                ⏱️ Masz {HIT_RUSH_CONFIG.ROUND_SECONDS} sekund. Za {HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO} poprawnych odpowiedzi z rzędu otrzymujesz +
-                {HIT_RUSH_CONFIG.TIME_BONUS_SECONDS} sekund.
-              </p>
+              <p>⏱️ Masz {HIT_RUSH_CONFIG.ROUND_SECONDS} sekund aktywnej gry. Zegar zatrzymuje się, gdy fragment jeszcze się uruchamia i podczas krótkiego wyniku odpowiedzi.</p>
+              <p>⚡ Bonus czasu za serię: combo 5 = +7s, combo 10 = +8s, combo 15 i każde kolejne 5 trafień = +10s.</p>
+              <p>❌ Błędna odpowiedź zeruje combo i odejmuje {HIT_RUSH_CONFIG.WRONG_ANSWER_TIME_PENALTY} sekundy.</p>
               <p>🏆 Zdobądź jak najwięcej punktów i pobij swój rekord!</p>
             </div>
-            <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 14, fontStyle: "italic" }}>Błąd zeruje combo, ale gra trwa dalej.</p>
+            <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 14, fontStyle: "italic" }}>Mnożniki punktów pozostają bez zmian — wysoki wynik nadal nagradza długie, poprawne combo.</p>
           </div>
         </div>
       )}

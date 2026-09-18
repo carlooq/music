@@ -243,6 +243,20 @@ function hitRushDifficultyMeta(key) {
   }[key] || { label: 'ŁATWO', className: 'easy' };
 }
 
+function hitRushNextBonusMeta(combo = 0, bonusEvery = 5, bonusSchedule = []) {
+  const every = Math.max(1, Number(bonusEvery) || 5);
+  const safeCombo = Math.max(0, Number(combo) || 0);
+  const nextCombo = (Math.floor(safeCombo / every) + 1) * every;
+  const sorted = [...bonusSchedule].sort((a, b) => Number(b.minCombo || 0) - Number(a.minCombo || 0));
+  const seconds = Number(sorted.find((step) => nextCombo >= Number(step.minCombo || 0))?.seconds || 0);
+  return { combo: nextCombo, seconds, remaining: Math.max(0, nextCombo - safeCombo) };
+}
+
+function hitRushBonusSummary(bonusSchedule = []) {
+  const sorted = [...bonusSchedule].sort((a, b) => Number(a.minCombo || 0) - Number(b.minCombo || 0));
+  return sorted.map((step, index) => `${step.minCombo}${index === sorted.length - 1 ? '+' : ''} trafień = +${step.seconds}s`).join(' · ');
+}
+
 function hitRushRankMeta(rank) {
   return {
     bronze: { label: 'BRONZE', className: 'bronze' },
@@ -253,7 +267,8 @@ function hitRushRankMeta(rank) {
   }[rank] || { label: 'BEZ RANGI', className: 'none' };
 }
 
-function DesktopHitRushHowTo({ onClose, bonusEvery = 5, bonusSeconds = 5 }) {
+function DesktopHitRushHowTo({ onClose, bonusEvery = 5, bonusSchedule = [], wrongPenalty = 2 }) {
+  const bonusSummary = hitRushBonusSummary(bonusSchedule);
   return (
     <div className="dgv-hr-help-backdrop" role="dialog" aria-modal="true" aria-label="Jak grać w Hit Rush" onClick={onClose}>
       <div className="dgv-hr-help" onClick={(event) => event.stopPropagation()}>
@@ -265,17 +280,18 @@ function DesktopHitRushHowTo({ onClose, bonusEvery = 5, bonusSeconds = 5 }) {
           <div><strong>01</strong><span>POSŁUCHAJ</span><p>Fragment nowego utworu odtwarza się automatycznie. Możesz uruchomić go ponownie.</p></div>
           <div><strong>02</strong><span>PORÓWNAJ</span><p>Spójrz na rok karty referencyjnej i wybierz WCZEŚNIEJ albo PÓŹNIEJ.</p></div>
           <div><strong>03</strong><span>BUDUJ COMBO</span><p>Seria trafień zwiększa mnożnik punktów i stopniowo zmniejsza różnicę lat między utworami.</p></div>
-          <div><strong>04</strong><span>WALCZ O CZAS</span><p>Co {bonusEvery} poprawnych odpowiedzi z rzędu dostajesz +{bonusSeconds} sekund.</p></div>
+          <div><strong>04</strong><span>WALCZ O CZAS</span><p>{bonusSummary || `Bonus co ${bonusEvery} trafień`}. Błąd kosztuje −{wrongPenalty}s.</p></div>
         </div>
-        <div className="dgv-hr-help-note"><Zap size={18} /> Błąd zeruje combo, ale nie kończy runu. Grasz aż skończy się czas.</div>
+        <div className="dgv-hr-help-note"><Zap size={18} /> Mnożniki punktów zostają bez zmian. Zegar czeka, gdy fragment jeszcze się uruchamia i podczas krótkiego wyniku odpowiedzi.</div>
         <button type="button" className="dgv-start-button dgv-hr-help-done" onClick={onClose}>WSZYSTKO JASNE <ChevronRight size={20} /></button>
       </div>
     </div>
   );
 }
 
-export function DesktopHitRushMenuView({ stats, onStart, onLeaderboard, onHome, bonusEvery = 5, bonusSeconds = 5 }) {
+export function DesktopHitRushMenuView({ stats, onStart, onLeaderboard, onHome, bonusEvery = 5, bonusSchedule = [], wrongPenalty = 2 }) {
   const [showHelp, setShowHelp] = useState(false);
+  const bonusSummary = hitRushBonusSummary(bonusSchedule);
   const bestScore = Number(stats?.hitRushBestScore || 0);
   const bestCombo = Number(stats?.hitRushBestCombo || 0);
   const totalRuns = Number(stats?.hitRushRunsTotal || 0);
@@ -339,24 +355,27 @@ export function DesktopHitRushMenuView({ stats, onStart, onLeaderboard, onHome, 
           <section className="dgv-panel dgv-hr-rules-card">
             <div className="dgv-section-heading"><Flame size={18} /> CO NAPĘDZA WYNIK?</div>
             <div className="dgv-hr-rule"><span>COMBO</span><strong>większy mnożnik punktów</strong></div>
-            <div className="dgv-hr-rule"><span>CO {bonusEvery} TRAFIEŃ</span><strong>+{bonusSeconds}s do zegara</strong></div>
+            <div className="dgv-hr-rule"><span>BONUSY CZASU</span><strong>{bonusSummary || `co ${bonusEvery} trafień`}</strong></div>
+            <div className="dgv-hr-rule"><span>BŁĄD</span><strong>−{wrongPenalty}s + reset combo</strong></div>
             <div className="dgv-hr-rule"><span>TRUDNOŚĆ</span><strong>coraz bliższe lata</strong></div>
             <button type="button" className="dgv-hr-ranking-button" onClick={onLeaderboard}><Trophy size={18} /> RANKING HIT RUSH <ChevronRight size={18} /></button>
           </section>
         </div>
       </div>
-      {showHelp ? <DesktopHitRushHowTo onClose={() => setShowHelp(false)} bonusEvery={bonusEvery} bonusSeconds={bonusSeconds} /> : null}
+      {showHelp ? <DesktopHitRushHowTo onClose={() => setShowHelp(false)} bonusEvery={bonusEvery} bonusSchedule={bonusSchedule} wrongPenalty={wrongPenalty} /> : null}
     </SessionBackground>
   );
 }
 
-export function DesktopHitRushGameView({ hitRush, iframeRef, onReplay, onAnswer, onExit, roundSeconds = 60, bonusEvery = 5, bonusSeconds = 5, difficulty = 'easy' }) {
+export function DesktopHitRushGameView({ hitRush, iframeRef, onReplay, onAnswer, onExit, roundSeconds = 60, bonusEvery = 5, bonusSchedule = [], wrongPenalty = 2, difficulty = 'easy' }) {
   if (!hitRush?.referenceCard || !hitRush?.currentCard) return null;
   const feedback = hitRush.feedback;
   const difficultyMeta = hitRushDifficultyMeta(difficulty);
+  const nextBonus = hitRushNextBonusMeta(hitRush.combo, bonusEvery, bonusSchedule);
   const currentComboProgress = bonusEvery > 0 ? hitRush.combo % bonusEvery : 0;
-  const untilBonus = bonusEvery > 0 ? (currentComboProgress === 0 ? bonusEvery : bonusEvery - currentComboProgress) : 0;
+  const untilBonus = nextBonus.remaining;
   const bonusProgress = bonusEvery > 0 ? (currentComboProgress / bonusEvery) * 100 : 0;
+  const answerLocked = !hitRush.answerReady || !!feedback;
   const timeProgress = Math.max(0, Math.min(100, (Number(hitRush.timeLeft || 0) / roundSeconds) * 100));
   const answeredCount = Number(hitRush.correct || 0) + Number(hitRush.wrong || 0);
 
@@ -414,24 +433,28 @@ export function DesktopHitRushGameView({ hitRush, iframeRef, onReplay, onAnswer,
                 key={hitRush.currentCard.videoId}
                 ref={iframeRef}
                 title="hitrush-audio-desktop"
-                src={`https://www.youtube.com/embed/${hitRush.currentCard.videoId}?enablejsapi=1&autoplay=1&mute=0&start=${hitRush.currentStartSeconds}&controls=0&modestbranding=1&rel=0`}
+                src={`https://www.youtube.com/embed/${hitRush.currentCard.videoId}?enablejsapi=1&autoplay=1&mute=0&start=${hitRush.currentStartSeconds}&controls=0&modestbranding=1&rel=0&playsinline=1`}
                 allow="autoplay; encrypted-media"
                 onLoad={onReplay}
               />
             </div>
 
             <div className="dgv-hr-choice-row">
-              <button type="button" className="earlier" disabled={!!feedback} onClick={() => onAnswer('earlier')}><ArrowLeft size={25} /> <div><span>WYBIERAM</span><strong>WCZEŚNIEJ</strong></div></button>
-              <button type="button" className="later" disabled={!!feedback} onClick={() => onAnswer('later')}><div><span>WYBIERAM</span><strong>PÓŹNIEJ</strong></div><ChevronRight size={28} /></button>
+              <button type="button" className="earlier" disabled={answerLocked} onClick={() => onAnswer('earlier')}><ArrowLeft size={25} /> <div><span>WYBIERAM</span><strong>WCZEŚNIEJ</strong></div></button>
+              <button type="button" className="later" disabled={answerLocked} onClick={() => onAnswer('later')}><div><span>WYBIERAM</span><strong>PÓŹNIEJ</strong></div><ChevronRight size={28} /></button>
             </div>
 
             <div className={`dgv-hr-feedback ${feedback ? (feedback.correct ? 'good' : 'bad') : 'idle'}`}>
               {feedback ? (
                 <>
                   <span className="icon">{feedback.correct ? <Check size={23} /> : <X size={23} />}</span>
-                  <div><strong>{feedback.correct ? 'DOBRZE!' : 'NIE TYM RAZEM'}</strong><small>{feedback.correct ? `+${feedback.points} pkt${feedback.timeBonus ? ` · +${feedback.timeBonus}s` : ''}` : `Poprawny rok: ${feedback.year}`}</small></div>
+                  <div><strong>{feedback.correct ? 'DOBRZE!' : 'NIE TYM RAZEM'}</strong><small>{feedback.correct ? `+${feedback.points} pkt${feedback.timeBonus ? ` · +${feedback.timeBonus}s` : ''}` : `Poprawny rok: ${feedback.year} · −${feedback.timePenalty || wrongPenalty}s · combo od zera`}</small></div>
                 </>
-              ) : <><Sparkles size={18} /><span>Wybierz wcześniej lub później. Odpowiedź zobaczysz od razu.</span></>}
+              ) : hitRush.answerReady ? (
+                <><Sparkles size={18} /><span>Wybierz wcześniej lub później. Odpowiedź zobaczysz od razu.</span></>
+              ) : (
+                <><Headphones size={18} /><span>Uruchamiam fragment… zegar czeka, a odpowiedzi odblokują się po krótkim odsłuchu.</span></>
+              )}
             </div>
           </main>
 
@@ -447,7 +470,7 @@ export function DesktopHitRushGameView({ hitRush, iframeRef, onReplay, onAnswer,
               <div className="dgv-section-heading"><Flame size={18} /> COMBO</div>
               <div className="dgv-hr-combo-value">{hitRush.combo}<span>x</span></div>
               <div className="dgv-hr-combo-track"><span style={{ width: `${bonusProgress}%` }} /></div>
-              <p>{untilBonus === bonusEvery && hitRush.combo > 0 ? `Kolejne +${bonusSeconds}s za ${bonusEvery} trafień` : `Jeszcze ${untilBonus} ${untilBonus === 1 ? 'trafienie' : 'trafień'} do +${bonusSeconds}s`}</p>
+              <p>Jeszcze {untilBonus} {untilBonus === 1 ? 'trafienie' : 'trafień'} do +{nextBonus.seconds}s (combo {nextBonus.combo})</p>
               <div className="dgv-hr-best-combo"><span>NAJLEPSZE W TYM RUNIE</span><strong>{hitRush.bestCombo}</strong></div>
             </section>
 

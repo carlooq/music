@@ -1482,12 +1482,27 @@ function hitRushDifficultyMeta(key) {
   return { easy: ['ŁATWO', 'easy'], normal: ['NORMALNIE', 'normal'], hard: ['TRUDNO', 'hard'], expert: ['EKSPERT', 'expert'], insane: ['SZALEŃSTWO', 'insane'] }[key] || ['ŁATWO', 'easy'];
 }
 
-export function MobileHitRushMenuView({ stats, onStart, onLeaderboard, onHome, bonusEvery = 10, bonusSeconds = 5 }) {
+function hitRushNextBonusMeta(combo = 0, bonusEvery = 5, bonusSchedule = []) {
+  const every = Math.max(1, Number(bonusEvery) || 5);
+  const safeCombo = Math.max(0, Number(combo) || 0);
+  const nextCombo = (Math.floor(safeCombo / every) + 1) * every;
+  const sorted = [...bonusSchedule].sort((a, b) => Number(b.minCombo || 0) - Number(a.minCombo || 0));
+  const seconds = Number(sorted.find((step) => nextCombo >= Number(step.minCombo || 0))?.seconds || 0);
+  return { combo: nextCombo, seconds, remaining: Math.max(0, nextCombo - safeCombo) };
+}
+
+function hitRushBonusSummary(bonusSchedule = []) {
+  const sorted = [...bonusSchedule].sort((a, b) => Number(a.minCombo || 0) - Number(b.minCombo || 0));
+  return sorted.map((step, index) => `${step.minCombo}${index === sorted.length - 1 ? '+' : ''}: +${step.seconds}s`).join(' · ');
+}
+
+export function MobileHitRushMenuView({ stats, onStart, onLeaderboard, onHome, bonusEvery = 5, bonusSchedule = [], wrongPenalty = 2 }) {
+  const bonusSummary = hitRushBonusSummary(bonusSchedule);
   return (
     <MobileSession className="mgv-hitrush-menu">
       <MobileHeader eyebrow="TRYB SOLO NA CZAS" title="HIT RUSH" onBack={onHome} right={<span className="mgv-timer"><Zap size={15} />60s</span>} />
       <ModeHero icon={glHitRush} eyebrow="REFLEKS · WIEDZA · COMBO" title="WCZEŚNIEJ CZY PÓŹNIEJ?" description="Porównuj lata wydania, buduj combo i wyciśnij jak najwięcej punktów z 60 sekund." accent="green">
-        <div className="mgv-hero-chips"><span><Flame size={14} /> +{bonusSeconds}s co {bonusEvery}</span><span><Zap size={14} /> tempo rośnie</span></div>
+        <div className="mgv-hero-chips"><span><Flame size={14} /> {bonusSummary || `bonus co ${bonusEvery}`}</span><span><Zap size={14} /> błąd −{wrongPenalty}s</span></div>
       </ModeHero>
       <div className="mgv-result-stat-grid hitrush"><div><Trophy size={18} /><strong>{stats?.hitRushBestScore || 0}</strong><span>rekord</span></div><div><Flame size={18} /><strong>{stats?.hitRushBestCombo || 0}</strong><span>best combo</span></div><div><Gamepad2 size={18} /><strong>{stats?.hitRushRunsTotal || 0}</strong><span>runów</span></div></div>
       <div className="mgv-action-stack mgv-hitrush-menu-actions">
@@ -1495,29 +1510,35 @@ export function MobileHitRushMenuView({ stats, onStart, onLeaderboard, onHome, b
         <button type="button" className="mgv-secondary-cta" onClick={onLeaderboard}><Trophy size={18} /> RANKING HIT RUSH</button>
       </div>
       <MobileWeeklyRankingRewards modeLabel="Hit Rush" />
-      <Panel className="mgv-howto-mini"><div className="mgv-section-title"><Sparkles size={18} /><span>JAK TO DZIAŁA?</span></div><div className="mgv-howto-steps"><div><b>1</b><span>Posłuchaj</span></div><div><b>2</b><span>Porównaj</span></div><div><b>3</b><span>Wcześniej / później</span></div><div><b>4</b><span>Buduj combo</span></div></div></Panel>
+      <Panel className="mgv-howto-mini"><div className="mgv-section-title"><Sparkles size={18} /><span>JAK TO DZIAŁA?</span></div><div className="mgv-howto-steps"><div><b>1</b><span>Posłuchaj</span></div><div><b>2</b><span>Porównaj</span></div><div><b>3</b><span>Wcześniej / później</span></div><div><b>4</b><span>Buduj combo</span></div></div><small className="mgv-hr-rules-note">Mnożniki bez zmian · zła odpowiedź: −{wrongPenalty}s · bonusy czasu rosną z combo.</small></Panel>
     </MobileSession>
   );
 }
 
-export function MobileHitRushGameView({ hitRush, iframeRef, onReplay, onAnswer, onExit, roundSeconds = 60, bonusEvery = 10, bonusSeconds = 5, difficulty = 'easy' }) {
+export function MobileHitRushGameView({ hitRush, iframeRef, onReplay, onAnswer, onExit, roundSeconds = 60, bonusEvery = 5, bonusSchedule = [], wrongPenalty = 2, difficulty = 'easy' }) {
   const [difficultyLabel, difficultyClass] = hitRushDifficultyMeta(difficulty);
-  const comboStep = hitRush.combo > 0 && hitRush.combo % bonusEvery === 0 ? bonusEvery : hitRush.combo % bonusEvery;
+  const nextBonus = hitRushNextBonusMeta(hitRush.combo, bonusEvery, bonusSchedule);
+  const comboStep = Math.max(0, Number(hitRush.combo || 0)) % Math.max(1, bonusEvery);
   const comboPct = Math.min(100, (comboStep / Math.max(1, bonusEvery)) * 100);
+  const answerLocked = !hitRush.answerReady || !!hitRush.feedback;
   return (
     <MobileSession className={`mgv-hitrush-game ${difficultyClass}`}>
       <MobileHeader eyebrow="HIT RUSH" title="WCZEŚNIEJ / PÓŹNIEJ" onBack={onExit} right={<span className={`mgv-timer ${hitRush.timeLeft <= 10 ? 'danger' : ''}`}><Clock3 size={15} />{hitRush.timeLeft}s</span>} />
       <div className="mgv-hr-scorebar"><div><span>WYNIK</span><strong>{hitRush.score}</strong></div><div><span>COMBO</span><strong>🔥 {hitRush.combo}</strong></div><div className={`difficulty ${difficultyClass}`}><span>POZIOM</span><strong>{difficultyLabel}</strong></div></div>
-      <div className="mgv-combo-track"><span style={{ width: `${comboPct}%` }} /><small>+{bonusSeconds}s za combo {bonusEvery}</small></div>
+      <div className="mgv-combo-track"><span style={{ width: `${comboPct}%` }} /><small>Jeszcze {nextBonus.remaining} do +{nextBonus.seconds}s (combo {nextBonus.combo})</small></div>
       <Panel className="mgv-hr-audio-card" accent="green">
-        <div className="mgv-hidden-player"><iframe key={hitRush.currentCard.videoId} ref={iframeRef} title="hit-rush-player" src={`https://www.youtube.com/embed/${hitRush.currentCard.videoId}?enablejsapi=1&autoplay=1&mute=0&start=${hitRush.currentStartSeconds}&controls=0&modestbranding=1&rel=0`} allow="autoplay; encrypted-media" /></div>
+        <div className="mgv-hidden-player"><iframe key={hitRush.currentCard.videoId} ref={iframeRef} title="hit-rush-player" src={`https://www.youtube.com/embed/${hitRush.currentCard.videoId}?enablejsapi=1&autoplay=1&mute=0&start=${hitRush.currentStartSeconds}&controls=0&modestbranding=1&rel=0&playsinline=1`} allow="autoplay; encrypted-media" onLoad={onReplay} /></div>
         <div className="mgv-unknown-song"><Disc3 size={38} /><span>NOWY UTWÓR</span><strong>???</strong><small>Porównaj z kartą referencyjną</small></div>
         <button type="button" className="mgv-audio-cta" onClick={onReplay}><Play size={18} fill="currentColor" /> ODTWÓRZ PONOWNIE</button>
       </Panel>
       <div className="mgv-vs-divider"><span>PORÓWNAJ Z</span></div>
       <Panel className="mgv-reference-card" accent="violet"><span className="mgv-eyebrow">KARTA REFERENCYJNA</span><strong>{hitRush.referenceCard.year}</strong><h2>{hitRush.referenceCard.title}</h2><p>{hitRush.referenceCard.artist}</p></Panel>
-      {hitRush.feedback ? <div className={`mgv-hr-feedback ${hitRush.feedback.correct ? 'good' : 'bad'}`}><span>{hitRush.feedback.correct ? <Check size={22} /> : <X size={22} />}</span><strong>{hitRush.feedback.correct ? 'DOBRZE!' : 'NIE TYM RAZEM'}</strong><b>{hitRush.feedback.year}</b>{hitRush.feedback.points > 0 ? <small>+{hitRush.feedback.points} pkt{hitRush.feedback.timeBonus > 0 ? ` · +${hitRush.feedback.timeBonus}s` : ''}</small> : null}</div> : null}
-      <div className="mgv-hr-answer-grid"><button type="button" className="earlier" onClick={() => onAnswer('earlier')} disabled={!!hitRush.feedback}><ArrowLeft size={21} /><span>WCZEŚNIEJ</span></button><button type="button" className="later" onClick={() => onAnswer('later')} disabled={!!hitRush.feedback}><span>PÓŹNIEJ</span><ChevronRight size={21} /></button></div>
+      {hitRush.feedback ? (
+        <div className={`mgv-hr-feedback ${hitRush.feedback.correct ? 'good' : 'bad'}`}><span>{hitRush.feedback.correct ? <Check size={22} /> : <X size={22} />}</span><strong>{hitRush.feedback.correct ? 'DOBRZE!' : 'NIE TYM RAZEM'}</strong><b>{hitRush.feedback.year}</b><small>{hitRush.feedback.correct ? `+${hitRush.feedback.points} pkt${hitRush.feedback.timeBonus > 0 ? ` · +${hitRush.feedback.timeBonus}s` : ''}` : `−${hitRush.feedback.timePenalty || wrongPenalty}s · combo od zera`}</small></div>
+      ) : (
+        <div className={`mgv-hr-feedback idle ${hitRush.answerReady ? 'ready' : 'locked'}`}><span><Headphones size={20} /></span><strong>{hitRush.answerReady ? 'MOŻESZ ODPOWIADAĆ' : 'URUCHAMIAM FRAGMENT…'}</strong><small>{hitRush.answerReady ? 'Wybierz wcześniej lub później.' : 'Zegar czeka. Przyciski odblokują się po krótkim odsłuchu.'}</small></div>
+      )}
+      <div className="mgv-hr-answer-grid"><button type="button" className="earlier" onClick={() => onAnswer('earlier')} disabled={answerLocked}><ArrowLeft size={21} /><span>WCZEŚNIEJ</span></button><button type="button" className="later" onClick={() => onAnswer('later')} disabled={answerLocked}><span>PÓŹNIEJ</span><ChevronRight size={21} /></button></div>
     </MobileSession>
   );
 }

@@ -17,7 +17,16 @@ export const HIT_RUSH_CONFIG = {
     { minCombo: 0, mult: 1 },
   ],
   TIME_BONUS_EVERY_COMBO: 5,
-  TIME_BONUS_SECONDS: 5,
+  // Bonus czasu rośnie razem z trudnością runu. Mnożników punktów NIE ruszamy.
+  TIME_BONUS_SCHEDULE: [
+    { minCombo: 15, seconds: 10 },
+    { minCombo: 10, seconds: 8 },
+    { minCombo: 5, seconds: 7 },
+  ],
+  WRONG_ANSWER_TIME_PENALTY: 2,
+  // Odpowiedź odblokowuje się dopiero po krótkim odsłuchu potwierdzonego,
+  // działającego filmu. W tym czasie główny zegar runu jest zatrzymany.
+  MIN_LISTEN_MS: 1000,
   DIFFICULTY_TIERS: [
     { name: "insane", minCombo: 15, minGap: 1, maxGap: 2 },
     { name: "expert", minCombo: 10, minGap: 2, maxGap: 4 },
@@ -84,8 +93,24 @@ export function computeHitRushPoints(combo) {
   return Math.round(HIT_RUSH_CONFIG.BASE_POINTS * comboMultiplier(combo));
 }
 
+function hitRushBonusSecondsForCombo(combo) {
+  return HIT_RUSH_CONFIG.TIME_BONUS_SCHEDULE.find((step) => combo >= step.minCombo)?.seconds || 0;
+}
+
 export function checkHitRushTimeBonus(newCombo) {
-  return newCombo > 0 && newCombo % HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO === 0 ? HIT_RUSH_CONFIG.TIME_BONUS_SECONDS : 0;
+  if (newCombo <= 0 || newCombo % HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO !== 0) return 0;
+  return hitRushBonusSecondsForCombo(newCombo);
+}
+
+export function nextHitRushTimeBonus(combo = 0) {
+  const every = HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO;
+  const safeCombo = Math.max(0, Number(combo) || 0);
+  const nextCombo = (Math.floor(safeCombo / every) + 1) * every;
+  return {
+    combo: nextCombo,
+    seconds: hitRushBonusSecondsForCombo(nextCombo),
+    remaining: Math.max(0, nextCombo - safeCombo),
+  };
 }
 
 export function difficultyLabel(combo) {
