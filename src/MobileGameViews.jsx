@@ -48,6 +48,7 @@ import cardPlatynaImg from './assets/icons/card-platynowa.webp';
 import cardDiamentImg from './assets/icons/card-diamentowa.webp';
 import { effectiveRarity } from './cards.js';
 import { getTournamentUserState, tournamentTimeLeftLabel } from './tournaments.js';
+import { WEEKLY_RANKING_REWARDS } from './stats.js';
 
 const PRACTICE_DECADES = [
   { key: 'pre70', label: 'Do 1969', from: null, to: 1969 },
@@ -1092,6 +1093,24 @@ function RankingRows({ rows = [], valueLabel = 'pkt', valueKey = 'score' }) {
   return <div className="mgv-ranking-list">{rows.map((row, index) => <div key={row.uid || row.id || `${row.name}-${index}`} className={index < 3 ? `podium p${index + 1}` : ''}><span className="place">#{index + 1}</span><span className="mgv-avatar" style={row.avatarUrl ? { backgroundImage: `url(${row.avatarUrl})` } : undefined}>{!row.avatarUrl ? initials(row.name) : null}</span><span className="name"><strong>{row.name}</strong>{row.note ? <small>{row.note}</small> : null}</span><b>{row[valueKey] ?? 0} <small>{valueLabel}</small></b></div>)}</div>;
 }
 
+function MobileWeeklyRankingRewards({ modeLabel }) {
+  return (
+    <Panel className="mgv-weekly-ranking-rewards" accent="gold">
+      <div className="mgv-section-title"><Gift size={18} /><span>NAGRODY TYGODNIOWE</span><b>TOP 3</b></div>
+      <div className="mgv-weekly-reward-grid">
+        {WEEKLY_RANKING_REWARDS.map((reward) => (
+          <div key={reward.place} className={`place-${reward.place}`}>
+            <span>{reward.place === 1 ? '🥇' : reward.place === 2 ? '🥈' : '🥉'} {reward.place}. MIEJSCE</span>
+            <strong>+{reward.xp} XP</strong>
+            <b>+{reward.hitcoin} <img src={iconHitcoin} alt="HITCOIN" /></b>
+          </div>
+        ))}
+      </div>
+      <p>Ranking tygodniowy {modeLabel ? `· ${modeLabel}` : ''}. Po zakończeniu tygodnia nagroda czeka na koncie — <b>odbierasz ją ręcznie</b>.</p>
+    </Panel>
+  );
+}
+
 export function MobileDailyPlaylistHubView({ alreadyPlayed, dailyBoard = [], weeklyBoard = [], allTimeBoard = [], busy, onStart, onHome }) {
   const [tab, setTab] = useState('daily');
   const sourceRows = tab === 'daily' ? dailyBoard : tab === 'weekly' ? weeklyBoard : allTimeBoard;
@@ -1115,6 +1134,7 @@ export function MobileDailyPlaylistHubView({ alreadyPlayed, dailyBoard = [], wee
         {alreadyPlayed ? <><span className="mgv-eyebrow">DZISIAJ JUŻ ZAGRANO</span><strong className="mgv-daily-score">{alreadyPlayed.score}<small>/10</small></strong><p>Wróć jutro po nową playlistę albo sprawdź ranking.</p></> : <><span className="mgv-eyebrow">GOTOWY?</span><h2>MASZ TYLKO JEDNĄ PRÓBĘ</h2><p>Po rozpoczęciu wynik zostanie zapisany na dzisiaj.</p><button className="mgv-main-cta" type="button" disabled={busy} onClick={onStart}><Play size={19} fill="currentColor" /> STARTUJ</button></>}
       </Panel>
       <Panel><div className="mgv-section-title"><Trophy size={18} /><span>RANKING</span></div><RankTabs active={tab} onChange={setTab} /><RankingRows rows={rows} /></Panel>
+      <MobileWeeklyRankingRewards modeLabel="Playlista dnia" />
     </MobileSession>
   );
 }
@@ -1474,6 +1494,7 @@ export function MobileHitRushMenuView({ stats, onStart, onLeaderboard, onHome, b
         <button type="button" className="mgv-main-cta huge" onClick={onStart}><Play size={23} fill="currentColor" /> START HIT RUSH <ChevronRight size={22} /></button>
         <button type="button" className="mgv-secondary-cta" onClick={onLeaderboard}><Trophy size={18} /> RANKING HIT RUSH</button>
       </div>
+      <MobileWeeklyRankingRewards modeLabel="Hit Rush" />
       <Panel className="mgv-howto-mini"><div className="mgv-section-title"><Sparkles size={18} /><span>JAK TO DZIAŁA?</span></div><div className="mgv-howto-steps"><div><b>1</b><span>Posłuchaj</span></div><div><b>2</b><span>Porównaj</span></div><div><b>3</b><span>Wcześniej / później</span></div><div><b>4</b><span>Buduj combo</span></div></div></Panel>
     </MobileSession>
   );
@@ -1521,6 +1542,7 @@ export function MobileHitRushLeaderboardView({ rows = [], period, onPeriod, onBa
       <MobileHeader eyebrow="HIT RUSH" title="RANKING" onBack={onBack} />
       <ModeHero icon={glKorona} eyebrow="NAJLEPSI GRACZE" title="TABLICA WYNIKÓW" description="Porównaj wynik z innymi i wracaj po wyższe miejsce." accent="gold" />
       <Panel><div className="mgv-section-title"><Trophy size={18} /><span>RANKING</span></div><div className="mgv-tabs"><button className={period === 'daily' ? 'active' : ''} onClick={() => onPeriod('daily')}>DZISIAJ</button><button className={period === 'weekly' ? 'active' : ''} onClick={() => onPeriod('weekly')}>TYDZIEŃ</button><button className={period === 'alltime' ? 'active' : ''} onClick={() => onPeriod('alltime')}>ALL TIME</button></div>{rows === null ? <div className="mgv-empty">Ładowanie…</div> : <RankingRows rows={rows} />}</Panel>
+      <MobileWeeklyRankingRewards modeLabel="Hit Rush" />
       <button type="button" className="mgv-secondary-cta" onClick={onHome}>STRONA GŁÓWNA</button>
     </MobileSession>
   );

@@ -34,6 +34,22 @@ export function currentDayKey(date = new Date()) {
   return date.toISOString().slice(0, 10);
 }
 
+// Wspólna ekonomia nagród dla rankingów tygodniowych: Hit Rush,
+// Zgadnij Rok i Playlista dnia. Jedno źródło prawdy dla backendu i UI.
+export const WEEKLY_RANKING_REWARDS = [
+  { place: 1, xp: 500, hitcoin: 150 },
+  { place: 2, xp: 300, hitcoin: 100 },
+  { place: 3, xp: 200, hitcoin: 75 },
+];
+
+export function weeklyRankingRewardForPlace(place) {
+  return WEEKLY_RANKING_REWARDS.find((reward) => reward.place === Number(place)) || null;
+}
+
+function lastWeekKeyFromNow() {
+  return currentWeekKey(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
+}
+
 // Firestore treats "." as a nested-path separator, so artist names that
 // contain one (e.g. "N.E.R.D") need a safe field-key form.
 function artistKey(artist) {
@@ -343,6 +359,27 @@ function yearGuessWeeklySortValue(weekKey, top5Points) {
   return yearGuessWeekOrdinal(weekKey) * 1_000_000 + Math.max(0, Number(top5Points || 0));
 }
 
+function yearGuessStatsFromWeek(week) {
+  return {
+    points: Number(week?.top5Points || 0),
+    gamesPlayed: Number(week?.gamesPlayed || 0),
+    gamesWon: Number(week?.gamesWon || 0),
+    exactYears: Number(week?.exactYears || 0),
+    rankingExactYears: Number(week?.top5ExactYears ?? week?.exactYears ?? 0),
+    rankingWins: Number(week?.top5Wins ?? week?.gamesWon ?? 0),
+    bestScore: Number(week?.bestScore || 0),
+    bestScores: Array.isArray(week?.bestScores) ? week.bestScores : [],
+  };
+}
+
+function getYearGuessStatsForWeek(statsData, weekKey) {
+  const ranking = statsData?.yearGuessRanking || {};
+  const week = ranking.week?.weekKey === weekKey
+    ? ranking.week
+    : ranking.weekHistory?.[weekKey] || null;
+  return yearGuessStatsFromWeek(week);
+}
+
 export function getYearGuessRankingStats(statsData, period = "weekly") {
   const ranking = statsData?.yearGuessRanking || {};
   if (period === "all") {
@@ -357,18 +394,7 @@ export function getYearGuessRankingStats(statsData, period = "weekly") {
       bestScores: [],
     };
   }
-  const wk = currentWeekKey();
-  const week = ranking.week?.weekKey === wk ? ranking.week : null;
-  return {
-    points: Number(week?.top5Points || 0),
-    gamesPlayed: Number(week?.gamesPlayed || 0),
-    gamesWon: Number(week?.gamesWon || 0),
-    exactYears: Number(week?.exactYears || 0),
-    rankingExactYears: Number(week?.top5ExactYears ?? week?.exactYears ?? 0),
-    rankingWins: Number(week?.top5Wins ?? week?.gamesWon ?? 0),
-    bestScore: Number(week?.bestScore || 0),
-    bestScores: Array.isArray(week?.bestScores) ? week.bestScores : [],
-  };
+  return getYearGuessStatsForWeek(statsData, currentWeekKey());
 }
 
 function compareYearGuessEntries(a = {}, b = {}, period = "weekly") {
@@ -408,6 +434,21 @@ export async function recordYearGuessRankingResult(uid, rewardMarkerId, { score 
     const previous = data.yearGuessRanking || {};
     const points = Math.max(0, Number(score || 0));
     const exact = Math.max(0, Number(exactYears || 0));
+    const weekHistory = { ...(previous.weekHistory || {}) };
+    if (previous.week?.weekKey && previous.week.weekKey !== wk && Number(previous.week.gamesPlayed || 0) > 0) {
+      // Do historii odkładamy tylko dane potrzebne do późniejszego rozliczenia
+      // i tie-breaków — bez listy pojedynczych runów, żeby userStats nie puchł.
+      weekHistory[previous.week.weekKey] = {
+        weekKey: previous.week.weekKey,
+        gamesPlayed: Number(previous.week.gamesPlayed || 0),
+        gamesWon: Number(previous.week.gamesWon || 0),
+        exactYears: Number(previous.week.exactYears || 0),
+        bestScore: Number(previous.week.bestScore || 0),
+        top5Points: Number(previous.week.top5Points || 0),
+        top5ExactYears: Number(previous.week.top5ExactYears ?? previous.week.exactYears ?? 0),
+        top5Wins: Number(previous.week.top5Wins ?? previous.week.gamesWon ?? 0),
+      };
+    }
     const previousWeek = previous.week?.weekKey === wk ? previous.week : {
       weekKey: wk,
       gamesPlayed: 0,
@@ -438,6 +479,7 @@ export async function recordYearGuessRankingResult(uid, rewardMarkerId, { score 
       gamesWon: Number(previous.gamesWon || 0) + (won ? 1 : 0),
       exactYears: Number(previous.exactYears || 0) + exact,
       bestScore: Math.max(Number(previous.bestScore || 0), points),
+      weekHistory,
       week: {
         weekKey: wk,
         gamesPlayed: Number(previousWeek.gamesPlayed || 0) + 1,
@@ -510,6 +552,53 @@ export async function getYearGuessLeaderboardPosition(uid, period = "weekly") {
     .map((d) => ({ uid: d.id, ...d.data(), selectedYearGuessStats: getYearGuessRankingStats(d.data(), "weekly") }))
     .filter((entry) => compareYearGuessEntries(entry, ownEntry, "weekly") < 0).length;
   return Number(higherCountSnap.data().count || 0) + tiedAhead + 1;
+}
+
+// Nagrody rankingu Zgadnij Rok zaczynają się od tygodnia wdrożenia nowego
+// systemu. Starsze tygodnie nie miały jeszcze archiwum tygodniowego, więc ich
+// retroaktywne rozliczenie mogłoby pominąć graczy, którzy zdążyli już zagrać
+// w kolejnym tygodniu.
+const YEAR_GUESS_WEEKLY_REWARDS_START_WEEK = "2026-W38";
+const YEAR_GUESS_WEEKLY_REWARDS_PROCESSED_COLLECTION = "weeklyPlaylistRewardsProcessed";
+
+export async function processYearGuessWeeklyRewardsIfNeeded() {
+  const prevWeekKey = lastWeekKeyFromNow();
+  if (yearGuessWeekOrdinal(prevWeekKey) < yearGuessWeekOrdinal(YEAR_GUESS_WEEKLY_REWARDS_START_WEEK)) {
+    return { skipped: true, weekKey: prevWeekKey };
+  }
+
+  const markerRef = doc(db, YEAR_GUESS_WEEKLY_REWARDS_PROCESSED_COLLECTION, `yearguess_${prevWeekKey}`);
+  const markerSnap = await getDoc(markerRef);
+  if (markerSnap.exists()) return { alreadyProcessed: true, weekKey: prevWeekKey };
+
+  // Raz w tygodniu czytamy profile graczy i korzystamy z zachowanego snapshotu
+  // poprzedniego tygodnia. Dzięki temu tie-break jest identyczny jak w samym
+  // rankingu: punkty → idealne lata → wygrane → mniej gier.
+  const snap = await getDocs(collection(db, "userStats"));
+  const entries = snap.docs
+    .map((d) => {
+      const data = d.data();
+      return { uid: d.id, ...data, selectedYearGuessStats: getYearGuessStatsForWeek(data, prevWeekKey) };
+    })
+    .filter((entry) => Number(entry.selectedYearGuessStats?.gamesPlayed || 0) > 0 && Number(entry.selectedYearGuessStats?.points || 0) > 0)
+    .sort((a, b) => compareYearGuessEntries(a, b, "weekly"));
+
+  const top3 = entries.slice(0, 3);
+  for (let i = 0; i < top3.length; i += 1) {
+    await queueWeeklyRankingReward(top3[i].uid, {
+      source: "yearguess",
+      weekKey: prevWeekKey,
+      place: i + 1,
+      label: "Zgadnij Rok (ranking tygodnia)",
+    });
+  }
+
+  await setDoc(markerRef, {
+    processedAt: Date.now(),
+    weekKey: prevWeekKey,
+    winners: top3.map((entry, index) => ({ uid: entry.uid, place: index + 1, points: entry.selectedYearGuessStats?.points || 0 })),
+  });
+  return { processed: true, weekKey: prevWeekKey, winners: top3.length };
 }
 
 // ============================================================
@@ -1112,6 +1201,102 @@ export function getPlayerSeasonHistory(statsData) {
 }
 
 // ============================================================
+// ODBIERANIE NAGRÓD ZA RANKINGI TYGODNIOWE
+// ============================================================
+function weeklyRankingClaimId(source, weekKey) {
+  // Claim żyje wewnątrz dokumentu konkretnego gracza, więc nie potrzebujemy
+  // UID w kluczu. Dzięki temu nie tworzymy nowej kolekcji ani nowych wymagań
+  // dla reguł Firestore — korzystamy wyłącznie z istniejącego userStats.
+  return `${String(source || "ranking")}_${String(weekKey || "week")}`;
+}
+
+// Kolejkuje nagrodę do ręcznego odebrania. Transakcja zapisuje jednocześnie
+// trwały claim i popup, dlatego równoległe rozliczenia nie mogą dodać dubla.
+export async function queueWeeklyRankingReward(uid, { source, weekKey, place, label } = {}) {
+  const reward = weeklyRankingRewardForPlace(place);
+  if (!uid || !source || !weekKey || !reward) return false;
+
+  const claimId = weeklyRankingClaimId(source, weekKey);
+  const statsRef = doc(db, "userStats", uid);
+  let queued = false;
+
+  await runTransaction(db, async (tx) => {
+    const statsSnap = await tx.get(statsRef);
+    const data = statsSnap.exists() ? statsSnap.data() : {};
+    const claims = { ...(data.weeklyRankingClaims || {}) };
+    if (claims[claimId]) return;
+
+    const claim = {
+      claimId,
+      source,
+      weekKey,
+      place: reward.place,
+      xp: reward.xp,
+      hitcoin: reward.hitcoin,
+      label: label || "Ranking tygodniowy",
+      status: "pending",
+      createdAt: Date.now(),
+    };
+    const notice = {
+      id: `weekly-${claimId}`,
+      kind: "weeklyRanking",
+      claimRequired: true,
+      ...claim,
+    };
+    const notices = Array.isArray(data.rewardNotices) ? data.rewardNotices : [];
+    claims[claimId] = claim;
+
+    tx.set(statsRef, { weeklyRankingClaims: claims, rewardNotices: [...notices, notice] }, { merge: true });
+    queued = true;
+  });
+
+  return queued;
+}
+
+// Faktyczna wypłata następuje dopiero po kliknięciu ODBIERZ NAGRODĘ.
+// Wszystko odbywa się w jednej transakcji na istniejącym userStats: saldo,
+// status claimu i usunięcie popupu zmieniają się atomowo.
+export async function claimWeeklyRankingReward(uid, claimId) {
+  if (!uid || !claimId) return { ok: false };
+  const statsRef = doc(db, "userStats", uid);
+  let result = { ok: false };
+
+  await runTransaction(db, async (tx) => {
+    const statsSnap = await tx.get(statsRef);
+    if (!statsSnap.exists()) return;
+    const data = statsSnap.data() || {};
+    const claims = { ...(data.weeklyRankingClaims || {}) };
+    const claim = claims[claimId];
+    if (!claim) return;
+
+    const notices = Array.isArray(data.rewardNotices) ? data.rewardNotices : [];
+    const remainingNotices = notices.filter((notice) => notice?.claimId !== claimId);
+
+    if (claim.status === "claimed") {
+      if (remainingNotices.length !== notices.length) {
+        tx.set(statsRef, { rewardNotices: remainingNotices }, { merge: true });
+      }
+      result = { ok: false, alreadyClaimed: true, xp: Number(claim.xp || 0), hitcoin: Number(claim.hitcoin || 0) };
+      return;
+    }
+    if (claim.status !== "pending") return;
+
+    const xp = Math.max(0, Number(claim.xp || 0));
+    const hitcoin = Math.max(0, Number(claim.hitcoin || 0));
+    claims[claimId] = { ...claim, status: "claimed", claimedAt: Date.now() };
+    tx.set(statsRef, {
+      xp: increment(xp),
+      hitcoin: increment(hitcoin),
+      weeklyRankingClaims: claims,
+      rewardNotices: remainingNotices,
+    }, { merge: true });
+    result = { ok: true, xp, hitcoin, source: claim.source, place: claim.place, label: claim.label };
+  });
+
+  return result;
+}
+
+// ============================================================
 // POWIADOMIENIA O NAGRODACH Z ROZLICZEŃ TYGODNIOWYCH/SEZONOWYCH
 // ============================================================
 // Problem który to rozwiązuje: nagrody za Playlistę dnia / Hit Rush / Turniej
@@ -1138,10 +1323,13 @@ export async function consumeNextRewardNotice(uid) {
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
     const data = snap.exists() ? snap.data() : {};
-    const notices = data.rewardNotices || [];
+    const notices = Array.isArray(data.rewardNotices) ? data.rewardNotices : [];
     if (!notices.length) return;
     notice = notices[0];
-    tx.update(ref, { rewardNotices: notices.slice(1) });
+    // Nagroda rankingowa ma zostać w kolejce aż do faktycznego kliknięcia
+    // ODBIERZ NAGRODĘ. Stare powiadomienia (już wcześniej wypłacone) zachowują
+    // dotychczasowe zachowanie i są zdejmowane przy wyświetleniu.
+    if (!notice?.claimRequired) tx.update(ref, { rewardNotices: notices.slice(1) });
   });
   return notice;
 }

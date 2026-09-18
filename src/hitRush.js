@@ -1,6 +1,6 @@
-import { doc, getDoc, setDoc, updateDoc, increment, runTransaction, collection, query, orderBy, limit, getDocs, where } from "firebase/firestore";
+import { doc, getDoc, setDoc, increment, runTransaction, collection, query, orderBy, limit, getDocs, where } from "firebase/firestore";
 import { db } from "./firebase-config.js";
-import { currentDayKey, currentWeekKey, pushRewardNotice } from "./stats.js";
+import { currentDayKey, currentWeekKey, queueWeeklyRankingReward } from "./stats.js";
 
 // ============================================================
 // BALANS STARTOWY — wszystko poniżej to PUNKT WYJŚCIA do balansowania
@@ -43,9 +43,8 @@ export const HIT_RUSH_CONFIG = {
     { maxRuns: Infinity, mult: 0.25 },
   ],
   DAILY_HITCOIN_POOL: 250, // twardy dzienny limit HITCOIN z tego trybu
-  // Nagrody za miejsce w tygodniowym rankingu (tak jak w Playliście dnia) -
-  // dzienny ranking istnieje tylko dla rywalizacji, BEZ nagród.
-  WEEKLY_PLACE_HITCOIN: [200, 100, 75],
+  // Dzienny ranking istnieje tylko dla rywalizacji. Wspólne nagrody tygodniowe
+  // żyją w stats.js, razem z mechanizmem ręcznego odbioru.
 };
 
 function difficultyForCombo(combo) {
@@ -145,49 +144,57 @@ export async function fetchHitRushLeaderboard(period, count = 10) {
     const snap = await getDocs(q);
     return snap.docs.map((d) => ({ uid: d.id, name: d.data().username || "Gracz", score: d.data().hitRushBestScore || 0 }));
   }
-  // Celowo BEZ where(...) połączonego z orderBy(...) na innym polu - wymagałoby
-  // to złożonego indeksu w Firestore (ręczna konfiguracja w konsoli). Zamiast
-  // tego pobieramy szerszą pulę posortowaną po samym wyniku (indeks
-  // pojedynczego pola - zawsze dostępny bez konfiguracji) i filtrujemy do
-  // aktualnego dnia/tygodnia już po stronie appki.
+  // Filtrujemy po aktualnym dniu/tygodniu w Firestore, a sortujemy lokalnie.
+  // To nie wymaga złożonego indeksu i — w przeciwieństwie do starego globalnego
+  // limit(100) — nie może zgubić wyników bieżącego okresu. Ten sam porządek
+  // stosujemy przy tygodniowym rozliczeniu nagród.
   const key = period === "daily" ? currentDayKey() : currentWeekKey();
   const coll = period === "daily" ? "hitRushDaily" : "hitRushWeekly";
   const keyField = period === "daily" ? "dayKey" : "weekKey";
-  const q = query(collection(db, coll), orderBy("bestScore", "desc"), limit(100));
+  const q = query(collection(db, coll), where(keyField, "==", key));
   const snap = await getDocs(q);
   return snap.docs
     .map((d) => d.data())
-    .filter((d) => d[keyField] === key)
+    .filter((d) => Number(d.bestScore || 0) > 0 && d.uid)
+    .sort((a, b) => Number(b.bestScore || 0) - Number(a.bestScore || 0) || String(a.uid).localeCompare(String(b.uid)))
     .slice(0, count)
     .map((d) => ({ uid: d.uid, name: d.name || "Gracz", score: d.bestScore || 0 }));
 }
 
-// Nagrody tygodniowe (200/100/75 HITCOIN za 1./2./3. miejsce) - ten sam wzorzec
-// co processWeeklyPlaylistRewardsIfNeeded w dailyPlaylist.js, wołany raz przy
-// wejściu w ranking (bezpieczne, bo sprawdza znacznik "już rozliczone").
+// Rozliczenie poprzedniego tygodnia. Nagroda NIE jest już dopisywana
+// automatycznie — trafia do bezpiecznej kolejki i czeka na kliknięcie
+// „ODBIERZ NAGRODĘ” przez zwycięzcę.
 export async function processHitRushWeeklyRewardsIfNeeded() {
   const lastWeekDate = new Date();
   lastWeekDate.setDate(lastWeekDate.getDate() - 7);
   const prevWeekKey = currentWeekKey(lastWeekDate);
   const markerRef = doc(db, "hitRushWeeklySettled", prevWeekKey);
   const markerSnap = await getDoc(markerRef);
-  if (markerSnap.exists()) return;
+  if (markerSnap.exists()) return { alreadyProcessed: true, weekKey: prevWeekKey };
 
-  const q = query(collection(db, "hitRushWeekly"), orderBy("bestScore", "desc"), limit(100));
+  // Do rozliczenia używamy prostego filtra po weekKey i sortujemy lokalnie.
+  // Dzięki temu nowy tydzień nie może "wypchnąć" wyników poprzedniego z limitu
+  // oraz nie potrzebujemy złożonego indeksu Firestore.
+  const q = query(collection(db, "hitRushWeekly"), where("weekKey", "==", prevWeekKey));
   const snap = await getDocs(q);
   const top3 = snap.docs
     .map((d) => d.data())
-    .filter((d) => d.weekKey === prevWeekKey)
+    .filter((d) => Number(d.bestScore || 0) > 0 && d.uid)
+    .sort((a, b) => Number(b.bestScore || 0) - Number(a.bestScore || 0) || String(a.uid).localeCompare(String(b.uid)))
     .slice(0, 3);
 
-  await setDoc(markerRef, { settledAt: Date.now(), winners: top3.map((w) => w.uid) });
+  for (let i = 0; i < top3.length; i += 1) {
+    await queueWeeklyRankingReward(top3[i].uid, {
+      source: "hitrush",
+      weekKey: prevWeekKey,
+      place: i + 1,
+      label: "Hit Rush (ranking tygodnia)",
+    });
+  }
 
-  await Promise.all(
-    top3.map((entry, i) => {
-      const reward = HIT_RUSH_CONFIG.WEEKLY_PLACE_HITCOIN[i];
-      if (!reward || !entry.uid) return Promise.resolve();
-      pushRewardNotice(entry.uid, { source: "hitrush", place: i + 1, xp: 0, hitcoin: reward, label: "Hit Rush (ranking tygodnia)" }).catch(() => {});
-      return updateDoc(doc(db, "userStats", entry.uid), { hitcoin: increment(reward) }).catch(() => {});
-    })
-  );
+  // Marker zapisujemy dopiero po poprawnym zakolejkowaniu wszystkich nagród.
+  // Jeśli klient przerwie pracę wcześniej, kolejna próba bezpiecznie dokończy
+  // proces dzięki deterministycznym claimId.
+  await setDoc(markerRef, { settledAt: Date.now(), winners: top3.map((w, index) => ({ uid: w.uid, place: index + 1 })) });
+  return { processed: true, weekKey: prevWeekKey, winners: top3.length };
 }

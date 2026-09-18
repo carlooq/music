@@ -35,7 +35,7 @@ import {
   Play,
   Target,
 } from 'lucide-react';
-import { currentSeasonKey, seasonNumber, seasonRankForWins, seasonRankProgress, seasonMonthLabel, availableSeasonKeys, getPlayerSeasonResult, seasonBaseRewardForResult, SEASON_RANK_REWARDS, SEASON_PLACEMENT_REWARDS, SEASON_PARTICIPATION_MIN_GAMES, getYearGuessRankingStats } from './stats.js';
+import { currentSeasonKey, seasonNumber, seasonRankForWins, seasonRankProgress, seasonMonthLabel, availableSeasonKeys, getPlayerSeasonResult, seasonBaseRewardForResult, SEASON_RANK_REWARDS, SEASON_PLACEMENT_REWARDS, SEASON_PARTICIPATION_MIN_GAMES, getYearGuessRankingStats, WEEKLY_RANKING_REWARDS } from './stats.js';
 
 import logoImg from './assets/logo-v2.png';
 import homeBg from './assets/home/bg.jpg';
@@ -537,6 +537,20 @@ function MobileYearGuessHub(props) {
             ) : null}
           </div>
         ) : <div className="mob-empty">Brak wyników. Zagraj pierwszą grę i rozpocznij ranking!</div>}
+      </section>
+
+      <section className="mob-yearguess-rewards mob-panel">
+        <div className="mob-block-title"><Gift size={15} /> NAGRODY TYGODNIOWE · TOP 3</div>
+        <div className="mob-yearguess-reward-grid">
+          {WEEKLY_RANKING_REWARDS.map((reward) => (
+            <div key={reward.place} className={`place-${reward.place}`}>
+              <span>{reward.place === 1 ? '🥇' : reward.place === 2 ? '🥈' : '🥉'} {reward.place}. MIEJSCE</span>
+              <strong>+{reward.xp} XP</strong>
+              <b>+{reward.hitcoin} <img src={iconHitcoin} alt="HITCOIN" /></b>
+            </div>
+          ))}
+        </div>
+        <p>Po zakończeniu tygodnia nagroda pojawi się jako <b>do odebrania</b>. XP i HITCOIN trafią na konto dopiero po kliknięciu „ODBIERZ NAGRODĘ”.</p>
       </section>
 
       <section className="mob-yearguess-rules mob-panel">

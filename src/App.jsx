@@ -15,7 +15,7 @@ import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
 import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId, fuzzyMatch } from "./utils.js";
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError, ensureSignedIn } from "./auth.js";
-import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, getLeaderboardPosition, awardXp, xpForLevel, levelFromXp, currentWeekKey, currentDayKey, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag, getWeeklyChallenges, bumpWeeklyChallengeProgress, claimWeeklyChallenge, currentSeasonKey, seasonNumber, seasonRankForWins, SEASON_RANKS, updateSeasonProgress, getSeasonLeaderboard, getSeasonLeaderboardPosition, processSeasonRewardsIfNeeded, getPlayerSeasonHistory, consumeNextRewardNotice, recordYearGuessRankingResult, getYearGuessLeaderboard, getYearGuessLeaderboardPosition, freezeSeasonZeroForRemainingPlayers } from "./stats.js";
+import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, getLeaderboardPosition, awardXp, xpForLevel, levelFromXp, currentWeekKey, currentDayKey, WEEKLY_RANKING_REWARDS, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag, getWeeklyChallenges, bumpWeeklyChallengeProgress, claimWeeklyChallenge, currentSeasonKey, seasonNumber, seasonRankForWins, SEASON_RANKS, updateSeasonProgress, getSeasonLeaderboard, getSeasonLeaderboardPosition, processSeasonRewardsIfNeeded, getPlayerSeasonHistory, consumeNextRewardNotice, claimWeeklyRankingReward, recordYearGuessRankingResult, getYearGuessLeaderboard, getYearGuessLeaderboardPosition, processYearGuessWeeklyRewardsIfNeeded, freezeSeasonZeroForRemainingPlayers } from "./stats.js";
 import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss, incrementSongPlayCount, getSongCount } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
 import { heartbeat, clearPresence, getOnlinePlayers } from "./presence.js";
@@ -843,7 +843,7 @@ function TournamentNoticePopup({ notice, onClose, onOpen }) {
   );
 }
 
-function RewardNoticePopup({ notice, onClose }) {
+function RewardNoticePopup({ notice, onClose, onClaim, claimBusy = false, claimError = "" }) {
   if (!notice) return null;
   const isSeason = notice.source === "season" && Number(notice.seasonNumber || 0) >= 1;
   const medal = notice.place === 1 ? "🥇" : notice.place === 2 ? "🥈" : notice.place === 3 ? "🥉" : isSeason ? "🏆" : "🎁";
@@ -901,30 +901,40 @@ function RewardNoticePopup({ notice, onClose }) {
     );
   }
 
+  const claimable = !!(notice.claimRequired && notice.claimId);
   return (
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Odebrana nagroda"
+      aria-label={claimable ? "Nagroda do odebrania" : "Odebrana nagroda"}
       onClick={onClose}
       style={{ position: "fixed", inset: 0, zIndex: 260, display: "flex", alignItems: "center", justifyContent: "center", padding: 22, background: "rgba(1,2,10,0.82)", backdropFilter: "blur(8px)" }}
     >
-      <div onClick={(e) => e.stopPropagation()} style={{ width: "min(100%, 370px)", padding: 22, borderRadius: 22, textAlign: "center", background: "linear-gradient(160deg,#181228,#0c0817)", border: "1px solid rgba(245,196,81,.3)", boxShadow: "0 24px 70px rgba(0,0,0,.55),0 0 30px rgba(245,196,81,.12)" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "min(100%, 390px)", padding: 22, borderRadius: 22, textAlign: "center", background: "linear-gradient(160deg,#181228,#0c0817)", border: "1px solid rgba(245,196,81,.3)", boxShadow: "0 24px 70px rgba(0,0,0,.55),0 0 30px rgba(245,196,81,.12)" }}>
         <div style={{ width: 58, height: 58, margin: "0 auto 10px", borderRadius: 18, display: "grid", placeItems: "center", fontSize: 29, background: "linear-gradient(135deg,rgba(245,196,81,.18),rgba(255,95,201,.13))", border: "1px solid rgba(245,196,81,.3)" }}>{medal}</div>
-        <div style={{ color: "#f5c451", fontFamily: "'Space Mono', monospace", fontSize: 10, letterSpacing: ".12em" }}>NAGRODA ODEBRANA</div>
+        <div style={{ color: "#f5c451", fontFamily: "'Space Mono', monospace", fontSize: 10, letterSpacing: ".12em" }}>{claimable ? "NAGRODA TYGODNIOWA · DO ODEBRANIA" : "NAGRODA ODEBRANA"}</div>
         <h2 style={{ margin: "7px 0 6px", color: "#fff", fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, lineHeight: 1.1 }}>
           {notice.place ? `${notice.place}. MIEJSCE` : "GRATULACJE!"}
         </h2>
         <p style={{ margin: "0 0 15px", color: "#9a92a7", fontSize: 13, lineHeight: 1.45 }}>{notice.label || "Zdobyłeś nagrodę."}</p>
-        <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 18 }}>
+        <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: claimable ? 11 : 18, flexWrap: "wrap" }}>
           {notice.xp > 0 && (
-            <div style={{ padding: "8px 16px", borderRadius: 12, color: "#fff", fontFamily: "'Space Mono', monospace", fontWeight: 900, background: "rgba(79,214,255,.09)", border: "1px solid rgba(79,214,255,.25)" }}>+{notice.xp} XP</div>
+            <div style={{ padding: "9px 16px", borderRadius: 12, color: "#fff", fontFamily: "'Space Mono', monospace", fontWeight: 900, background: "rgba(79,214,255,.09)", border: "1px solid rgba(79,214,255,.25)" }}>+{notice.xp} XP</div>
           )}
           {notice.hitcoin > 0 && (
-            <div style={{ padding: "8px 16px", borderRadius: 12, color: "#fff", fontFamily: "'Space Mono', monospace", fontWeight: 900, background: "rgba(245,196,81,.09)", border: "1px solid rgba(245,196,81,.25)" }}>+{notice.hitcoin} 🪙</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 16px", borderRadius: 12, color: "#fff", fontFamily: "'Space Mono', monospace", fontWeight: 900, background: "rgba(245,196,81,.09)", border: "1px solid rgba(245,196,81,.25)" }}>+{notice.hitcoin} <img src={iconHitcoin} alt="HITCOIN" style={{ width: 18, height: 18, objectFit: "contain" }} /></div>
           )}
         </div>
-        <button type="button" onClick={onClose} style={{ width: "100%", minHeight: 48, borderRadius: 13, border: "1px solid rgba(245,196,81,.3)", background: "linear-gradient(100deg,#f5c451,#ff8fd9)", color: "#241407", fontWeight: 900, fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, letterSpacing: ".04em" }}>SUPER!</button>
+        {claimable ? <p style={{ margin: "0 0 15px", color: "#81798d", fontSize: 11, lineHeight: 1.45 }}>Nagroda zostanie dodana do konta dopiero po kliknięciu przycisku poniżej.</p> : null}
+        {claimError ? <div style={{ marginBottom: 11, padding: "8px 10px", borderRadius: 10, color: "#ff91a8", fontSize: 11, background: "rgba(255,70,105,.08)", border: "1px solid rgba(255,70,105,.18)" }}>{claimError}</div> : null}
+        {claimable ? (
+          <div style={{ display: "grid", gridTemplateColumns: "0.72fr 1.28fr", gap: 9 }}>
+            <button type="button" onClick={onClose} disabled={claimBusy} style={{ minHeight: 48, borderRadius: 13, border: "1px solid rgba(255,255,255,.10)", background: "rgba(255,255,255,.035)", color: "#aaa2b5", fontWeight: 850 }}>PÓŹNIEJ</button>
+            <button type="button" onClick={onClaim} disabled={claimBusy} style={{ minHeight: 48, borderRadius: 13, border: "1px solid rgba(245,196,81,.3)", background: "linear-gradient(100deg,#f5c451,#ff8fd9)", color: "#241407", fontWeight: 900, fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, letterSpacing: ".04em", opacity: claimBusy ? .65 : 1 }}>{claimBusy ? "ODBIERAM…" : "ODBIERZ NAGRODĘ"}</button>
+          </div>
+        ) : (
+          <button type="button" onClick={onClose} style={{ width: "100%", minHeight: 48, borderRadius: 13, border: "1px solid rgba(245,196,81,.3)", background: "linear-gradient(100deg,#f5c451,#ff8fd9)", color: "#241407", fontWeight: 900, fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, letterSpacing: ".04em" }}>SUPER!</button>
+        )}
       </div>
     </div>
   );
@@ -1225,6 +1235,8 @@ export default function App() {
   const [seasonLeaderboardKey, setSeasonLeaderboardKey] = useState(currentSeasonKey());
   const [seasonLeaderboardPosition, setSeasonLeaderboardPosition] = useState(null);
   const [rewardNotice, setRewardNotice] = useState(null);
+  const [rewardClaimBusy, setRewardClaimBusy] = useState(false);
+  const [rewardClaimError, setRewardClaimError] = useState("");
   const [leaderboardPosition, setLeaderboardPosition] = useState(null);
 
   const [librarySongs, setLibrarySongs] = useState(null); // null = jeszcze nie sprawdzono
@@ -2691,6 +2703,15 @@ export default function App() {
         // od Sezonu 1 każdy gracz ma osobny claim nagrody, więc przerwany
         // proces można bezpiecznie dokończyć z innego klienta.
         await processSeasonRewardsIfNeeded().catch((e) => console.error("Błąd rozliczania sezonu:", e));
+        // Jeden wspólny moment rozliczenia wszystkich rankingów tygodniowych.
+        // Pierwszy zalogowany klient po zmianie tygodnia jedynie KOLEJKUJE
+        // nagrody; XP i HITCOIN trafiają na konto zwycięzcy dopiero po jego
+        // kliknięciu „ODBIERZ NAGRODĘ”. Wszystkie trzy procesory są idempotentne.
+        await Promise.allSettled([
+          processWeeklyPlaylistRewardsIfNeeded(),
+          processHitRushWeeklyRewardsIfNeeded(),
+          processYearGuessWeeklyRewardsIfNeeded(),
+        ]);
         try {
           const freshStats = await getStats(u.uid);
           setMyXp(freshStats?.xp || 0);
@@ -2698,7 +2719,7 @@ export default function App() {
           setStats(freshStats);
         } catch {}
         // sprawdzamy raz po zalogowaniu, czy czeka jakaś nieodebrana
-        // karteczka (Playlista dnia / Hit Rush / Turniej / Sezon) —
+        // karteczka (Playlista dnia / Hit Rush / Zgadnij Rok / Turniej / Sezon) —
         // patrz komentarz przy pushRewardNotice w stats.js. Robimy to po
         // odświeżeniu statystyk, aby popup sezonu od razu pokazywał saldo
         // zgodne z właśnie przyznaną nagrodą.
@@ -3413,6 +3434,29 @@ export default function App() {
       }
     } catch (e) {
       setError("Błąd odbioru nagrody: " + e.message);
+    }
+  }
+
+  async function handleClaimRewardNotice() {
+    if (!user?.uid || !rewardNotice?.claimRequired || !rewardNotice?.claimId || rewardClaimBusy) return;
+    setRewardClaimBusy(true);
+    setRewardClaimError("");
+    try {
+      const result = await claimWeeklyRankingReward(user.uid, rewardNotice.claimId);
+      if (!result?.ok && !result?.alreadyClaimed) throw new Error("Nie udało się odebrać nagrody.");
+
+      const freshStats = await getStats(user.uid);
+      setStats(freshStats);
+      setMyXp(freshStats?.xp || 0);
+      setMyHitcoin(freshStats?.hitcoin || 0);
+
+      setRewardNotice(null);
+      const nextNotice = await consumeNextRewardNotice(user.uid);
+      if (nextNotice) setRewardNotice(nextNotice);
+    } catch (e) {
+      setRewardClaimError(e?.message || "Nie udało się odebrać nagrody.");
+    } finally {
+      setRewardClaimBusy(false);
     }
   }
 
@@ -6205,7 +6249,7 @@ export default function App() {
       />
       <RoomInviteModal invite={incomingChallenge ? null : incomingRoomInvite} busy={roomInviteBusyUid === user?.uid} onAccept={handleAcceptRoomInvite} onDecline={handleDeclineRoomInvite} />
       <TournamentNoticePopup notice={tournamentNotice} onClose={() => setTournamentNotice(null)} onOpen={openTournamentHub} />
-      <RewardNoticePopup notice={rewardNotice} onClose={() => setRewardNotice(null)} />
+      <RewardNoticePopup notice={rewardNotice} onClose={() => { setRewardNotice(null); setRewardClaimError(""); }} onClaim={handleClaimRewardNotice} claimBusy={rewardClaimBusy} claimError={rewardClaimError} />
       {gameEndReveal && showGameEndRevealPopup && <GameEndRevealPopup data={gameEndReveal} onClose={() => setShowGameEndRevealPopup(false)} levelFromXp={levelFromXp} />}
     </>
   );
@@ -6868,6 +6912,9 @@ export default function App() {
   async function loadYearGuessLeaderboardData(period = "weekly") {
     if (!user?.uid) return { leaderboard: [], position: null };
     try {
+      if (period === "weekly") {
+        processYearGuessWeeklyRewardsIfNeeded().catch((e) => console.error("Błąd rozliczania nagród tygodniowych Zgadnij Rok:", e));
+      }
       const [leaderboard, position] = await Promise.all([
         getYearGuessLeaderboard(10, period),
         getYearGuessLeaderboardPosition(user.uid, period),
@@ -7050,7 +7097,7 @@ export default function App() {
       <DuelChallengeModal challenge={incomingChallenge} busy={challengeBusy} onAccept={handleAcceptChallenge} onDecline={handleDeclineChallenge} />
       <RoomInviteModal invite={incomingChallenge ? null : incomingRoomInvite} busy={roomInviteBusyUid === user?.uid} onAccept={handleAcceptRoomInvite} onDecline={handleDeclineRoomInvite} />
       <TournamentNoticePopup notice={tournamentNotice} onClose={() => setTournamentNotice(null)} onOpen={openTournamentHub} />
-      <RewardNoticePopup notice={rewardNotice} onClose={() => setRewardNotice(null)} />
+      <RewardNoticePopup notice={rewardNotice} onClose={() => { setRewardNotice(null); setRewardClaimError(""); }} onClaim={handleClaimRewardNotice} claimBusy={rewardClaimBusy} claimError={rewardClaimError} />
       {gameEndReveal && showGameEndRevealPopup && <GameEndRevealPopup data={gameEndReveal} onClose={() => setShowGameEndRevealPopup(false)} levelFromXp={levelFromXp} />}
       </>
     );
@@ -7229,7 +7276,7 @@ export default function App() {
       <DuelChallengeModal challenge={incomingChallenge} busy={challengeBusy} onAccept={handleAcceptChallenge} onDecline={handleDeclineChallenge} />
       <RoomInviteModal invite={incomingChallenge ? null : incomingRoomInvite} busy={roomInviteBusyUid === user?.uid} onAccept={handleAcceptRoomInvite} onDecline={handleDeclineRoomInvite} />
       <TournamentNoticePopup notice={tournamentNotice} onClose={() => setTournamentNotice(null)} onOpen={openTournamentHub} />
-      <RewardNoticePopup notice={rewardNotice} onClose={() => setRewardNotice(null)} />
+      <RewardNoticePopup notice={rewardNotice} onClose={() => { setRewardNotice(null); setRewardClaimError(""); }} onClaim={handleClaimRewardNotice} claimBusy={rewardClaimBusy} claimError={rewardClaimError} />
       {gameEndReveal && showGameEndRevealPopup && <GameEndRevealPopup data={gameEndReveal} onClose={() => setShowGameEndRevealPopup(false)} levelFromXp={levelFromXp} />}
       </>
     );
@@ -8503,12 +8550,17 @@ export default function App() {
                   ))}
                 </div>
               )}
-              <p style={{ color: "var(--muted)", fontSize: 10, marginTop: 8 }}>
-                Nagrody za tydzień (od poniedziałku):{" "}
-                <img src={ach1Miejsce} alt="" style={{ height: 14, display: "inline", verticalAlign: "middle" }} /> +500 XP ·{" "}
-                <img src={ach2Miejsce} alt="" style={{ height: 14, display: "inline", verticalAlign: "middle" }} /> +250 XP ·{" "}
-                <img src={ach3Miejsce} alt="" style={{ height: 14, display: "inline", verticalAlign: "middle" }} /> +100 XP — przyznawane automatycznie na starcie nowego tygodnia.
-              </p>
+              <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
+                <p style={{ color: "var(--muted)", fontSize: 10, margin: 0 }}>Nagrody za tydzień (od poniedziałku):</p>
+                {WEEKLY_RANKING_REWARDS.map((reward) => (
+                  <div key={reward.place} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 10, color: "var(--text)" }}>
+                    <span>{reward.place === 1 ? "🥇" : reward.place === 2 ? "🥈" : "🥉"} {reward.place}. miejsce</span>
+                    <strong>+{reward.xp} XP</strong>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 3, color: "var(--gold)" }}>+{reward.hitcoin}<img src={iconHitcoin} alt="HITCOIN" style={{ width: 14, height: 14 }} /></span>
+                  </div>
+                ))}
+                <p style={{ color: "var(--muted)", fontSize: 9, margin: 0 }}>Nagroda czeka do ręcznego odebrania po zakończeniu tygodnia.</p>
+              </div>
             </section>
 
             <section className="w-full rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid #2a2340" }}>
@@ -9243,7 +9295,16 @@ export default function App() {
                 ))}
               </div>
               {hitRushLeaderboardPeriod === "weekly" && (
-                <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 10 }}>🥇 200 · 🥈 100 · 🥉 75 HITCOIN na koniec tygodnia</p>
+                <div style={{ display: "grid", gap: 5, marginBottom: 10 }}>
+                  {WEEKLY_RANKING_REWARDS.map((reward) => (
+                    <div key={reward.place} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 10, color: "var(--text)" }}>
+                      <span>{reward.place === 1 ? "🥇" : reward.place === 2 ? "🥈" : "🥉"} {reward.place}. miejsce</span>
+                      <strong>+{reward.xp} XP</strong>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 3, color: "var(--gold)" }}>+{reward.hitcoin}<img src={iconHitcoin} alt="HITCOIN" style={{ width: 14, height: 14 }} /></span>
+                    </div>
+                  ))}
+                  <span style={{ fontSize: 9, color: "var(--muted)" }}>Po zakończeniu tygodnia nagrodę odbierasz ręcznie.</span>
+                </div>
               )}
               {hitRushLeaderboardPeriod === "daily" && <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 10 }}>Tylko dla rywalizacji — bez nagród.</p>}
               {hitRushLeaderboard === null ? (

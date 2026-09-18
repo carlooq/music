@@ -2074,3 +2074,16 @@
 .mob-yearguess-rules { padding: 14px; }
 .mob-yearguess-rules p { margin: 7px 0 0; color: #8e859b; font-size: 9px; line-height: 1.5; }
 .mob-yearguess-rules b { color: #d8d0e4; }
+
+/* v1.15 — Zgadnij Rok: nagrody tygodniowe */
+.mob-yearguess-rewards { border-color:rgba(245,196,81,.22); background:linear-gradient(145deg,rgba(245,196,81,.045),rgba(255,95,201,.025)); }
+.mob-yearguess-reward-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; margin-top:10px; }
+.mob-yearguess-reward-grid>div { min-width:0; padding:10px 6px; border-radius:12px; text-align:center; background:rgba(5,7,18,.68); border:1px solid rgba(245,196,81,.12); }
+.mob-yearguess-reward-grid>div.place-1 { border-color:rgba(245,196,81,.34); box-shadow:0 0 18px rgba(245,196,81,.055); }
+.mob-yearguess-reward-grid span,.mob-yearguess-reward-grid strong,.mob-yearguess-reward-grid b { display:block; }
+.mob-yearguess-reward-grid span { color:#a9a0b1; font-family:'Space Mono',monospace; font-size:7px; letter-spacing:.035em; white-space:nowrap; }
+.mob-yearguess-reward-grid strong { margin-top:6px; color:#fff0b4; font-family:'Bebas Neue',sans-serif; font-size:20px; line-height:1; font-weight:400; }
+.mob-yearguess-reward-grid b { margin-top:5px; color:#f5c451; font-family:'Space Mono',monospace; font-size:9px; }
+.mob-yearguess-reward-grid b img { width:15px; height:15px; object-fit:contain; vertical-align:-4px; margin-left:2px; }
+.mob-yearguess-rewards>p { margin:10px 2px 0; color:#8c8496; font-size:10px; line-height:1.45; text-align:center; }
+.mob-yearguess-rewards>p b { color:#d7d0df; }

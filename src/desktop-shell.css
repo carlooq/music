@@ -3656,3 +3656,15 @@ button.desk-yearguess-rank-row { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .desk-pack-opening-art img,.desk-pack-opening-ring,.desk-pack-opening-flash,.desk-pack-reveal-slot.revealed .desk-pack-revealed-card,.desk-pack-reveal-slot.reveal-active .desk-pack-card-aura,.desk-pack-rarity-fx * { animation:none !important; }
 }
+
+/* v1.15 — Zgadnij Rok: nagrody tygodniowe */
+.desk-yearguess-rewards { padding:18px 20px; border-color:rgba(245,196,81,.20); background:linear-gradient(145deg,rgba(245,196,81,.035),rgba(255,95,201,.02)); }
+.desk-yearguess-reward-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:13px; }
+.desk-yearguess-reward-grid>div { min-height:82px; padding:12px 14px; border-radius:13px; display:grid; grid-template-columns:1fr auto; grid-template-rows:auto auto; gap:4px 10px; align-items:center; background:rgba(6,8,20,.68); border:1px solid rgba(245,196,81,.13); }
+.desk-yearguess-reward-grid>div.place-1 { border-color:rgba(245,196,81,.34); box-shadow:0 0 20px rgba(245,196,81,.055); }
+.desk-yearguess-reward-grid span { grid-column:1 / -1; color:#aaa1ac; font-family:'Space Mono',monospace; font-size:9px; letter-spacing:.055em; }
+.desk-yearguess-reward-grid strong { color:#fff0b4; font-family:'Bebas Neue',sans-serif; font-size:23px; font-weight:400; }
+.desk-yearguess-reward-grid b { display:flex; align-items:center; justify-content:flex-end; gap:5px; color:#f5c451; font-family:'Space Mono',monospace; font-size:10px; }
+.desk-yearguess-reward-grid b img { width:17px; height:17px; object-fit:contain; }
+.desk-yearguess-rewards>p { margin:11px 2px 0; color:#8e879a; font-size:10px; line-height:1.45; text-align:center; }
+.desk-yearguess-rewards>p b { color:#d7d0df; }

@@ -30,7 +30,7 @@ import {
   UserPlus,
   Info,
 } from 'lucide-react';
-import { currentSeasonKey, seasonNumber, seasonRankForWins, seasonRankProgress, seasonMonthLabel, availableSeasonKeys, getPlayerSeasonResult, seasonBaseRewardForResult, SEASON_RANK_REWARDS, SEASON_PLACEMENT_REWARDS, SEASON_PARTICIPATION_MIN_GAMES, getYearGuessRankingStats } from './stats.js';
+import { currentSeasonKey, seasonNumber, seasonRankForWins, seasonRankProgress, seasonMonthLabel, availableSeasonKeys, getPlayerSeasonResult, seasonBaseRewardForResult, SEASON_RANK_REWARDS, SEASON_PLACEMENT_REWARDS, SEASON_PARTICIPATION_MIN_GAMES, getYearGuessRankingStats, WEEKLY_RANKING_REWARDS } from './stats.js';
 
 import logoImg from './assets/logo-v2.png';
 import heroBanner from './assets/home/hero-banner.webp';
@@ -1281,6 +1281,20 @@ function DesktopYearGuessHub({ common, ...props }) {
               ) : null}
             </div>
           ) : <div className="desk-h2h-empty">Brak wyników. Zagraj pierwszą grę i rozpocznij ranking!</div>}
+        </section>
+
+        <section className="desk-panel desk-yearguess-rewards">
+          <div className="desk-section-label solo"><Gift size={16} /> NAGRODY TYGODNIOWE · TOP 3</div>
+          <div className="desk-yearguess-reward-grid">
+            {WEEKLY_RANKING_REWARDS.map((reward) => (
+              <div key={reward.place} className={`place-${reward.place}`}>
+                <span>{reward.place === 1 ? '🥇' : reward.place === 2 ? '🥈' : '🥉'} {reward.place}. MIEJSCE</span>
+                <strong>+{reward.xp} XP</strong>
+                <b>+{reward.hitcoin} <img src={iconHitcoin} alt="HITCOIN" /></b>
+              </div>
+            ))}
+          </div>
+          <p>Po zakończeniu tygodnia nagroda czeka na koncie. XP i HITCOIN są dopisywane dopiero po kliknięciu <b>ODBIERZ NAGRODĘ</b>.</p>
         </section>
 
         <section className="desk-panel desk-yearguess-rules">

@@ -34,6 +34,7 @@ import logoImg from './assets/logo-v2.png';
 import homeBg from './assets/home/bg.jpg';
 import heroBanner from './assets/home/hero-banner.webp';
 import iconToken from './assets/icons/icon-token.png';
+import iconHitcoin from './assets/icons/icon-hitcoin.png';
 import glPlaylista from './assets/icons/gl-playlista.png';
 import glTrening from './assets/icons/gl-trening.png';
 import glZgadnijRok from './assets/icons/gl-zgadnij-rok.png';
@@ -42,6 +43,7 @@ import glKorona from './assets/icons/gl-korona.png';
 import glPrezent from './assets/icons/gl-prezent.png';
 import glTurniej from './assets/icons/gl-turniej.png';
 import { getTournamentUserState, tournamentTimeLeftLabel } from './tournaments.js';
+import { WEEKLY_RANKING_REWARDS } from './stats.js';
 import { DesktopPlayerProfileModal } from './DesktopShell.jsx';
 
 const PRACTICE_DECADES = [
@@ -313,6 +315,17 @@ export function DesktopHitRushMenuView({ stats, onStart, onLeaderboard, onHome, 
           </div>
         </section>
 
+        <section className="dgv-panel dgv-hr-weekly-prizes dgv-hr-menu-prizes">
+          {WEEKLY_RANKING_REWARDS.map((reward) => (
+            <div key={reward.place}>
+              <span>{reward.place === 1 ? '🥇' : reward.place === 2 ? '🥈' : '🥉'} {reward.place}. MIEJSCE · TYDZIEŃ</span>
+              <strong>+{reward.xp} XP</strong>
+              <b className="dgv-weekly-hitcoin">+{reward.hitcoin} <img src={iconHitcoin} alt="HITCOIN" /></b>
+            </div>
+          ))}
+          <p>TOP 3 tygodnia zdobywa XP + HITCOIN. Po zamknięciu rankingu nagrodę odbierasz ręcznie.</p>
+        </section>
+
         <div className="dgv-hr-menu-bottom">
           <section className="dgv-panel dgv-hr-records">
             <div className="dgv-section-heading"><Trophy size={18} /> TWOJE REKORDY</div>
@@ -516,11 +529,20 @@ export function DesktopHitRushLeaderboardView({ rows = [], period, onPeriod, onB
         <SessionHeader eyebrow="NAJLEPSI GRACZE" title="RANKING HIT RUSH" onBack={onBack} backLabel="Hit Rush" right={<button type="button" className="dgv-ghost-button" onClick={onHome}>STRONA GŁÓWNA</button>} />
 
         <section className="dgv-panel dgv-hr-leaderboard-head">
-          <div><div className="dgv-eyebrow">RYWALIZACJA SOLO</div><h1>WALCZ O <span>NAJWYŻSZY WYNIK.</span></h1><p>Do rankingu trafia najlepszy wynik w wybranym okresie. Tygodniowo trzy pierwsze miejsca zdobywają HITCOINY.</p></div>
+          <div><div className="dgv-eyebrow">RYWALIZACJA SOLO</div><h1>WALCZ O <span>NAJWYŻSZY WYNIK.</span></h1><p>Do rankingu trafia najlepszy wynik w wybranym okresie. TOP 3 tygodnia zdobywa XP i HITCOIN do ręcznego odebrania.</p></div>
           <div className="dgv-hr-period-tabs">{Object.entries(periodLabels).map(([key, label]) => <button type="button" key={key} className={period === key ? 'active' : ''} onClick={() => onPeriod(key)}>{label}</button>)}</div>
         </section>
 
-        {period === 'weekly' ? <section className="dgv-panel dgv-hr-weekly-prizes"><div><span>🥇 1. MIEJSCE</span><strong>200 HITCOIN</strong></div><div><span>🥈 2. MIEJSCE</span><strong>100 HITCOIN</strong></div><div><span>🥉 3. MIEJSCE</span><strong>75 HITCOIN</strong></div></section> : null}
+        <section className="dgv-panel dgv-hr-weekly-prizes">
+          {WEEKLY_RANKING_REWARDS.map((reward) => (
+            <div key={reward.place}>
+              <span>{reward.place === 1 ? '🥇' : reward.place === 2 ? '🥈' : '🥉'} {reward.place}. MIEJSCE</span>
+              <strong>+{reward.xp} XP</strong>
+              <b className="dgv-weekly-hitcoin">+{reward.hitcoin} <img src={iconHitcoin} alt="HITCOIN" /></b>
+            </div>
+          ))}
+          <p>Nagrody dotyczą rankingu tygodniowego i po jego zakończeniu czekają na ręczne odebranie.</p>
+        </section>
 
         {loading ? <section className="dgv-panel dgv-hr-leaderboard-empty">Ładowanie rankingu…</section> : safeRows.length === 0 ? <section className="dgv-panel dgv-hr-leaderboard-empty">Brak jeszcze wyników w tym okresie.</section> : (
           <>
@@ -1498,10 +1520,15 @@ export function DesktopDailyPlaylistHubView({ alreadyPlayed, dailyBoard, weeklyB
         </div>
 
         <section className="dgv-daily-rewards dgv-panel">
-          <div><img src={glKorona} alt="" /><span>1. MIEJSCE</span><strong>+500 XP</strong></div>
-          <div><img src={glPrezent} alt="" /><span>2. MIEJSCE</span><strong>+250 XP</strong></div>
-          <div><Trophy size={30} /><span>3. MIEJSCE</span><strong>+100 XP</strong></div>
-          <p>Nagrody tygodniowe są przyznawane automatycznie na początku kolejnego tygodnia.</p>
+          {WEEKLY_RANKING_REWARDS.map((reward) => (
+            <div key={reward.place}>
+              {reward.place === 1 ? <img src={glKorona} alt="" /> : reward.place === 2 ? <img src={glPrezent} alt="" /> : <Trophy size={30} />}
+              <span>{reward.place}. MIEJSCE</span>
+              <strong>+{reward.xp} XP</strong>
+              <b className="dgv-weekly-hitcoin">+{reward.hitcoin} <img src={iconHitcoin} alt="HITCOIN" /></b>
+            </div>
+          ))}
+          <p>TOP 3 rankingu tygodniowego otrzymuje XP + HITCOIN. Nagrodę odbierasz ręcznie po zakończeniu tygodnia.</p>
         </section>
       </div>
       <DesktopPlayerProfileModal profile={viewingPlayer} onClose={onCloseProfile} levelFromXp={levelFromXp} />

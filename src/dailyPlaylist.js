@@ -1,13 +1,12 @@
 import { doc, getDoc, setDoc, updateDoc, increment, runTransaction, collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
 import { db } from "./firebase-config.js";
-import { awardXp, currentWeekKey, pushRewardNotice } from "./stats.js";
+import { currentWeekKey, queueWeeklyRankingReward } from "./stats.js";
 
 const PLAYLISTS_COLLECTION = "dailyPlaylists";
 const SCORES_COLLECTION = "dailyPlaylistScores";
 const WEEKLY_COLLECTION = "weeklyPlaylistScores";
 const WEEKLY_REWARDS_PROCESSED_COLLECTION = "weeklyPlaylistRewardsProcessed";
 const SCORED_COUNT = 10; // tyle kart faktycznie się ocenia — pierwsza karta zawsze "wchodzi za darmo" (nie ma z czym jej porównać), dokładnie jak w reszcie silnika gry
-const WEEKLY_REWARDS = [500, 250, 100]; // 1., 2., 3. miejsce w tygodniu
 
 function shuffle(arr) {
   const a = [...arr];
@@ -99,7 +98,7 @@ export async function fetchWeeklyPlaylistLeaderboard(weekKey, count = 10) {
   const snap = await getDocs(q);
   return snap.docs
     .map((d) => d.data())
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => b.score - a.score || String(a.uid || "").localeCompare(String(b.uid || "")))
     .slice(0, count);
 }
 
@@ -111,37 +110,36 @@ export async function fetchAllTimePlaylistLeaderboard(count = 10) {
   return snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
 }
 
-// Sprawdza, czy zeszły tydzień doczekał się już nagród za 1./2./3. miejsce —
-// jeśli nie, rozdaje je (zabezpieczone transakcją ze znacznikiem tygodnia,
-// więc niezależnie od tego, ile osób akurat otworzy Playlistę dnia, nagrody
-// rozdadzą się dokładnie raz). Wywoływane przy każdym otwarciu huba —
-// appka nie ma serwera/crona, więc to jedyny sposób na "koniec tygodnia".
+// Sprawdza poprzedni tydzień i kolejkuje nagrody TOP3 do ręcznego odbioru.
+// Marker jest zapisywany dopiero po poprawnym utworzeniu wszystkich claimów,
+// więc przerwanie procesu nie może "połknąć" części nagród.
 export async function processWeeklyPlaylistRewardsIfNeeded() {
   const lastWeekKey = currentWeekKey(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
   const markerRef = doc(db, WEEKLY_REWARDS_PROCESSED_COLLECTION, lastWeekKey);
-  let shouldProcess = false;
-  try {
-    await runTransaction(db, async (tx) => {
-      const snap = await tx.get(markerRef);
-      if (snap.exists()) return;
-      shouldProcess = true;
-      tx.set(markerRef, { processedAt: Date.now() });
-    });
-  } catch (e) {
-    return;
-  }
-  if (!shouldProcess) return;
+  const markerSnap = await getDoc(markerRef);
+  if (markerSnap.exists()) return { alreadyProcessed: true, weekKey: lastWeekKey };
 
-  try {
-    const q = query(collection(db, WEEKLY_COLLECTION), where("weekKey", "==", lastWeekKey));
-    const snap = await getDocs(q);
-    const entries = snap.docs.map((d) => d.data()).sort((a, b) => b.score - a.score);
-    for (let i = 0; i < Math.min(3, entries.length); i++) {
-      if (!entries[i].score) continue; // nie nagradzaj kogoś z zerowym wynikiem
-      await awardXp(entries[i].uid, WEEKLY_REWARDS[i]);
-      pushRewardNotice(entries[i].uid, { source: "playlist", place: i + 1, xp: WEEKLY_REWARDS[i], hitcoin: 0, label: "Playlista dnia (ranking tygodnia)" }).catch(() => {});
-    }
-  } catch (e) {
-    // ciche niepowodzenie — znacznik już ustawiony, nie spróbujemy ponownie w tym tygodniu, ale i tak nie ma dużej straty
+  const q = query(collection(db, WEEKLY_COLLECTION), where("weekKey", "==", lastWeekKey));
+  const snap = await getDocs(q);
+  const entries = snap.docs
+    .map((d) => d.data())
+    .filter((entry) => Number(entry.score || 0) > 0 && entry.uid)
+    .sort((a, b) => b.score - a.score || String(a.uid || "").localeCompare(String(b.uid || "")))
+    .slice(0, 3);
+
+  for (let i = 0; i < entries.length; i += 1) {
+    await queueWeeklyRankingReward(entries[i].uid, {
+      source: "playlist",
+      weekKey: lastWeekKey,
+      place: i + 1,
+      label: "Playlista dnia (ranking tygodnia)",
+    });
   }
+
+  await setDoc(markerRef, {
+    processedAt: Date.now(),
+    weekKey: lastWeekKey,
+    winners: entries.map((entry, index) => ({ uid: entry.uid, place: index + 1, score: entry.score || 0 })),
+  });
+  return { processed: true, weekKey: lastWeekKey, winners: entries.length };
 }
