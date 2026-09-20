@@ -666,7 +666,7 @@ export function DesktopPracticeSetupView({
             <div className="dgv-practice-presets">{[10, 15, 20, 30].map((value) => <button type="button" key={value} className={target === value ? 'active' : ''} onClick={() => setPracticeTarget(value)}>{value}</button>)}</div>
             <div className="dgv-stepper large">
               <button type="button" onClick={() => setPracticeTarget(Math.max(1, target - 1))}>−</button>
-              <input type="number" min="1" value={practiceTarget} onChange={(e) => setPracticeTarget(e.target.value === '' ? '' : parseInt(e.target.value, 10))} />
+              <input autoComplete="off" type="number" min="1" value={practiceTarget} onChange={(e) => setPracticeTarget(e.target.value === '' ? '' : parseInt(e.target.value, 10))} />
               <button type="button" onClick={() => setPracticeTarget(target + 1)}>+</button>
             </div>
             <div className="dgv-practice-tip"><Sparkles size={16} /> {yearGuess ? 'Po każdej odpowiedzi wynik rundy zostaje na ekranie około 4 sekundy. Trening nie nalicza XP, HITCOIN ani rankingu.' : 'Na start polecam 10–15 kart. Dłuższy trening daje większą oś czasu i trudniejsze decyzje.'}</div>
@@ -831,7 +831,7 @@ export function DesktopLobbyView({
                     </div>
                     <div className="dgv-stepper">
                       <button type="button" onClick={() => setTarget(Math.max(1, Number(target || 1) - 1))}>−</button>
-                      <input type="number" min="1" value={target} onChange={(e) => setTarget(e.target.value === '' ? '' : parseInt(e.target.value, 10))} />
+                      <input autoComplete="off" type="number" min="1" value={target} onChange={(e) => setTarget(e.target.value === '' ? '' : parseInt(e.target.value, 10))} />
                       <button type="button" onClick={() => setTarget(Number(target || 0) + 1)}>+</button>
                     </div>
                   </div>
@@ -929,8 +929,8 @@ function GuessPanel({ guessArtist, setGuessArtist, guessTitle, setGuessTitle, to
       <div className="dgv-section-heading"><Headphones size={18} /> BONUS: TYTUŁ I WYKONAWCA <span className="dgv-token-count"><img src={iconToken} alt="" /> {tokens}</span></div>
       <p>Opcjonalnie. Jeśli inni gracze zaakceptują odpowiedź, zdobywasz token.</p>
       <div className="dgv-guess-inputs">
-        <input value={guessArtist} onChange={(e) => setGuessArtist(e.target.value)} placeholder="Wykonawca" />
-        <input value={guessTitle} onChange={(e) => setGuessTitle(e.target.value)} placeholder="Tytuł" />
+        <input autoComplete="off" value={guessArtist} onChange={(e) => setGuessArtist(e.target.value)} placeholder="Wykonawca" />
+        <input autoComplete="off" value={guessTitle} onChange={(e) => setGuessTitle(e.target.value)} placeholder="Tytuł" />
       </div>
       <div className="dgv-utility-row">
         <button type="button" onClick={onSwap} disabled={busy || tokens < swapCost}><RotateCcw size={15} /> WYMIEŃ ({swapCost})</button>
@@ -1061,7 +1061,7 @@ function ChatDrawer({ open, setOpen, messages, playerId, chatInput, setChatInput
             ))}
           </div>
           <div className="dgv-chat-compose">
-            <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onSend()} placeholder="Napisz wiadomość…" />
+            <input autoComplete="off" value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onSend()} placeholder="Napisz wiadomość…" />
             <button type="button" disabled={!chatInput.trim()} onClick={onSend}><Send size={18} /></button>
           </div>
         </aside>
@@ -1392,7 +1392,7 @@ export function DesktopYearGuessView({ room, playerId, isPlaying, playElapsed, p
                   <span>ROK WYDANIA</span>
                   <div className="dgv-yearguess-console-row">
                     <button type="button" onClick={() => nudgeYear(-1)}>−</button>
-                    <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={4} placeholder="1994" value={yearInput} onChange={(e) => setSanitizedYear(e.target.value)} aria-label="Wpisz rok wydania" />
+                    <input autoComplete="off" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={4} placeholder="1994" value={yearInput} onChange={(e) => setSanitizedYear(e.target.value)} aria-label="Wpisz rok wydania" />
                     <button type="button" onClick={() => nudgeYear(1)}>+</button>
                   </div>
                   <small>{yearInput && !validYear ? `Podaj rok 1900–${currentYear}` : 'Wpisz cztery cyfry. Po zatwierdzeniu odpowiedzi nie można zmienić.'}</small>
@@ -1603,9 +1603,9 @@ export function DesktopDailySongView({
               <h1>CO TO ZA UTWÓR?</h1>
               <p>Podaj wykonawcę, tytuł i rok wydania. Możesz zostawić puste pole, jeśli nie znasz odpowiedzi.</p>
               <div className="dgv-daily-song-fields">
-                <label><span>WYKONAWCA</span><input value={guessArtist} onChange={(e) => setGuessArtist(e.target.value)} placeholder="np. Queen" /></label>
-                <label><span>TYTUŁ</span><input value={guessTitle} onChange={(e) => setGuessTitle(e.target.value)} placeholder="np. The Show Must Go On" /></label>
-                <label><span>ROK</span><input type="number" value={guessYear} onChange={(e) => setGuessYear(e.target.value)} placeholder="1991" /></label>
+                <label><span>WYKONAWCA</span><input autoComplete="off" value={guessArtist} onChange={(e) => setGuessArtist(e.target.value)} placeholder="np. Queen" /></label>
+                <label><span>TYTUŁ</span><input autoComplete="off" value={guessTitle} onChange={(e) => setGuessTitle(e.target.value)} placeholder="np. The Show Must Go On" /></label>
+                <label><span>ROK</span><input autoComplete="off" type="number" value={guessYear} onChange={(e) => setGuessYear(e.target.value)} placeholder="1991" /></label>
               </div>
               <div className="dgv-daily-song-scoring">
                 <div><strong>+1</strong><span>wykonawca</span></div><div><strong>+1</strong><span>tytuł</span></div><div><strong>+1</strong><span>rok</span></div>

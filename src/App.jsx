@@ -5603,13 +5603,13 @@ export default function App() {
                         {proposalEditingId === p.id ? (
                           <div className="flex flex-col gap-2">
                             <div className="flex gap-2 flex-wrap">
-                              <input type="text" value={proposalEditDraft.artist} onChange={(e) => setProposalEditDraft({ ...proposalEditDraft, artist: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
-                              <input type="text" value={proposalEditDraft.title} onChange={(e) => setProposalEditDraft({ ...proposalEditDraft, title: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
+                              <input autoComplete="off" type="text" value={proposalEditDraft.artist} onChange={(e) => setProposalEditDraft({ ...proposalEditDraft, artist: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
+                              <input autoComplete="off" type="text" value={proposalEditDraft.title} onChange={(e) => setProposalEditDraft({ ...proposalEditDraft, title: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
                             </div>
-                            <input type="text" value={proposalEditDraft.url} onChange={(e) => setProposalEditDraft({ ...proposalEditDraft, url: e.target.value })} placeholder="Link YouTube" />
+                            <input autoComplete="off" type="text" value={proposalEditDraft.url} onChange={(e) => setProposalEditDraft({ ...proposalEditDraft, url: e.target.value })} placeholder="Link YouTube" />
                             <div className="flex gap-2 flex-wrap">
-                              <input type="number" value={proposalEditDraft.year} onChange={(e) => setProposalEditDraft({ ...proposalEditDraft, year: e.target.value })} style={{ width: 90 }} />
-                              <input type="text" value={proposalEditDraft.categoriesText} onChange={(e) => setProposalEditDraft({ ...proposalEditDraft, categoriesText: e.target.value })} placeholder="kategorie;po;średniku" className="flex-1" style={{ minWidth: 140 }} />
+                              <input autoComplete="off" type="number" value={proposalEditDraft.year} onChange={(e) => setProposalEditDraft({ ...proposalEditDraft, year: e.target.value })} style={{ width: 90 }} />
+                              <input autoComplete="off" type="text" value={proposalEditDraft.categoriesText} onChange={(e) => setProposalEditDraft({ ...proposalEditDraft, categoriesText: e.target.value })} placeholder="kategorie;po;średniku" className="flex-1" style={{ minWidth: 140 }} />
                             </div>
                             <div className="flex gap-2">
                               <button onClick={() => handleSaveProposalEdit(p.id)} disabled={adminBusy} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: "var(--good)", color: "#0d1f1a" }}>
@@ -5767,13 +5767,13 @@ export default function App() {
                         {brokenLinkEditingId === r.id ? (
                           <div className="flex flex-col gap-2">
                             <div className="flex gap-2 flex-wrap">
-                              <input type="text" value={brokenLinkEditDraft.artist} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, artist: e.target.value })} className="flex-1" style={{ minWidth: 100 }} placeholder="Wykonawca" />
-                              <input type="text" value={brokenLinkEditDraft.title} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, title: e.target.value })} className="flex-1" style={{ minWidth: 100 }} placeholder="Tytuł" />
+                              <input autoComplete="off" type="text" value={brokenLinkEditDraft.artist} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, artist: e.target.value })} className="flex-1" style={{ minWidth: 100 }} placeholder="Wykonawca" />
+                              <input autoComplete="off" type="text" value={brokenLinkEditDraft.title} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, title: e.target.value })} className="flex-1" style={{ minWidth: 100 }} placeholder="Tytuł" />
                             </div>
-                            <input type="text" value={brokenLinkEditDraft.url} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, url: e.target.value })} placeholder="Nowy link YouTube" />
+                            <input autoComplete="off" type="text" value={brokenLinkEditDraft.url} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, url: e.target.value })} placeholder="Nowy link YouTube" />
                             <div className="flex gap-2 flex-wrap">
-                              <input type="number" value={brokenLinkEditDraft.year} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, year: e.target.value })} style={{ width: 90 }} placeholder="Rok" />
-                              <input type="text" value={brokenLinkEditDraft.categoriesText} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, categoriesText: e.target.value })} placeholder="kategorie;po;średniku" className="flex-1" style={{ minWidth: 140 }} />
+                              <input autoComplete="off" type="number" value={brokenLinkEditDraft.year} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, year: e.target.value })} style={{ width: 90 }} placeholder="Rok" />
+                              <input autoComplete="off" type="text" value={brokenLinkEditDraft.categoriesText} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, categoriesText: e.target.value })} placeholder="kategorie;po;średniku" className="flex-1" style={{ minWidth: 140 }} />
                             </div>
                             <div className="flex gap-2">
                               <button onClick={() => handleSaveBrokenLinkEdit(r)} disabled={brokenLinkBusy} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: "var(--good)", color: "#0d1f1a" }}>
@@ -5869,7 +5869,7 @@ export default function App() {
                     <option value="8">8 graczy</option>
                   </select>
                   <label className="text-xs uppercase" style={{ color: "var(--muted)", marginTop: 4 }}>Wpisowe (XP)</label>
-                  <input
+                  <input autoComplete="off"
                     type="number"
                     value={adminNewTournament.entryFee}
                     onChange={(e) => setAdminNewTournament({ ...adminNewTournament, entryFee: e.target.value })}
@@ -6053,7 +6053,7 @@ export default function App() {
               <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
                 Format wierszy: <code>url;wykonawca;tytuł;rok;kategorie;po;średniku</code>. Duplikaty (po linku YouTube) są pomijane automatycznie.
               </p>
-              <input type="file" accept=".csv,text/csv" onChange={handleImportFilePick} style={{ fontSize: 12, marginBottom: 8 }} />
+              <input autoComplete="off" type="file" accept=".csv,text/csv" onChange={handleImportFilePick} style={{ fontSize: 12, marginBottom: 8 }} />
               <textarea
                 rows={5}
                 value={importCsvText}
@@ -6084,13 +6084,13 @@ export default function App() {
               <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>Dodaj nowy utwór</p>
               <div className="flex flex-col gap-2">
                 <div className="flex gap-2 flex-wrap">
-                  <input type="text" placeholder="Wykonawca" value={adminNewSong.artist} onChange={(e) => setAdminNewSong({ ...adminNewSong, artist: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
-                  <input type="text" placeholder="Tytuł" value={adminNewSong.title} onChange={(e) => setAdminNewSong({ ...adminNewSong, title: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
+                  <input autoComplete="off" type="text" placeholder="Wykonawca" value={adminNewSong.artist} onChange={(e) => setAdminNewSong({ ...adminNewSong, artist: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
+                  <input autoComplete="off" type="text" placeholder="Tytuł" value={adminNewSong.title} onChange={(e) => setAdminNewSong({ ...adminNewSong, title: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
                 </div>
-                <input type="text" placeholder="Link YouTube" value={adminNewSong.url} onChange={(e) => setAdminNewSong({ ...adminNewSong, url: e.target.value })} />
+                <input autoComplete="off" type="text" placeholder="Link YouTube" value={adminNewSong.url} onChange={(e) => setAdminNewSong({ ...adminNewSong, url: e.target.value })} />
                 <div className="flex gap-2 flex-wrap">
-                  <input type="number" placeholder="Rok" value={adminNewSong.year} onChange={(e) => setAdminNewSong({ ...adminNewSong, year: e.target.value })} style={{ width: 90 }} />
-                  <input type="text" placeholder="kategorie;po;średniku" value={adminNewSong.categories} onChange={(e) => setAdminNewSong({ ...adminNewSong, categories: e.target.value })} className="flex-1" style={{ minWidth: 140 }} />
+                  <input autoComplete="off" type="number" placeholder="Rok" value={adminNewSong.year} onChange={(e) => setAdminNewSong({ ...adminNewSong, year: e.target.value })} style={{ width: 90 }} />
+                  <input autoComplete="off" type="text" placeholder="kategorie;po;średniku" value={adminNewSong.categories} onChange={(e) => setAdminNewSong({ ...adminNewSong, categories: e.target.value })} className="flex-1" style={{ minWidth: 140 }} />
                 </div>
                 <button onClick={handleAdminAdd} disabled={adminBusy} className="px-4 py-2 rounded-lg text-sm font-bold" style={{ background: "var(--good)", color: "#0d1f1a" }}>
                   + Dodaj
@@ -6101,7 +6101,7 @@ export default function App() {
             <div className="hit-admin-filterbar">
               <label className="hit-admin-searchbox">
                 <Search size={16} color="var(--muted)" />
-                <input type="text" value={adminSearch} onChange={(e) => setAdminSearch(e.target.value)} placeholder="Szukaj po wykonawcy lub tytule…" />
+                <input autoComplete="off" type="text" value={adminSearch} onChange={(e) => setAdminSearch(e.target.value)} placeholder="Szukaj po wykonawcy lub tytule…" />
               </label>
               <label className="hit-admin-category-filter">
                 <span>KATEGORIA</span>
@@ -6155,13 +6155,13 @@ export default function App() {
                         {adminEditingId === s.id ? (
                           <div className="flex flex-col gap-2">
                             <div className="flex gap-2 flex-wrap">
-                              <input type="text" value={adminEditDraft.artist} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, artist: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
-                              <input type="text" value={adminEditDraft.title} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, title: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
+                              <input autoComplete="off" type="text" value={adminEditDraft.artist} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, artist: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
+                              <input autoComplete="off" type="text" value={adminEditDraft.title} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, title: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
                             </div>
-                            <input type="text" value={adminEditDraft.url} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, url: e.target.value })} placeholder="Link YouTube" />
+                            <input autoComplete="off" type="text" value={adminEditDraft.url} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, url: e.target.value })} placeholder="Link YouTube" />
                             <div className="flex gap-2 flex-wrap">
-                              <input type="number" value={adminEditDraft.year} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, year: e.target.value })} style={{ width: 90 }} />
-                              <input type="text" value={adminEditDraft.categoriesText} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, categoriesText: e.target.value })} placeholder="kategorie;po;średniku" className="flex-1" style={{ minWidth: 140 }} />
+                              <input autoComplete="off" type="number" value={adminEditDraft.year} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, year: e.target.value })} style={{ width: 90 }} />
+                              <input autoComplete="off" type="text" value={adminEditDraft.categoriesText} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, categoriesText: e.target.value })} placeholder="kategorie;po;średniku" className="flex-1" style={{ minWidth: 140 }} />
                             </div>
                             <div className="flex gap-2">
                               <button onClick={() => handleAdminSave(s.id)} disabled={adminBusy} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: "var(--good)", color: "#0d1f1a" }}>
@@ -7108,7 +7108,7 @@ export default function App() {
             <div className="desk-admin-modal-eyebrow">TRYB ADMINISTRATORA</div>
             <h2>PANEL ADMINA</h2>
             <p>Podaj hasło administratora, aby otworzyć panel bez opuszczania nowego interfejsu.</p>
-            <input
+            <input autoComplete="off"
               autoFocus
               type="password"
               value={adminPasswordInput}
@@ -7287,7 +7287,7 @@ export default function App() {
             <div className="desk-admin-modal-eyebrow">TRYB ADMINISTRATORA</div>
             <h2>PANEL ADMINA</h2>
             <p>Podaj hasło administratora, aby otworzyć panel bez opuszczania mobilnego interfejsu.</p>
-            <input
+            <input autoComplete="off"
               autoFocus
               type="password"
               value={adminPasswordInput}
@@ -7670,7 +7670,7 @@ export default function App() {
                       <div style={{ position: "absolute", bottom: -2, right: -2, width: 20, height: 20, borderRadius: "50%", background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, border: "2px solid #0c0c1c" }}>
                         📷
                       </div>
-                      <input
+                      <input autoComplete="off"
                         type="file"
                         accept="image/*"
                         style={{ display: "none" }}
@@ -8221,7 +8221,7 @@ export default function App() {
                 <>
                   <div className="flex items-center gap-2">
                     <span style={{ color: "var(--muted)", fontSize: 12 }}>Imię:</span>
-                    <input type="text" value={name} onChange={(e) => saveName(e.target.value)} placeholder="np. Kasia" style={{ width: 120, fontSize: 12, padding: "4px 8px" }} />
+                    <input autoComplete="off" type="text" value={name} onChange={(e) => saveName(e.target.value)} placeholder="np. Kasia" style={{ width: 120, fontSize: 12, padding: "4px 8px" }} />
                   </div>
                   <button onClick={() => setShowAuthForm((v) => !v)} className="text-xs font-bold" style={{ color: "var(--accent)", textDecoration: "underline" }}>
                     {showAuthForm ? "Zwiń" : "Zaloguj się"}
@@ -8249,8 +8249,8 @@ export default function App() {
                   </button>
                 </div>
                 <div className="flex flex-col gap-2">
-                  <input type="text" value={authUsername} onChange={(e) => setAuthUsername(e.target.value)} placeholder="Login" />
-                  <input
+                  <input autoComplete="username" type="text" value={authUsername} onChange={(e) => setAuthUsername(e.target.value)} placeholder="Login" />
+                  <input autoComplete="current-password"
                     type="password"
                     value={authPassword}
                     onChange={(e) => setAuthPassword(e.target.value)}
@@ -8296,7 +8296,7 @@ export default function App() {
                       <div className="hs-btnlabel">STWÓRZ POKÓJ</div>
                     </div>
                     <div className="hs-join-row">
-                      <input
+                      <input autoComplete="off"
                         type="text"
                         value={joinCode}
                         onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
@@ -8462,11 +8462,11 @@ export default function App() {
                     ) : (
                       <div className="flex flex-col gap-2">
                         <div className="flex gap-2 flex-wrap">
-                          <input type="text" placeholder="Wykonawca" value={proposeDraft.artist} onChange={(e) => setProposeDraft({ ...proposeDraft, artist: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
-                          <input type="text" placeholder="Tytuł" value={proposeDraft.title} onChange={(e) => setProposeDraft({ ...proposeDraft, title: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
+                          <input autoComplete="off" type="text" placeholder="Wykonawca" value={proposeDraft.artist} onChange={(e) => setProposeDraft({ ...proposeDraft, artist: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
+                          <input autoComplete="off" type="text" placeholder="Tytuł" value={proposeDraft.title} onChange={(e) => setProposeDraft({ ...proposeDraft, title: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
                         </div>
-                        <input type="text" placeholder="Link YouTube" value={proposeDraft.url} onChange={(e) => setProposeDraft({ ...proposeDraft, url: e.target.value })} />
-                        <input type="number" placeholder="Rok" value={proposeDraft.year} onChange={(e) => setProposeDraft({ ...proposeDraft, year: e.target.value })} style={{ width: 90 }} />
+                        <input autoComplete="off" type="text" placeholder="Link YouTube" value={proposeDraft.url} onChange={(e) => setProposeDraft({ ...proposeDraft, url: e.target.value })} />
+                        <input autoComplete="off" type="number" placeholder="Rok" value={proposeDraft.year} onChange={(e) => setProposeDraft({ ...proposeDraft, year: e.target.value })} style={{ width: 90 }} />
 
                         <p style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginTop: 4 }}>Kategorie (min. 1)</p>
                         <div className="flex flex-wrap gap-2">
@@ -8507,7 +8507,7 @@ export default function App() {
               </button>
             ) : showAdminLogin ? (
               <div className="w-full rounded-xl p-3 flex gap-2 items-center flex-wrap" style={{ background: "var(--surface2)", border: "1px solid #33294f" }}>
-                <input
+                <input autoComplete="off"
                   type="password"
                   value={adminPasswordInput}
                   onChange={(e) => setAdminPasswordInput(e.target.value)}
@@ -8802,7 +8802,7 @@ export default function App() {
                     </div>
 
                     <label className="flex items-center gap-2 text-xs" style={{ color: "var(--muted)" }}>
-                      <input type="checkbox" checked={albumOnlyOwned} onChange={(e) => setAlbumOnlyOwned(e.target.checked)} />
+                      <input autoComplete="off" type="checkbox" checked={albumOnlyOwned} onChange={(e) => setAlbumOnlyOwned(e.target.checked)} />
                       Pokaż tylko zdobyte
                     </label>
 
@@ -8997,7 +8997,7 @@ export default function App() {
 
               <div className="flex items-center gap-2 mb-4">
                 <label className="text-xs uppercase" style={{ color: "var(--muted)" }}>Kart do zebrania:</label>
-                <input type="number" min={1} value={practiceTarget} onChange={(e) => setPracticeTarget(parseInt(e.target.value, 10) || "")} style={{ width: 60 }} />
+                <input autoComplete="off" type="number" min={1} value={practiceTarget} onChange={(e) => setPracticeTarget(parseInt(e.target.value, 10) || "")} style={{ width: 60 }} />
               </div>
 
               <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase", marginBottom: 8 }}>Kategorie</p>
@@ -9438,7 +9438,7 @@ export default function App() {
               <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 26px rgba(245,196,81,0.18)" }}>
                 <div className="flex items-center gap-2 mb-4">
                   <label className="text-xs uppercase" style={{ color: "var(--muted)" }}>Kart do wygrania:</label>
-                  <input
+                  <input autoComplete="off"
                     type="number"
                     min={1}
                     value={target}
@@ -9639,8 +9639,8 @@ export default function App() {
                   </span>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  <input type="text" value={guessArtist} onChange={(e) => setGuessArtist(e.target.value)} placeholder="Wykonawca" className="flex-1" style={{ minWidth: 120 }} />
-                  <input type="text" value={guessTitle} onChange={(e) => setGuessTitle(e.target.value)} placeholder="Tytuł" className="flex-1" style={{ minWidth: 120 }} />
+                  <input autoComplete="off" type="text" value={guessArtist} onChange={(e) => setGuessArtist(e.target.value)} placeholder="Wykonawca" className="flex-1" style={{ minWidth: 120 }} />
+                  <input autoComplete="off" type="text" value={guessTitle} onChange={(e) => setGuessTitle(e.target.value)} placeholder="Tytuł" className="flex-1" style={{ minWidth: 120 }} />
                 </div>
                 <p style={{ color: "var(--muted)", fontSize: 10, marginTop: 4 }}>
                   Inni gracze zagłosują, czy Twoja odpowiedź się liczy — zostaw puste, jeśli nie zgadujesz.
@@ -10387,9 +10387,9 @@ export default function App() {
                 </button>
 
                 <div className="w-full flex flex-col gap-2">
-                  <input type="text" value={dailyGuessArtist} onChange={(e) => setDailyGuessArtist(e.target.value)} placeholder="Wykonawca" />
-                  <input type="text" value={dailyGuessTitle} onChange={(e) => setDailyGuessTitle(e.target.value)} placeholder="Tytuł" />
-                  <input type="number" value={dailyGuessYear} onChange={(e) => setDailyGuessYear(e.target.value)} placeholder="Rok" />
+                  <input autoComplete="off" type="text" value={dailyGuessArtist} onChange={(e) => setDailyGuessArtist(e.target.value)} placeholder="Wykonawca" />
+                  <input autoComplete="off" type="text" value={dailyGuessTitle} onChange={(e) => setDailyGuessTitle(e.target.value)} placeholder="Tytuł" />
+                  <input autoComplete="off" type="number" value={dailyGuessYear} onChange={(e) => setDailyGuessYear(e.target.value)} placeholder="Rok" />
                 </div>
                 <button onClick={submitDailyGuess} disabled={dailyBusy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
                   ZATWIERDŹ ODPOWIEDŹ
@@ -10640,7 +10640,7 @@ export default function App() {
               </div>
 
               <div className="flex items-center gap-2 px-3 py-3" style={{ borderTop: "1px solid #2a2340" }}>
-                <input
+                <input autoComplete="off"
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}

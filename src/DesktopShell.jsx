@@ -275,7 +275,7 @@ function HeaderBar({ onlineCount, level, xpText, musicCount, hitcoin, avatarUrl,
           <DesktopTopPill icon={<img src={iconHitcoin} alt="" className="desk-pill-coin" />} accent="gold" onClick={onShop}>{hitcoin}</DesktopTopPill>
           {onAvatarUpload ? (
             <label className={`desk-user-pill desk-avatar-uploader ${avatarUploadBusy ? 'busy' : ''}`} title="Kliknij, aby zmienić avatar">
-              <input type="file" accept="image/*" disabled={avatarUploadBusy} onChange={(e) => e.target.files?.[0] && onAvatarUpload(e.target.files[0])} />
+              <input autoComplete="off" type="file" accept="image/*" disabled={avatarUploadBusy} onChange={(e) => e.target.files?.[0] && onAvatarUpload(e.target.files[0])} />
               <div className="desk-avatar" style={avatarUrl ? { backgroundImage: `url(${avatarUrl})` } : undefined}>
                 {!avatarUrl ? initials(username) : null}
                 <span className="desk-avatar-edit">✎</span>
@@ -637,7 +637,7 @@ export function DesktopHomeView(props) {
               <div className="desk-room-join">
                 <div className="desk-room-eyebrow">DOŁĄCZ DO POKOJU</div>
                 <div className="desk-join-row">
-                  <input
+                  <input autoComplete="off"
                     value={joinCode}
                     onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                     placeholder={isGuest ? "Zaloguj się, aby dołączyć" : "Wpisz kod pokoju"}
@@ -1231,7 +1231,7 @@ function DesktopYearGuessHub({ common, ...props }) {
             <button type="button" className="desk-yearguess-create" disabled={props.actionBusy} onClick={props.onCreateYearGuessRoom}><Plus size={20} /><span><small>NOWA GRA</small><strong>STWÓRZ POKÓJ</strong></span><ChevronRight size={20} /></button>
             <div className="desk-yearguess-join-label">MASZ KOD POKOJU?</div>
             <div className="desk-yearguess-join-row">
-              <input value={props.joinCode || ''} onChange={(e) => props.setJoinCode?.(e.target.value.toUpperCase())} maxLength={6} placeholder="ABCD" aria-label="Kod pokoju Zgadnij Rok" />
+              <input autoComplete="off" value={props.joinCode || ''} onChange={(e) => props.setJoinCode?.(e.target.value.toUpperCase())} maxLength={6} placeholder="ABCD" aria-label="Kod pokoju Zgadnij Rok" />
               <button type="button" disabled={props.actionBusy || !String(props.joinCode || '').trim()} onClick={props.onJoinYearGuessRoom}>DOŁĄCZ <ChevronRight size={17} /></button>
             </div>
             {props.appError ? <div className="desk-yearguess-error">{props.appError}</div> : null}
@@ -1585,7 +1585,7 @@ function DesktopCollectionView({ common, songs, stats, libraryLoading, songPoolS
         </section>
 
         <section className="desk-collection-tools desk-panel">
-          <div className="desk-search-wrap"><Search size={18} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Szukaj wykonawcy, tytułu lub roku" /></div>
+          <div className="desk-search-wrap"><Search size={18} /><input autoComplete="off" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Szukaj wykonawcy, tytułu lub roku" /></div>
           <button className={`desk-filter-chip ${onlyOwned ? 'active' : ''}`} onClick={() => setOnlyOwned((value) => !value)}>{onlyOwned ? 'TYLKO ZDOBYTE' : 'POKAŻ WSZYSTKIE'}</button>
         </section>
 
@@ -1921,10 +1921,10 @@ function DesktopProposeView({ common, draft, setDraft, categories, onToggleCateg
             <div className="desk-success-state"><CheckCircle2 size={44} /> Dzięki! Propozycja czeka na zatwierdzenie.</div>
           ) : (
             <div className="desk-propose-form">
-              <label><span>WYKONAWCA</span><input value={draft.artist} onChange={(e) => setDraft({ ...draft, artist: e.target.value })} placeholder="np. Queen" /></label>
-              <label><span>TYTUŁ</span><input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="np. Don't Stop Me Now" /></label>
-              <label className="wide"><span>LINK YOUTUBE</span><input value={draft.url} onChange={(e) => setDraft({ ...draft, url: e.target.value })} placeholder="https://youtube.com/..." /></label>
-              <label><span>ROK</span><input type="number" value={draft.year} onChange={(e) => setDraft({ ...draft, year: e.target.value })} placeholder="1978" /></label>
+              <label><span>WYKONAWCA</span><input autoComplete="off" value={draft.artist} onChange={(e) => setDraft({ ...draft, artist: e.target.value })} placeholder="np. Queen" /></label>
+              <label><span>TYTUŁ</span><input autoComplete="off" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="np. Don't Stop Me Now" /></label>
+              <label className="wide"><span>LINK YOUTUBE</span><input autoComplete="off" value={draft.url} onChange={(e) => setDraft({ ...draft, url: e.target.value })} placeholder="https://youtube.com/..." /></label>
+              <label><span>ROK</span><input autoComplete="off" type="number" value={draft.year} onChange={(e) => setDraft({ ...draft, year: e.target.value })} placeholder="1978" /></label>
               <div className="desk-propose-categories wide">
                 <span>KATEGORIE</span>
                 <div>{categories.map((cat) => <button type="button" key={cat.slug} className={draft.categories.includes(cat.slug) ? 'active' : ''} onClick={() => onToggleCategory(cat.slug)}>{cat.label}</button>)}</div>

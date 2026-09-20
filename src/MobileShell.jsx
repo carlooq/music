@@ -184,7 +184,7 @@ function MobileHeader({ user, stats, levelInfo, hitcoin, playerName, onLogin, on
             {stats?.avatarUrl ? <img src={stats.avatarUrl} alt={playerName || 'Gracz'} /> : <span>{initials(playerName)}</span>}
             <i><Camera size={10} /></i>
           </button>
-          <input
+          <input autoComplete="off"
             ref={fileRef}
             type="file"
             accept="image/*"
@@ -273,7 +273,7 @@ function MobilePlayHero({ user, joinCode, setJoinCode, onCreateRoom, onJoinRoom,
           {user ? <b>+</b> : <Lock size={17} />}
         </button>
         <div className={`mob-join-box ${!user ? 'locked' : ''}`}>
-          <input
+          <input autoComplete="off"
             value={joinCode}
             onChange={(e) => setJoinCode?.(e.target.value.toUpperCase())}
             placeholder="Kod pokoju"
@@ -487,7 +487,7 @@ function MobileYearGuessHub(props) {
         </button>
         <div className="mob-yearguess-join-label">MASZ KOD POKOJU?</div>
         <div className="mob-yearguess-join-row">
-          <input value={props.joinCode || ''} onChange={(e) => props.setJoinCode?.(e.target.value.toUpperCase())} maxLength={6} placeholder="ABCD" aria-label="Kod pokoju Zgadnij Rok" />
+          <input autoComplete="off" value={props.joinCode || ''} onChange={(e) => props.setJoinCode?.(e.target.value.toUpperCase())} maxLength={6} placeholder="ABCD" aria-label="Kod pokoju Zgadnij Rok" />
           <button type="button" disabled={props.actionBusy || !String(props.joinCode || '').trim()} onClick={props.onJoinYearGuessRoom}><Play size={16} fill="currentColor" /> DOŁĄCZ</button>
         </div>
         {props.appError ? <div className="mob-yearguess-error">{props.appError}</div> : null}
@@ -919,7 +919,7 @@ function MobileCollectionView(props) {
       </section>
 
       <section className="mob-collection-tools mob-panel">
-        <div className="mob-search"><Search size={16} /><input value={query} onChange={(e) => { setQuery(e.target.value); setVisibleCount(40); }} placeholder="Szukaj karty…" /></div>
+        <div className="mob-search"><Search size={16} /><input autoComplete="off" value={query} onChange={(e) => { setQuery(e.target.value); setVisibleCount(40); }} placeholder="Szukaj karty…" /></div>
         <button className={ownedOnly ? 'active' : ''} type="button" onClick={() => { setOwnedOnly((v) => !v); setVisibleCount(40); }}>{ownedOnly ? 'TYLKO MOJE' : 'POKAŻ WSZYSTKIE'}</button>
       </section>
 
@@ -1277,10 +1277,10 @@ function MobileProposeView(props) {
       <section className="mob-panel mob-propose-card">
         {props.proposeSuccess ? <div className="mob-propose-success"><CheckCircle2 size={42} /><strong>DZIĘKI!</strong><span>Propozycja czeka na zatwierdzenie.</span></div> : (
           <div className="mob-propose-form">
-            <label><span>WYKONAWCA</span><input value={draft.artist || ''} onChange={(e) => props.setProposeDraft?.({ ...draft, artist: e.target.value })} placeholder="np. Queen" /></label>
-            <label><span>TYTUŁ</span><input value={draft.title || ''} onChange={(e) => props.setProposeDraft?.({ ...draft, title: e.target.value })} placeholder="np. Don't Stop Me Now" /></label>
-            <label><span>LINK YOUTUBE</span><input value={draft.url || ''} onChange={(e) => props.setProposeDraft?.({ ...draft, url: e.target.value })} placeholder="https://youtube.com/..." /></label>
-            <label><span>ROK</span><input type="number" value={draft.year || ''} onChange={(e) => props.setProposeDraft?.({ ...draft, year: e.target.value })} placeholder="1978" /></label>
+            <label><span>WYKONAWCA</span><input autoComplete="off" value={draft.artist || ''} onChange={(e) => props.setProposeDraft?.({ ...draft, artist: e.target.value })} placeholder="np. Queen" /></label>
+            <label><span>TYTUŁ</span><input autoComplete="off" value={draft.title || ''} onChange={(e) => props.setProposeDraft?.({ ...draft, title: e.target.value })} placeholder="np. Don't Stop Me Now" /></label>
+            <label><span>LINK YOUTUBE</span><input autoComplete="off" value={draft.url || ''} onChange={(e) => props.setProposeDraft?.({ ...draft, url: e.target.value })} placeholder="https://youtube.com/..." /></label>
+            <label><span>ROK</span><input autoComplete="off" type="number" value={draft.year || ''} onChange={(e) => props.setProposeDraft?.({ ...draft, year: e.target.value })} placeholder="1978" /></label>
             <div className="mob-category-chips">{(props.categories || []).map((cat) => <button type="button" key={cat.slug} className={draft.categories?.includes(cat.slug) ? 'active' : ''} onClick={() => props.onToggleProposeCategory?.(cat.slug)}>{cat.label}</button>)}</div>
             {props.proposeError ? <div className="mob-auth-error">{props.proposeError}</div> : null}
             <button className="mob-main-cta" type="button" disabled={props.proposeBusy} onClick={props.onSubmitProposal}><Send size={17} /> {props.proposeBusy ? 'WYSYŁANIE…' : 'WYŚLIJ PROPOZYCJĘ'}</button>

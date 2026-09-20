@@ -362,7 +362,7 @@ function MobileChat({ open, setOpen, messages = [], playerId, chatInput, setChat
               <div ref={messagesEndRef} />
             </div>
             <form className="mgv-chat-compose" onSubmit={submitMessage}>
-              <input value={chatInput} onChange={(event) => setChatInput(event.target.value)} placeholder="Napisz wiadomość…" enterKeyHint="send" maxLength={300} />
+              <input autoComplete="off" value={chatInput} onChange={(event) => setChatInput(event.target.value)} placeholder="Napisz wiadomość…" enterKeyHint="send" maxLength={300} />
               <button type="submit" disabled={!chatInput.trim()} aria-label="Wyślij wiadomość"><Send size={18} /></button>
             </form>
           </aside>
@@ -467,7 +467,7 @@ export function MobilePracticeSetupView({
           </div>
           <div className="mgv-stepper mgv-practice-stepper">
             <button type="button" onClick={() => setPracticeTarget(Math.max(1, target - 1))}>−</button>
-            <input type="number" min="1" value={practiceTarget} onChange={(event) => setPracticeTarget(event.target.value === '' ? '' : parseInt(event.target.value, 10))} />
+            <input autoComplete="off" type="number" min="1" value={practiceTarget} onChange={(event) => setPracticeTarget(event.target.value === '' ? '' : parseInt(event.target.value, 10))} />
             <button type="button" onClick={() => setPracticeTarget(target + 1)}>+</button>
           </div>
         </div>
@@ -562,7 +562,7 @@ export function MobileLobbyView({ room, roomId, playerId, isHost, copied, onCopy
                 <div><strong>KART DO WYGRANIA</strong><small>Pierwszy gracz, który zbierze tyle poprawnych kart, wygrywa.</small></div>
                 <div className="mgv-stepper">
                   <button type="button" onClick={() => setTarget(Math.max(1, Number(target || 1) - 1))}>−</button>
-                  <input type="number" min="1" value={target} onChange={(event) => setTarget(event.target.value === '' ? '' : parseInt(event.target.value, 10))} />
+                  <input autoComplete="off" type="number" min="1" value={target} onChange={(event) => setTarget(event.target.value === '' ? '' : parseInt(event.target.value, 10))} />
                   <button type="button" onClick={() => setTarget(Number(target || 0) + 1)}>+</button>
                 </div>
               </div>
@@ -698,7 +698,7 @@ export function MobileYearGuessView({ room, playerId, isPlaying, playElapsed, pl
               <span className="mgv-yearguess-console-label">ROK WYDANIA</span>
               <div className="mgv-yearguess-console-row">
                 <button type="button" className="mgv-yearguess-step" onClick={() => nudgeYear(-1)} aria-label="Rok wcześniej">−</button>
-                <input
+                <input autoComplete="off"
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
@@ -934,7 +934,7 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
                 {!room.practiceMode ? (
                   <div className="mgv-inline-guess compact">
                     <div className="mgv-inline-guess-fields">
-                      <input
+                      <input autoComplete="off"
                         aria-label="Wykonawca"
                         value={guessArtist}
                         onChange={(event) => setGuessArtist(event.target.value)}
@@ -942,7 +942,7 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
                         autoComplete="off"
                         enterKeyHint="next"
                       />
-                      <input
+                      <input autoComplete="off"
                         aria-label="Tytuł"
                         value={guessTitle}
                         onChange={(event) => setGuessTitle(event.target.value)}
@@ -1227,9 +1227,9 @@ export function MobileDailySongView({
           <Panel className="mgv-daily-guess-card" accent="violet">
             <div className="mgv-section-title"><Sparkles size={18} /><span>TWOJA ODPOWIEDŹ</span><b>0–3 PKT</b></div>
             <div className="mgv-daily-fields">
-              <label><span>WYKONAWCA</span><input value={guessArtist} onChange={(event) => setGuessArtist(event.target.value)} placeholder="Np. Maanam" autoComplete="off" /></label>
-              <label><span>TYTUŁ</span><input value={guessTitle} onChange={(event) => setGuessTitle(event.target.value)} placeholder="Np. Kocham Cię, kochanie moje" autoComplete="off" /></label>
-              <label className="year"><span>ROK WYDANIA</span><input type="number" inputMode="numeric" value={guessYear} onChange={(event) => setGuessYear(event.target.value)} placeholder="1984" /></label>
+              <label><span>WYKONAWCA</span><input autoComplete="off" value={guessArtist} onChange={(event) => setGuessArtist(event.target.value)} placeholder="Np. Maanam" /></label>
+              <label><span>TYTUŁ</span><input autoComplete="off" value={guessTitle} onChange={(event) => setGuessTitle(event.target.value)} placeholder="Np. Kocham Cię, kochanie moje" /></label>
+              <label className="year"><span>ROK WYDANIA</span><input autoComplete="off" type="number" inputMode="numeric" value={guessYear} onChange={(event) => setGuessYear(event.target.value)} placeholder="1984" /></label>
             </div>
             <p className="mgv-form-note">Nie wiesz? Możesz zostawić pole puste — pozostałe odpowiedzi nadal są punktowane.</p>
             <button type="button" className="mgv-main-cta" onClick={onSubmit} disabled={busy}>
