@@ -666,7 +666,7 @@ export function DesktopPracticeSetupView({
             <div className="dgv-practice-presets">{[10, 15, 20, 30].map((value) => <button type="button" key={value} className={target === value ? 'active' : ''} onClick={() => setPracticeTarget(value)}>{value}</button>)}</div>
             <div className="dgv-stepper large">
               <button type="button" onClick={() => setPracticeTarget(Math.max(1, target - 1))}>−</button>
-              <input autoComplete="off" type="number" min="1" value={practiceTarget} onChange={(e) => setPracticeTarget(e.target.value === '' ? '' : parseInt(e.target.value, 10))} />
+              <input autoComplete="one-time-code" type="number" min="1" value={practiceTarget} onChange={(e) => setPracticeTarget(e.target.value === '' ? '' : parseInt(e.target.value, 10))} />
               <button type="button" onClick={() => setPracticeTarget(target + 1)}>+</button>
             </div>
             <div className="dgv-practice-tip"><Sparkles size={16} /> {yearGuess ? 'Po każdej odpowiedzi wynik rundy zostaje na ekranie około 4 sekundy. Trening nie nalicza XP, HITCOIN ani rankingu.' : 'Na start polecam 10–15 kart. Dłuższy trening daje większą oś czasu i trudniejsze decyzje.'}</div>
@@ -831,7 +831,7 @@ export function DesktopLobbyView({
                     </div>
                     <div className="dgv-stepper">
                       <button type="button" onClick={() => setTarget(Math.max(1, Number(target || 1) - 1))}>−</button>
-                      <input autoComplete="off" type="number" min="1" value={target} onChange={(e) => setTarget(e.target.value === '' ? '' : parseInt(e.target.value, 10))} />
+                      <input autoComplete="one-time-code" type="number" min="1" value={target} onChange={(e) => setTarget(e.target.value === '' ? '' : parseInt(e.target.value, 10))} />
                       <button type="button" onClick={() => setTarget(Number(target || 0) + 1)}>+</button>
                     </div>
                   </div>
@@ -1392,7 +1392,7 @@ export function DesktopYearGuessView({ room, playerId, isPlaying, playElapsed, p
                   <span>ROK WYDANIA</span>
                   <div className="dgv-yearguess-console-row">
                     <button type="button" onClick={() => nudgeYear(-1)}>−</button>
-                    <input autoComplete="off" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={4} placeholder="1994" value={yearInput} onChange={(e) => setSanitizedYear(e.target.value)} aria-label="Wpisz rok wydania" />
+                    <input autoComplete="one-time-code" name="yearguess-year-desk" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={4} placeholder="1994" value={yearInput} onChange={(e) => setSanitizedYear(e.target.value)} aria-label="Wpisz rok wydania" />
                     <button type="button" onClick={() => nudgeYear(1)}>+</button>
                   </div>
                   <small>{yearInput && !validYear ? `Podaj rok 1900–${currentYear}` : 'Wpisz cztery cyfry. Po zatwierdzeniu odpowiedzi nie można zmienić.'}</small>
@@ -1605,7 +1605,7 @@ export function DesktopDailySongView({
               <div className="dgv-daily-song-fields">
                 <label><span>WYKONAWCA</span><input autoComplete="off" value={guessArtist} onChange={(e) => setGuessArtist(e.target.value)} placeholder="np. Queen" /></label>
                 <label><span>TYTUŁ</span><input autoComplete="off" value={guessTitle} onChange={(e) => setGuessTitle(e.target.value)} placeholder="np. The Show Must Go On" /></label>
-                <label><span>ROK</span><input autoComplete="off" type="number" value={guessYear} onChange={(e) => setGuessYear(e.target.value)} placeholder="1991" /></label>
+                <label><span>ROK</span><input autoComplete="one-time-code" type="number" value={guessYear} onChange={(e) => setGuessYear(e.target.value)} placeholder="1991" /></label>
               </div>
               <div className="dgv-daily-song-scoring">
                 <div><strong>+1</strong><span>wykonawca</span></div><div><strong>+1</strong><span>tytuł</span></div><div><strong>+1</strong><span>rok</span></div>

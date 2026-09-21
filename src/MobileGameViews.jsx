@@ -467,7 +467,7 @@ export function MobilePracticeSetupView({
           </div>
           <div className="mgv-stepper mgv-practice-stepper">
             <button type="button" onClick={() => setPracticeTarget(Math.max(1, target - 1))}>−</button>
-            <input autoComplete="off" type="number" min="1" value={practiceTarget} onChange={(event) => setPracticeTarget(event.target.value === '' ? '' : parseInt(event.target.value, 10))} />
+            <input autoComplete="one-time-code" type="number" min="1" value={practiceTarget} onChange={(event) => setPracticeTarget(event.target.value === '' ? '' : parseInt(event.target.value, 10))} />
             <button type="button" onClick={() => setPracticeTarget(target + 1)}>+</button>
           </div>
         </div>
@@ -562,7 +562,7 @@ export function MobileLobbyView({ room, roomId, playerId, isHost, copied, onCopy
                 <div><strong>KART DO WYGRANIA</strong><small>Pierwszy gracz, który zbierze tyle poprawnych kart, wygrywa.</small></div>
                 <div className="mgv-stepper">
                   <button type="button" onClick={() => setTarget(Math.max(1, Number(target || 1) - 1))}>−</button>
-                  <input autoComplete="off" type="number" min="1" value={target} onChange={(event) => setTarget(event.target.value === '' ? '' : parseInt(event.target.value, 10))} />
+                  <input autoComplete="one-time-code" type="number" min="1" value={target} onChange={(event) => setTarget(event.target.value === '' ? '' : parseInt(event.target.value, 10))} />
                   <button type="button" onClick={() => setTarget(Number(target || 0) + 1)}>+</button>
                 </div>
               </div>
@@ -698,7 +698,7 @@ export function MobileYearGuessView({ room, playerId, isPlaying, playElapsed, pl
               <span className="mgv-yearguess-console-label">ROK WYDANIA</span>
               <div className="mgv-yearguess-console-row">
                 <button type="button" className="mgv-yearguess-step" onClick={() => nudgeYear(-1)} aria-label="Rok wcześniej">−</button>
-                <input autoComplete="off"
+                <input autoComplete="one-time-code" name="yearguess-year-mob"
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
@@ -1229,7 +1229,7 @@ export function MobileDailySongView({
             <div className="mgv-daily-fields">
               <label><span>WYKONAWCA</span><input autoComplete="off" value={guessArtist} onChange={(event) => setGuessArtist(event.target.value)} placeholder="Np. Maanam" /></label>
               <label><span>TYTUŁ</span><input autoComplete="off" value={guessTitle} onChange={(event) => setGuessTitle(event.target.value)} placeholder="Np. Kocham Cię, kochanie moje" /></label>
-              <label className="year"><span>ROK WYDANIA</span><input autoComplete="off" type="number" inputMode="numeric" value={guessYear} onChange={(event) => setGuessYear(event.target.value)} placeholder="1984" /></label>
+              <label className="year"><span>ROK WYDANIA</span><input autoComplete="one-time-code" name="classic-guess-year" type="number" inputMode="numeric" value={guessYear} onChange={(event) => setGuessYear(event.target.value)} placeholder="1984" /></label>
             </div>
             <p className="mgv-form-note">Nie wiesz? Możesz zostawić pole puste — pozostałe odpowiedzi nadal są punktowane.</p>
             <button type="button" className="mgv-main-cta" onClick={onSubmit} disabled={busy}>

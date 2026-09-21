@@ -5608,7 +5608,7 @@ export default function App() {
                             </div>
                             <input autoComplete="off" type="text" value={proposalEditDraft.url} onChange={(e) => setProposalEditDraft({ ...proposalEditDraft, url: e.target.value })} placeholder="Link YouTube" />
                             <div className="flex gap-2 flex-wrap">
-                              <input autoComplete="off" type="number" value={proposalEditDraft.year} onChange={(e) => setProposalEditDraft({ ...proposalEditDraft, year: e.target.value })} style={{ width: 90 }} />
+                              <input autoComplete="one-time-code" type="number" value={proposalEditDraft.year} onChange={(e) => setProposalEditDraft({ ...proposalEditDraft, year: e.target.value })} style={{ width: 90 }} />
                               <input autoComplete="off" type="text" value={proposalEditDraft.categoriesText} onChange={(e) => setProposalEditDraft({ ...proposalEditDraft, categoriesText: e.target.value })} placeholder="kategorie;po;średniku" className="flex-1" style={{ minWidth: 140 }} />
                             </div>
                             <div className="flex gap-2">
@@ -5772,7 +5772,7 @@ export default function App() {
                             </div>
                             <input autoComplete="off" type="text" value={brokenLinkEditDraft.url} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, url: e.target.value })} placeholder="Nowy link YouTube" />
                             <div className="flex gap-2 flex-wrap">
-                              <input autoComplete="off" type="number" value={brokenLinkEditDraft.year} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, year: e.target.value })} style={{ width: 90 }} placeholder="Rok" />
+                              <input autoComplete="one-time-code" type="number" value={brokenLinkEditDraft.year} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, year: e.target.value })} style={{ width: 90 }} placeholder="Rok" />
                               <input autoComplete="off" type="text" value={brokenLinkEditDraft.categoriesText} onChange={(e) => setBrokenLinkEditDraft({ ...brokenLinkEditDraft, categoriesText: e.target.value })} placeholder="kategorie;po;średniku" className="flex-1" style={{ minWidth: 140 }} />
                             </div>
                             <div className="flex gap-2">
@@ -5869,7 +5869,7 @@ export default function App() {
                     <option value="8">8 graczy</option>
                   </select>
                   <label className="text-xs uppercase" style={{ color: "var(--muted)", marginTop: 4 }}>Wpisowe (XP)</label>
-                  <input autoComplete="off"
+                  <input autoComplete="one-time-code"
                     type="number"
                     value={adminNewTournament.entryFee}
                     onChange={(e) => setAdminNewTournament({ ...adminNewTournament, entryFee: e.target.value })}
@@ -6089,7 +6089,7 @@ export default function App() {
                 </div>
                 <input autoComplete="off" type="text" placeholder="Link YouTube" value={adminNewSong.url} onChange={(e) => setAdminNewSong({ ...adminNewSong, url: e.target.value })} />
                 <div className="flex gap-2 flex-wrap">
-                  <input autoComplete="off" type="number" placeholder="Rok" value={adminNewSong.year} onChange={(e) => setAdminNewSong({ ...adminNewSong, year: e.target.value })} style={{ width: 90 }} />
+                  <input autoComplete="one-time-code" type="number" placeholder="Rok" value={adminNewSong.year} onChange={(e) => setAdminNewSong({ ...adminNewSong, year: e.target.value })} style={{ width: 90 }} />
                   <input autoComplete="off" type="text" placeholder="kategorie;po;średniku" value={adminNewSong.categories} onChange={(e) => setAdminNewSong({ ...adminNewSong, categories: e.target.value })} className="flex-1" style={{ minWidth: 140 }} />
                 </div>
                 <button onClick={handleAdminAdd} disabled={adminBusy} className="px-4 py-2 rounded-lg text-sm font-bold" style={{ background: "var(--good)", color: "#0d1f1a" }}>
@@ -6160,7 +6160,7 @@ export default function App() {
                             </div>
                             <input autoComplete="off" type="text" value={adminEditDraft.url} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, url: e.target.value })} placeholder="Link YouTube" />
                             <div className="flex gap-2 flex-wrap">
-                              <input autoComplete="off" type="number" value={adminEditDraft.year} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, year: e.target.value })} style={{ width: 90 }} />
+                              <input autoComplete="one-time-code" type="number" value={adminEditDraft.year} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, year: e.target.value })} style={{ width: 90 }} />
                               <input autoComplete="off" type="text" value={adminEditDraft.categoriesText} onChange={(e) => setAdminEditDraft({ ...adminEditDraft, categoriesText: e.target.value })} placeholder="kategorie;po;średniku" className="flex-1" style={{ minWidth: 140 }} />
                             </div>
                             <div className="flex gap-2">
@@ -8466,7 +8466,7 @@ export default function App() {
                           <input autoComplete="off" type="text" placeholder="Tytuł" value={proposeDraft.title} onChange={(e) => setProposeDraft({ ...proposeDraft, title: e.target.value })} className="flex-1" style={{ minWidth: 100 }} />
                         </div>
                         <input autoComplete="off" type="text" placeholder="Link YouTube" value={proposeDraft.url} onChange={(e) => setProposeDraft({ ...proposeDraft, url: e.target.value })} />
-                        <input autoComplete="off" type="number" placeholder="Rok" value={proposeDraft.year} onChange={(e) => setProposeDraft({ ...proposeDraft, year: e.target.value })} style={{ width: 90 }} />
+                        <input autoComplete="one-time-code" type="number" placeholder="Rok" value={proposeDraft.year} onChange={(e) => setProposeDraft({ ...proposeDraft, year: e.target.value })} style={{ width: 90 }} />
 
                         <p style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginTop: 4 }}>Kategorie (min. 1)</p>
                         <div className="flex flex-wrap gap-2">
@@ -8997,7 +8997,7 @@ export default function App() {
 
               <div className="flex items-center gap-2 mb-4">
                 <label className="text-xs uppercase" style={{ color: "var(--muted)" }}>Kart do zebrania:</label>
-                <input autoComplete="off" type="number" min={1} value={practiceTarget} onChange={(e) => setPracticeTarget(parseInt(e.target.value, 10) || "")} style={{ width: 60 }} />
+                <input autoComplete="one-time-code" type="number" min={1} value={practiceTarget} onChange={(e) => setPracticeTarget(parseInt(e.target.value, 10) || "")} style={{ width: 60 }} />
               </div>
 
               <p style={{ color: "var(--muted)", fontSize: 11, textTransform: "uppercase", marginBottom: 8 }}>Kategorie</p>
@@ -9438,7 +9438,7 @@ export default function App() {
               <section className="w-full rounded-2xl p-5" style={{ background: "#0c0c1c", border: "1px solid rgba(245,196,81,0.4)", boxShadow: "0 0 26px rgba(245,196,81,0.18)" }}>
                 <div className="flex items-center gap-2 mb-4">
                   <label className="text-xs uppercase" style={{ color: "var(--muted)" }}>Kart do wygrania:</label>
-                  <input autoComplete="off"
+                  <input autoComplete="one-time-code"
                     type="number"
                     min={1}
                     value={target}
@@ -10389,7 +10389,7 @@ export default function App() {
                 <div className="w-full flex flex-col gap-2">
                   <input autoComplete="off" type="text" value={dailyGuessArtist} onChange={(e) => setDailyGuessArtist(e.target.value)} placeholder="Wykonawca" />
                   <input autoComplete="off" type="text" value={dailyGuessTitle} onChange={(e) => setDailyGuessTitle(e.target.value)} placeholder="Tytuł" />
-                  <input autoComplete="off" type="number" value={dailyGuessYear} onChange={(e) => setDailyGuessYear(e.target.value)} placeholder="Rok" />
+                  <input autoComplete="one-time-code" type="number" value={dailyGuessYear} onChange={(e) => setDailyGuessYear(e.target.value)} placeholder="Rok" />
                 </div>
                 <button onClick={submitDailyGuess} disabled={dailyBusy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
                   ZATWIERDŹ ODPOWIEDŹ
