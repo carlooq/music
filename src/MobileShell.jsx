@@ -477,7 +477,7 @@ function MobileYearGuessHub(props) {
           <p>Wszyscy słuchają tego samego utworu. Im bliżej prawidłowego roku, tym więcej punktów.</p>
         </div>
         <div className="mob-yearguess-score-key">
-          <span><b>+5</b> dokładnie</span><span><b>+3</b> ±1 rok</span><span><b>+1</b> ±2–3 lata</span>
+          <span><b>+10</b> dokładnie</span><span><b>+8</b> ±1–3 lata</span><span><b>+6</b> ±4–5 lat</span><span><b>+4</b> ±6–8 lat</span><span><b>+2</b> ±9–10 lat</span>
         </div>
       </section>
 

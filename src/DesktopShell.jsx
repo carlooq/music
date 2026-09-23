@@ -1223,7 +1223,7 @@ function DesktopYearGuessHub({ common, ...props }) {
             <div className="desk-panel-tag">TRYB RANKINGOWY</div>
             <h2>JAK DOBRZE ZNASZ <span>ROK HITÓW?</span></h2>
             <p>Wszyscy słuchają tego samego utworu i wpisują rok wydania. 15 rund, jedna playlista, jeden zwycięzca.</p>
-            <div className="desk-yearguess-score-key"><span><b>+5</b> DOKŁADNIE</span><span><b>+3</b> ±1 ROK</span><span><b>+1</b> ±2–3 LATA</span></div>
+            <div className="desk-yearguess-score-key"><span><b>+10</b> DOKŁADNIE</span><span><b>+8</b> ±1–3 LATA</span><span><b>+6</b> ±4–5 LAT</span><span><b>+4</b> ±6–8 LAT</span><span><b>+2</b> ±9–10 LAT</span></div>
           </section>
 
           <section className="desk-panel desk-yearguess-action-card cyan-glow">
