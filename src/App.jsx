@@ -4244,9 +4244,11 @@ export default function App() {
 
   function computeYearGuessPoints(guessYear, actualYear) {
     const diff = Math.abs(guessYear - actualYear);
-    if (diff === 0) return 5;
-    if (diff === 1) return 3;
-    if (diff <= 3) return 1;
+    if (diff === 0) return 10;
+    if (diff <= 3) return 8;
+    if (diff <= 5) return 6;
+    if (diff <= 8) return 4;
+    if (diff <= 10) return 2;
     return 0;
   }
 

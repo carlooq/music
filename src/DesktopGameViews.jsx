@@ -1397,7 +1397,7 @@ export function DesktopYearGuessView({ room, playerId, isPlaying, playElapsed, p
                   </div>
                   <small>{yearInput && !validYear ? `Podaj rok 1900–${currentYear}` : 'Wpisz cztery cyfry. Po zatwierdzeniu odpowiedzi nie można zmienić.'}</small>
                 </div>
-                <div className="dgv-yearguess-scoring"><div><strong>+5</strong><span>DOKŁADNIE</span></div><div><strong>+3</strong><span>± 1 ROK</span></div><div><strong>+1</strong><span>± 2–3 LATA</span></div></div>
+                <div className="dgv-yearguess-scoring"><div><strong>+10</strong><span>DOKŁADNIE</span></div><div><strong>+8</strong><span>± 1–3 LATA</span></div><div><strong>+6</strong><span>± 4–5 LAT</span></div><div><strong>+4</strong><span>± 6–8 LAT</span></div><div><strong>+2</strong><span>± 9–10 LAT</span></div></div>
                 <button type="button" className="dgv-start-button dgv-yearguess-submit" disabled={!validYear} onClick={() => onSubmit(parsedYear)}><Check size={21} /> ZATWIERDŹ {validYear ? parsedYear : 'ROK'}</button>
               </>
             )}

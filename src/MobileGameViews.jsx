@@ -715,9 +715,11 @@ export function MobileYearGuessView({ room, playerId, isPlaying, playElapsed, pl
             </div>
 
             <div className="mgv-yearguess-scoring">
-              <div><strong>+5</strong><span>dokładnie</span></div>
-              <div><strong>+3</strong><span>± 1 rok</span></div>
-              <div><strong>+1</strong><span>± 2–3 lata</span></div>
+              <div><strong>+10</strong><span>dokładnie</span></div>
+              <div><strong>+8</strong><span>± 1–3 lata</span></div>
+              <div><strong>+6</strong><span>± 4–5 lat</span></div>
+              <div><strong>+4</strong><span>± 6–8 lat</span></div>
+              <div><strong>+2</strong><span>± 9–10 lat</span></div>
             </div>
 
             <button
