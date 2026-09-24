@@ -42,7 +42,7 @@ import glHitRush from './assets/icons/gl-hitrush.png';
 import glKorona from './assets/icons/gl-korona.png';
 import glPrezent from './assets/icons/gl-prezent.png';
 import glTurniej from './assets/icons/gl-turniej.png';
-import { getTournamentUserState, tournamentTimeLeftLabel } from './tournaments.js';
+import { getTournamentUserState, tournamentTimeLeftLabel, getLeagueUserState } from './tournaments.js';
 import { WEEKLY_RANKING_REWARDS } from './stats.js';
 import { DesktopPlayerProfileModal } from './DesktopShell.jsx';
 
@@ -219,6 +219,169 @@ export function DesktopTournamentHubView({ tournament, lastCompleted, user, busy
         {status === 'completed' ? <section className="dgv-panel dgv-tournament-winner"><Trophy size={58}/><span>ZWYCIĘZCA TURNIEJU</span><h1>{winner?.name || 'GRACZ'}</h1><p>{winner?.uid===currentUid?`Wygrywasz turniej i pulę ${pot} XP!`:`Turniej zakończony. Wpisowe wynosiło ${entryFee} XP.`}</p></section> : null}
 
         {status !== 'completed' ? <div className="dgv-tournament-footer-actions"><button className="dgv-ghost-button" onClick={onRefresh} disabled={tournamentBusy}>ODŚWIEŻ DANE TURNIEJU</button></div> : <div className="dgv-tournament-footer-actions"><button className="dgv-primary-button gold" onClick={onHome}>STRONA GŁÓWNA</button></div>}
+      </div>
+    </SessionBackground>
+  );
+}
+
+export function DesktopLeagueHubView({ league, user, busy, onSignUp, onStartMatch, onHome, onRefresh, onOpenSchedule }) {
+  const currentUid = user?.uid;
+  const state = getLeagueUserState(league, currentUid);
+  const status = league?.status || 'none';
+  const entryFee = Number(league?.entryFee || 0);
+
+  if (!league) {
+    return (
+      <SessionBackground className="dgv-tournament-page">
+        <div className="dgv-shell dgv-tournament-shell">
+          <SessionHeader eyebrow="TRYB PREMIUM" title="LIGA" onBack={onHome} />
+          <section className="dgv-tournament-hero empty">
+            <img src={glTurniej} alt="" />
+            <div><span>LIGA HITSTERIADY</span><h1>CZEKAJ NA START</h1><p>Aktualnie nie ma otwartej ligi. Gdy się pojawi, zapiszesz się tutaj.</p></div>
+          </section>
+          <div className="dgv-tournament-actions"><button className="dgv-primary-button gold" onClick={onRefresh}>ODŚWIEŻ</button><button className="dgv-ghost-button" onClick={onHome}>STRONA GŁÓWNA</button></div>
+        </div>
+      </SessionBackground>
+    );
+  }
+
+  return (
+    <SessionBackground className="dgv-tournament-page">
+      <div className="dgv-shell dgv-tournament-shell">
+        <SessionHeader eyebrow="TRYB PREMIUM" title="LIGA" onBack={onHome} right={<div className="dgv-tournament-entry"><Trophy size={17}/>{entryFee} XP WPISOWEGO</div>} />
+
+        <section className={`dgv-tournament-hero status-${status}`}>
+          <img src={glTurniej} alt="" />
+          <div className="dgv-tournament-hero-copy">
+            <span>{status === 'signup' ? 'TRWAJĄ ZAPISY' : status === 'active' ? 'LIGA W TOKU' : 'LIGA ZAKOŃCZONA'}</span>
+            <h1>{status === 'signup' ? 'ZAPISZ SIĘ DO LIGI' : status === 'active' ? `KOLEJKA ${league.rounds.length} / ${league.pairingSchedule?.length || '?'}` : 'TABELA KOŃCOWA'}</h1>
+            <p>{status === 'signup' ? 'Każdy z każdym, bez odpadania. Im wyżej w tabeli na koniec, tym większa nagroda.' : status === 'active' ? 'Ta sama playlista dla obu zawodników w meczu. Równy wynik to prawdziwy remis.' : 'Liga dobiegła końca. Zobacz końcową tabelę.'}</p>
+            <div className="dgv-tournament-hero-chips"><span><Users size={16}/>{league.signups.length} graczy</span></div>
+          </div>
+        </section>
+
+        {status === 'signup' ? (
+          <div className="dgv-tournament-signup-grid">
+            <section className="dgv-panel dgv-tournament-roster">
+              <div className="dgv-section-heading"><Users size={18}/>ZAPISANI<span>{league.signups.length}</span></div>
+              <div className="dgv-tournament-player-grid">{league.signups.map((player) => <DesktopTournamentPlayer key={player.uid} player={player} me={player.uid === currentUid} />)}</div>
+            </section>
+            <section className="dgv-panel dgv-tournament-rules">
+              <div className="dgv-section-heading"><Shield size={18}/> ZASADY LIGI</div>
+              <div><Trophy size={20}/><span><strong>WPISOWE</strong><small>{entryFee} XP ryzyka</small></span></div>
+              <div><Users size={20}/><span><strong>OTWARTA</strong><small>Dowolna liczba chętnych, bez limitu</small></span></div>
+              <div><Music2 size={20}/><span><strong>MECZ</strong><small>10 utworów, identyczna playlista dla pary</small></span></div>
+              {state.signedUp ? <div className="dgv-tournament-ready"><Check size={18}/> JESTEŚ ZAPISANY</div> : <button type="button" className="dgv-primary-button gold" disabled={busy} onClick={onSignUp}>{busy ? 'ZAPISUJĘ…' : `ZAPISZ SIĘ · ${entryFee} XP`}</button>}
+            </section>
+          </div>
+        ) : null}
+
+        {status === 'active' && state.match ? (
+          <section className="dgv-panel dgv-tournament-my-status">
+            <div className="dgv-tournament-status-copy">
+              <span>TWÓJ MECZ · KOLEJKA {state.match.roundNumber}</span>
+              <strong>{state.match.waitingForOpponent ? 'WYNIK ZAPISANY · CZEKASZ' : 'GOTOWY DO GRY'}</strong>
+              <small>Przeciwnik: {state.match.opponent?.name || 'Gracz'}</small>
+            </div>
+            {!state.match.waitingForOpponent && (
+              <button type="button" className="dgv-primary-button gold" disabled={busy} onClick={() => onStartMatch(state.match, state.match.roundNumber)}><Play size={17} fill="currentColor"/> START</button>
+            )}
+          </section>
+        ) : status === 'active' ? (
+          <section className="dgv-panel dgv-tournament-my-status"><div className="dgv-tournament-status-copy"><span>TWÓJ MECZ</span><strong>ROZEGRANE · CZEKASZ NA KOLEJNĄ KOLEJKĘ</strong></div></section>
+        ) : null}
+
+        {(status === 'active' || status === 'completed') ? (
+          <section className="dgv-panel">
+            <div className="dgv-section-heading"><Crown size={18}/>TABELA</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {state.standings.map((row, i) => (
+                <div key={row.uid} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 14px', borderRadius: 10, background: i < 3 ? 'rgba(255,215,120,0.08)' : 'rgba(255,255,255,0.03)', border: i < 3 ? '1px solid rgba(255,215,120,0.3)' : '1px solid rgba(255,255,255,0.06)' }}>
+                  <span style={{ width: 28, fontWeight: 'bold', color: 'var(--muted)' }}>#{i + 1}</span>
+                  <strong style={{ flex: 1 }}>{row.name}</strong>
+                  <small style={{ color: 'var(--muted)' }}>{row.wins}W {row.draws}R {row.losses}P</small>
+                  <b style={{ minWidth: 70, textAlign: 'right' }}>{row.points} pkt</b>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <div className="dgv-tournament-footer-actions">
+          <button className="dgv-ghost-button" onClick={onRefresh} disabled={busy}>ODŚWIEŻ DANE LIGI</button>
+          {status !== 'signup' ? <button className="dgv-ghost-button" onClick={onOpenSchedule}>ZOBACZ TERMINARZ</button> : null}
+        </div>
+      </div>
+    </SessionBackground>
+  );
+}
+
+export function DesktopLeagueScheduleView({ league, onBack }) {
+  const [expanded, setExpanded] = useState(null);
+  const byUid = {};
+  (league.signups || []).forEach((p) => { byUid[p.uid] = p; });
+  const totalRounds = league.pairingSchedule?.length || league.rounds.length;
+
+  return (
+    <SessionBackground className="dgv-tournament-page">
+      <div className="dgv-shell dgv-tournament-shell">
+        <SessionHeader eyebrow="LIGA" title="TERMINARZ" onBack={onBack} />
+        {Array.from({ length: totalRounds }).map((_, idx) => {
+          const roundNum = idx + 1;
+          const builtRound = league.rounds.find((r) => r.roundNumber === roundNum);
+          const pairing = league.pairingSchedule?.[idx] || [];
+          const matches = builtRound
+            ? builtRound.matches
+            : pairing.map(([a, b], i) => ({ matchId: `future-${roundNum}-${i}`, player1: byUid[a], player2: b ? byUid[b] : null, outcome: null }));
+
+          return (
+            <section key={roundNum} className="dgv-panel">
+              <div className="dgv-section-heading">
+                <Trophy size={18} /> KOLEJKA {roundNum}
+                {!builtRound ? <span style={{ fontSize: 12, color: 'var(--muted)' }}>JESZCZE NIEROZEGRANA</span> : null}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {matches.map((m) => {
+                  if (!m.player2) return <div key={m.matchId} style={{ color: 'var(--muted)', fontSize: 13, padding: '8px 4px' }}>{m.player1?.name || 'Gracz'} — wolny los</div>;
+                  const isExpanded = expanded === m.matchId;
+                  const done = !!m.outcome && m.outcome !== 'bye';
+                  const canExpand = done && m.player1Result?.playedCards && m.player2Result?.playedCards;
+                  return (
+                    <div key={m.matchId}>
+                      <button
+                        type="button"
+                        onClick={() => canExpand && setExpanded(isExpanded ? null : m.matchId)}
+                        style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '12px 16px', color: 'inherit', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: canExpand ? 'pointer' : 'default' }}
+                      >
+                        <span>{m.player1?.name || '—'} <b style={{ color: 'var(--muted)', fontWeight: 'normal' }}>vs</b> {m.player2?.name || '—'}</span>
+                        <span style={{ fontSize: 13, color: done ? 'var(--good)' : 'var(--muted)' }}>
+                          {done ? `${m.player1Result?.score ?? '—'} : ${m.player2Result?.score ?? '—'}` : 'jeszcze nie rozegrano'}
+                        </span>
+                      </button>
+                      {isExpanded && canExpand && (
+                        <div style={{ marginTop: 4, padding: '10px 16px', background: 'rgba(0,0,0,0.2)', borderRadius: 10, fontSize: 13 }}>
+                          {m.player1Result.playedCards.map((c, i) => {
+                            const c2 = m.player2Result.playedCards[i];
+                            return (
+                              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: i < m.player1Result.playedCards.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
+                                <span style={{ color: 'var(--muted)' }}>{c.artist} — {c.title} ({c.year})</span>
+                                <span>
+                                  <span style={{ color: c.correct ? 'var(--good)' : 'var(--bad)' }}>{c.correct ? '✓' : '✗'}</span>
+                                  {' / '}
+                                  <span style={{ color: c2?.correct ? 'var(--good)' : 'var(--bad)' }}>{c2?.correct ? '✓' : '✗'}</span>
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })}
       </div>
     </SessionBackground>
   );

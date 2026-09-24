@@ -24,7 +24,7 @@ import { sendRoomInvite, listenForIncomingRoomInvite, clearRoomInvite, isRoomInv
 import { GAME_HISTORY_COLLECTION, buildGameHistoryRecord, fetchGameHistoryPage, gameHistoryDocumentId } from "./gameHistory.js";
 import { getOrCreateDailySong } from "./dailySong.js";
 import { getOrCreateDailyPlaylist, hasPlayedPlaylistToday, recordDailyPlaylistScore, fetchDailyPlaylistLeaderboard, fetchWeeklyPlaylistLeaderboard, fetchAllTimePlaylistLeaderboard, processWeeklyPlaylistRewardsIfNeeded } from "./dailyPlaylist.js";
-import { createTournament, cancelTournament, fetchActiveTournament, fetchLastCompletedTournament, fetchTournament, signUpForTournament, recordTournamentMatchResult, checkAndAdvanceTournament, settleTournamentXpIfNeeded, pickMatchPlaylist, getTournamentUserState } from "./tournaments.js";
+import { createTournament, cancelTournament, fetchActiveTournament, fetchLastCompletedTournament, fetchTournament, signUpForTournament, recordTournamentMatchResult, checkAndAdvanceTournament, settleTournamentXpIfNeeded, pickMatchPlaylist, getTournamentUserState, createLeague, fetchActiveLeague, signUpForLeague, startLeagueManually, recordLeagueMatchResult, checkAndAdvanceLeague, computeLeagueStandings, resolveLeagueMatchOutcome, getLeagueUserState, settleLeagueRewardsIfNeeded } from "./tournaments.js";
 import { awardHitcoin, computeWinHitcoin, computeSecondPlaceHitcoin, computeThirdPlaceHitcoin, claimDailyHitcoin, drawCardAfterGame, effectiveRarity, PACKS, openPack, SELL_PRICES, sellDuplicateCard, sellAllDuplicates } from "./cards.js";
 import { DAILY_REWARD_SEGMENTS, claimDailyWheelReward } from "./dailyWheel.js";
 import { HIT_RUSH_CONFIG, pickNextHitRushSong, computeHitRushPoints, checkHitRushTimeBonus, nextHitRushTimeBonus, difficultyLabel, submitHitRushRun, fetchHitRushLeaderboard, processHitRushWeeklyRewardsIfNeeded } from "./hitRush.js";
@@ -106,6 +106,8 @@ import {
   MobileDailyPlaylistResultView,
   MobileDailySongView,
   MobileTournamentHubView,
+  MobileLeagueHubView,
+  MobileLeagueScheduleView,
   MobileTournamentMatchResultView,
   MobileHitRushMenuView,
   MobileHitRushGameView,
@@ -128,6 +130,8 @@ import {
   DesktopDailyPlaylistResultView,
   DesktopDailySongView,
   DesktopTournamentHubView,
+  DesktopLeagueHubView,
+  DesktopLeagueScheduleView,
   DesktopTournamentMatchResultView,
   DesktopHitRushMenuView,
   DesktopHitRushGameView,
@@ -1496,6 +1500,7 @@ export default function App() {
   }, []);
 
   const [activeTournament, setActiveTournament] = useState(null);
+  const [activeLeague, setActiveLeague] = useState(null);
   const [lastCompletedTournament, setLastCompletedTournament] = useState(null);
   const [tournamentBusy, setTournamentBusy] = useState(false);
   const [tournamentNotice, setTournamentNotice] = useState(null);
@@ -1548,6 +1553,7 @@ export default function App() {
           if (!t) fetchLastCompletedTournament().then(setLastCompletedTournament).catch(() => {});
         })
         .catch(() => {});
+      fetchActiveLeague().then(setActiveLeague).catch(() => {});
     }
     loadTournamentInfo();
     const id = setInterval(loadTournamentInfo, 60000);
@@ -1811,6 +1817,7 @@ export default function App() {
   const [dailyPlaylistAllTimeBoard, setDailyPlaylistAllTimeBoard] = useState([]);
   const [dailyPlaylistBusy, setDailyPlaylistBusy] = useState(false);
   const [adminNewTournament, setAdminNewTournament] = useState({ maxPlayers: "4", entryFee: "200" });
+  const [adminNewLeague, setAdminNewLeague] = useState({ entryFee: "200" });
   const [packShopBusy, setPackShopBusy] = useState(false);
   const [packOpenResult, setPackOpenResult] = useState(null);
   const [packRevealedIndices, setPackRevealedIndices] = useState(new Set());
@@ -2043,6 +2050,16 @@ export default function App() {
     }
   }
 
+  async function openTournamentOrLeagueHub() {
+    // Jeden kafelek na stronie głównej obsługuje oba tryby — jeśli aktywny
+    // jest puchar, otwiera hub pucharu (dotychczasowe zachowanie); jeśli
+    // pucharu nie ma, a jest aktywna liga, otwiera hub ligi. Z każdego z tych
+    // hubów da się przejść do drugiego małym linkiem, gdy oba są aktywne naraz.
+    if (activeTournament) return openTournamentHub();
+    if (activeLeague) return openLeagueHub();
+    return openTournamentHub(); // pokaże "brak aktywnego turnieju"
+  }
+
   async function openTournamentHub() {
     if (!user) return setError("Zaloguj się, żeby wziąć udział w turnieju.");
     setTournamentBusy(true);
@@ -2076,6 +2093,45 @@ export default function App() {
       await signUpForTournament(activeTournament.id, user.uid, name.trim() || user.displayName || "Gracz", pool, stats?.avatarUrl || null);
       const fresh = await fetchTournament(activeTournament.id);
       setActiveTournament(fresh);
+    } catch (e) {
+      setError("Nie udało się zapisać: " + e.message);
+    } finally {
+      setTournamentBusy(false);
+    }
+  }
+
+  async function openLeagueHub() {
+    if (!user) return setError("Zaloguj się, żeby wziąć udział w lidze.");
+    setTournamentBusy(true);
+    setError("");
+    try {
+      let l = activeLeague;
+      if (!l) {
+        l = await fetchActiveLeague();
+        setActiveLeague(l);
+      }
+      if (l && l.status === "active") {
+        const pool = await getDailyFeaturesPool();
+        await checkAndAdvanceLeague(l.id, pool);
+        l = await fetchTournament(l.id);
+        setActiveLeague(l);
+        if (l?.status === "completed") await settleLeagueRewardsIfNeeded(l.id);
+      }
+      setScreen("leagueHub");
+    } catch (e) {
+      setError("Nie udało się wczytać ligi: " + e.message);
+    } finally {
+      setTournamentBusy(false);
+    }
+  }
+
+  async function handleLeagueSignUp() {
+    if (!user || !activeLeague) return;
+    setTournamentBusy(true);
+    try {
+      await signUpForLeague(activeLeague.id, user.uid, name.trim() || user.displayName || "Gracz", stats?.avatarUrl || null);
+      const fresh = await fetchTournament(activeLeague.id);
+      setActiveLeague(fresh);
     } catch (e) {
       setError("Nie udało się zapisać: " + e.message);
     } finally {
@@ -2126,6 +2182,63 @@ export default function App() {
         tournamentId: activeTournament.id,
         tournamentRoundNumber: roundNumber,
         tournamentMatchId: match.matchId,
+        createdAt: serverTimestamp(),
+        expireAt: new Date(Date.now() + 60 * 60 * 1000),
+      });
+      setRoomId(code);
+    } catch (e) {
+      setError("Błąd startu meczu: " + e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Mecz ligowy — identyczny mechanizm co mecz turniejowy (gra solo przeciw
+  // wspólnej playliście), tylko zapisuje wynik do ligi (recordLeagueMatchResult),
+  // nie do drabinki pucharowej.
+  async function startLeagueMatch(match, roundNumber) {
+    if (!user || !activeLeague) return;
+    setBusy(true);
+    setError("");
+    try {
+      const code = generateRoomCode();
+      const ref = doc(db, "rooms", code);
+      const deck = match.playlist;
+      const me = { id: playerId, uid: user.uid, name: name.trim() || user.displayName || "Gracz", authed: true, avatarUrl: stats?.avatarUrl || null };
+      await setDoc(ref, {
+        code,
+        hostId: playerId,
+        target: deck.length,
+        status: "playing",
+        players: [me],
+        deck,
+        deckIndex: 2,
+        currentPlayerId: playerId,
+        startingPlayerId: playerId,
+        currentCard: deck[1],
+        startSeconds: deck[1].startSeconds,
+        turnStartedAt: serverTimestamp(),
+        timelines: { [playerId]: [deck[0]] },
+        tokens: { [playerId]: 0 },
+        lastResult: null,
+        pendingGuess: null,
+        votes: {},
+        requiredApprovals: 0,
+        resultAt: null,
+        winnerIds: [],
+        finishingRound: false,
+        decisionTimes: {},
+        gameStreaks: {},
+        gameGuessStreaks: {},
+        gameGuesses: {},
+        gameBestStreaks: {},
+        playedCards: [],
+        messages: [],
+        practiceMode: true,
+        leagueMode: true,
+        leagueId: activeLeague.id,
+        leagueRoundNumber: roundNumber,
+        leagueMatchId: match.matchId,
         createdAt: serverTimestamp(),
         expireAt: new Date(Date.now() + 60 * 60 * 1000),
       });
@@ -3079,6 +3192,32 @@ export default function App() {
       }
     })();
   }, [screen, room?.tournamentMode, toMillis(room?.expireAt), user, playerId]);
+
+  // Koniec meczu ligowego — identyczny mechanizm co mecz turniejowy, tylko
+  // zapisuje też pełny przebieg (playedCards) do późniejszego podglądu
+  // szczegółów meczu, i rozlicza się przez silnik ligi, nie drabinki.
+  const leagueMatchProcessedRef = useRef(null);
+  useEffect(() => {
+    if (screen !== "gameover" || !room?.leagueMode || !user) return;
+    const marker = toMillis(room?.expireAt);
+    if (!marker || leagueMatchProcessedRef.current === marker) return;
+    leagueMatchProcessedRef.current = marker;
+    (async () => {
+      try {
+        const myCards = (room.playedCards || []).filter((c) => c.playerId === playerId);
+        const score = myCards.filter((c) => c.correct).length;
+        const timeMs = (room.decisionTimes?.[playerId] || []).reduce((a, b) => a + b, 0);
+        await recordLeagueMatchResult(room.leagueId, room.leagueRoundNumber, room.leagueMatchId, user.uid, score, timeMs, myCards);
+        const pool = await getDailyFeaturesPool();
+        await checkAndAdvanceLeague(room.leagueId, pool);
+        const freshLeague = await fetchTournament(room.leagueId);
+        setActiveLeague(freshLeague);
+        if (freshLeague?.status === "completed") await settleLeagueRewardsIfNeeded(room.leagueId);
+      } catch (e) {
+        // ciche niepowodzenie
+      }
+    })();
+  }, [screen, room?.leagueMode, toMillis(room?.expireAt), user, playerId]);
 
   async function loadHeadToHeadStats() {
     if (!user) return;
@@ -5894,6 +6033,75 @@ export default function App() {
               )}
             </section>
 
+            <section className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(125,255,239,0.4)", boxShadow: "0 0 22px rgba(125,255,239,0.15)" }}>
+              <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🏟️ Liga (każdy z każdym)</p>
+              {activeLeague ? (
+                <div className="flex flex-col gap-2">
+                  <p style={{ fontSize: 13 }}>
+                    Status: <strong>{activeLeague.status === "signup" ? "zapisy otwarte" : activeLeague.status === "active" ? "w trakcie" : "zakończona"}</strong>
+                    {" · "}Zapisanych: <strong>{activeLeague.signups.length}</strong>
+                    {activeLeague.status === "active" && <> {" · "}Kolejka <strong>{activeLeague.rounds.length}</strong> z <strong>{activeLeague.pairingSchedule?.length || "?"}</strong></>}
+                  </p>
+                  {activeLeague.status === "signup" && (
+                    <>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const pool = await getDailyFeaturesPool();
+                            await startLeagueManually(activeLeague.id, pool);
+                            setActiveLeague(await fetchTournament(activeLeague.id));
+                          } catch (e) {
+                            setError("Błąd startu ligi: " + e.message);
+                          }
+                        }}
+                        disabled={activeLeague.signups.length < 3}
+                        className="px-4 py-2 rounded-lg text-sm font-bold self-start"
+                        style={{ background: "var(--good)", color: "#0a1a12" }}
+                      >
+                        Wystartuj ligę teraz ({activeLeague.signups.length} zapisanych)
+                      </button>
+                      {activeLeague.signups.length < 3 && <p style={{ fontSize: 11, color: "var(--muted)" }}>Potrzeba minimum 3 zapisanych graczy.</p>}
+                      <button
+                        onClick={async () => {
+                          if (!window.confirm("Anulować ligę? Nikt nie zapłacił jeszcze wpisowego, więc nic nie trzeba zwracać.")) return;
+                          await cancelTournament(activeLeague.id);
+                          setActiveLeague(null);
+                        }}
+                        className="px-4 py-2 rounded-lg text-sm font-bold self-start"
+                        style={{ background: "var(--surface2)", border: "1px solid var(--bad)", color: "var(--bad)" }}
+                      >
+                        Anuluj ligę
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <p style={{ fontSize: 11, color: "var(--muted)" }}>Otwarta dla dowolnej liczby chętnych — startujesz ją ręcznie, kiedy uznasz że zapisy się zamykają.</p>
+                  <label className="text-xs uppercase" style={{ color: "var(--muted)", marginTop: 4 }}>Wpisowe (XP)</label>
+                  <input autoComplete="one-time-code"
+                    type="number"
+                    value={adminNewLeague.entryFee}
+                    onChange={(e) => setAdminNewLeague({ ...adminNewLeague, entryFee: e.target.value })}
+                  />
+                  <button
+                    onClick={async () => {
+                      try {
+                        const id = await createLeague("playlist_duel", parseInt(adminNewLeague.entryFee, 10), user.uid);
+                        setActiveLeague(await fetchTournament(id));
+                      } catch (e) {
+                        setError("Błąd tworzenia ligi: " + e.message);
+                      }
+                    }}
+                    className="px-4 py-2 rounded-lg text-sm font-bold mt-2"
+                    style={{ background: "#7dffef", color: "#0a1a12" }}
+                  >
+                    Stwórz ligę
+                  </button>
+                </div>
+              )}
+            </section>
+
 
             <section className="w-full rounded-2xl p-4" style={{ background: "#0c0c1c", border: "1px solid rgba(255,95,201,0.4)", boxShadow: "0 0 22px rgba(255,95,201,0.15)" }}>
               <p style={{ fontSize: 11, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>🔬 Analiza puli losowania</p>
@@ -6315,6 +6523,30 @@ export default function App() {
     );
   }
 
+  if (useDesktopSessionViews && screen === "leagueHub") {
+    return renderSessionUx(
+      <DesktopLeagueHubView
+        league={activeLeague}
+        user={user}
+        busy={tournamentBusy}
+        onSignUp={handleLeagueSignUp}
+        onStartMatch={startLeagueMatch}
+        onHome={() => setScreen("home")}
+        onRefresh={openLeagueHub}
+        onOpenSchedule={() => setScreen("leagueSchedule")}
+      />
+    );
+  }
+
+  if (useDesktopSessionViews && screen === "leagueSchedule" && activeLeague) {
+    return renderSessionUx(
+      <DesktopLeagueScheduleView
+        league={activeLeague}
+        onBack={() => setScreen("leagueHub")}
+      />
+    );
+  }
+
   if (useDesktopSessionViews && screen === "hitRushMenu") {
     return renderSessionUx(
       <DesktopHitRushMenuView
@@ -6657,6 +6889,30 @@ export default function App() {
         onStartMatch={startTournamentMatch}
         onHome={() => setScreen("home")}
         onRefresh={openTournamentHub}
+      />
+    );
+  }
+
+  if (useMobileSessionViews && screen === "leagueHub") {
+    return (
+      <MobileLeagueHubView
+        league={activeLeague}
+        user={user}
+        busy={tournamentBusy}
+        onSignUp={handleLeagueSignUp}
+        onStartMatch={startLeagueMatch}
+        onHome={() => setScreen("home")}
+        onRefresh={openLeagueHub}
+        onOpenSchedule={() => setScreen("leagueSchedule")}
+      />
+    );
+  }
+
+  if (useMobileSessionViews && screen === "leagueSchedule" && activeLeague) {
+    return (
+      <MobileLeagueScheduleView
+        league={activeLeague}
+        onBack={() => setScreen("leagueHub")}
       />
     );
   }
@@ -7043,7 +7299,7 @@ export default function App() {
         onHitRush={() => setScreen("hitRushMenu")}
         onDailySong={openDailySong}
         onDailyPlaylist={openDailyPlaylistHub}
-        onTournament={activeTournament ? openTournamentHub : undefined}
+        onTournament={(activeTournament || activeLeague) ? openTournamentOrLeagueHub : undefined}
         activeTournament={activeTournament}
         lastCompletedTournament={lastCompletedTournament}
         weeklySummary={{ current: desktopCurrentWeekly, achievementClaimed: desktopAchievementClaimed }}
@@ -7201,7 +7457,7 @@ export default function App() {
         onHitRush={() => setScreen("hitRushMenu")}
         onDailySong={openDailySong}
         onDailyPlaylist={openDailyPlaylistHub}
-        onTournament={activeTournament ? openTournamentHub : undefined}
+        onTournament={(activeTournament || activeLeague) ? openTournamentOrLeagueHub : undefined}
         onCreateYearGuessRoom={createYearGuessRoom}
         onJoinYearGuessRoom={() => joinRoom(undefined, { yearGuessOnly: true })}
         onLoadYearGuessLeaderboard={loadYearGuessLeaderboardData}

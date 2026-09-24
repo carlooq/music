@@ -54,6 +54,7 @@ export async function createTournament(mode, maxPlayers, entryFee, createdByUid)
   const ref = doc(collection(db, COLLECTION));
   await setDoc(ref, {
     id: ref.id,
+    format: "bracket",
     mode,
     maxPlayers,
     entryFee,
@@ -76,11 +77,23 @@ export async function cancelTournament(tournamentId) {
 // Aktywny turniej to taki w stanie "signup" albo "active" — zakładamy, że
 // naraz istnieje co najwyżej jeden (prostsze zarządzanie przy tej skali).
 export async function fetchActiveTournament() {
+  // Filtrowanie lokalne (nie where("format",...)) celowo — dokładnie ten sam
+  // powód co w fetchLastCompletedTournament niżej: unikamy złożonego indeksu
+  // Firestore, którego nie da się tu utworzyć. Stare turnieje sprzed dodania
+  // pola "format" traktujemy jako puchar (brakujące pole = bracket).
   const q = query(collection(db, COLLECTION), where("status", "in", ["signup", "active"]));
   const snap = await getDocs(q);
-  if (snap.empty) return null;
-  return snap.docs[0].data();
+  const bracket = snap.docs.map((d) => d.data()).find((t) => t.format !== "league");
+  return bracket || null;
 }
+
+export async function fetchActiveLeague() {
+  const q = query(collection(db, COLLECTION), where("status", "in", ["signup", "active"]));
+  const snap = await getDocs(q);
+  const league = snap.docs.map((d) => d.data()).find((t) => t.format === "league");
+  return league || null;
+}
+
 
 export async function fetchLastCompletedTournament() {
   // Celowo bez where("status","==","completed") w połączeniu z orderBy — to wymagałoby
@@ -273,3 +286,305 @@ export async function settleTournamentXpIfNeeded(tournamentId) {
 }
 
 export { pickMatchPlaylist, MATCH_DEADLINE_MS };
+
+// Podium ligi — stałe nagrody niezależne od liczby graczy czy wpisowego
+// (w przeciwieństwie do pucharu, gdzie zwycięzca zgarnia pulę wpisowego).
+// Każdy mecz i tak liczy się do zwykłych statystyk gracza jak normalna gra —
+// to jest WYŁĄCZNIE dodatkowa nagroda za końcowe miejsce w tabeli.
+const LEAGUE_PODIUM_REWARDS = [
+  { xp: 1500, hitcoin: 500 },
+  { xp: 1000, hitcoin: 300 },
+  { xp: 750, hitcoin: 200 },
+];
+
+export async function settleLeagueRewardsIfNeeded(tournamentId) {
+  const ref = doc(db, COLLECTION, tournamentId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  if (data.status !== "completed" || data.rewardsSettled) return;
+
+  const standings = data.standings && data.standings.length ? data.standings : computeLeagueStandings(data.rounds, data.signups);
+  for (let i = 0; i < Math.min(3, standings.length); i++) {
+    const player = standings[i];
+    const reward = LEAGUE_PODIUM_REWARDS[i];
+    const statsRef = doc(db, "userStats", player.uid);
+    let granted = false;
+    await runTransaction(db, async (tx) => {
+      const statsSnap = await tx.get(statsRef);
+      if (!statsSnap.exists()) return;
+      const stats = statsSnap.data();
+      const claims = { ...(stats.leagueRewardClaims || {}) };
+      if (claims[tournamentId]) return; // już przyznane — nie dublujemy
+      claims[tournamentId] = { place: i + 1, xp: reward.xp, hitcoin: reward.hitcoin, settledAt: Date.now() };
+      tx.update(statsRef, {
+        xp: increment(reward.xp),
+        hitcoin: increment(reward.hitcoin),
+        leagueRewardClaims: claims,
+        ...(i === 0 ? { leaguesWon: increment(1) } : {}),
+      });
+      granted = true;
+    });
+    if (granted) {
+      pushRewardNotice(player.uid, { source: "league", place: i + 1, xp: reward.xp, hitcoin: reward.hitcoin, label: `${i + 1}. miejsce w lidze` }).catch(() => {});
+    }
+  }
+  await updateDoc(ref, { rewardsSettled: true }).catch(() => {});
+}
+
+// ============================================================
+// LIGA — każdy z każdym, terminarz ustalony z góry (metoda kołowa),
+// bez odpadania, tabela punktowa zamiast drabinki. Reużywa cały mechanizm
+// "wspólna playlista na mecz" z pucharu — różni się tylko sposobem
+// parowania graczy i rozliczaniem wyniku (prawdziwy remis, nie
+// rozstrzyganie szybkością).
+// ============================================================
+
+const LEAGUE_MATCH_DEADLINE_MS = 48 * 60 * 60 * 1000; // 48h na kolejkę, nie 24h jak w pucharze
+
+// Metoda kołowa: N graczy -> N-1 kolejek (N kolejek z jedną "wolną" osobą na
+// kolejkę, jeśli N nieparzyste). Zwraca same UID-y w parach — budowanie
+// właściwych obiektów meczów (z playlistą) dzieje się osobno, dopiero gdy
+// dana kolejka faktycznie startuje.
+export function buildRoundRobinPairings(playerIds) {
+  const ids = [...playerIds];
+  const hasBye = ids.length % 2 !== 0;
+  if (hasBye) ids.push(null);
+  const n = ids.length;
+  const fixed = ids[0];
+  let rotating = ids.slice(1);
+  const rounds = [];
+  for (let round = 0; round < n - 1; round++) {
+    const current = [fixed, ...rotating];
+    const pairs = [];
+    for (let i = 0; i < n / 2; i++) pairs.push([current[i], current[n - 1 - i]]);
+    rounds.push(pairs);
+    rotating.unshift(rotating.pop());
+  }
+  return rounds;
+}
+
+// Wynik POJEDYNCZEGO meczu ligowego — równy wynik to PRAWDZIWY remis
+// (w przeciwieństwie do pucharu, gdzie o zwycięstwie przy remisie decyduje
+// szybkość — tam potrzebny jest jednoznaczny zwycięzca do awansu).
+export function resolveLeagueMatchOutcome(match) {
+  const r1 = match.player1Result;
+  const r2 = match.player2Result;
+  if (!r1 && !r2) return "double_walkover";
+  if (!r1) return "walkover_p2";
+  if (!r2) return "walkover_p1";
+  if (r1.score > r2.score) return "p1";
+  if (r2.score > r1.score) return "p2";
+  return "draw";
+}
+
+// Tabela ligowa. Tiebreak w kolejności: punkty w tabeli -> suma zdobytych
+// punktów we wszystkich meczach -> wynik bezpośredniego pojedynku ->
+// szybkość (łączny czas, mniejszy = lepiej).
+export function computeLeagueStandings(rounds, players) {
+  const table = {};
+  players.forEach((p) => {
+    table[p.uid] = { uid: p.uid, name: p.name, avatarUrl: p.avatarUrl || null, wins: 0, draws: 0, losses: 0, points: 0, played: 0, totalScore: 0, totalTimeMs: 0 };
+  });
+  const h2h = {};
+
+  rounds.forEach((round) => {
+    round.matches.forEach((m) => {
+      if (!m.player2) return; // wolny los — nie liczy się do tabeli
+      const outcome = resolveLeagueMatchOutcome(m);
+      const p1 = table[m.player1.uid];
+      const p2 = table[m.player2.uid];
+      if (!p1 || !p2) return;
+      if (outcome === "double_walkover") return;
+
+      p1.played++; p2.played++;
+      if (m.player1Result) { p1.totalScore += m.player1Result.score; p1.totalTimeMs += m.player1Result.timeMs || 0; }
+      if (m.player2Result) { p2.totalScore += m.player2Result.score; p2.totalTimeMs += m.player2Result.timeMs || 0; }
+
+      const key = [m.player1.uid, m.player2.uid].sort().join("|");
+      if (!h2h[key]) h2h[key] = {};
+
+      if (outcome === "p1" || outcome === "walkover_p1") {
+        p1.wins++; p1.points += 3; p2.losses++;
+        h2h[key][m.player1.uid] = (h2h[key][m.player1.uid] || 0) + 1;
+      } else if (outcome === "p2" || outcome === "walkover_p2") {
+        p2.wins++; p2.points += 3; p1.losses++;
+        h2h[key][m.player2.uid] = (h2h[key][m.player2.uid] || 0) + 1;
+      } else if (outcome === "draw") {
+        p1.draws++; p2.draws++; p1.points += 1; p2.points += 1;
+      }
+    });
+  });
+
+  const rows = Object.values(table);
+  rows.sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
+    const key = [a.uid, b.uid].sort().join("|");
+    const h = h2h[key];
+    if (h) {
+      const aWins = h[a.uid] || 0;
+      const bWins = h[b.uid] || 0;
+      if (aWins !== bWins) return bWins - aWins;
+    }
+    return a.totalTimeMs - b.totalTimeMs;
+  });
+  return rows;
+}
+
+// Buduje właściwe obiekty meczów (z playlistą) dla jednej kolejki, na
+// podstawie gotowego już parowania UID-ów. Analogiczne do buildRound()
+// z pucharu, tylko pary są z góry ustalone, nie losowane od nowa.
+function buildLeagueRoundMatches(pairing, players, pool, roundNumber) {
+  const byUid = {};
+  players.forEach((p) => { byUid[p.uid] = p; });
+  const matches = pairing.map(([uidA, uidB], i) => ({
+    matchId: `r${roundNumber}m${i + 1}`,
+    player1: byUid[uidA],
+    player2: uidB ? byUid[uidB] : null,
+    playlist: pickMatchPlaylist(pool),
+    player1Result: null,
+    player2Result: null,
+    outcome: uidB ? null : "bye",
+    deadline: Date.now() + LEAGUE_MATCH_DEADLINE_MS,
+  }));
+  return { roundNumber, matches };
+}
+
+export async function createLeague(mode, entryFee, createdByUid) {
+  const ref = doc(collection(db, COLLECTION));
+  await setDoc(ref, {
+    id: ref.id,
+    format: "league",
+    mode,
+    entryFee,
+    status: "signup",
+    signups: [],
+    pairingSchedule: null,
+    rounds: [],
+    standings: [],
+    createdAt: Date.now(),
+    createdByUid,
+  });
+  return ref.id;
+}
+
+// Zapisy do ligi — w przeciwieństwie do pucharu NIE startują automatycznie
+// po osiągnięciu limitu graczy (liga jest otwarta dla dowolnej liczby chętnych)
+// — admin startuje ją ręcznie przyciskiem, kiedy uzna że zapisy się zamykają.
+export async function signUpForLeague(tournamentId, uid, name, avatarUrl = null) {
+  const ref = doc(db, COLLECTION, tournamentId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error("Liga nie istnieje.");
+    const data = snap.data();
+    if (data.status !== "signup") throw new Error("Zapisy do tej ligi są już zamknięte.");
+    if (data.signups.some((p) => p.uid === uid)) return;
+    tx.update(ref, { signups: [...data.signups, { uid, name, avatarUrl: avatarUrl || null }] });
+  });
+}
+
+// Ręczny start ligi przez admina — ustala CAŁY terminarz od razu (kto z kim
+// w której kolejce), ale buduje (z playlistą) tylko pierwszą kolejkę,
+// dokładnie jak w pucharze — kolejne kolejki dobudowują się dopiero gdy
+// poprzednia się zamknie.
+export async function startLeagueManually(tournamentId, pool) {
+  const ref = doc(db, COLLECTION, tournamentId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error("Liga nie istnieje.");
+    const data = snap.data();
+    if (data.status !== "signup") throw new Error("Ta liga już wystartowała.");
+    if (data.signups.length < 3) throw new Error("Potrzeba minimum 3 zapisanych graczy.");
+    const schedule = buildRoundRobinPairings(data.signups.map((p) => p.uid));
+    const round1 = buildLeagueRoundMatches(schedule[0], data.signups, pool, 1);
+    tx.update(ref, { status: "active", pairingSchedule: schedule, rounds: [round1], startedAt: Date.now() });
+  });
+}
+
+// Zapis wyniku meczu ligowego — analogiczne do recordTournamentMatchResult,
+// ale z prawdziwym remisem (resolveLeagueMatchOutcome) zamiast rozstrzygania
+// szybkością, i z zapisem PEŁNEGO przebiegu (playedCards) do późniejszego
+// podglądu szczegółów meczu.
+export async function recordLeagueMatchResult(tournamentId, roundNumber, matchId, uid, score, timeMs, playedCards = []) {
+  const ref = doc(db, COLLECTION, tournamentId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+    const data = snap.data();
+    const rounds = data.rounds.map((r) => ({ ...r, matches: r.matches.map((m) => ({ ...m })) }));
+    const round = rounds.find((r) => r.roundNumber === roundNumber);
+    if (!round) return;
+    const match = round.matches.find((m) => m.matchId === matchId);
+    if (!match || match.outcome) return;
+
+    const result = { score, timeMs, playedAt: Date.now(), playedCards };
+    if (match.player1.uid === uid && !match.player1Result) match.player1Result = result;
+    else if (match.player2?.uid === uid && !match.player2Result) match.player2Result = result;
+    else return;
+
+    if (match.player1Result && match.player2Result) {
+      match.outcome = resolveLeagueMatchOutcome(match);
+    }
+    tx.update(ref, { rounds });
+  });
+}
+
+// Stan ligowy konkretnego gracza — czy zapisany, jaki ma aktualny mecz
+// (jeśli jakiś czeka na rozegranie w bieżącej kolejce), i tabela (gdy liga
+// już wystartowała). Używane wspólnie przez huby mobile/desktop.
+export function getLeagueUserState(league, uid, now = Date.now()) {
+  if (!league || !uid) return { signedUp: false, match: null, standings: [] };
+  const signedUp = league.signups.some((p) => p.uid === uid);
+  let match = null;
+  if (league.status === "active" && league.rounds.length > 0) {
+    const currentRound = league.rounds[league.rounds.length - 1];
+    const myMatch = currentRound.matches.find((m) => (m.player1?.uid === uid || m.player2?.uid === uid) && !m.outcome);
+    if (myMatch) {
+      const iAmP1 = myMatch.player1?.uid === uid;
+      const myResult = iAmP1 ? myMatch.player1Result : myMatch.player2Result;
+      const opponent = iAmP1 ? myMatch.player2 : myMatch.player1;
+      match = { ...myMatch, roundNumber: currentRound.roundNumber, opponent, myResult, waitingForOpponent: !!myResult };
+    }
+  }
+  const standings = league.status !== "signup" ? computeLeagueStandings(league.rounds, league.signups) : [];
+  return { signedUp, match, standings };
+}
+
+// Leniwe sprawdzanie postępu ligi (wywoływane przy otwarciu huba, jak
+// w pucharze) — jeśli termin bieżącej kolejki minął, zamyka nierozegrane
+// mecze (walkower/podwójny walkower) i dobudowuje kolejną kolejkę z góry
+// ustalonego terminarza, albo kończy ligę jeśli to była ostatnia.
+export async function checkAndAdvanceLeague(tournamentId, pool) {
+  const ref = doc(db, COLLECTION, tournamentId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+    const data = snap.data();
+    if (data.status !== "active") return;
+
+    const rounds = data.rounds.map((r) => ({ ...r, matches: r.matches.map((m) => ({ ...m })) }));
+    const currentRound = rounds[rounds.length - 1];
+    const now = Date.now();
+
+    currentRound.matches.forEach((match) => {
+      if (match.outcome || !match.player2 || now < match.deadline) return;
+      match.outcome = resolveLeagueMatchOutcome(match); // brakujące wyniki -> walkower/podwójny walkower
+    });
+
+    const roundDone = currentRound.matches.every((m) => m.outcome);
+    if (!roundDone) {
+      tx.update(ref, { rounds });
+      return;
+    }
+
+    const nextRoundIndex = rounds.length;
+    if (nextRoundIndex >= data.pairingSchedule.length) {
+      const standings = computeLeagueStandings(rounds, data.signups);
+      tx.update(ref, { rounds, status: "completed", standings, completedAt: Date.now() });
+    } else {
+      const nextRound = buildLeagueRoundMatches(data.pairingSchedule[nextRoundIndex], data.signups, pool, nextRoundIndex + 1);
+      tx.update(ref, { rounds: [...rounds, nextRound] });
+    }
+  });
+}

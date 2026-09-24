@@ -47,7 +47,7 @@ import cardZlotoImg from './assets/icons/card-zlota.webp';
 import cardPlatynaImg from './assets/icons/card-platynowa.webp';
 import cardDiamentImg from './assets/icons/card-diamentowa.webp';
 import { effectiveRarity } from './cards.js';
-import { getTournamentUserState, tournamentTimeLeftLabel } from './tournaments.js';
+import { getTournamentUserState, tournamentTimeLeftLabel, getLeagueUserState } from './tournaments.js';
 import { WEEKLY_RANKING_REWARDS } from './stats.js';
 
 const PRACTICE_DECADES = [
@@ -1452,6 +1452,159 @@ export function MobileTournamentHubView({
       ) : null}
 
       {status !== 'completed' ? <button type="button" className="mgv-ghost-cta mgv-tournament-refresh" onClick={onRefresh} disabled={tournamentBusy}>ODŚWIEŻ DANE TURNIEJU</button> : null}
+    </MobileSession>
+  );
+}
+
+export function MobileLeagueHubView({ league, user, busy, onSignUp, onStartMatch, onHome, onRefresh, onOpenSchedule }) {
+  const currentUid = user?.uid;
+  const state = getLeagueUserState(league, currentUid);
+  const status = league?.status || 'none';
+  const entryFee = Number(league?.entryFee || 0);
+
+  if (!league) {
+    return (
+      <MobileSession className="mgv-tournament-page">
+        <MobileHeader eyebrow="RYWALIZACJA" title="LIGA" onBack={onHome} />
+        <ModeHero icon={glTurniej} eyebrow="LIGA" title="BRAK AKTYWNEJ LIGI" description="Aktualnie nie ma otwartej ligi. Gdy się pojawi, zapiszesz się właśnie tutaj." accent="cyan" />
+        <div className="mgv-action-stack"><button type="button" className="mgv-secondary-cta" onClick={onRefresh}>ODŚWIEŻ</button><button type="button" className="mgv-ghost-cta" onClick={onHome}>STRONA GŁÓWNA</button></div>
+      </MobileSession>
+    );
+  }
+
+  return (
+    <MobileSession className={`mgv-tournament-page status-${status}`}>
+      <MobileHeader eyebrow="RYWALIZACJA" title="LIGA" onBack={onHome} right={<span className="mgv-tournament-fee"><Trophy size={14} />{entryFee} XP</span>} />
+
+      <ModeHero
+        icon={glTurniej}
+        eyebrow={status === 'signup' ? 'TRWAJĄ ZAPISY' : status === 'active' ? 'LIGA W TOKU' : 'LIGA ZAKOŃCZONA'}
+        title={status === 'signup' ? 'ZAPISZ SIĘ DO LIGI' : status === 'active' ? `KOLEJKA ${league.rounds.length} / ${league.pairingSchedule?.length || '?'}` : 'TABELA KOŃCOWA'}
+        description={status === 'signup'
+          ? 'Każdy z każdym, bez odpadania. Im wyżej w tabeli na koniec, tym większa nagroda.'
+          : status === 'active'
+            ? 'Rozgrywaj swój mecz, gdy tylko pojawi się przycisk START.'
+            : 'Liga dobiegła końca. Zobacz końcową tabelę.'}
+        accent="cyan"
+      >
+        <div className="mgv-hero-chips">
+          <span><Users size={14} /> {league.signups.length} graczy</span>
+        </div>
+      </ModeHero>
+
+      {status === 'signup' ? (
+        <>
+          <Panel className="mgv-tournament-signup" accent="cyan">
+            <div className="mgv-section-title"><Users size={18} /><span>ZAPISANI</span><b>{league.signups.length}</b></div>
+            <div className="mgv-tournament-signups">
+              {league.signups.length ? league.signups.map((player) => <TournamentPlayer key={player.uid} player={player} me={player.uid === currentUid} />) : <div className="mgv-empty">Jeszcze nikt się nie zapisał.</div>}
+            </div>
+          </Panel>
+          {state.signedUp
+            ? <div className="mgv-tournament-ready"><Check size={20} /><div><strong>JESTEŚ ZAPISANY</strong><small>Czekamy aż admin wystartuje ligę.</small></div></div>
+            : <button type="button" className="mgv-main-cta" disabled={busy} onClick={onSignUp}><Trophy size={19} /> {busy ? 'ZAPISUJĘ…' : `ZAPISZ SIĘ · ${entryFee} XP`}</button>}
+        </>
+      ) : null}
+
+      {status === 'active' && state.match ? (
+        <Panel className="mgv-tournament-premium-status" accent="pink">
+          <div className="mgv-tournament-premium-top">
+            <div><span className="mgv-eyebrow">TWÓJ MECZ · KOLEJKA {state.match.roundNumber}</span><strong>{state.match.waitingForOpponent ? 'WYNIK ZAPISANY' : 'GOTOWY DO GRY'}</strong></div>
+          </div>
+          <small>Przeciwnik: <strong>{state.match.opponent?.name || 'Gracz'}</strong></small>
+          {!state.match.waitingForOpponent && (
+            <button type="button" className="mgv-main-cta" disabled={busy} onClick={() => onStartMatch(state.match, state.match.roundNumber)} style={{ marginTop: 10 }}>
+              <Play size={19} fill="currentColor" /> START
+            </button>
+          )}
+        </Panel>
+      ) : status === 'active' ? (
+        <div className="mgv-tournament-ready"><Check size={20} /><div><strong>ROZEGRANE</strong><small>Czekasz na kolejną kolejkę.</small></div></div>
+      ) : null}
+
+      {(status === 'active' || status === 'completed') && (
+        <Panel>
+          <div className="mgv-section-title"><Crown size={18} /><span>TABELA</span></div>
+          <div className="mgv-final-standing">
+            {state.standings.map((row, i) => (
+              <div key={row.uid} className={i < 3 ? `podium p${i + 1}` : ''}>
+                <span>#{i + 1}</span>
+                <strong>{row.name}</strong>
+                <b>{row.points} pkt <span style={{ fontSize: 11, color: '#9d94b8', fontWeight: 'normal' }}>({row.wins}W {row.draws}R {row.losses}P)</span></b>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      )}
+
+      <button type="button" className="mgv-ghost-cta mgv-tournament-refresh" onClick={onRefresh} disabled={busy}>ODŚWIEŻ DANE LIGI</button>
+      {status !== 'signup' ? <button type="button" className="mgv-secondary-cta" onClick={onOpenSchedule}>ZOBACZ TERMINARZ</button> : null}
+    </MobileSession>
+  );
+}
+
+export function MobileLeagueScheduleView({ league, onBack }) {
+  const [expanded, setExpanded] = useState(null);
+  const byUid = {};
+  (league.signups || []).forEach((p) => { byUid[p.uid] = p; });
+  const totalRounds = league.pairingSchedule?.length || league.rounds.length;
+
+  return (
+    <MobileSession className="mgv-tournament-page">
+      <MobileHeader eyebrow="LIGA" title="TERMINARZ" onBack={onBack} />
+      {Array.from({ length: totalRounds }).map((_, idx) => {
+        const roundNum = idx + 1;
+        const builtRound = league.rounds.find((r) => r.roundNumber === roundNum);
+        const pairing = league.pairingSchedule?.[idx] || [];
+        const matches = builtRound
+          ? builtRound.matches
+          : pairing.map(([a, b], i) => ({ matchId: `future-${roundNum}-${i}`, player1: byUid[a], player2: b ? byUid[b] : null, outcome: null }));
+
+        return (
+          <Panel key={roundNum} accent={builtRound ? 'cyan' : undefined}>
+            <div className="mgv-section-title"><Trophy size={16} /><span>KOLEJKA {roundNum}</span>{!builtRound ? <b style={{ fontSize: 11, color: '#7a7288' }}>JESZCZE NIEROZEGRANA</b> : null}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {matches.map((m) => {
+                if (!m.player2) return <div key={m.matchId} className="mgv-empty">{m.player1?.name || 'Gracz'} — wolny los</div>;
+                const isExpanded = expanded === m.matchId;
+                const done = !!m.outcome && m.outcome !== 'bye';
+                const canExpand = done && m.player1Result?.playedCards && m.player2Result?.playedCards;
+                return (
+                  <div key={m.matchId}>
+                    <button
+                      type="button"
+                      onClick={() => canExpand && setExpanded(isExpanded ? null : m.matchId)}
+                      style={{ width: '100%', textAlign: 'left', background: 'var(--surface2)', border: '1px solid #33294f', borderRadius: 10, padding: '10px 12px', color: 'inherit', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: canExpand ? 'pointer' : 'default' }}
+                    >
+                      <span>{m.player1?.name || '—'} <b style={{ color: '#7a7288', fontWeight: 'normal' }}>vs</b> {m.player2?.name || '—'}</span>
+                      <span style={{ fontSize: 12, color: done ? 'var(--good)' : 'var(--muted)' }}>
+                        {done ? `${m.player1Result?.score ?? '—'} : ${m.player2Result?.score ?? '—'}` : 'jeszcze nie rozegrano'}
+                      </span>
+                    </button>
+                    {isExpanded && canExpand && (
+                      <div style={{ marginTop: 4, padding: '8px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: 10, fontSize: 12 }}>
+                        {m.player1Result.playedCards.map((c, i) => {
+                          const c2 = m.player2Result.playedCards[i];
+                          return (
+                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: i < m.player1Result.playedCards.length - 1 ? '1px solid #241d38' : 'none' }}>
+                              <span style={{ color: '#9d94b8' }}>{c.artist} — {c.title} ({c.year})</span>
+                              <span>
+                                <span style={{ color: c.correct ? 'var(--good)' : 'var(--bad)' }}>{c.correct ? '✓' : '✗'}</span>
+                                {' / '}
+                                <span style={{ color: c2?.correct ? 'var(--good)' : 'var(--bad)' }}>{c2?.correct ? '✓' : '✗'}</span>
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Panel>
+        );
+      })}
     </MobileSession>
   );
 }
