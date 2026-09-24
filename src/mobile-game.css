@@ -1248,3 +1248,10 @@
 .mgv-hr-feedback.idle.ready { border-color:rgba(43,232,148,.18); background:rgba(43,232,148,.045); color:#48dfa0; }
 .mgv-hr-feedback.idle > small { color:#8f8998; }
 .mgv-hr-rules-note { display:block; margin-top:10px; color:#817b8b; font-size:9px; line-height:1.45; text-align:center; }
+
+/* Competition hub: shared cup/league navigation and league polish */
+.mgv-competition-switch{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:4px;margin:0 0 12px;border:1px solid rgba(117,103,170,.18);border-radius:13px;background:rgba(4,6,20,.74)}
+.mgv-competition-switch button{min-height:38px;border:0;border-radius:10px;background:transparent;color:#787185;font-family:"Space Mono",monospace;font-size:9px;font-weight:900;letter-spacing:.12em}
+.mgv-competition-switch button.active{color:#17100a;background:linear-gradient(100deg,#f5c451,#ff8fd9);box-shadow:0 0 22px rgba(245,196,81,.13)}
+.mgv-league-notify{padding:8px!important}
+.mgv-tournament-page.status-completed .mgv-tournament-round{opacity:.96}

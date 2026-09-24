@@ -96,12 +96,18 @@ export async function fetchActiveLeague() {
 
 
 export async function fetchLastCompletedTournament() {
-  // Celowo bez where("status","==","completed") w połączeniu z orderBy — to wymagałoby
-  // złożonego indeksu w Firestore, którego nie da się utworzyć stąd. Zamiast tego pobieramy
-  // kilka ostatnich turniejów (posortowane po samym createdAt, co nie wymaga indeksu) i filtrujemy lokalnie.
-  const q = query(collection(db, COLLECTION), orderBy("createdAt", "desc"), limit(10));
+  // Pobieramy szerzej i filtrujemy lokalnie, aby nie wymagać złożonego indeksu Firestore.
+  // Stare rekordy bez pola format traktujemy jako puchar.
+  const q = query(collection(db, COLLECTION), orderBy("createdAt", "desc"), limit(20));
   const snap = await getDocs(q);
-  const completed = snap.docs.map((d) => d.data()).find((t) => t.status === "completed");
+  const completed = snap.docs.map((d) => d.data()).find((t) => t.status === "completed" && t.format !== "league");
+  return completed || null;
+}
+
+export async function fetchLastCompletedLeague() {
+  const q = query(collection(db, COLLECTION), orderBy("createdAt", "desc"), limit(20));
+  const snap = await getDocs(q);
+  const completed = snap.docs.map((d) => d.data()).find((t) => t.status === "completed" && t.format === "league");
   return completed || null;
 }
 
@@ -548,7 +554,10 @@ export function getLeagueUserState(league, uid, now = Date.now()) {
     }
   }
   const standings = league.status !== "signup" ? computeLeagueStandings(league.rounds, league.signups) : [];
-  return { signedUp, match, standings };
+  const deadline = Number(match?.deadline || 0);
+  const msLeft = deadline ? Math.max(0, deadline - now) : null;
+  const canPlay = !!(league.status === "active" && match && !match.myResult && match.opponent);
+  return { signedUp, match, standings, deadline, msLeft, canPlay, urgent: canPlay && msLeft !== null && msLeft <= ONE_HOUR_MS };
 }
 
 // Leniwe sprawdzanie postępu ligi (wywoływane przy otwarciu huba, jak

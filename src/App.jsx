@@ -15,7 +15,7 @@ import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
 import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId, fuzzyMatch } from "./utils.js";
 import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError, ensureSignedIn } from "./auth.js";
-import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, getLeaderboardPosition, awardXp, xpForLevel, levelFromXp, currentWeekKey, currentDayKey, WEEKLY_RANKING_REWARDS, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag, getWeeklyChallenges, bumpWeeklyChallengeProgress, claimWeeklyChallenge, currentSeasonKey, seasonNumber, seasonRankForWins, SEASON_RANKS, updateSeasonProgress, getSeasonLeaderboard, getSeasonLeaderboardPosition, processSeasonRewardsIfNeeded, getPlayerSeasonHistory, consumeNextRewardNotice, claimWeeklyRankingReward, recordYearGuessRankingResult, getYearGuessLeaderboard, getYearGuessLeaderboardPosition, processYearGuessWeeklyRewardsIfNeeded, freezeSeasonZeroForRemainingPlayers } from "./stats.js";
+import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, getLeaderboardPosition, awardXp, xpForLevel, levelFromXp, currentWeekKey, currentDayKey, WEEKLY_RANKING_REWARDS, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag, getWeeklyChallenges, bumpWeeklyChallengeProgress, claimWeeklyChallenge, currentSeasonKey, seasonNumber, seasonRankForWins, SEASON_RANKS, updateSeasonProgress, getSeasonLeaderboard, getSeasonLeaderboardPosition, processSeasonRewardsIfNeeded, getPlayerSeasonHistory, consumeNextRewardNotice, claimWeeklyRankingReward, recordYearGuessRankingResult, getYearGuessLeaderboard, getYearGuessLeaderboardPosition, processYearGuessWeeklyRewardsIfNeeded, freezeSeasonZeroForRemainingPlayers, recordLeagueMatchParticipation, recordLeagueMatchWin } from "./stats.js";
 import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss, incrementSongPlayCount, getSongCount } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
 import { heartbeat, clearPresence, getOnlinePlayers } from "./presence.js";
@@ -24,7 +24,7 @@ import { sendRoomInvite, listenForIncomingRoomInvite, clearRoomInvite, isRoomInv
 import { GAME_HISTORY_COLLECTION, buildGameHistoryRecord, fetchGameHistoryPage, gameHistoryDocumentId } from "./gameHistory.js";
 import { getOrCreateDailySong } from "./dailySong.js";
 import { getOrCreateDailyPlaylist, hasPlayedPlaylistToday, recordDailyPlaylistScore, fetchDailyPlaylistLeaderboard, fetchWeeklyPlaylistLeaderboard, fetchAllTimePlaylistLeaderboard, processWeeklyPlaylistRewardsIfNeeded } from "./dailyPlaylist.js";
-import { createTournament, cancelTournament, fetchActiveTournament, fetchLastCompletedTournament, fetchTournament, signUpForTournament, recordTournamentMatchResult, checkAndAdvanceTournament, settleTournamentXpIfNeeded, pickMatchPlaylist, getTournamentUserState, createLeague, fetchActiveLeague, signUpForLeague, startLeagueManually, recordLeagueMatchResult, checkAndAdvanceLeague, computeLeagueStandings, resolveLeagueMatchOutcome, getLeagueUserState, settleLeagueRewardsIfNeeded } from "./tournaments.js";
+import { createTournament, cancelTournament, fetchActiveTournament, fetchLastCompletedTournament, fetchLastCompletedLeague, fetchTournament, signUpForTournament, recordTournamentMatchResult, checkAndAdvanceTournament, settleTournamentXpIfNeeded, pickMatchPlaylist, getTournamentUserState, createLeague, fetchActiveLeague, signUpForLeague, startLeagueManually, recordLeagueMatchResult, checkAndAdvanceLeague, computeLeagueStandings, resolveLeagueMatchOutcome, getLeagueUserState, settleLeagueRewardsIfNeeded } from "./tournaments.js";
 import { awardHitcoin, computeWinHitcoin, computeSecondPlaceHitcoin, computeThirdPlaceHitcoin, claimDailyHitcoin, drawCardAfterGame, effectiveRarity, PACKS, openPack, SELL_PRICES, sellDuplicateCard, sellAllDuplicates } from "./cards.js";
 import { DAILY_REWARD_SEGMENTS, claimDailyWheelReward } from "./dailyWheel.js";
 import { HIT_RUSH_CONFIG, pickNextHitRushSong, computeHitRushPoints, checkHitRushTimeBonus, nextHitRushTimeBonus, difficultyLabel, submitHitRushRun, fetchHitRushLeaderboard, processHitRushWeeklyRewardsIfNeeded } from "./hitRush.js";
@@ -109,6 +109,7 @@ import {
   MobileLeagueHubView,
   MobileLeagueScheduleView,
   MobileTournamentMatchResultView,
+  MobileLeagueMatchResultView,
   MobileHitRushMenuView,
   MobileHitRushGameView,
   MobileHitRushResultView,
@@ -133,6 +134,7 @@ import {
   DesktopLeagueHubView,
   DesktopLeagueScheduleView,
   DesktopTournamentMatchResultView,
+  DesktopLeagueMatchResultView,
   DesktopHitRushMenuView,
   DesktopHitRushGameView,
   DesktopHitRushResultView,
@@ -831,16 +833,17 @@ function RoomInviteModal({ invite, busy, onAccept, onDecline }) {
 function TournamentNoticePopup({ notice, onClose, onOpen }) {
   if (!notice) return null;
   const urgent = notice.kind === "hour";
+  const isLeague = !!notice.leagueId;
   return (
     <div role="dialog" aria-modal="true" aria-label="Powiadomienie turniejowe" onClick={onClose} style={{ position:"fixed", inset:0, zIndex:262, display:"flex", alignItems:"center", justifyContent:"center", padding:22, background:"rgba(1,2,10,.82)", backdropFilter:"blur(9px)" }}>
       <div onClick={(e)=>e.stopPropagation()} style={{ width:"min(100%,390px)", padding:22, borderRadius:24, textAlign:"center", background:"linear-gradient(160deg,#17121f,#090914 72%,#080811)", border:`1px solid ${urgent ? "rgba(255,104,112,.42)" : "rgba(245,196,81,.38)"}`, boxShadow:`0 26px 80px rgba(0,0,0,.62),0 0 40px ${urgent ? "rgba(255,80,100,.16)" : "rgba(245,196,81,.14)"}` }}>
         <div style={{ width:64, height:64, margin:"0 auto 12px", borderRadius:20, display:"grid", placeItems:"center", fontSize:31, background:urgent ? "rgba(255,70,90,.12)" : "rgba(245,196,81,.12)", border:`1px solid ${urgent ? "rgba(255,100,120,.28)" : "rgba(245,196,81,.28)"}` }}>🏆</div>
-        <div style={{ color:urgent ? "#ff8f9d" : "#f5c451", fontFamily:"'Space Mono', monospace", fontSize:10, letterSpacing:".14em" }}>TURNIEJ PREMIUM</div>
+        <div style={{ color:urgent ? "#ff8f9d" : "#f5c451", fontFamily:"'Space Mono', monospace", fontSize:10, letterSpacing:".14em" }}>{isLeague ? "LIGA" : "TURNIEJ PREMIUM"}</div>
         <h2 style={{ margin:"8px 0 7px", color:"#fff", fontFamily:"'Bebas Neue', sans-serif", fontSize:31, lineHeight:1 }}>{notice.title || "TURNIEJ"}</h2>
         <p style={{ margin:"0 0 17px", color:"#a59dab", fontSize:13, lineHeight:1.5 }}>{notice.body || "Sprawdź aktualny stan turnieju."}</p>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:9 }}>
           <button type="button" onClick={onClose} style={{ minHeight:48, borderRadius:13, border:"1px solid rgba(255,255,255,.10)", background:"rgba(255,255,255,.03)", color:"#b8afc2", fontWeight:850 }}>PÓŹNIEJ</button>
-          <button type="button" onClick={() => { onClose?.(); onOpen?.(); }} style={{ minHeight:48, borderRadius:13, border:"1px solid rgba(245,196,81,.35)", background:"linear-gradient(100deg,#f5c451,#ff8fd9)", color:"#241407", fontWeight:950 }}>OTWÓRZ TURNIEJ</button>
+          <button type="button" onClick={() => { onClose?.(); onOpen?.(); }} style={{ minHeight:48, borderRadius:13, border:"1px solid rgba(245,196,81,.35)", background:"linear-gradient(100deg,#f5c451,#ff8fd9)", color:"#241407", fontWeight:950 }}>{isLeague ? "OTWÓRZ LIGĘ" : "OTWÓRZ TURNIEJ"}</button>
         </div>
       </div>
     </div>
@@ -1502,6 +1505,7 @@ export default function App() {
   const [activeTournament, setActiveTournament] = useState(null);
   const [activeLeague, setActiveLeague] = useState(null);
   const [lastCompletedTournament, setLastCompletedTournament] = useState(null);
+  const [lastCompletedLeague, setLastCompletedLeague] = useState(null);
   const [tournamentBusy, setTournamentBusy] = useState(false);
   const [tournamentNotice, setTournamentNotice] = useState(null);
   const [tournamentNotificationPermission, setTournamentNotificationPermission] = useState(() => typeof Notification === "undefined" ? "unsupported" : Notification.permission);
@@ -1553,7 +1557,12 @@ export default function App() {
           if (!t) fetchLastCompletedTournament().then(setLastCompletedTournament).catch(() => {});
         })
         .catch(() => {});
-      fetchActiveLeague().then(setActiveLeague).catch(() => {});
+      fetchActiveLeague()
+        .then((l) => {
+          setActiveLeague(l);
+          if (!l) fetchLastCompletedLeague().then(setLastCompletedLeague).catch(() => {});
+        })
+        .catch(() => {});
     }
     loadTournamentInfo();
     const id = setInterval(loadTournamentInfo, 60000);
@@ -1616,6 +1625,36 @@ export default function App() {
       showTournamentNoticeOnce("started", activeTournament, { title: "TURNIEJ WYSTARTOWAŁ!", body: "Drabinka jest gotowa. Sprawdź swój mecz i przeciwnika." });
     }
   }, [activeTournament, user?.uid, showTournamentNoticeOnce, tournamentNoticeKey]);
+
+  useEffect(() => {
+    if (!user?.uid || !activeLeague || activeLeague.status !== "active") return;
+    const state = getLeagueUserState(activeLeague, user.uid);
+    if (!state.signedUp || !state.match) return;
+    const matchId = state.match.matchId;
+    const base = `league:${activeLeague.id}:${matchId}`;
+    const turnKey = tournamentNoticeKey("league-turn", activeLeague.id, matchId);
+    const hourKey = tournamentNoticeKey("league-hour", activeLeague.id, matchId);
+    let turnSeen = false, hourSeen = false;
+    try { turnSeen = !!window.localStorage.getItem(turnKey); hourSeen = !!window.localStorage.getItem(hourKey); } catch (e) {}
+    if (state.canPlay && state.urgent && !hourSeen) {
+      try { window.localStorage.setItem(hourKey, String(Date.now())); window.localStorage.setItem(turnKey, String(Date.now())); } catch (e) {}
+      const minutes = state.msLeft === null ? null : Math.max(1, Math.ceil(state.msLeft / 60000));
+      const notice = { kind: "hour", leagueId: activeLeague.id, matchId, title: "LIGA · ZOSTAŁA GODZINA!", body: minutes ? `Masz około ${minutes} min na rozegranie meczu ligowego.` : "Została około godzina na rozegranie meczu ligowego." };
+      setTournamentNotice(notice);
+      if (typeof Notification !== "undefined" && Notification.permission === "granted" && document.hidden) {
+        try { new Notification("HITSTERIADA · LIGA · ZOSTAŁA GODZINA!", { body: notice.body, icon: "/favicon.png", tag: base + ":hour" }); } catch (e) {}
+      }
+      return;
+    }
+    if (state.canPlay && !turnSeen) {
+      try { window.localStorage.setItem(turnKey, String(Date.now())); } catch (e) {}
+      const notice = { kind: "turn", leagueId: activeLeague.id, matchId, title: "MECZ LIGOWY GOTOWY!", body: "Możesz już rozegrać swój mecz. Na wynik masz 48 godzin od startu kolejki." };
+      setTournamentNotice(notice);
+      if (typeof Notification !== "undefined" && Notification.permission === "granted" && document.hidden) {
+        try { new Notification("HITSTERIADA · MECZ LIGOWY GOTOWY!", { body: notice.body, icon: "/favicon.png", tag: base + ":turn" }); } catch (e) {}
+      }
+    }
+  }, [activeLeague, user?.uid, tournamentNoticeKey]);
 
   // --- Wyzwania 1v1 (na żywo) ---
   const [showOnlineList, setShowOnlineList] = useState(false);
@@ -2049,6 +2088,21 @@ export default function App() {
     }
   }
 
+  async function syncLeagueStats(league) {
+    if (!league?.id) return;
+    const jobs = [];
+    for (const round of league.rounds || []) {
+      for (const match of round.matches || []) {
+        const key = `${league.id}:${match.matchId}`;
+        if (match.player1Result && match.player1?.uid) jobs.push(recordLeagueMatchParticipation(match.player1.uid, key, match.player1Result.score));
+        if (match.player2Result && match.player2?.uid) jobs.push(recordLeagueMatchParticipation(match.player2.uid, key, match.player2Result.score));
+        if ((match.outcome === "p1" || match.outcome === "walkover_p1") && match.player1?.uid) jobs.push(recordLeagueMatchWin(match.player1.uid, key));
+        if ((match.outcome === "p2" || match.outcome === "walkover_p2") && match.player2?.uid) jobs.push(recordLeagueMatchWin(match.player2.uid, key));
+      }
+    }
+    await Promise.allSettled(jobs);
+  }
+
   async function openTournamentOrLeagueHub() {
     // Jeden kafelek na stronie głównej obsługuje oba tryby — jeśli aktywny
     // jest puchar, otwiera hub pucharu (dotychczasowe zachowanie); jeśli
@@ -2056,7 +2110,10 @@ export default function App() {
     // hubów da się przejść do drugiego małym linkiem, gdy oba są aktywne naraz.
     if (activeTournament) return openTournamentHub();
     if (activeLeague) return openLeagueHub();
-    return openTournamentHub(); // pokaże "brak aktywnego turnieju"
+    const tAt = Number(lastCompletedTournament?.createdAt || 0);
+    const lAt = Number(lastCompletedLeague?.createdAt || 0);
+    if (lastCompletedLeague && lAt > tAt) return openLeagueHub();
+    return openTournamentHub();
   }
 
   async function openTournamentHub() {
@@ -2064,17 +2121,20 @@ export default function App() {
     setTournamentBusy(true);
     setError("");
     try {
-      let t = activeTournament;
-      if (!t) {
-        t = await fetchActiveTournament();
-        setActiveTournament(t);
-      }
+      let t = activeTournament || await fetchActiveTournament();
       if (t && t.status === "active") {
         const pool = await getDailyFeaturesPool();
         await checkAndAdvanceTournament(t.id, pool);
         t = await fetchTournament(t.id);
-        setActiveTournament(t);
-        if (t?.status === "completed") await settleTournamentXpIfNeeded(t.id);
+        if (t?.status === "completed") {
+          await settleTournamentXpIfNeeded(t.id);
+          setLastCompletedTournament(t);
+          setActiveTournament(null);
+        } else setActiveTournament(t);
+      } else if (t) setActiveTournament(t);
+      if (!t) {
+        t = lastCompletedTournament || await fetchLastCompletedTournament();
+        setLastCompletedTournament(t);
       }
       setScreen("tournamentHub");
     } catch (e) {
@@ -2104,17 +2164,22 @@ export default function App() {
     setTournamentBusy(true);
     setError("");
     try {
-      let l = activeLeague;
-      if (!l) {
-        l = await fetchActiveLeague();
-        setActiveLeague(l);
-      }
+      let l = activeLeague || await fetchActiveLeague();
       if (l && l.status === "active") {
         const pool = await getDailyFeaturesPool();
         await checkAndAdvanceLeague(l.id, pool);
         l = await fetchTournament(l.id);
-        setActiveLeague(l);
-        if (l?.status === "completed") await settleLeagueRewardsIfNeeded(l.id);
+        await syncLeagueStats(l);
+        if (l?.status === "completed") {
+          await settleLeagueRewardsIfNeeded(l.id);
+          setLastCompletedLeague(l);
+          setActiveLeague(null);
+        } else setActiveLeague(l);
+      } else if (l) setActiveLeague(l);
+      if (!l) {
+        l = lastCompletedLeague || await fetchLastCompletedLeague();
+        setLastCompletedLeague(l);
+        await syncLeagueStats(l);
       }
       setScreen("leagueHub");
     } catch (e) {
@@ -3210,8 +3275,12 @@ export default function App() {
         const pool = await getDailyFeaturesPool();
         await checkAndAdvanceLeague(room.leagueId, pool);
         const freshLeague = await fetchTournament(room.leagueId);
-        setActiveLeague(freshLeague);
-        if (freshLeague?.status === "completed") await settleLeagueRewardsIfNeeded(room.leagueId);
+        await syncLeagueStats(freshLeague);
+        if (freshLeague?.status === "completed") {
+          setLastCompletedLeague(freshLeague);
+          setActiveLeague(null);
+          await settleLeagueRewardsIfNeeded(room.leagueId);
+        } else setActiveLeague(freshLeague);
       } catch (e) {
         // ciche niepowodzenie
       }
@@ -4678,7 +4747,7 @@ export default function App() {
         const correct = (!before || before.year <= card.year) && (!after || card.year <= after.year);
         const newTimelines = { ...data.timelines };
         if (correct) newTimelines[data.currentPlayerId] = [...timeline, card];
-        capturedResult = { correct, card, practiceMode: !!data.practiceMode };
+        capturedResult = { correct, card, practiceMode: !!data.practiceMode, leagueMode: !!data.leagueMode };
 
         // podsumowanie gry: czas decyzji, seria trafień, playlista wieczoru
         const elapsed = Date.now() - (toMillis(data.turnStartedAt) || Date.now());
@@ -4733,10 +4802,10 @@ export default function App() {
           });
         }
       }));
-      if (capturedResult && !capturedResult.practiceMode && capturedResult.card?.id) {
+      if (capturedResult && (!capturedResult.practiceMode || capturedResult.leagueMode) && capturedResult.card?.id) {
         incrementSongPlayCount(capturedResult.card.id).catch(() => {});
       }
-      if (user && capturedResult && !capturedResult.practiceMode) {
+      if (user && capturedResult && (!capturedResult.practiceMode || capturedResult.leagueMode)) {
         recordCardGuess(user.uid, capturedResult.card.year, capturedResult.correct, capturedResult.card.artist, capturedResult.card.videoId).catch(() => {});
         if (capturedResult.correct) {
           let xp = 10; // poprawne umieszczenie
@@ -4744,7 +4813,7 @@ export default function App() {
           awardXp(user.uid, xp).catch(() => {});
         }
       }
-      if (user && instantGuessAwardedTo === user.uid && !capturedResult?.practiceMode) {
+      if (user && instantGuessAwardedTo === user.uid && (!capturedResult?.practiceMode || capturedResult?.leagueMode)) {
         recordSuccessfulGuess(user.uid, capturedResult?.card?.videoId, capturedResult?.card?.year).catch(() => {});
         bumpWeeklyChallengeProgress(user.uid, "guessesCorrect", 1).catch(() => {});
         let xp = 20; // trafione zgadywanie
@@ -4803,8 +4872,8 @@ export default function App() {
       if (capturedBought) {
         setBoughtCardReveal(capturedBought);
         setBoughtCardRevealed(false);
-        if (!room?.practiceMode && capturedBought.id) incrementSongPlayCount(capturedBought.id).catch(() => {});
-        if (user && !room?.practiceMode) {
+        if ((!room?.practiceMode || room?.leagueMode) && capturedBought.id) incrementSongPlayCount(capturedBought.id).catch(() => {});
+        if (user && (!room?.practiceMode || room?.leagueMode)) {
           const ref2 = doc(db, "userStats", user.uid);
           updateDoc(ref2, { cardsBought: increment(1) }).catch(() => {});
         }
@@ -5408,6 +5477,7 @@ export default function App() {
       const ref = doc(db, "rooms", roomId);
       let capturedCard = null;
       let capturedPracticeMode = false;
+      let capturedLeagueMode = false;
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
@@ -5415,6 +5485,7 @@ export default function App() {
         const card = data.currentCard;
         capturedCard = card;
         capturedPracticeMode = !!data.practiceMode;
+        capturedLeagueMode = !!data.leagueMode;
         const elapsed = Date.now() - (toMillis(data.turnStartedAt) || Date.now());
         const newDecisionTimes = { ...(data.decisionTimes || {}) };
         newDecisionTimes[data.currentPlayerId] = [...(newDecisionTimes[data.currentPlayerId] || []), elapsed];
@@ -5430,10 +5501,10 @@ export default function App() {
           playedCards: newPlayedCards,
         });
       });
-      if (capturedCard && !capturedPracticeMode && capturedCard.id) {
+      if (capturedCard && (!capturedPracticeMode || capturedLeagueMode) && capturedCard.id) {
         incrementSongPlayCount(capturedCard.id).catch(() => {});
       }
-      if (user && capturedCard && !capturedPracticeMode) {
+      if (user && capturedCard && (!capturedPracticeMode || capturedLeagueMode)) {
         recordCardGuess(user.uid, capturedCard.year, false, capturedCard.artist, capturedCard.videoId).catch(() => {});
       }
     } catch (e) {
@@ -6492,7 +6563,7 @@ export default function App() {
         cardSize={viewportWidth < 640 ? 190 : 220}
       />
       <RoomInviteModal invite={incomingChallenge ? null : incomingRoomInvite} busy={roomInviteBusyUid === user?.uid} onAccept={handleAcceptRoomInvite} onDecline={handleDeclineRoomInvite} />
-      <TournamentNoticePopup notice={tournamentNotice} onClose={() => setTournamentNotice(null)} onOpen={openTournamentHub} />
+      <TournamentNoticePopup notice={tournamentNotice} onClose={() => setTournamentNotice(null)} onOpen={tournamentNotice?.leagueId ? openLeagueHub : openTournamentHub} />
       <RewardNoticePopup notice={rewardNotice} onClose={() => { setRewardNotice(null); setRewardClaimError(""); }} onClaim={handleClaimRewardNotice} claimBusy={rewardClaimBusy} claimError={rewardClaimError} />
       {gameEndReveal && showGameEndRevealPopup && <GameEndRevealPopup data={gameEndReveal} onClose={() => setShowGameEndRevealPopup(false)} levelFromXp={levelFromXp} />}
     </>
@@ -6501,7 +6572,7 @@ export default function App() {
   if (useDesktopSessionViews && screen === "tournamentHub") {
     return renderSessionUx(
       <DesktopTournamentHubView
-        tournament={activeTournament}
+        tournament={activeTournament || lastCompletedTournament}
         lastCompleted={lastCompletedTournament}
         user={user}
         busy={busy}
@@ -6512,6 +6583,7 @@ export default function App() {
         onStartMatch={startTournamentMatch}
         onHome={() => setScreen("home")}
         onRefresh={openTournamentHub}
+        onOpenLeague={openLeagueHub}
       />
     );
   }
@@ -6519,22 +6591,25 @@ export default function App() {
   if (useDesktopSessionViews && screen === "leagueHub") {
     return renderSessionUx(
       <DesktopLeagueHubView
-        league={activeLeague}
+        league={activeLeague || lastCompletedLeague}
         user={user}
         busy={tournamentBusy}
         onSignUp={handleLeagueSignUp}
         onStartMatch={startLeagueMatch}
         onHome={() => setScreen("home")}
         onRefresh={openLeagueHub}
+        onOpenTournament={openTournamentHub}
+        notificationPermission={tournamentNotificationPermission}
+        onEnableNotifications={enableTournamentNotifications}
         onOpenSchedule={() => setScreen("leagueSchedule")}
       />
     );
   }
 
-  if (useDesktopSessionViews && screen === "leagueSchedule" && activeLeague) {
+  if (useDesktopSessionViews && screen === "leagueSchedule" && (activeLeague || lastCompletedLeague)) {
     return renderSessionUx(
       <DesktopLeagueScheduleView
-        league={activeLeague}
+        league={activeLeague || lastCompletedLeague}
         onBack={() => setScreen("leagueHub")}
       />
     );
@@ -6805,6 +6880,17 @@ export default function App() {
     );
   }
 
+  if (useDesktopSessionViews && screen === "gameover" && room?.leagueMode) {
+    return renderSessionUx(
+      <DesktopLeagueMatchResultView
+        room={room}
+        playerId={playerId}
+        onLeagueBack={() => { leaveRoom(); setTimeout(() => openLeagueHub(), 80); }}
+        onLeave={leaveRoom}
+      />
+    );
+  }
+
   if (useDesktopSessionViews && screen === "gameover" && room?.tournamentMode) {
     return renderSessionUx(
       <DesktopTournamentMatchResultView
@@ -6816,7 +6902,7 @@ export default function App() {
     );
   }
 
-  if (useDesktopSessionViews && screen === "gameover" && room?.practiceMode && !room?.dailyPlaylistMode && !room?.tournamentMode) {
+  if (useDesktopSessionViews && screen === "gameover" && room?.practiceMode && !room?.dailyPlaylistMode && !room?.tournamentMode && !room?.leagueMode) {
     return (
       <DesktopPracticeResultView
         room={room}
@@ -6871,7 +6957,7 @@ export default function App() {
   if (useMobileSessionViews && screen === "tournamentHub") {
     return (
       <MobileTournamentHubView
-        tournament={activeTournament}
+        tournament={activeTournament || lastCompletedTournament}
         lastCompleted={lastCompletedTournament}
         user={user}
         busy={busy}
@@ -6882,6 +6968,7 @@ export default function App() {
         onStartMatch={startTournamentMatch}
         onHome={() => setScreen("home")}
         onRefresh={openTournamentHub}
+        onOpenLeague={openLeagueHub}
       />
     );
   }
@@ -6889,22 +6976,25 @@ export default function App() {
   if (useMobileSessionViews && screen === "leagueHub") {
     return (
       <MobileLeagueHubView
-        league={activeLeague}
+        league={activeLeague || lastCompletedLeague}
         user={user}
         busy={tournamentBusy}
         onSignUp={handleLeagueSignUp}
         onStartMatch={startLeagueMatch}
         onHome={() => setScreen("home")}
         onRefresh={openLeagueHub}
+        onOpenTournament={openTournamentHub}
+        notificationPermission={tournamentNotificationPermission}
+        onEnableNotifications={enableTournamentNotifications}
         onOpenSchedule={() => setScreen("leagueSchedule")}
       />
     );
   }
 
-  if (useMobileSessionViews && screen === "leagueSchedule" && activeLeague) {
+  if (useMobileSessionViews && screen === "leagueSchedule" && (activeLeague || lastCompletedLeague)) {
     return (
       <MobileLeagueScheduleView
-        league={activeLeague}
+        league={activeLeague || lastCompletedLeague}
         onBack={() => setScreen("leagueHub")}
       />
     );
@@ -7157,6 +7247,17 @@ export default function App() {
     );
   }
 
+  if (useMobileSessionViews && screen === "gameover" && room?.leagueMode) {
+    return renderSessionUx(
+      <MobileLeagueMatchResultView
+        room={room}
+        playerId={playerId}
+        onLeagueBack={() => { leaveRoom(); setTimeout(() => openLeagueHub(), 80); }}
+        onLeave={leaveRoom}
+      />
+    );
+  }
+
   if (useMobileSessionViews && screen === "gameover" && room?.tournamentMode) {
     return renderSessionUx(
       <MobileTournamentMatchResultView
@@ -7168,7 +7269,7 @@ export default function App() {
     );
   }
 
-  if (useMobileSessionViews && screen === "gameover" && room?.practiceMode && !room?.dailyPlaylistMode && !room?.tournamentMode) {
+  if (useMobileSessionViews && screen === "gameover" && room?.practiceMode && !room?.dailyPlaylistMode && !room?.tournamentMode && !room?.leagueMode) {
     return (
       <MobilePracticeResultView
         room={room}
@@ -7292,7 +7393,7 @@ export default function App() {
         onHitRush={() => setScreen("hitRushMenu")}
         onDailySong={openDailySong}
         onDailyPlaylist={openDailyPlaylistHub}
-        onTournament={(activeTournament || activeLeague) ? openTournamentOrLeagueHub : undefined}
+        onTournament={(activeTournament || activeLeague || lastCompletedTournament || lastCompletedLeague) ? openTournamentOrLeagueHub : undefined}
         activeTournament={activeTournament}
         lastCompletedTournament={lastCompletedTournament}
         weeklySummary={{ current: desktopCurrentWeekly, achievementClaimed: desktopAchievementClaimed }}
@@ -7392,7 +7493,7 @@ export default function App() {
       ) : null}
       <DuelChallengeModal challenge={incomingChallenge} busy={challengeBusy} onAccept={handleAcceptChallenge} onDecline={handleDeclineChallenge} />
       <RoomInviteModal invite={incomingChallenge ? null : incomingRoomInvite} busy={roomInviteBusyUid === user?.uid} onAccept={handleAcceptRoomInvite} onDecline={handleDeclineRoomInvite} />
-      <TournamentNoticePopup notice={tournamentNotice} onClose={() => setTournamentNotice(null)} onOpen={openTournamentHub} />
+      <TournamentNoticePopup notice={tournamentNotice} onClose={() => setTournamentNotice(null)} onOpen={tournamentNotice?.leagueId ? openLeagueHub : openTournamentHub} />
       <RewardNoticePopup notice={rewardNotice} onClose={() => { setRewardNotice(null); setRewardClaimError(""); }} onClaim={handleClaimRewardNotice} claimBusy={rewardClaimBusy} claimError={rewardClaimError} />
       {gameEndReveal && showGameEndRevealPopup && <GameEndRevealPopup data={gameEndReveal} onClose={() => setShowGameEndRevealPopup(false)} levelFromXp={levelFromXp} />}
       </>
@@ -7450,7 +7551,7 @@ export default function App() {
         onHitRush={() => setScreen("hitRushMenu")}
         onDailySong={openDailySong}
         onDailyPlaylist={openDailyPlaylistHub}
-        onTournament={(activeTournament || activeLeague) ? openTournamentOrLeagueHub : undefined}
+        onTournament={(activeTournament || activeLeague || lastCompletedTournament || lastCompletedLeague) ? openTournamentOrLeagueHub : undefined}
         onCreateYearGuessRoom={createYearGuessRoom}
         onJoinYearGuessRoom={() => joinRoom(undefined, { yearGuessOnly: true })}
         onLoadYearGuessLeaderboard={loadYearGuessLeaderboardData}
@@ -7571,7 +7672,7 @@ export default function App() {
       ) : null}
       <DuelChallengeModal challenge={incomingChallenge} busy={challengeBusy} onAccept={handleAcceptChallenge} onDecline={handleDeclineChallenge} />
       <RoomInviteModal invite={incomingChallenge ? null : incomingRoomInvite} busy={roomInviteBusyUid === user?.uid} onAccept={handleAcceptRoomInvite} onDecline={handleDeclineRoomInvite} />
-      <TournamentNoticePopup notice={tournamentNotice} onClose={() => setTournamentNotice(null)} onOpen={openTournamentHub} />
+      <TournamentNoticePopup notice={tournamentNotice} onClose={() => setTournamentNotice(null)} onOpen={tournamentNotice?.leagueId ? openLeagueHub : openTournamentHub} />
       <RewardNoticePopup notice={rewardNotice} onClose={() => { setRewardNotice(null); setRewardClaimError(""); }} onClaim={handleClaimRewardNotice} claimBusy={rewardClaimBusy} claimError={rewardClaimError} />
       {gameEndReveal && showGameEndRevealPopup && <GameEndRevealPopup data={gameEndReveal} onClose={() => setShowGameEndRevealPopup(false)} levelFromXp={levelFromXp} />}
       </>
@@ -8617,7 +8718,7 @@ export default function App() {
                       <div className="hs-tile-glow" />
                       <div className="hs-tile-rim" />
                       <div className="hs-badge">★ PREMIUM</div>
-                      <button onClick={activeTournament ? openTournamentHub : undefined} disabled={tournamentBusy} className="hs-tile" style={{ cursor: activeTournament ? "pointer" : "default" }}>
+                      <button onClick={(activeTournament || activeLeague || lastCompletedTournament || lastCompletedLeague) ? openTournamentOrLeagueHub : undefined} disabled={tournamentBusy} className="hs-tile" style={{ cursor: (activeTournament || activeLeague || lastCompletedTournament || lastCompletedLeague) ? "pointer" : "default" }}>
                         <img className="hs-icon" src={glTurniej} alt="" />
                         <div className="hs-t">TURNIEJ</div>
                         <div className="hs-d">

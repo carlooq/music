@@ -151,6 +151,71 @@ export async function recordGameResult(uid, won) {
   });
 }
 
+
+// Liga korzysta z solowego silnika meczu, ale jej mecze mają liczyć się do
+// zwykłych statystyk i rankingu sezonowego. Markery per liga/mecz chronią
+// przed podwójnym naliczeniem przy ponownym wejściu lub dwóch klientach.
+export async function recordLeagueMatchParticipation(uid, matchKey, guessesCorrect = 0) {
+  if (!uid || !matchKey) return;
+  const ref = doc(db, "userStats", uid);
+  const sk = currentSeasonKey();
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const data = snap.exists() ? snap.data() : {};
+    const claims = { ...(data.leagueMatchStatClaims || {}) };
+    const claim = { ...(claims[matchKey] || {}) };
+    if (claim.participation) return;
+
+    const prev = data.seasonProgress;
+    let history = data.seasonHistory || {};
+    let counters;
+    if (prev && prev.seasonKey === sk) counters = { ...prev };
+    else {
+      if (prev?.seasonKey) history = { ...history, [prev.seasonKey]: { gamesPlayed: prev.gamesPlayed || 0, gamesWon: prev.gamesWon || 0, guessesCorrect: prev.guessesCorrect || 0 } };
+      counters = { seasonKey: sk, gamesPlayed: 0, gamesWon: 0, guessesCorrect: 0 };
+    }
+    counters.gamesPlayed = Number(counters.gamesPlayed || 0) + 1;
+    counters.guessesCorrect = Number(counters.guessesCorrect || 0) + Number(guessesCorrect || 0);
+    claims[matchKey] = { ...claim, participation: Date.now() };
+    tx.set(ref, {
+      gamesPlayed: increment(1),
+      leagueMatchStatClaims: claims,
+      seasonProgress: counters,
+      seasonHistory: history,
+    }, { merge: true });
+  });
+}
+
+export async function recordLeagueMatchWin(uid, matchKey) {
+  if (!uid || !matchKey) return;
+  const ref = doc(db, "userStats", uid);
+  const sk = currentSeasonKey();
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const data = snap.exists() ? snap.data() : {};
+    const claims = { ...(data.leagueMatchStatClaims || {}) };
+    const claim = { ...(claims[matchKey] || {}) };
+    if (claim.win) return;
+
+    const prev = data.seasonProgress;
+    let history = data.seasonHistory || {};
+    let counters;
+    if (prev && prev.seasonKey === sk) counters = { ...prev };
+    else {
+      if (prev?.seasonKey) history = { ...history, [prev.seasonKey]: { gamesPlayed: prev.gamesPlayed || 0, gamesWon: prev.gamesWon || 0, guessesCorrect: prev.guessesCorrect || 0 } };
+      counters = { seasonKey: sk, gamesPlayed: 0, gamesWon: 0, guessesCorrect: 0 };
+    }
+    counters.gamesWon = Number(counters.gamesWon || 0) + 1;
+    claims[matchKey] = { ...claim, win: Date.now() };
+    tx.set(ref, {
+      gamesWon: increment(1),
+      leagueMatchStatClaims: claims,
+      seasonProgress: counters,
+      seasonHistory: history,
+    }, { merge: true });
+  });
+}
+
 // Called gdy admin zaakceptuje propozycję utworu od gracza — motywuje do
 // rozbudowywania bazy.
 export async function recordSongAdded(uid) {

@@ -1842,3 +1842,15 @@
   .dgv-practice-control-panel { grid-template-columns:1fr; }
   .dgv-practice-decade-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
+
+/* Competition hub: one visual system for Cup + League */
+.dgv-competition-switch{display:grid;grid-template-columns:1fr 1fr;gap:7px;width:min(340px,100%);padding:5px;margin:0 0 16px;border-radius:14px;border:1px solid rgba(123,108,176,.18);background:rgba(4,6,20,.72)}
+.dgv-competition-switch button{min-height:40px;border:0;border-radius:10px;background:transparent;color:#7f778b;font-family:"Space Mono",monospace;font-size:10px;font-weight:900;letter-spacing:.12em;cursor:pointer}
+.dgv-competition-switch button.active{color:#211507;background:linear-gradient(100deg,#f5c451,#ff8fd9);box-shadow:0 0 24px rgba(245,196,81,.12)}
+.dgv-league-notify{display:flex;justify-content:flex-end;padding:10px 12px!important}
+.dgv-league-notify .dgv-tournament-notify{min-width:260px}
+.dgv-league-table{display:flex;flex-direction:column;gap:8px}
+.dgv-league-row{display:grid;grid-template-columns:42px minmax(0,1fr) 110px 82px;align-items:center;gap:12px;padding:11px 14px;border-radius:11px;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.025)}
+.dgv-league-row>span{color:var(--muted);font-family:"Space Mono",monospace;font-weight:800}.dgv-league-row>strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dgv-league-row>small{color:var(--muted);text-align:center}.dgv-league-row>b{text-align:right}
+.dgv-league-row.podium{border-color:rgba(245,196,81,.25);background:linear-gradient(90deg,rgba(245,196,81,.075),rgba(255,255,255,.02))}.dgv-league-row.me{box-shadow:inset 3px 0 0 rgba(84,226,255,.8);border-color:rgba(84,226,255,.22)}
+@media(max-width:900px){.dgv-league-row{grid-template-columns:34px minmax(0,1fr) 72px}.dgv-league-row>small{display:none}}

@@ -1306,6 +1306,7 @@ export function MobileTournamentHubView({
   onStartMatch,
   onHome,
   onRefresh,
+  onOpenLeague,
 }) {
   const currentUid = user?.uid;
   const [now, setNow] = useState(Date.now());
@@ -1344,6 +1345,7 @@ export function MobileTournamentHubView({
         onBack={onHome}
         right={<span className="mgv-tournament-fee"><Trophy size={14} />{entryFee} XP</span>}
       />
+      <div className="mgv-competition-switch"><button className="active">PUCHAR</button><button onClick={onOpenLeague}>LIGA</button></div>
 
       <ModeHero
         icon={glTurniej}
@@ -1396,7 +1398,7 @@ export function MobileTournamentHubView({
         </>
       ) : null}
 
-      {status === 'active' ? (
+      {(status === 'active' || status === 'completed') ? (
         <div className="mgv-tournament-rounds">
           {(tournament.rounds || []).map((round) => (
             <Panel key={round.roundNumber} className="mgv-tournament-round" accent={round.matches?.length === 1 ? 'gold' : 'violet'}>
@@ -1456,7 +1458,7 @@ export function MobileTournamentHubView({
   );
 }
 
-export function MobileLeagueHubView({ league, user, busy, onSignUp, onStartMatch, onHome, onRefresh, onOpenSchedule }) {
+export function MobileLeagueHubView({ league, user, busy, onSignUp, onStartMatch, onHome, onRefresh, onOpenSchedule, onOpenTournament, notificationPermission, onEnableNotifications }) {
   const currentUid = user?.uid;
   const state = getLeagueUserState(league, currentUid);
   const status = league?.status || 'none';
@@ -1465,6 +1467,7 @@ export function MobileLeagueHubView({ league, user, busy, onSignUp, onStartMatch
     return (
       <MobileSession className="mgv-tournament-page">
         <MobileHeader eyebrow="RYWALIZACJA" title="LIGA" onBack={onHome} />
+      <div className="mgv-competition-switch"><button onClick={onOpenTournament}>PUCHAR</button><button className="active">LIGA</button></div>
         <ModeHero icon={glTurniej} eyebrow="LIGA" title="BRAK AKTYWNEJ LIGI" description="Aktualnie nie ma otwartej ligi. Gdy się pojawi, zapiszesz się właśnie tutaj." accent="cyan" />
         <div className="mgv-action-stack"><button type="button" className="mgv-secondary-cta" onClick={onRefresh}>ODŚWIEŻ</button><button type="button" className="mgv-ghost-cta" onClick={onHome}>STRONA GŁÓWNA</button></div>
       </MobileSession>
@@ -1474,6 +1477,7 @@ export function MobileLeagueHubView({ league, user, busy, onSignUp, onStartMatch
   return (
     <MobileSession className={`mgv-tournament-page status-${status}`}>
       <MobileHeader eyebrow="RYWALIZACJA" title="LIGA" onBack={onHome} />
+      <div className="mgv-competition-switch"><button onClick={onOpenTournament}>PUCHAR</button><button className="active">LIGA</button></div>
 
       <ModeHero
         icon={glTurniej}
@@ -1490,6 +1494,8 @@ export function MobileLeagueHubView({ league, user, busy, onSignUp, onStartMatch
           <span><Users size={14} /> {league.signups.length} graczy</span>
         </div>
       </ModeHero>
+
+      <Panel className="mgv-league-notify" accent="gold"><button type="button" className={`mgv-tournament-notify-toggle ${notificationPermission === 'granted' ? 'enabled' : ''}`} onClick={onEnableNotifications} disabled={notificationPermission === 'unsupported'}>{notificationPermission === 'granted' ? <BellRing size={16}/> : <Bell size={16}/>}<span>{notificationPermission === 'unsupported' ? 'POWIADOMIENIA NIEDOSTĘPNE' : notificationPermission === 'denied' ? 'POWIADOMIENIA ZABLOKOWANE' : notificationPermission === 'granted' ? 'POWIADOMIENIA LIGOWE WŁĄCZONE' : 'WŁĄCZ POWIADOMIENIA O LIDZE'}</span></button></Panel>
 
       {status === 'signup' ? (
         <>
@@ -1509,6 +1515,7 @@ export function MobileLeagueHubView({ league, user, busy, onSignUp, onStartMatch
         <Panel className="mgv-tournament-premium-status" accent="pink">
           <div className="mgv-tournament-premium-top">
             <div><span className="mgv-eyebrow">TWÓJ MECZ · KOLEJKA {state.match.roundNumber}</span><strong>{state.match.waitingForOpponent ? 'WYNIK ZAPISANY' : 'GOTOWY DO GRY'}</strong></div>
+            {state.deadline ? <b className={state.urgent ? 'urgent' : ''}><Clock3 size={15}/> {tournamentTimeLeftLabel(state.msLeft)}</b> : null}
           </div>
           <small>Przeciwnik: <strong>{state.match.opponent?.name || 'Gracz'}</strong></small>
           {!state.match.waitingForOpponent && (
@@ -1721,6 +1728,16 @@ export function MobileHitRushLeaderboardView({ rows = [], period, onPeriod, onBa
       <button type="button" className="mgv-secondary-cta" onClick={onHome}>STRONA GŁÓWNA</button>
     </MobileSession>
   );
+}
+
+
+export function MobileLeagueMatchResultView({ room, playerId, onLeagueBack, onLeave }) {
+  const played=(room.playedCards||[]).filter((card)=>card.playerId===playerId);
+  const score=played.filter((card)=>card.correct).length;
+  const wrong=Math.max(0,played.length-score);
+  const times=room.decisionTimes?.[playerId]||[];
+  const avg=times.length?Math.round(times.reduce((sum,value)=>sum+value,0)/times.length/1000):null;
+  return <MobileSession className="mgv-tournament-result-page"><MobileHeader eyebrow="LIGA" title="MECZ ZAKOŃCZONY" onBack={onLeave}/><ModeHero icon={glTurniej} eyebrow={`KOLEJKA ${room.leagueRoundNumber||'—'}`} title={`${score}/10`} description="Twój wynik został zapisany do meczu ligowego i liczy się do statystyk oraz rankingu." accent="gold"/><Panel className="mgv-tournament-result-summary" accent="gold"><div><span>TRAFIENIA</span><strong>{score}</strong></div><div><span>POMYŁKI</span><strong>{wrong}</strong></div><div><span>ŚR. CZAS</span><strong>{avg!==null?`${avg}s`:'—'}</strong></div><div><span>KOLEJKA</span><strong>{room.leagueRoundNumber||'—'}</strong></div></Panel><div className="mgv-tournament-result-note"><Trophy size={20}/><div><strong>WYNIK ZAPISANY W LIDZE</strong><span>Wróć do ligi, aby zobaczyć tabelę, terminarz i status meczu przeciwnika.</span></div></div><div className="mgv-action-stack"><button className="mgv-main-cta" onClick={onLeagueBack}>WRÓĆ DO LIGI</button><button className="mgv-ghost-cta" onClick={onLeave}>OPUŚĆ</button></div></MobileSession>;
 }
 
 export function MobileGameOverView({ room, playerId, isHost, onPlayAgain, onLeave, onTournamentBack, chatInput, setChatInput, onSendChat, gameEndReveal }) {
