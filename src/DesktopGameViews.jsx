@@ -228,7 +228,6 @@ export function DesktopLeagueHubView({ league, user, busy, onSignUp, onStartMatc
   const currentUid = user?.uid;
   const state = getLeagueUserState(league, currentUid);
   const status = league?.status || 'none';
-  const entryFee = Number(league?.entryFee || 0);
 
   if (!league) {
     return (
@@ -248,7 +247,7 @@ export function DesktopLeagueHubView({ league, user, busy, onSignUp, onStartMatc
   return (
     <SessionBackground className="dgv-tournament-page">
       <div className="dgv-shell dgv-tournament-shell">
-        <SessionHeader eyebrow="TRYB PREMIUM" title="LIGA" onBack={onHome} right={<div className="dgv-tournament-entry"><Trophy size={17}/>{entryFee} XP WPISOWEGO</div>} />
+        <SessionHeader eyebrow="TRYB PREMIUM" title="LIGA" onBack={onHome} />
 
         <section className={`dgv-tournament-hero status-${status}`}>
           <img src={glTurniej} alt="" />
@@ -268,10 +267,10 @@ export function DesktopLeagueHubView({ league, user, busy, onSignUp, onStartMatc
             </section>
             <section className="dgv-panel dgv-tournament-rules">
               <div className="dgv-section-heading"><Shield size={18}/> ZASADY LIGI</div>
-              <div><Trophy size={20}/><span><strong>WPISOWE</strong><small>{entryFee} XP ryzyka</small></span></div>
+              <div><Trophy size={20}/><span><strong>DARMOWA</strong><small>Zero wpisowego, zero ryzyka</small></span></div>
               <div><Users size={20}/><span><strong>OTWARTA</strong><small>Dowolna liczba chętnych, bez limitu</small></span></div>
               <div><Music2 size={20}/><span><strong>MECZ</strong><small>10 utworów, identyczna playlista dla pary</small></span></div>
-              {state.signedUp ? <div className="dgv-tournament-ready"><Check size={18}/> JESTEŚ ZAPISANY</div> : <button type="button" className="dgv-primary-button gold" disabled={busy} onClick={onSignUp}>{busy ? 'ZAPISUJĘ…' : `ZAPISZ SIĘ · ${entryFee} XP`}</button>}
+              {state.signedUp ? <div className="dgv-tournament-ready"><Check size={18}/> JESTEŚ ZAPISANY</div> : <button type="button" className="dgv-primary-button gold" disabled={busy} onClick={onSignUp}>{busy ? 'ZAPISUJĘ…' : 'ZAPISZ SIĘ ZA DARMO'}</button>}
             </section>
           </div>
         ) : null}

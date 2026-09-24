@@ -1817,7 +1817,6 @@ export default function App() {
   const [dailyPlaylistAllTimeBoard, setDailyPlaylistAllTimeBoard] = useState([]);
   const [dailyPlaylistBusy, setDailyPlaylistBusy] = useState(false);
   const [adminNewTournament, setAdminNewTournament] = useState({ maxPlayers: "4", entryFee: "200" });
-  const [adminNewLeague, setAdminNewLeague] = useState({ entryFee: "200" });
   const [packShopBusy, setPackShopBusy] = useState(false);
   const [packOpenResult, setPackOpenResult] = useState(null);
   const [packRevealedIndices, setPackRevealedIndices] = useState(new Set());
@@ -6077,17 +6076,11 @@ export default function App() {
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
-                  <p style={{ fontSize: 11, color: "var(--muted)" }}>Otwarta dla dowolnej liczby chętnych — startujesz ją ręcznie, kiedy uznasz że zapisy się zamykają.</p>
-                  <label className="text-xs uppercase" style={{ color: "var(--muted)", marginTop: 4 }}>Wpisowe (XP)</label>
-                  <input autoComplete="one-time-code"
-                    type="number"
-                    value={adminNewLeague.entryFee}
-                    onChange={(e) => setAdminNewLeague({ ...adminNewLeague, entryFee: e.target.value })}
-                  />
+                  <p style={{ fontSize: 11, color: "var(--muted)" }}>Otwarta dla dowolnej liczby chętnych, bez wpisowego — startujesz ją ręcznie, kiedy uznasz że zapisy się zamykają.</p>
                   <button
                     onClick={async () => {
                       try {
-                        const id = await createLeague("playlist_duel", parseInt(adminNewLeague.entryFee, 10), user.uid);
+                        const id = await createLeague("playlist_duel", user.uid);
                         setActiveLeague(await fetchTournament(id));
                       } catch (e) {
                         setError("Błąd tworzenia ligi: " + e.message);

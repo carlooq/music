@@ -451,13 +451,13 @@ function buildLeagueRoundMatches(pairing, players, pool, roundNumber) {
   return { roundNumber, matches };
 }
 
-export async function createLeague(mode, entryFee, createdByUid) {
+export async function createLeague(mode, createdByUid) {
   const ref = doc(collection(db, COLLECTION));
   await setDoc(ref, {
     id: ref.id,
     format: "league",
     mode,
-    entryFee,
+    entryFee: 0, // liga jest darmowa — w przeciwieństwie do pucharu, gdzie wpisowe napędza pulę dla zwycięzcy
     status: "signup",
     signups: [],
     pairingSchedule: null,

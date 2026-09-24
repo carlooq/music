@@ -1460,7 +1460,6 @@ export function MobileLeagueHubView({ league, user, busy, onSignUp, onStartMatch
   const currentUid = user?.uid;
   const state = getLeagueUserState(league, currentUid);
   const status = league?.status || 'none';
-  const entryFee = Number(league?.entryFee || 0);
 
   if (!league) {
     return (
@@ -1474,7 +1473,7 @@ export function MobileLeagueHubView({ league, user, busy, onSignUp, onStartMatch
 
   return (
     <MobileSession className={`mgv-tournament-page status-${status}`}>
-      <MobileHeader eyebrow="RYWALIZACJA" title="LIGA" onBack={onHome} right={<span className="mgv-tournament-fee"><Trophy size={14} />{entryFee} XP</span>} />
+      <MobileHeader eyebrow="RYWALIZACJA" title="LIGA" onBack={onHome} />
 
       <ModeHero
         icon={glTurniej}
@@ -1502,7 +1501,7 @@ export function MobileLeagueHubView({ league, user, busy, onSignUp, onStartMatch
           </Panel>
           {state.signedUp
             ? <div className="mgv-tournament-ready"><Check size={20} /><div><strong>JESTEŚ ZAPISANY</strong><small>Czekamy aż admin wystartuje ligę.</small></div></div>
-            : <button type="button" className="mgv-main-cta" disabled={busy} onClick={onSignUp}><Trophy size={19} /> {busy ? 'ZAPISUJĘ…' : `ZAPISZ SIĘ · ${entryFee} XP`}</button>}
+            : <button type="button" className="mgv-main-cta" disabled={busy} onClick={onSignUp}><Trophy size={19} /> {busy ? 'ZAPISUJĘ…' : 'ZAPISZ SIĘ ZA DARMO'}</button>}
         </>
       ) : null}
 
