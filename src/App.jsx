@@ -105,6 +105,7 @@ import {
   MobileDailyPlaylistHubView,
   MobileDailyPlaylistResultView,
   MobileDailySongView,
+  MobileCompetitionHubView,
   MobileTournamentHubView,
   MobileLeagueHubView,
   MobileLeagueScheduleView,
@@ -130,6 +131,7 @@ import {
   DesktopDailyPlaylistHubView,
   DesktopDailyPlaylistResultView,
   DesktopDailySongView,
+  DesktopCompetitionHubView,
   DesktopTournamentHubView,
   DesktopLeagueHubView,
   DesktopLeagueScheduleView,
@@ -2104,16 +2106,26 @@ export default function App() {
   }
 
   async function openTournamentOrLeagueHub() {
-    // Jeden kafelek na stronie głównej obsługuje oba tryby — jeśli aktywny
-    // jest puchar, otwiera hub pucharu (dotychczasowe zachowanie); jeśli
-    // pucharu nie ma, a jest aktywna liga, otwiera hub ligi. Z każdego z tych
-    // hubów da się przejść do drugiego małym linkiem, gdy oba są aktywne naraz.
-    if (activeTournament) return openTournamentHub();
-    if (activeLeague) return openLeagueHub();
-    const tAt = Number(lastCompletedTournament?.createdAt || 0);
-    const lAt = Number(lastCompletedLeague?.createdAt || 0);
-    if (lastCompletedLeague && lAt > tAt) return openLeagueHub();
-    return openTournamentHub();
+    if (!user) return setError("Zaloguj się, żeby wejść do centrum rywalizacji.");
+    setTournamentBusy(true);
+    setError("");
+    try {
+      const [cupActive, leagueActive, cupLast, leagueLast] = await Promise.all([
+        fetchActiveTournament(),
+        fetchActiveLeague(),
+        fetchLastCompletedTournament(),
+        fetchLastCompletedLeague(),
+      ]);
+      setActiveTournament(cupActive || null);
+      setActiveLeague(leagueActive || null);
+      setLastCompletedTournament(cupLast || null);
+      setLastCompletedLeague(leagueLast || null);
+      setScreen("competitionHub");
+    } catch (e) {
+      setError("Nie udało się wczytać centrum rywalizacji: " + e.message);
+    } finally {
+      setTournamentBusy(false);
+    }
   }
 
   async function openTournamentHub() {
@@ -2269,6 +2281,9 @@ export default function App() {
       const ref = doc(db, "rooms", code);
       const deck = match.playlist;
       const me = { id: playerId, uid: user.uid, name: name.trim() || user.displayName || "Gracz", authed: true, avatarUrl: stats?.avatarUrl || null };
+      const standingsBefore = getLeagueUserState(activeLeague, user.uid).standings || [];
+      const standingBeforeIndex = standingsBefore.findIndex((row) => row.uid === user.uid);
+      const standingBefore = standingBeforeIndex >= 0 ? standingsBefore[standingBeforeIndex] : null;
       await setDoc(ref, {
         code,
         hostId: playerId,
@@ -2303,6 +2318,10 @@ export default function App() {
         leagueId: activeLeague.id,
         leagueRoundNumber: roundNumber,
         leagueMatchId: match.matchId,
+        leagueStandingBefore: standingBeforeIndex >= 0 ? standingBeforeIndex + 1 : null,
+        leaguePointsBefore: Number(standingBefore?.points || 0),
+        leagueOpponentUid: match.opponent?.uid || (match.player1?.uid === user.uid ? match.player2?.uid : match.player1?.uid) || null,
+        leagueOpponentName: match.opponent?.name || (match.player1?.uid === user.uid ? match.player2?.name : match.player1?.name) || "Gracz",
         createdAt: serverTimestamp(),
         expireAt: new Date(Date.now() + 60 * 60 * 1000),
       });
@@ -3249,8 +3268,11 @@ export default function App() {
         const pool = await getDailyFeaturesPool();
         await checkAndAdvanceTournament(room.tournamentId, pool);
         const freshTournament = await fetchTournament(room.tournamentId);
-        setActiveTournament(freshTournament);
-        if (freshTournament?.status === "completed") await settleTournamentXpIfNeeded(room.tournamentId);
+        if (freshTournament?.status === "completed") {
+          setLastCompletedTournament(freshTournament);
+          setActiveTournament(null);
+          await settleTournamentXpIfNeeded(room.tournamentId);
+        } else setActiveTournament(freshTournament);
       } catch (e) {
         // ciche niepowodzenie
       }
@@ -6569,6 +6591,19 @@ export default function App() {
     </>
   );
 
+  if (useDesktopSessionViews && screen === "competitionHub") {
+    return renderSessionUx(
+      <DesktopCompetitionHubView
+        tournament={activeTournament || lastCompletedTournament}
+        league={activeLeague || lastCompletedLeague}
+        busy={tournamentBusy}
+        onCup={openTournamentHub}
+        onLeague={openLeagueHub}
+        onHome={() => setScreen("home")}
+      />
+    );
+  }
+
   if (useDesktopSessionViews && screen === "tournamentHub") {
     return renderSessionUx(
       <DesktopTournamentHubView
@@ -6610,6 +6645,7 @@ export default function App() {
     return renderSessionUx(
       <DesktopLeagueScheduleView
         league={activeLeague || lastCompletedLeague}
+        user={user}
         onBack={() => setScreen("leagueHub")}
       />
     );
@@ -6885,6 +6921,8 @@ export default function App() {
       <DesktopLeagueMatchResultView
         room={room}
         playerId={playerId}
+        league={activeLeague || lastCompletedLeague}
+        user={user}
         onLeagueBack={() => { leaveRoom(); setTimeout(() => openLeagueHub(), 80); }}
         onLeave={leaveRoom}
       />
@@ -6954,6 +6992,19 @@ export default function App() {
     );
   }
 
+  if (useMobileSessionViews && screen === "competitionHub") {
+    return renderSessionUx(
+      <MobileCompetitionHubView
+        tournament={activeTournament || lastCompletedTournament}
+        league={activeLeague || lastCompletedLeague}
+        busy={tournamentBusy}
+        onCup={openTournamentHub}
+        onLeague={openLeagueHub}
+        onHome={() => setScreen("home")}
+      />
+    );
+  }
+
   if (useMobileSessionViews && screen === "tournamentHub") {
     return (
       <MobileTournamentHubView
@@ -6995,6 +7046,7 @@ export default function App() {
     return (
       <MobileLeagueScheduleView
         league={activeLeague || lastCompletedLeague}
+        user={user}
         onBack={() => setScreen("leagueHub")}
       />
     );
@@ -7252,6 +7304,8 @@ export default function App() {
       <MobileLeagueMatchResultView
         room={room}
         playerId={playerId}
+        league={activeLeague || lastCompletedLeague}
+        user={user}
         onLeagueBack={() => { leaveRoom(); setTimeout(() => openLeagueHub(), 80); }}
         onLeave={leaveRoom}
       />
@@ -7393,9 +7447,11 @@ export default function App() {
         onHitRush={() => setScreen("hitRushMenu")}
         onDailySong={openDailySong}
         onDailyPlaylist={openDailyPlaylistHub}
-        onTournament={(activeTournament || activeLeague || lastCompletedTournament || lastCompletedLeague) ? openTournamentOrLeagueHub : undefined}
+        onTournament={openTournamentOrLeagueHub}
         activeTournament={activeTournament}
+        activeLeague={activeLeague}
         lastCompletedTournament={lastCompletedTournament}
+        lastCompletedLeague={lastCompletedLeague}
         weeklySummary={{ current: desktopCurrentWeekly, achievementClaimed: desktopAchievementClaimed }}
         totalAchievements={ACHIEVEMENTS.length}
         achievementClaimed={desktopAchievementClaimed}
@@ -7551,12 +7607,14 @@ export default function App() {
         onHitRush={() => setScreen("hitRushMenu")}
         onDailySong={openDailySong}
         onDailyPlaylist={openDailyPlaylistHub}
-        onTournament={(activeTournament || activeLeague || lastCompletedTournament || lastCompletedLeague) ? openTournamentOrLeagueHub : undefined}
+        onTournament={openTournamentOrLeagueHub}
         onCreateYearGuessRoom={createYearGuessRoom}
         onJoinYearGuessRoom={() => joinRoom(undefined, { yearGuessOnly: true })}
         onLoadYearGuessLeaderboard={loadYearGuessLeaderboardData}
         activeTournament={activeTournament}
+        activeLeague={activeLeague}
         lastCompletedTournament={lastCompletedTournament}
+        lastCompletedLeague={lastCompletedLeague}
         weeklySummary={{ current: desktopCurrentWeekly, achievementClaimed: desktopAchievementClaimed }}
         totalAchievements={ACHIEVEMENTS.length}
         achievementClaimed={desktopAchievementClaimed}
@@ -8718,17 +8776,17 @@ export default function App() {
                       <div className="hs-tile-glow" />
                       <div className="hs-tile-rim" />
                       <div className="hs-badge">★ PREMIUM</div>
-                      <button onClick={(activeTournament || activeLeague || lastCompletedTournament || lastCompletedLeague) ? openTournamentOrLeagueHub : undefined} disabled={tournamentBusy} className="hs-tile" style={{ cursor: (activeTournament || activeLeague || lastCompletedTournament || lastCompletedLeague) ? "pointer" : "default" }}>
+                      <button onClick={openTournamentOrLeagueHub} disabled={tournamentBusy} className="hs-tile" style={{ cursor: "pointer" }}>
                         <img className="hs-icon" src={glTurniej} alt="" />
                         <div className="hs-t">TURNIEJ</div>
                         <div className="hs-d">
                           {activeTournament
-                            ? activeTournament.status === "signup"
-                              ? `${activeTournament.signups.length}/${activeTournament.maxPlayers} zapisanych`
-                              : "trwa!"
-                            : lastCompletedTournament
-                            ? `Wygrał: ${lastCompletedTournament.signups?.find((p) => p.uid === lastCompletedTournament.winnerUid)?.name || "?"} · wkrótce kolejny!`
-                            : "Wkrótce pierwszy turniej!"}
+                            ? activeTournament.status === "signup" ? `Puchar: ${activeTournament.signups.length}/${activeTournament.maxPlayers} zapisanych` : "Puchar trwa!"
+                            : activeLeague
+                            ? activeLeague.status === "signup" ? `Liga: ${activeLeague.signups.length} zapisanych` : `Liga trwa · kolejka ${activeLeague.rounds?.length || 1}`
+                            : (lastCompletedTournament || lastCompletedLeague)
+                            ? "Zobacz ostatnie wyniki"
+                            : "Puchar i Liga"}
                         </div>
                         <div className="hs-arrow" style={{ color: "#f5c451" }}>›</div>
                       </button>

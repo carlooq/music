@@ -390,38 +390,64 @@ export function resolveLeagueMatchOutcome(match) {
 export function computeLeagueStandings(rounds, players) {
   const table = {};
   players.forEach((p) => {
-    table[p.uid] = { uid: p.uid, name: p.name, avatarUrl: p.avatarUrl || null, wins: 0, draws: 0, losses: 0, points: 0, played: 0, totalScore: 0, totalTimeMs: 0 };
+    table[p.uid] = {
+      uid: p.uid,
+      name: p.name,
+      avatarUrl: p.avatarUrl || null,
+      wins: 0,
+      draws: 0,
+      losses: 0,
+      points: 0,
+      played: 0,
+      totalScore: 0,
+      totalAgainst: 0,
+      totalTimeMs: 0,
+      form: [],
+    };
   });
   const h2h = {};
 
   rounds.forEach((round) => {
     round.matches.forEach((m) => {
       if (!m.player2) return; // wolny los — nie liczy się do tabeli
-      const outcome = resolveLeagueMatchOutcome(m);
+      // Do tabeli trafia wyłącznie ROZSTRZYGNIĘTY mecz. Sam fakt, że jeden
+      // gracz zagrał wcześniej, nie może chwilowo tworzyć walkowera i 3 pkt.
+      const outcome = m.outcome;
+      if (!outcome || outcome === "bye" || outcome === "double_walkover") return;
+
       const p1 = table[m.player1.uid];
       const p2 = table[m.player2.uid];
       if (!p1 || !p2) return;
-      if (outcome === "double_walkover") return;
 
       p1.played++; p2.played++;
-      if (m.player1Result) { p1.totalScore += m.player1Result.score; p1.totalTimeMs += m.player1Result.timeMs || 0; }
-      if (m.player2Result) { p2.totalScore += m.player2Result.score; p2.totalTimeMs += m.player2Result.timeMs || 0; }
+      const p1Score = Number(m.player1Result?.score || 0);
+      const p2Score = Number(m.player2Result?.score || 0);
+      p1.totalScore += p1Score;
+      p2.totalScore += p2Score;
+      p1.totalAgainst += p2Score;
+      p2.totalAgainst += p1Score;
+      if (m.player1Result) p1.totalTimeMs += Number(m.player1Result.timeMs || 0);
+      if (m.player2Result) p2.totalTimeMs += Number(m.player2Result.timeMs || 0);
 
       const key = [m.player1.uid, m.player2.uid].sort().join("|");
       if (!h2h[key]) h2h[key] = {};
 
       if (outcome === "p1" || outcome === "walkover_p1") {
         p1.wins++; p1.points += 3; p2.losses++;
+        p1.form.push("W"); p2.form.push("P");
         h2h[key][m.player1.uid] = (h2h[key][m.player1.uid] || 0) + 1;
       } else if (outcome === "p2" || outcome === "walkover_p2") {
         p2.wins++; p2.points += 3; p1.losses++;
+        p2.form.push("W"); p1.form.push("P");
         h2h[key][m.player2.uid] = (h2h[key][m.player2.uid] || 0) + 1;
       } else if (outcome === "draw") {
         p1.draws++; p2.draws++; p1.points += 1; p2.points += 1;
+        p1.form.push("R"); p2.form.push("R");
       }
     });
   });
 
+  Object.values(table).forEach((row) => { row.form = row.form.slice(-5); });
   const rows = Object.values(table);
   rows.sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
@@ -545,18 +571,29 @@ export function getLeagueUserState(league, uid, now = Date.now()) {
   let match = null;
   if (league.status === "active" && league.rounds.length > 0) {
     const currentRound = league.rounds[league.rounds.length - 1];
-    const myMatch = currentRound.matches.find((m) => (m.player1?.uid === uid || m.player2?.uid === uid) && !m.outcome);
+    const myMatch = currentRound.matches.find((m) => m.player1?.uid === uid || m.player2?.uid === uid);
     if (myMatch) {
       const iAmP1 = myMatch.player1?.uid === uid;
       const myResult = iAmP1 ? myMatch.player1Result : myMatch.player2Result;
+      const opponentResult = iAmP1 ? myMatch.player2Result : myMatch.player1Result;
       const opponent = iAmP1 ? myMatch.player2 : myMatch.player1;
-      match = { ...myMatch, roundNumber: currentRound.roundNumber, opponent, myResult, waitingForOpponent: !!myResult };
+      match = {
+        ...myMatch,
+        roundNumber: currentRound.roundNumber,
+        opponent,
+        myResult,
+        opponentResult,
+        waitingForOpponent: !!myResult && !myMatch.outcome,
+        opponentPlayed: !!opponentResult,
+        resolved: !!myMatch.outcome,
+        iAmP1,
+      };
     }
   }
   const standings = league.status !== "signup" ? computeLeagueStandings(league.rounds, league.signups) : [];
   const deadline = Number(match?.deadline || 0);
   const msLeft = deadline ? Math.max(0, deadline - now) : null;
-  const canPlay = !!(league.status === "active" && match && !match.myResult && match.opponent);
+  const canPlay = !!(league.status === "active" && match && !match.outcome && !match.myResult && match.opponent);
   return { signedUp, match, standings, deadline, msLeft, canPlay, urgent: canPlay && msLeft !== null && msLeft <= ONE_HOUR_MS };
 }
 
