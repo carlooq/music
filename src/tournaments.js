@@ -352,6 +352,11 @@ const LEAGUE_MATCH_DEADLINE_MS = 48 * 60 * 60 * 1000; // 48h na kolejkę, nie 24
 // kolejkę, jeśli N nieparzyste). Zwraca same UID-y w parach — budowanie
 // właściwych obiektów meczów (z playlistą) dzieje się osobno, dopiero gdy
 // dana kolejka faktycznie startuje.
+// UWAGA: Firestore w OGÓLE nie obsługuje tablicy bezpośrednio wewnątrz innej
+// tablicy — dlatego ANI para nie może być tablicą [a,b] (jest obiektem
+// {a,b}), ANI lista par w danej kolejce nie może być samą tablicą (jest
+// opakowana w obiekt {pairs: [...]}) — inaczej "tablica kolejek" zawierałaby
+// bezpośrednio "tablicę par", co jest dokładnie tym zabronionym przypadkiem.
 export function buildRoundRobinPairings(playerIds) {
   const ids = [...playerIds];
   const hasBye = ids.length % 2 !== 0;
@@ -363,8 +368,8 @@ export function buildRoundRobinPairings(playerIds) {
   for (let round = 0; round < n - 1; round++) {
     const current = [fixed, ...rotating];
     const pairs = [];
-    for (let i = 0; i < n / 2; i++) pairs.push([current[i], current[n - 1 - i]]);
-    rounds.push(pairs);
+    for (let i = 0; i < n / 2; i++) pairs.push({ a: current[i], b: current[n - 1 - i] });
+    rounds.push({ pairs });
     rotating.unshift(rotating.pop());
   }
   return rounds;
@@ -470,7 +475,7 @@ export function computeLeagueStandings(rounds, players) {
 function buildLeagueRoundMatches(pairing, players, pool, roundNumber) {
   const byUid = {};
   players.forEach((p) => { byUid[p.uid] = p; });
-  const matches = pairing.map(([uidA, uidB], i) => ({
+  const matches = pairing.map(({ a: uidA, b: uidB }, i) => ({
     matchId: `r${roundNumber}m${i + 1}`,
     player1: byUid[uidA],
     player2: uidB ? byUid[uidB] : null,
@@ -529,7 +534,7 @@ export async function startLeagueManually(tournamentId, pool) {
     if (data.status !== "signup") throw new Error("Ta liga już wystartowała.");
     if (data.signups.length < 3) throw new Error("Potrzeba minimum 3 zapisanych graczy.");
     const schedule = buildRoundRobinPairings(data.signups.map((p) => p.uid));
-    const round1 = buildLeagueRoundMatches(schedule[0], data.signups, pool, 1);
+    const round1 = buildLeagueRoundMatches(schedule[0].pairs, data.signups, pool, 1);
     tx.update(ref, { status: "active", pairingSchedule: schedule, rounds: [round1], startedAt: Date.now() });
   });
 }
@@ -629,7 +634,7 @@ export async function checkAndAdvanceLeague(tournamentId, pool) {
       const standings = computeLeagueStandings(rounds, data.signups);
       tx.update(ref, { rounds, status: "completed", standings, completedAt: Date.now() });
     } else {
-      const nextRound = buildLeagueRoundMatches(data.pairingSchedule[nextRoundIndex], data.signups, pool, nextRoundIndex + 1);
+      const nextRound = buildLeagueRoundMatches(data.pairingSchedule[nextRoundIndex].pairs, data.signups, pool, nextRoundIndex + 1);
       tx.update(ref, { rounds: [...rounds, nextRound] });
     }
   });

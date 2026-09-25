@@ -1686,8 +1686,8 @@ export function MobileLeagueScheduleView({ league, user, onBack }) {
       {Array.from({ length: totalRounds }).map((_, idx) => {
         const roundNum = idx + 1;
         const builtRound = league.rounds.find((r) => r.roundNumber === roundNum);
-        const pairing = league.pairingSchedule?.[idx] || [];
-        const matches = builtRound ? builtRound.matches : pairing.map(([a, b], i) => ({ matchId: `future-${roundNum}-${i}`, player1: byUid[a], player2: b ? byUid[b] : null, outcome: null }));
+        const pairing = league.pairingSchedule?.[idx]?.pairs || [];
+        const matches = builtRound ? builtRound.matches : pairing.map(({ a, b }, i) => ({ matchId: `future-${roundNum}-${i}`, player1: byUid[a], player2: b ? byUid[b] : null, outcome: null }));
         return (
           <Panel key={roundNum} className="mgv-league-schedule-round" accent={builtRound ? 'cyan' : undefined}>
             <div className="mgv-section-title"><Trophy size={16}/><span>KOLEJKA {roundNum}</span>{!builtRound ? <b>JESZCZE NIEROZEGRANA</b> : null}</div>
