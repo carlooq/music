@@ -169,6 +169,46 @@ function rewardTypeIcon(label, kind = 'xp') {
   return <Gamepad2 size={16} />;
 }
 
+function resetMobileScrollPosition() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+}
+
+function blurActiveMobileControl() {
+  if (typeof document === 'undefined') return;
+  const active = document.activeElement;
+  if (active && typeof active.blur === 'function') active.blur();
+}
+
+function useStableMobileViewport(resetKey) {
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    blurActiveMobileControl();
+    const reset = () => resetMobileScrollPosition();
+    reset();
+
+    const firstFrame = window.requestAnimationFrame(() => {
+      reset();
+      window.requestAnimationFrame(reset);
+    });
+    const shortTimer = window.setTimeout(reset, 90);
+    const keyboardTimer = window.setTimeout(reset, 320);
+    const viewport = window.visualViewport;
+    viewport?.addEventListener('resize', reset);
+
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.clearTimeout(shortTimer);
+      window.clearTimeout(keyboardTimer);
+      viewport?.removeEventListener('resize', reset);
+    };
+  }, [resetKey]);
+}
+
 function MobileSession({ children, className = '' }) {
   return (
     <div className={`mgv-root ${className}`} style={{ backgroundImage: `linear-gradient(180deg, rgba(3,5,17,.84), rgba(3,5,17,.97)), url(${homeBg})` }}>
@@ -634,6 +674,7 @@ export function MobileOpenerView({ room, openerPhase, openerCountdownNum, isPlay
 export function MobileYearGuessView({ room, playerId, isPlaying, playElapsed, playCapSeconds, iframeRef, onTogglePlay, onSubmit, onLeave, chatInput, setChatInput, onSendChat }) {
   const [chatOpen, setChatOpen] = useState(false);
   const [yearInput, setYearInput] = useState('');
+  useStableMobileViewport(`yearguess-${room.yearGuessRoundIndex}`);
   const song = room.yearGuessSongs?.[room.yearGuessRoundIndex];
   const myAnswer = room.yearGuessAnswers?.[playerId];
   const answeredCount = Object.keys(room.yearGuessAnswers || {}).length;
@@ -666,6 +707,12 @@ export function MobileYearGuessView({ room, playerId, isPlaying, playElapsed, pl
   const nudgeYear = (amount) => {
     const base = validYear ? parsedYear : Math.min(currentYear, Math.max(1900, Number(yearInput) || 2000));
     setYearInput(String(Math.min(currentYear, Math.max(1900, base + amount))));
+  };
+  const submitYearGuess = () => {
+    blurActiveMobileControl();
+    resetMobileScrollPosition();
+    window.setTimeout(resetMobileScrollPosition, 120);
+    onSubmit(parsedYear);
   };
 
   return (
@@ -726,7 +773,7 @@ export function MobileYearGuessView({ room, playerId, isPlaying, playElapsed, pl
               type="button"
               className="mgv-main-cta mgv-yearguess-submit"
               disabled={!validYear}
-              onClick={() => onSubmit(parsedYear)}
+              onClick={submitYearGuess}
             >
               <Check size={20} /> ZATWIERDŹ {validYear ? parsedYear : 'ROK'}
             </button>
@@ -742,6 +789,7 @@ export function MobileYearGuessView({ room, playerId, isPlaying, playElapsed, pl
 export function MobileYearGuessResultView({ room, playerId, onLeave, resultDurationSeconds = 10, chatInput, setChatInput, onSendChat }) {
   const [chatOpen, setChatOpen] = useState(false);
   const last = room.yearGuessLastRound;
+  useStableMobileViewport(`yearguess-result-${room.yearGuessRoundIndex}-${room.yearGuessResultStartedAtMs || 0}`);
   const [secondsLeft, setSecondsLeft] = useState(resultDurationSeconds);
   const [localResultStartedAt] = useState(() => Date.now());
 
