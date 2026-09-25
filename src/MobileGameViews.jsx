@@ -197,14 +197,17 @@ function useStableMobileViewport(resetKey) {
     });
     const shortTimer = window.setTimeout(reset, 90);
     const keyboardTimer = window.setTimeout(reset, 320);
-    const viewport = window.visualViewport;
-    viewport?.addEventListener('resize', reset);
+    // UWAGA: celowo NIE nasłuchujemy tu window.visualViewport 'resize' —
+    // to zdarzenie odpala się też wtedy, gdy na telefonie pojawia/znika
+    // klawiatura (np. przy wpisywaniu roku w Zgadnij Rok), a wymuszony
+    // wtedy reset scrolla "wyrywał" pole spod palca w trakcie pisania.
+    // Reset przy starcie nowej rundy (zmiana resetKey) w zupełności
+    // wystarcza, żeby naprawić oryginalny problem z białym ekranem.
 
     return () => {
       window.cancelAnimationFrame(firstFrame);
       window.clearTimeout(shortTimer);
       window.clearTimeout(keyboardTimer);
-      viewport?.removeEventListener('resize', reset);
     };
   }, [resetKey]);
 }
