@@ -3518,7 +3518,7 @@ export default function App() {
     setBusy(true);
     let pool;
     try {
-      const livePool = await getLiveLibraryPool();
+      const livePool = await getDailyFeaturesPool();
       pool = livePool.filter((s) => s.year && s.videoId);
     } catch (e) {
       setBusy(false);
@@ -3527,7 +3527,7 @@ export default function App() {
     }
     setBusy(false);
     if (pool.length < 15) {
-      pool = effectivePool.filter((s) => s.year && s.videoId);
+      pool = effectivePool.filter((s) => s.year && s.videoId && !normCategories(s.categories).includes("religijne"));
     }
     setBusy(false);
     if (pool.length < 15) {
