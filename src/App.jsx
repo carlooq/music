@@ -4584,26 +4584,29 @@ export default function App() {
       update.yearGuessGameOver = true;
     }
     tx.update(ref, update);
+    return song; // do zliczenia odtworzenia PO zatwierdzeniu transakcji — patrz wywołujące funkcje
   }
 
   async function submitYearGuessAnswer(year) {
     if (!room || room.status !== "yearGuess") return;
     const ref = doc(db, "rooms", roomId);
     try {
-      await withAuthRetry(() => runTransaction(db, async (tx) => {
+      const resolvedSong = await withAuthRetry(() => runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
-        if (data.status !== "yearGuess") return; // runda już rozstrzygnięta
-        if (data.yearGuessAnswers?.[playerId]) return; // już odpowiedział — nie da się zmienić
+        if (data.status !== "yearGuess") return null; // runda już rozstrzygnięta
+        if (data.yearGuessAnswers?.[playerId]) return null; // już odpowiedział — nie da się zmienić
         const answers = { ...(data.yearGuessAnswers || {}), [playerId]: { year, submittedAt: Date.now() } };
         const activeIds = (data.players || []).map((p) => p.id);
         const allAnswered = activeIds.every((id) => answers[id]);
         if (allAnswered) {
-          resolveYearGuessRoundInTx(tx, ref, data, answers);
+          return resolveYearGuessRoundInTx(tx, ref, data, answers);
         } else {
           tx.update(ref, { yearGuessAnswers: answers });
+          return null;
         }
       }));
+      if (resolvedSong?.id) incrementSongPlayCount(resolvedSong.id).catch(() => {});
     } catch (e) {
       setError("Błąd zapisu odpowiedzi: " + e.message);
     }
@@ -4613,12 +4616,13 @@ export default function App() {
     if (!room || room.status !== "yearGuess") return;
     const ref = doc(db, "rooms", roomId);
     try {
-      await runTransaction(db, async (tx) => {
+      const resolvedSong = await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
-        if (data.status !== "yearGuess") return;
-        resolveYearGuessRoundInTx(tx, ref, data, data.yearGuessAnswers || {});
+        if (data.status !== "yearGuess") return null;
+        return resolveYearGuessRoundInTx(tx, ref, data, data.yearGuessAnswers || {});
       });
+      if (resolvedSong?.id) incrementSongPlayCount(resolvedSong.id).catch(() => {});
     } catch (e) {}
   }
 
@@ -4769,7 +4773,7 @@ export default function App() {
         const correct = (!before || before.year <= card.year) && (!after || card.year <= after.year);
         const newTimelines = { ...data.timelines };
         if (correct) newTimelines[data.currentPlayerId] = [...timeline, card];
-        capturedResult = { correct, card, practiceMode: !!data.practiceMode, leagueMode: !!data.leagueMode };
+        capturedResult = { correct, card, practiceMode: !!data.practiceMode, leagueMode: !!data.leagueMode, tournamentMode: !!data.tournamentMode };
 
         // podsumowanie gry: czas decyzji, seria trafień, playlista wieczoru
         const elapsed = Date.now() - (toMillis(data.turnStartedAt) || Date.now());
@@ -4824,7 +4828,7 @@ export default function App() {
           });
         }
       }));
-      if (capturedResult && (!capturedResult.practiceMode || capturedResult.leagueMode) && capturedResult.card?.id) {
+      if (capturedResult && (!capturedResult.practiceMode || capturedResult.leagueMode || capturedResult.tournamentMode) && capturedResult.card?.id) {
         incrementSongPlayCount(capturedResult.card.id).catch(() => {});
       }
       if (user && capturedResult && (!capturedResult.practiceMode || capturedResult.leagueMode)) {
@@ -5500,6 +5504,7 @@ export default function App() {
       let capturedCard = null;
       let capturedPracticeMode = false;
       let capturedLeagueMode = false;
+      let capturedTournamentMode = false;
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data();
@@ -5508,6 +5513,7 @@ export default function App() {
         capturedCard = card;
         capturedPracticeMode = !!data.practiceMode;
         capturedLeagueMode = !!data.leagueMode;
+        capturedTournamentMode = !!data.tournamentMode;
         const elapsed = Date.now() - (toMillis(data.turnStartedAt) || Date.now());
         const newDecisionTimes = { ...(data.decisionTimes || {}) };
         newDecisionTimes[data.currentPlayerId] = [...(newDecisionTimes[data.currentPlayerId] || []), elapsed];
@@ -5523,7 +5529,7 @@ export default function App() {
           playedCards: newPlayedCards,
         });
       });
-      if (capturedCard && (!capturedPracticeMode || capturedLeagueMode) && capturedCard.id) {
+      if (capturedCard && (!capturedPracticeMode || capturedLeagueMode || capturedTournamentMode) && capturedCard.id) {
         incrementSongPlayCount(capturedCard.id).catch(() => {});
       }
       if (user && capturedCard && (!capturedPracticeMode || capturedLeagueMode)) {
