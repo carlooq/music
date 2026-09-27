@@ -3110,11 +3110,21 @@ export default function App() {
         // go idempotentnie PRZED głównym markerem nagród, żeby ewentualne
         // przerwanie procesu można było dokończyć po ponownym wejściu.
         if (room.yearGuessMode) {
+          const yearGuessWon = (room.winnerIds || []).includes(playerId);
           await recordYearGuessRankingResult(user.uid, rewardMarkerId, {
             score: room.yearGuessScores?.[playerId] || 0,
-            won: (room.winnerIds || []).includes(playerId),
+            won: yearGuessWon,
             exactYears: room.yearGuessExactCounts?.[playerId] || 0,
           }).catch(() => false);
+          // Zgadnij Rok zostaje przy swoim OSOBNYM rankingu (wyżej), ale ma
+          // też zasilać globalne, dożywotnie statystyki "rozegrane/wygrane"
+          // w profilu oraz wyzwania tygodniowe — to świadomy wyjątek od
+          // pełnej separacji trybu, ustalony z użytkownikiem.
+          if (!room.practiceYearGuessMode) {
+            recordGameResult(user.uid, yearGuessWon).catch(() => {});
+            bumpWeeklyChallengeProgress(user.uid, "gamesPlayed", 1).catch(() => {});
+            if (yearGuessWon) bumpWeeklyChallengeProgress(user.uid, "gamesWon", 1).catch(() => {});
+          }
           // Odświeżamy profil nawet wtedy, gdy wynik zapisało już drugie
           // urządzenie tego samego konta — hub rankingu od razu pokaże stan aktualny.
           getStats(user.uid).then((fresh) => fresh && setStats(fresh)).catch(() => {});
@@ -5603,7 +5613,7 @@ export default function App() {
               finishedAtMs: Date.now(),
             });
           }
-          gameOverInfo = { winnerIds, players, practiceMode: !!data.practiceMode, gameGuesses: data.gameGuesses || {} };
+          gameOverInfo = { winnerIds, players, practiceMode: !!data.practiceMode, leagueMode: !!data.leagueMode, tournamentMode: !!data.tournamentMode, gameGuesses: data.gameGuesses || {} };
           return;
         }
 
@@ -5621,7 +5631,7 @@ export default function App() {
           finishingRound,
         });
       });
-      if (gameOverInfo && !gameOverInfo.practiceMode) {
+      if (gameOverInfo && (!gameOverInfo.practiceMode || gameOverInfo.leagueMode || gameOverInfo.tournamentMode)) {
         gameOverInfo.players
           .filter((p) => p.authed)
           .forEach((p) => {
