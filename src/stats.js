@@ -777,7 +777,11 @@ export async function bumpWeeklyChallengeProgress(uid, type, amount = 1) {
     if (active.mode === "max") counters[type] = Math.max(counters[type] || 0, amount);
     else if (active.mode === "flag") counters[type] = true;
     else counters[type] = (counters[type] || 0) + amount;
-    tx.set(ref, { weeklyProgress: { weekKey: wk, counters, claimed: prev.claimed } }, { merge: true });
+    // mergeFields: ["weeklyProgress"] PODMIENIA całe pole weeklyProgress, zamiast
+    // scalać mapy klucz po kluczu (jak zwykłe merge: true). Przy scalaniu stare
+    // liczniki z poprzednich tygodni zostawały w bazie pod nowym kluczem tygodnia
+    // i od razu wyglądały na postęp z tego tygodnia.
+    tx.set(ref, { weeklyProgress: { weekKey: wk, counters, claimed: prev.claimed } }, { mergeFields: ["weeklyProgress"] });
   });
 }
 
