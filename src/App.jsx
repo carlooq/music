@@ -6827,6 +6827,9 @@ export default function App() {
         roomInviteSentTo={roomInviteSentTo}
         roomInviteBusyUid={roomInviteBusyUid}
         onInviteToRoom={handleSendRoomInvite}
+        chatInput={chatInput}
+        setChatInput={setChatInput}
+        onSendChat={sendChatMessage}
       />
     );
   }
@@ -7196,6 +7199,9 @@ export default function App() {
         roomInviteSentTo={roomInviteSentTo}
         roomInviteBusyUid={roomInviteBusyUid}
         onInviteToRoom={handleSendRoomInvite}
+        chatInput={chatInput}
+        setChatInput={setChatInput}
+        onSendChat={sendChatMessage}
       />
     );
   }

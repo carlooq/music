@@ -529,7 +529,8 @@ export function MobilePracticeSetupView({
   );
 }
 
-export function MobileLobbyView({ room, roomId, playerId, isHost, copied, onCopy, onLeave, target, setTarget, selectedCategories, categories = [], onToggleCategory, songPool = [], busy, onStart, onStartYearGuess, onKick, playerLevels = {}, levelFromXp, onlinePlayers = [], roomInviteSentTo = {}, roomInviteBusyUid = null, onInviteToRoom }) {
+export function MobileLobbyView({ room, roomId, playerId, isHost, copied, onCopy, onLeave, target, setTarget, selectedCategories, categories = [], onToggleCategory, songPool = [], busy, onStart, onStartYearGuess, onKick, playerLevels = {}, levelFromXp, onlinePlayers = [], roomInviteSentTo = {}, roomInviteBusyUid = null, onInviteToRoom, chatInput, setChatInput, onSendChat }) {
+  const [chatOpen, setChatOpen] = useState(false);
   const normalized = (values) => (values || []).map((value) => String(value || '').trim().toLowerCase());
   const activeFilter = !selectedCategories.includes('wszystkie') && selectedCategories.length > 0;
   const playableCount = activeFilter
@@ -629,6 +630,7 @@ export function MobileLobbyView({ room, roomId, playerId, isHost, copied, onCopy
           <div className="mgv-waiting-host"><Crown size={42} /><strong>HOST USTAWIA ZASADY</strong><p>Gdy wszystko będzie gotowe, gra rozpocznie się automatycznie.</p></div>
         )}
       </Panel>
+      <MobileChat open={chatOpen} setOpen={setChatOpen} messages={room.messages || []} playerId={playerId} chatInput={chatInput} setChatInput={setChatInput} onSend={onSendChat} />
     </MobileSession>
   );
 }

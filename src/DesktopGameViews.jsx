@@ -938,7 +938,11 @@ export function DesktopLobbyView({
   roomInviteSentTo = {},
   roomInviteBusyUid = null,
   onInviteToRoom,
+  chatInput,
+  setChatInput,
+  onSendChat,
 }) {
+  const [chatOpen, setChatOpen] = useState(false);
   const activeFilter = !selectedCategories.includes('wszystkie') && selectedCategories.length > 0;
   const normalized = (values) => (values || []).map((v) => String(v || '').trim().toLowerCase());
   const playableCount = activeFilter
@@ -1080,6 +1084,7 @@ export function DesktopLobbyView({
           </section>
         </div>
       </div>
+      <ChatDrawer open={chatOpen} setOpen={setChatOpen} messages={room.messages || []} playerId={playerId} chatInput={chatInput} setChatInput={setChatInput} onSend={onSendChat} />
     </SessionBackground>
   );
 }
