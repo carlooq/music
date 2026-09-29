@@ -13,10 +13,9 @@ import { db, storage, auth } from "./firebase-config.js";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
 import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId, fuzzyMatch } from "./utils.js";
-import { REAL_SONGS } from "./songs.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError, ensureSignedIn } from "./auth.js";
 import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, getLeaderboardPosition, awardXp, xpForLevel, levelFromXp, currentWeekKey, currentDayKey, WEEKLY_RANKING_REWARDS, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag, getWeeklyChallenges, bumpWeeklyChallengeProgress, claimWeeklyChallenge, currentSeasonKey, seasonNumber, seasonRankForWins, SEASON_RANKS, updateSeasonProgress, getSeasonLeaderboard, getSeasonLeaderboardPosition, processSeasonRewardsIfNeeded, getPlayerSeasonHistory, consumeNextRewardNotice, claimWeeklyRankingReward, recordYearGuessRankingResult, getYearGuessLeaderboard, getYearGuessLeaderboardPosition, processYearGuessWeeklyRewardsIfNeeded, freezeSeasonZeroForRemainingPlayers, recordLeagueMatchParticipation, recordLeagueMatchWin } from "./stats.js";
-import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, migrateBundledLibraryToDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss, incrementSongPlayCount, getSongCount } from "./songsDb.js";
+import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss, incrementSongPlayCount, getSongCount } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
 import { heartbeat, clearPresence, getOnlinePlayers } from "./presence.js";
 import { sendDuelChallenge, listenForIncomingChallenge, listenForSentChallenges, acceptDuelChallenge, declineDuelChallenge, clearDuelChallenge, isChallengeStale } from "./duelInvites.js";
@@ -1335,7 +1334,7 @@ export default function App() {
     };
   }, []);
 
-  const effectivePool = librarySongs && librarySongs.length > 0 ? librarySongs : REAL_SONGS;
+  const effectivePool = librarySongs && librarySongs.length > 0 ? librarySongs : [];
 
   const LIBRARY_CACHE_KEY = "hitster-library-cache-v3"; // v3: unieważnia stary cache sprzed dodania systemu rzadkości kart (mógł nie mieć pola `rarity`)
   const LIBRARY_CACHE_TTL_MS = 60 * 60 * 1000; // 1h — świeża baza wystarczająco często, a nie za każdym odświeżeniem
@@ -2643,21 +2642,6 @@ export default function App() {
       setError("Błąd zapisu: " + e.message);
     } finally {
       setAdminBusy(false);
-    }
-  }
-
-  async function handleMigrate() {
-    if (!window.confirm(`Wgrać ${REAL_SONGS.length} utworów z wbudowanej listy do bazy? Rób to tylko raz.`)) return;
-    setAdminBusy(true);
-    setMigrateProgress({ done: 0, total: REAL_SONGS.length });
-    try {
-      await migrateBundledLibraryToDb((done, total) => setMigrateProgress({ done, total }));
-      refreshLibrary();
-    } catch (e) {
-      setError("Błąd migracji: " + e.message);
-    } finally {
-      setAdminBusy(false);
-      setMigrateProgress(null);
     }
   }
 
@@ -5910,23 +5894,6 @@ export default function App() {
                     ))}
                   </div>
                 )}
-              </section>
-            )}
-
-            {(!librarySongs || librarySongs.length === 0) && (
-              <section className="w-full rounded-2xl p-4" style={{ background: "rgba(231,178,76,0.1)", border: "1px solid var(--accent)" }}>
-                <p style={{ fontSize: 12, marginBottom: 8 }}>
-                  Baza w Firestore jest pusta — gra korzysta teraz z wbudowanej listy ({REAL_SONGS.length} utworów), której nie da się edytować na żywo.
-                  Wgraj ją do bazy jednym kliknięciem, żeby móc dalej edytować bezpośrednio w appce:
-                </p>
-                <button
-                  onClick={handleMigrate}
-                  disabled={adminBusy}
-                  className="px-4 py-2 rounded-lg text-sm font-bold"
-                  style={{ background: "var(--accent)", color: "#1a1428" }}
-                >
-                  {migrateProgress ? `Wgrywanie… ${migrateProgress.done}/${migrateProgress.total}` : "Wgraj wbudowaną listę do bazy"}
-                </button>
               </section>
             )}
 

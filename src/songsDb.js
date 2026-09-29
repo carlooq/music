@@ -1,6 +1,5 @@
 import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, increment, getCountFromServer } from "firebase/firestore";
 import { db } from "./firebase-config.js";
-import { REAL_SONGS } from "./songs.js";
 import { CATEGORY_PATCH } from "./categoryPatch.js";
 
 const COLLECTION = "songs";
@@ -106,28 +105,7 @@ export async function migrateRarityForExistingSongs(songs, onProgress) {
 // Jednorazowa migracja: wgrywa obecną, wbudowaną bibliotekę (songs.js) do
 // Firestore, żeby dało się ją dalej edytować na żywo z poziomu appki.
 // Firestore batch ma limit 500 operacji, więc dzielimy na kawałki.
-export async function migrateBundledLibraryToDb(onProgress) {
-  const chunkSize = 450;
-  let written = 0;
-  for (let i = 0; i < REAL_SONGS.length; i += chunkSize) {
-    const chunk = REAL_SONGS.slice(i, i + chunkSize);
-    const batch = writeBatch(db);
-    chunk.forEach((song) => {
-      const ref = doc(collection(db, COLLECTION));
-      batch.set(ref, {
-        videoId: song.videoId,
-        artist: song.artist,
-        title: song.title,
-        year: song.year,
-        categories: song.categories || [],
-      });
-    });
-    await batch.commit();
-    written += chunk.length;
-    if (onProgress) onProgress(written, REAL_SONGS.length);
-  }
-  return written;
-}
+
 
 // Dogrywa kategorie do utworów, które już są w Firestore, dopasowując po
 // videoId — na podstawie jednorazowej łatki wygenerowanej z tagged.csv.
