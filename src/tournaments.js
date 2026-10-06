@@ -177,6 +177,25 @@ function resolveMatchWinner(match) {
 // 24h terminu i przejście do kolejnej rundy — dokładnie ten sam wzorzec co
 // przy cotygodniowych nagrodach Playlisty dnia.
 
+// Szybka, lokalna kontrola (bez zapytań do bazy) — czy w ogóle jest co
+// przesuwać. Dzięki temu otwarcie huba nie pobiera biblioteki piosenek i nie
+// odpala transakcji, gdy termin kolejki jeszcze nie minął.
+export function tournamentNeedsAdvance(t, now = Date.now()) {
+  if (!t || t.status !== "active") return false;
+  const rounds = t.rounds || [];
+  const current = rounds[rounds.length - 1];
+  if (!current) return false;
+  return current.matches.some((m) => !m.winnerUid && now >= m.deadline) || current.matches.every((m) => m.winnerUid);
+}
+
+export function leagueNeedsAdvance(l, now = Date.now()) {
+  if (!l || l.status !== "active") return false;
+  const rounds = l.rounds || [];
+  const current = rounds[rounds.length - 1];
+  if (!current) return false;
+  return current.matches.some((m) => !m.outcome && m.player2 && now >= m.deadline) || current.matches.every((m) => m.outcome);
+}
+
 export async function checkAndAdvanceTournament(tournamentId, pool) {
   const ref = doc(db, COLLECTION, tournamentId);
   await runTransaction(db, async (tx) => {
@@ -190,14 +209,16 @@ export async function checkAndAdvanceTournament(tournamentId, pool) {
     const now = Date.now();
 
     // walkowery za przekroczony termin
+    let changed = false;
     currentRound.matches.forEach((match) => {
       if (match.winnerUid || now < match.deadline) return;
       match.winnerUid = resolveMatchWinner(match) || match.player1.uid; // jeśli obaj nie zagrali, gracz 1 wygrywa domyślnie (skrajny, mało prawdopodobny przypadek)
+      changed = true;
     });
 
     const roundDone = currentRound.matches.every((m) => m.winnerUid);
     if (!roundDone) {
-      tx.update(ref, { rounds });
+      if (changed) tx.update(ref, { rounds });
       return;
     }
 
@@ -618,14 +639,16 @@ export async function checkAndAdvanceLeague(tournamentId, pool) {
     const currentRound = rounds[rounds.length - 1];
     const now = Date.now();
 
+    let changed = false;
     currentRound.matches.forEach((match) => {
       if (match.outcome || !match.player2 || now < match.deadline) return;
       match.outcome = resolveLeagueMatchOutcome(match); // brakujące wyniki -> walkower/podwójny walkower
+      changed = true;
     });
 
     const roundDone = currentRound.matches.every((m) => m.outcome);
     if (!roundDone) {
-      tx.update(ref, { rounds });
+      if (changed) tx.update(ref, { rounds });
       return;
     }
 

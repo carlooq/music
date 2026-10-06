@@ -23,7 +23,7 @@ import { sendRoomInvite, listenForIncomingRoomInvite, clearRoomInvite, isRoomInv
 import { GAME_HISTORY_COLLECTION, buildGameHistoryRecord, fetchGameHistoryPage, gameHistoryDocumentId } from "./gameHistory.js";
 import { getOrCreateDailySong } from "./dailySong.js";
 import { getOrCreateDailyPlaylist, hasPlayedPlaylistToday, recordDailyPlaylistScore, startDailyPlaylistAttempt, cancelDailyPlaylistAttempt, resolveDailyPlaylistAttempt, fetchDailyPlaylistLeaderboard, fetchWeeklyPlaylistLeaderboard, fetchAllTimePlaylistLeaderboard, processWeeklyPlaylistRewardsIfNeeded } from "./dailyPlaylist.js";
-import { createTournament, cancelTournament, fetchActiveTournament, fetchLastCompletedTournament, fetchLastCompletedLeague, fetchTournament, signUpForTournament, recordTournamentMatchResult, checkAndAdvanceTournament, settleTournamentXpIfNeeded, pickMatchPlaylist, getTournamentUserState, createLeague, fetchActiveLeague, signUpForLeague, startLeagueManually, recordLeagueMatchResult, checkAndAdvanceLeague, computeLeagueStandings, resolveLeagueMatchOutcome, getLeagueUserState, settleLeagueRewardsIfNeeded } from "./tournaments.js";
+import { createTournament, cancelTournament, fetchActiveTournament, fetchLastCompletedTournament, fetchLastCompletedLeague, fetchTournament, signUpForTournament, recordTournamentMatchResult, checkAndAdvanceTournament, tournamentNeedsAdvance, leagueNeedsAdvance, settleTournamentXpIfNeeded, pickMatchPlaylist, getTournamentUserState, createLeague, fetchActiveLeague, signUpForLeague, startLeagueManually, recordLeagueMatchResult, checkAndAdvanceLeague, computeLeagueStandings, resolveLeagueMatchOutcome, getLeagueUserState, settleLeagueRewardsIfNeeded } from "./tournaments.js";
 import { awardHitcoin, computeWinHitcoin, computeSecondPlaceHitcoin, computeThirdPlaceHitcoin, claimDailyHitcoin, drawCardAfterGame, effectiveRarity, PACKS, openPack, SELL_PRICES, sellDuplicateCard, sellAllDuplicates } from "./cards.js";
 import { DAILY_REWARD_SEGMENTS, claimDailyWheelReward } from "./dailyWheel.js";
 import { HIT_RUSH_CONFIG, pickNextHitRushSong, computeHitRushPoints, checkHitRushTimeBonus, nextHitRushTimeBonus, difficultyLabel, submitHitRushRun, fetchHitRushLeaderboard, processHitRushWeeklyRewardsIfNeeded } from "./hitRush.js";
@@ -1853,6 +1853,7 @@ export default function App() {
   const [dailyPlaylistSongs, setDailyPlaylistSongs] = useState(null);
   const [dailyPlaylistAlreadyPlayed, setDailyPlaylistAlreadyPlayed] = useState(null);
   const [dailyPlaylistResumeRoom, setDailyPlaylistResumeRoom] = useState(null);
+  const syncedLeagueEntriesRef = useRef(new Set());
   const [dailyPlaylistDailyBoard, setDailyPlaylistDailyBoard] = useState([]);
   const [dailyPlaylistWeeklyBoard, setDailyPlaylistWeeklyBoard] = useState([]);
   const [dailyPlaylistAllTimeBoard, setDailyPlaylistAllTimeBoard] = useState([]);
@@ -2122,13 +2123,21 @@ export default function App() {
   async function syncLeagueStats(league) {
     if (!league?.id) return;
     const jobs = [];
+    // Każdy wpis (mecz + gracz + rodzaj) wysyłamy w tej sesji tylko raz —
+    // markery w bazie i tak chronią przed dublem, ale bez tego każde
+    // otwarcie huba odpalało dziesiątki zbędnych transakcji.
+    const once = (id, job) => {
+      if (syncedLeagueEntriesRef.current.has(id)) return;
+      syncedLeagueEntriesRef.current.add(id);
+      jobs.push(job().catch((e) => { syncedLeagueEntriesRef.current.delete(id); throw e; }));
+    };
     for (const round of league.rounds || []) {
       for (const match of round.matches || []) {
         const key = `${league.id}:${match.matchId}`;
-        if (match.player1Result && match.player1?.uid) jobs.push(recordLeagueMatchParticipation(match.player1.uid, key, match.player1Result.score));
-        if (match.player2Result && match.player2?.uid) jobs.push(recordLeagueMatchParticipation(match.player2.uid, key, match.player2Result.score));
-        if ((match.outcome === "p1" || match.outcome === "walkover_p1") && match.player1?.uid) jobs.push(recordLeagueMatchWin(match.player1.uid, key));
-        if ((match.outcome === "p2" || match.outcome === "walkover_p2") && match.player2?.uid) jobs.push(recordLeagueMatchWin(match.player2.uid, key));
+        if (match.player1Result && match.player1?.uid) once(`${key}:p1:part`, () => recordLeagueMatchParticipation(match.player1.uid, key, match.player1Result.score));
+        if (match.player2Result && match.player2?.uid) once(`${key}:p2:part`, () => recordLeagueMatchParticipation(match.player2.uid, key, match.player2Result.score));
+        if ((match.outcome === "p1" || match.outcome === "walkover_p1") && match.player1?.uid) once(`${key}:p1:win`, () => recordLeagueMatchWin(match.player1.uid, key));
+        if ((match.outcome === "p2" || match.outcome === "walkover_p2") && match.player2?.uid) once(`${key}:p2:win`, () => recordLeagueMatchWin(match.player2.uid, key));
       }
     }
     await Promise.allSettled(jobs);
@@ -2164,9 +2173,14 @@ export default function App() {
     try {
       let t = activeTournament || await fetchActiveTournament();
       if (t && t.status === "active") {
-        const pool = await getDailyFeaturesPool();
-        await checkAndAdvanceTournament(t.id, pool);
-        t = await fetchTournament(t.id);
+        // Świeży odczyt jednego dokumentu; biblioteka piosenek i transakcja
+        // są potrzebne TYLKO gdy termin kolejki faktycznie minął.
+        t = (await fetchTournament(t.id)) || t;
+        if (tournamentNeedsAdvance(t)) {
+          const pool = await getDailyFeaturesPool();
+          await checkAndAdvanceTournament(t.id, pool);
+          t = await fetchTournament(t.id);
+        }
         if (t?.status === "completed") {
           await settleTournamentXpIfNeeded(t.id);
           setLastCompletedTournament(t);
@@ -2207,10 +2221,13 @@ export default function App() {
     try {
       let l = activeLeague || await fetchActiveLeague();
       if (l && l.status === "active") {
-        const pool = await getDailyFeaturesPool();
-        await checkAndAdvanceLeague(l.id, pool);
-        l = await fetchTournament(l.id);
-        await syncLeagueStats(l);
+        l = (await fetchTournament(l.id)) || l;
+        if (leagueNeedsAdvance(l)) {
+          const pool = await getDailyFeaturesPool();
+          await checkAndAdvanceLeague(l.id, pool);
+          l = await fetchTournament(l.id);
+        }
+        syncLeagueStats(l).catch(() => {}); // w tle — nie blokuje otwarcia huba
         if (l?.status === "completed") {
           await settleLeagueRewardsIfNeeded(l.id);
           setLastCompletedLeague(l);
@@ -2220,7 +2237,7 @@ export default function App() {
       if (!l) {
         l = lastCompletedLeague || await fetchLastCompletedLeague();
         setLastCompletedLeague(l);
-        await syncLeagueStats(l);
+        syncLeagueStats(l).catch(() => {});
       }
       setScreen("leagueHub");
     } catch (e) {
