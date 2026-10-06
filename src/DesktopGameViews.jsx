@@ -1728,7 +1728,7 @@ function RankingList({ title, icon, rows, value, empty, accent = 'cyan', onViewP
   );
 }
 
-export function DesktopDailyPlaylistHubView({ alreadyPlayed, dailyBoard, weeklyBoard, allTimeBoard, busy, onStart, onHome, onViewProfile, viewingPlayer, onCloseProfile, levelFromXp }) {
+export function DesktopDailyPlaylistHubView({ alreadyPlayed, dailyBoard, weeklyBoard, allTimeBoard, busy, onStart, canResume, onResume, onHome, onViewProfile, viewingPlayer, onCloseProfile, levelFromXp }) {
   const dailyRows = dailyBoard.map((item) => ({ key: item.uid, name: item.name, ...item }));
   const weeklyRows = weeklyBoard.map((item) => ({ key: item.uid, name: item.name, note: `${item.gamesPlayed || 0} gier`, ...item }));
   const allRows = allTimeBoard.map((item) => ({ key: item.uid, name: item.username || item.name, note: `${item.playlistGamesPlayed || 0} gier`, ...item }));
@@ -1745,6 +1745,8 @@ export function DesktopDailyPlaylistHubView({ alreadyPlayed, dailyBoard, weeklyB
             <p>Ułóż dzisiejszą playlistę chronologicznie. Przy remisie wyżej jest gracz, który ukończył wyzwanie szybciej.</p>
             {alreadyPlayed ? (
               <div className="dgv-daily-result"><Check size={26} /><div><span>TWÓJ DZISIEJSZY WYNIK</span><strong>{alreadyPlayed.score} / 10</strong></div></div>
+            ) : canResume ? (
+              <button type="button" className="dgv-start-button daily" disabled={busy} onClick={onResume}><Play size={22} fill="currentColor" /> KONTYNUUJ DZISIEJSZĄ GRĘ</button>
             ) : (
               <button type="button" className="dgv-start-button daily" disabled={busy} onClick={onStart}><Play size={22} fill="currentColor" /> ZAGRAJ W PLAYLISTĘ DNIA</button>
             )}

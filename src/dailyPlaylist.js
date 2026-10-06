@@ -1,12 +1,13 @@
-import { doc, getDoc, setDoc, updateDoc, increment, runTransaction, collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
+import { doc, getDoc, setDoc, deleteDoc, updateDoc, increment, runTransaction, collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
 import { db } from "./firebase-config.js";
-import { currentWeekKey, queueWeeklyRankingReward } from "./stats.js";
+import { awardXp, currentWeekKey, pushRewardNotice } from "./stats.js";
 
 const PLAYLISTS_COLLECTION = "dailyPlaylists";
 const SCORES_COLLECTION = "dailyPlaylistScores";
 const WEEKLY_COLLECTION = "weeklyPlaylistScores";
 const WEEKLY_REWARDS_PROCESSED_COLLECTION = "weeklyPlaylistRewardsProcessed";
 const SCORED_COUNT = 10; // tyle kart faktycznie się ocenia — pierwsza karta zawsze "wchodzi za darmo" (nie ma z czym jej porównać), dokładnie jak w reszcie silnika gry
+const WEEKLY_REWARDS = [500, 250, 100]; // 1., 2., 3. miejsce w tygodniu
 
 function shuffle(arr) {
   const a = [...arr];
@@ -55,11 +56,32 @@ export async function hasPlayedPlaylistToday(uid, dayKey) {
   return snap.exists() ? snap.data() : null;
 }
 
+// Rozpoczyna dzisiejszą próbę. Zapis powstaje W MOMENCIE STARTU (status
+// "playing"), więc wyjście w środku gry nie pozwala zacząć od nowa — można
+// tylko wznowić tę samą grę. Transakcja gwarantuje, że drugiej próby nie
+// da się otworzyć (np. w dwóch kartach naraz).
+export async function startDailyPlaylistAttempt(uid, name, dayKey, roomCode) {
+  const ref = doc(db, SCORES_COLLECTION, `${dayKey}_${uid}`);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (snap.exists()) throw new Error("Dzisiejsza próba Playlisty dnia została już rozpoczęta.");
+    tx.set(ref, { uid, name, dayKey, status: "playing", roomId: roomCode, score: 0, timeMs: 0, startedAt: Date.now() });
+  });
+}
+
+// Wycofuje świeżo otwartą próbę, gdy nie udało się utworzyć pokoju gry.
+export async function cancelDailyPlaylistAttempt(uid, dayKey) {
+  await deleteDoc(doc(db, SCORES_COLLECTION, `${dayKey}_${uid}`));
+}
+
 // Zapisuje wynik dnia (z czasem wykonania — decyduje przy remisach), dolicza
-// go do sumy tygodnia i do sumy wszech czasów.
+// go do sumy tygodnia i do sumy wszech czasów. Wynik zapisuje się tylko raz —
+// jeśli próba jest już zamknięta ("done"), kolejne wywołanie nic nie zmienia.
 export async function recordDailyPlaylistScore(uid, name, dayKey, score, timeMs) {
   const scoreRef = doc(db, SCORES_COLLECTION, `${dayKey}_${uid}`);
-  await setDoc(scoreRef, { uid, name, dayKey, score, timeMs });
+  const existing = await getDoc(scoreRef);
+  if (existing.exists() && existing.data().status !== "playing") return false;
+  await setDoc(scoreRef, { uid, name, dayKey, score, timeMs, status: "done", finishedAt: Date.now() });
 
   const weekKey = currentWeekKey();
   const weeklyRef = doc(db, WEEKLY_COLLECTION, `${weekKey}_${uid}`);
@@ -78,6 +100,32 @@ export async function recordDailyPlaylistScore(uid, name, dayKey, score, timeMs)
     playlistTotalScore: increment(score),
     playlistGamesPlayed: increment(1),
   });
+  return true;
+}
+
+// Sprawdza porzuconą próbę ("playing"). Zwraca:
+//  - { resumeRoomId } — gra nadal trwa i można do niej wrócić,
+//  - { finalized: true } — pokój wygasł / się skończył / zniknął, więc próba
+//    została zamknięta z tym, co zdążyło się zapisać (karty bez odpowiedzi = 0),
+//  - null — nie ma czego sprawdzać.
+export async function resolveDailyPlaylistAttempt(attempt, uid, name, playerId) {
+  if (!attempt || attempt.status !== "playing") return null;
+  let roomData = null;
+  try {
+    const rs = await getDoc(doc(db, "rooms", attempt.roomId));
+    roomData = rs.exists() ? rs.data() : null;
+  } catch (e) {
+    roomData = null;
+  }
+  const expireMs = roomData?.expireAt?.toMillis ? roomData.expireAt.toMillis() : (roomData?.expireAt instanceof Date ? roomData.expireAt.getTime() : 0);
+  const stillRunning = roomData && roomData.status !== "gameover" && expireMs > Date.now();
+  if (stillRunning) return { resumeRoomId: attempt.roomId };
+
+  const mine = (roomData?.playedCards || []).filter((c) => c.playerId === playerId);
+  const score = mine.filter((c) => c.correct).length;
+  const timeMs = (roomData?.decisionTimes?.[playerId] || []).reduce((a, b) => a + b, 0);
+  await recordDailyPlaylistScore(uid, name, attempt.dayKey, score, timeMs);
+  return { finalized: true };
 }
 
 // Ranking dnia — kto dziś ułożył najwięcej poprawnie, a przy remisie kto był
@@ -88,6 +136,7 @@ export async function fetchDailyPlaylistLeaderboard(dayKey, count = 10) {
   const snap = await getDocs(q);
   return snap.docs
     .map((d) => d.data())
+    .filter((d) => d.status !== "playing") // próby w toku nie trafiają do rankingu
     .sort((a, b) => b.score - a.score || (a.timeMs || Infinity) - (b.timeMs || Infinity))
     .slice(0, count);
 }
@@ -98,7 +147,7 @@ export async function fetchWeeklyPlaylistLeaderboard(weekKey, count = 10) {
   const snap = await getDocs(q);
   return snap.docs
     .map((d) => d.data())
-    .sort((a, b) => b.score - a.score || String(a.uid || "").localeCompare(String(b.uid || "")))
+    .sort((a, b) => b.score - a.score)
     .slice(0, count);
 }
 
@@ -110,36 +159,37 @@ export async function fetchAllTimePlaylistLeaderboard(count = 10) {
   return snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
 }
 
-// Sprawdza poprzedni tydzień i kolejkuje nagrody TOP3 do ręcznego odbioru.
-// Marker jest zapisywany dopiero po poprawnym utworzeniu wszystkich claimów,
-// więc przerwanie procesu nie może "połknąć" części nagród.
+// Sprawdza, czy zeszły tydzień doczekał się już nagród za 1./2./3. miejsce —
+// jeśli nie, rozdaje je (zabezpieczone transakcją ze znacznikiem tygodnia,
+// więc niezależnie od tego, ile osób akurat otworzy Playlistę dnia, nagrody
+// rozdadzą się dokładnie raz). Wywoływane przy każdym otwarciu huba —
+// appka nie ma serwera/crona, więc to jedyny sposób na "koniec tygodnia".
 export async function processWeeklyPlaylistRewardsIfNeeded() {
   const lastWeekKey = currentWeekKey(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
   const markerRef = doc(db, WEEKLY_REWARDS_PROCESSED_COLLECTION, lastWeekKey);
-  const markerSnap = await getDoc(markerRef);
-  if (markerSnap.exists()) return { alreadyProcessed: true, weekKey: lastWeekKey };
-
-  const q = query(collection(db, WEEKLY_COLLECTION), where("weekKey", "==", lastWeekKey));
-  const snap = await getDocs(q);
-  const entries = snap.docs
-    .map((d) => d.data())
-    .filter((entry) => Number(entry.score || 0) > 0 && entry.uid)
-    .sort((a, b) => b.score - a.score || String(a.uid || "").localeCompare(String(b.uid || "")))
-    .slice(0, 3);
-
-  for (let i = 0; i < entries.length; i += 1) {
-    await queueWeeklyRankingReward(entries[i].uid, {
-      source: "playlist",
-      weekKey: lastWeekKey,
-      place: i + 1,
-      label: "Playlista dnia (ranking tygodnia)",
+  let shouldProcess = false;
+  try {
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(markerRef);
+      if (snap.exists()) return;
+      shouldProcess = true;
+      tx.set(markerRef, { processedAt: Date.now() });
     });
+  } catch (e) {
+    return;
   }
+  if (!shouldProcess) return;
 
-  await setDoc(markerRef, {
-    processedAt: Date.now(),
-    weekKey: lastWeekKey,
-    winners: entries.map((entry, index) => ({ uid: entry.uid, place: index + 1, score: entry.score || 0 })),
-  });
-  return { processed: true, weekKey: lastWeekKey, winners: entries.length };
+  try {
+    const q = query(collection(db, WEEKLY_COLLECTION), where("weekKey", "==", lastWeekKey));
+    const snap = await getDocs(q);
+    const entries = snap.docs.map((d) => d.data()).sort((a, b) => b.score - a.score);
+    for (let i = 0; i < Math.min(3, entries.length); i++) {
+      if (!entries[i].score) continue; // nie nagradzaj kogoś z zerowym wynikiem
+      await awardXp(entries[i].uid, WEEKLY_REWARDS[i]);
+      pushRewardNotice(entries[i].uid, { source: "playlist", place: i + 1, xp: WEEKLY_REWARDS[i], hitcoin: 0, label: "Playlista dnia (ranking tygodnia)" }).catch(() => {});
+    }
+  } catch (e) {
+    // ciche niepowodzenie — znacznik już ustawiony, nie spróbujemy ponownie w tym tygodniu, ale i tak nie ma dużej straty
+  }
 }

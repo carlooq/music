@@ -22,7 +22,7 @@ import { sendDuelChallenge, listenForIncomingChallenge, listenForSentChallenges,
 import { sendRoomInvite, listenForIncomingRoomInvite, clearRoomInvite, isRoomInviteStale } from "./roomInvites.js";
 import { GAME_HISTORY_COLLECTION, buildGameHistoryRecord, fetchGameHistoryPage, gameHistoryDocumentId } from "./gameHistory.js";
 import { getOrCreateDailySong } from "./dailySong.js";
-import { getOrCreateDailyPlaylist, hasPlayedPlaylistToday, recordDailyPlaylistScore, fetchDailyPlaylistLeaderboard, fetchWeeklyPlaylistLeaderboard, fetchAllTimePlaylistLeaderboard, processWeeklyPlaylistRewardsIfNeeded } from "./dailyPlaylist.js";
+import { getOrCreateDailyPlaylist, hasPlayedPlaylistToday, recordDailyPlaylistScore, startDailyPlaylistAttempt, cancelDailyPlaylistAttempt, resolveDailyPlaylistAttempt, fetchDailyPlaylistLeaderboard, fetchWeeklyPlaylistLeaderboard, fetchAllTimePlaylistLeaderboard, processWeeklyPlaylistRewardsIfNeeded } from "./dailyPlaylist.js";
 import { createTournament, cancelTournament, fetchActiveTournament, fetchLastCompletedTournament, fetchLastCompletedLeague, fetchTournament, signUpForTournament, recordTournamentMatchResult, checkAndAdvanceTournament, settleTournamentXpIfNeeded, pickMatchPlaylist, getTournamentUserState, createLeague, fetchActiveLeague, signUpForLeague, startLeagueManually, recordLeagueMatchResult, checkAndAdvanceLeague, computeLeagueStandings, resolveLeagueMatchOutcome, getLeagueUserState, settleLeagueRewardsIfNeeded } from "./tournaments.js";
 import { awardHitcoin, computeWinHitcoin, computeSecondPlaceHitcoin, computeThirdPlaceHitcoin, claimDailyHitcoin, drawCardAfterGame, effectiveRarity, PACKS, openPack, SELL_PRICES, sellDuplicateCard, sellAllDuplicates } from "./cards.js";
 import { DAILY_REWARD_SEGMENTS, claimDailyWheelReward } from "./dailyWheel.js";
@@ -1852,6 +1852,7 @@ export default function App() {
   const [showDailySong, setShowDailySong] = useState(false);
   const [dailyPlaylistSongs, setDailyPlaylistSongs] = useState(null);
   const [dailyPlaylistAlreadyPlayed, setDailyPlaylistAlreadyPlayed] = useState(null);
+  const [dailyPlaylistResumeRoom, setDailyPlaylistResumeRoom] = useState(null);
   const [dailyPlaylistDailyBoard, setDailyPlaylistDailyBoard] = useState([]);
   const [dailyPlaylistWeeklyBoard, setDailyPlaylistWeeklyBoard] = useState([]);
   const [dailyPlaylistAllTimeBoard, setDailyPlaylistAllTimeBoard] = useState([]);
@@ -1936,7 +1937,21 @@ export default function App() {
         fetchWeeklyPlaylistLeaderboard(currentWeekKey(), 10),
         fetchAllTimePlaylistLeaderboard(10),
       ]);
-      setDailyPlaylistAlreadyPlayed(already);
+      // Próba rozpoczęta, ale niedokończona: albo da się do niej wrócić,
+      // albo (pokój wygasł) zostaje zamknięta z dotychczasowym wynikiem.
+      let finalAttempt = already;
+      let resumeRoom = null;
+      if (already?.status === "playing") {
+        const resolved = await resolveDailyPlaylistAttempt(already, user.uid, name.trim() || user.displayName || "Gracz", playerId);
+        if (resolved?.resumeRoomId) {
+          resumeRoom = resolved.resumeRoomId;
+          finalAttempt = null;
+        } else if (resolved?.finalized) {
+          finalAttempt = await hasPlayedPlaylistToday(user.uid, dayKey);
+        }
+      }
+      setDailyPlaylistResumeRoom(resumeRoom);
+      setDailyPlaylistAlreadyPlayed(finalAttempt);
       const [dailyWithProfiles, weeklyWithProfiles, allTimeWithProfiles] = await Promise.all([
         enrichPlayerRows(daily),
         enrichPlayerRows(weekly),
@@ -1964,6 +1979,9 @@ export default function App() {
       const ref = doc(db, "rooms", code);
       const deck = dailyPlaylistSongs;
       const me = { id: playerId, uid: user.uid, name: name.trim() || user.displayName || "Gracz", authed: true, avatarUrl: stats?.avatarUrl || null };
+      // Próba liczy się od chwili startu — zapis powstaje PRZED pokojem.
+      await startDailyPlaylistAttempt(user.uid, me.name, dayKey, code);
+      try {
       await setDoc(ref, {
         code,
         hostId: playerId,
@@ -1999,12 +2017,24 @@ export default function App() {
         createdAt: serverTimestamp(),
         expireAt: new Date(Date.now() + 60 * 60 * 1000),
       });
+      } catch (roomErr) {
+        await cancelDailyPlaylistAttempt(user.uid, dayKey).catch(() => {});
+        throw roomErr;
+      }
       setRoomId(code);
     } catch (e) {
       setError("Błąd startu Playlisty dnia: " + e.message);
     } finally {
       setBusy(false);
     }
+  }
+
+  // Wznowienie porzuconej gry Playlisty dnia — ten sam pokój, ta sama karta,
+  // zegar tury leciał cały czas (karta, przy której wyszedłeś, mogła przepaść).
+  function resumeDailyPlaylistGame() {
+    if (!dailyPlaylistResumeRoom) return;
+    setError("");
+    setRoomId(dailyPlaylistResumeRoom);
   }
 
   async function openAlbum() {
@@ -6757,6 +6787,8 @@ export default function App() {
         allTimeBoard={dailyPlaylistAllTimeBoard}
         busy={busy || dailyPlaylistBusy}
         onStart={startDailyPlaylistGame}
+        canResume={!!dailyPlaylistResumeRoom}
+        onResume={resumeDailyPlaylistGame}
         onHome={() => setScreen("home")}
         onViewProfile={viewPlayerProfile}
         viewingPlayer={viewingPlayer}
@@ -7133,6 +7165,8 @@ export default function App() {
         allTimeBoard={dailyPlaylistAllTimeBoard}
         busy={busy || dailyPlaylistBusy}
         onStart={startDailyPlaylistGame}
+        canResume={!!dailyPlaylistResumeRoom}
+        onResume={resumeDailyPlaylistGame}
         onHome={() => setScreen("home")}
       />
     );
@@ -8952,6 +8986,10 @@ export default function App() {
                   </p>
                   <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>Wróć jutro po kolejną playlistę!</p>
                 </div>
+              ) : dailyPlaylistResumeRoom ? (
+                <button onClick={resumeDailyPlaylistGame} disabled={busy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+                  KONTYNUUJ DZISIEJSZĄ GRĘ
+                </button>
               ) : (
                 <button onClick={startDailyPlaylistGame} disabled={busy} className="w-full py-3 rounded-xl text-lg font-bold btn-grad" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
                   ZAGRAJ

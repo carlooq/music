@@ -1166,7 +1166,7 @@ function MobileWeeklyRankingRewards({ modeLabel }) {
   );
 }
 
-export function MobileDailyPlaylistHubView({ alreadyPlayed, dailyBoard = [], weeklyBoard = [], allTimeBoard = [], busy, onStart, onHome }) {
+export function MobileDailyPlaylistHubView({ alreadyPlayed, dailyBoard = [], weeklyBoard = [], allTimeBoard = [], busy, onStart, canResume, onResume, onHome }) {
   const [tab, setTab] = useState('daily');
   const sourceRows = tab === 'daily' ? dailyBoard : tab === 'weekly' ? weeklyBoard : allTimeBoard;
   const rows = (sourceRows || []).map((row) => ({
@@ -1186,7 +1186,7 @@ export function MobileDailyPlaylistHubView({ alreadyPlayed, dailyBoard = [], wee
         <div className="mgv-hero-chips"><span><Music2 size={14} /> 10 utworów</span><span><Trophy size={14} /> ranking dnia</span></div>
       </ModeHero>
       <Panel className="mgv-daily-start-card">
-        {alreadyPlayed ? <><span className="mgv-eyebrow">DZISIAJ JUŻ ZAGRANO</span><strong className="mgv-daily-score">{alreadyPlayed.score}<small>/10</small></strong><p>Wróć jutro po nową playlistę albo sprawdź ranking.</p></> : <><span className="mgv-eyebrow">GOTOWY?</span><h2>MASZ TYLKO JEDNĄ PRÓBĘ</h2><p>Po rozpoczęciu wynik zostanie zapisany na dzisiaj.</p><button className="mgv-main-cta" type="button" disabled={busy} onClick={onStart}><Play size={19} fill="currentColor" /> STARTUJ</button></>}
+        {alreadyPlayed ? <><span className="mgv-eyebrow">DZISIAJ JUŻ ZAGRANO</span><strong className="mgv-daily-score">{alreadyPlayed.score}<small>/10</small></strong><p>Wróć jutro po nową playlistę albo sprawdź ranking.</p></> : canResume ? <><span className="mgv-eyebrow">GRA W TOKU</span><h2>MASZ ROZPOCZĘTĄ PLAYLISTĘ</h2><p>Wyjście nie resetuje próby — wróć do tej samej gry. Zegar karty cały czas leciał.</p><button className="mgv-main-cta" type="button" disabled={busy} onClick={onResume}><Play size={19} fill="currentColor" /> KONTYNUUJ</button></> : <><span className="mgv-eyebrow">GOTOWY?</span><h2>MASZ TYLKO JEDNĄ PRÓBĘ</h2><p>Po rozpoczęciu wynik zostanie zapisany na dzisiaj.</p><button className="mgv-main-cta" type="button" disabled={busy} onClick={onStart}><Play size={19} fill="currentColor" /> STARTUJ</button></>}
       </Panel>
       <Panel><div className="mgv-section-title"><Trophy size={18} /><span>RANKING</span></div><RankTabs active={tab} onChange={setTab} /><RankingRows rows={rows} /></Panel>
       <MobileWeeklyRankingRewards modeLabel="Playlista dnia" />
