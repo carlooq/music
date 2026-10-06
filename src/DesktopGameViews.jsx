@@ -1520,7 +1520,7 @@ export function DesktopOpenerView({
           </section>
           <section className="dgv-panel dgv-opener-answer">
             {room.openerWinnerId ? (
-              <div className="dgv-opener-winner"><Trophy size={54} /><h2>{room.players.find((p) => p.id === room.openerWinnerId)?.name} ZACZYNA!</h2><strong>{openerRevealCountdown ?? 5}</strong></div>
+              <div className="dgv-opener-winner"><Trophy size={54} /><h2>{room.players.find((p) => p.id === room.openerWinnerId)?.name} ZACZYNA!</h2><p style={{ margin: 0, fontWeight: 800 }}>+1 TOKEN BONUSU</p><strong>{openerRevealCountdown ?? 5}</strong></div>
             ) : (
               <>
                 <div className="dgv-section-heading"><Zap size={18} /> KTO PIERWSZY ZGADNIE?</div>

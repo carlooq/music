@@ -4496,6 +4496,8 @@ export default function App() {
           currentPlayerId: data.openerWinnerId,
           startingPlayerId: data.openerWinnerId,
           turnStartedAt: serverTimestamp(),
+          // bonus za zwycięstwo w minigrze: zaczynający ma o 1 token więcej
+          tokens: { ...(data.tokens || {}), [data.openerWinnerId]: Number(data.tokens?.[data.openerWinnerId] || 0) + 1 },
         });
       });
       if (user) awardXp(user.uid, 10).catch(() => {}); // wygrana minigra "kto zaczyna"
@@ -10012,7 +10014,7 @@ export default function App() {
                 {room.openerWinnerId ? (
                   <div className="w-full flex flex-col items-center gap-2">
                     <p style={{ color: "var(--good)", fontSize: 18, fontWeight: "bold", textAlign: "center" }}>
-                      {room.players.find((p) => p.id === room.openerWinnerId)?.name} zgadł(a) pierwszy(a) i zaczyna!
+                      {room.players.find((p) => p.id === room.openerWinnerId)?.name} zgadł(a) pierwszy(a) i zaczyna! <span style={{ color: "var(--accent)" }}>+1 token</span>
                     </p>
                     <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 44, color: "var(--accent)" }}>
                       {openerRevealCountdown ?? 5}

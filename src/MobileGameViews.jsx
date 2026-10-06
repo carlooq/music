@@ -655,7 +655,7 @@ export function MobileOpenerView({ room, openerPhase, openerCountdownNum, isPlay
       </Panel>
       <Panel className="mgv-opener-answer" accent="violet">
         {room.openerWinnerId ? (
-          <div className="mgv-opener-winner"><Trophy size={50} /><strong>{room.players.find((player) => player.id === room.openerWinnerId)?.name} ZACZYNA!</strong><span>{openerRevealCountdown ?? 5}</span></div>
+          <div className="mgv-opener-winner"><Trophy size={50} /><strong>{room.players.find((player) => player.id === room.openerWinnerId)?.name} ZACZYNA!</strong><em style={{ fontStyle: 'normal', fontWeight: 800, opacity: .9 }}>+1 TOKEN BONUSU</em><span>{openerRevealCountdown ?? 5}</span></div>
         ) : (
           <>
             <div className="mgv-section-title"><Zap size={18} /><span>KTO PIERWSZY ZGADNIE?</span></div>
