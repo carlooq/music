@@ -10,7 +10,7 @@ const stage1 = [
   { id:"level_7", number:7, title:"Szybki Set", subtitle:"Mniej ruchów", moves:20, goals:{ vinyl:12, note:12 }, starScoreThresholds:{2:18000,3:26000}, endgameMoveBonus:800 },
   { id:"level_8", number:8, title:"Pełne Pasmo", subtitle:"Wszystko gra", moves:28, goals:{ vinyl:5, microphone:5, headphones:5, cassette:5, speaker:5, note:5 }, starScoreThresholds:{2:24000,3:34000}, endgameMoveBonus:750 },
   { id:"level_9", number:9, title:"Punkt Zapalny", subtitle:"Graj na wynik", moves:22, goals:{}, scoreGoal:14000, starScoreThresholds:{2:20000,3:28000}, endgameMoveBonus:750 },
-  { id:"level_10", number:10, title:"Nocny Finał", subtitle:"Finał Stage 1", moves:27, goals:{ microphone:10, headphones:10, speaker:10 }, scoreGoal:14000, starScoreThresholds:{2:25000,3:35000}, endgameMoveBonus:800, finale:true },
+  { id:"level_10", number:10, title:"Nocny Finał", subtitle:"Finał Neonowej Sceny", moves:27, goals:{ microphone:10, headphones:10, speaker:10 }, scoreGoal:14000, starScoreThresholds:{2:25000,3:35000}, endgameMoveBonus:800, finale:true },
 ];
 
 const C = {
@@ -31,7 +31,7 @@ const stage2 = [
   { id:"level_17", number:17, title:"Przebicie", subtitle:"Dużo osłon", moves:28, goals:{ microphone:10, speaker:10 }, scoreGoal:14000, layout:{ inactive:C.corners }, shields:[{index:10,hp:1},{index:13,hp:1},{index:18,hp:1},{index:21,hp:1},{index:42,hp:1},{index:45,hp:1},{index:50,hp:1},{index:53,hp:1}], starScoreThresholds:{2:27000,3:38000}, endgameMoveBonus:750 },
   { id:"level_18", number:18, title:"Klepsydra", subtitle:"Nietypowy przepływ", moves:29, goals:{ vinyl:8, headphones:8, cassette:8 }, layout:{ inactive:C.hourglass }, shields:[{index:27,hp:2},{index:28,hp:1},{index:35,hp:1},{index:36,hp:2}], starScoreThresholds:{2:28000,3:39500}, endgameMoveBonus:750 },
   { id:"level_19", number:19, title:"Ostatni Set", subtitle:"Ciasny limit", moves:24, goals:{ vinyl:8, microphone:8, headphones:8, speaker:8 }, layout:{ inactive:C.deepCorners }, shields:[{index:19,hp:1},{index:20,hp:1},{index:27,hp:2},{index:28,hp:2},{index:35,hp:2},{index:36,hp:2},{index:43,hp:1},{index:44,hp:1}], starScoreThresholds:{2:29000,3:41000}, endgameMoveBonus:800 },
-  { id:"level_20", number:20, title:"Neon Lab: Finał", subtitle:"Finał Stage 2", moves:31, goals:{ vinyl:6, microphone:6, headphones:6, cassette:6, speaker:6, note:6 }, scoreGoal:22000, layout:{ inactive:C.plusCorners }, shields:[{index:18,hp:2},{index:21,hp:2},{index:26,hp:1},{index:29,hp:1},{index:34,hp:1},{index:37,hp:1},{index:42,hp:2},{index:45,hp:2}], starScoreThresholds:{2:36000,3:50000}, endgameMoveBonus:850, finale:true },
+  { id:"level_20", number:20, title:"Neon Lab: Finał", subtitle:"Finał Neon Lab", moves:31, goals:{ vinyl:6, microphone:6, headphones:6, cassette:6, speaker:6, note:6 }, scoreGoal:22000, layout:{ inactive:C.plusCorners }, shields:[{index:18,hp:2},{index:21,hp:2},{index:26,hp:1},{index:29,hp:1},{index:34,hp:1},{index:37,hp:1},{index:42,hp:2},{index:45,hp:2}], starScoreThresholds:{2:36000,3:50000}, endgameMoveBonus:850, finale:true },
 ];
 
 export const HIT_MATCH_LEVELS = Object.freeze([...stage1, ...stage2].map((level) => ({ ...level, rewardPerStar:HIT_MATCH_REWARD_PER_STAR })));

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, RotateCcw, Sparkles, Star, Trophy, Zap, Music2, Move, Target, Play, SkipForward, BarChart3, Lock, ChevronRight, Crown, Gamepad2 } from "lucide-react";
-import { playCorrectSound, playWrongSound, playVictorySound, unlockAudio } from "../sounds.js";
+import { playCorrectSound, playWrongSound, playVictorySound, unlockAudio, startHitMatchMusic, stopHitMatchMusic, setHitMatchMusicIntensity, playHitMatchComboSound, playHitMatchStarSound, playHitMatchRewardSound } from "../sounds.js";
 import { auth } from "../firebase-config.js";
 import { fetchAllSongsFromDb } from "../songsDb.js";
 import { REAL_SONGS } from "../songs.js";
@@ -248,7 +248,7 @@ function Stars({ count = 0, size = 18, className = "" }) {
   );
 }
 
-function QuizModal({ state, iframeRef, onAnswer, onReplay, onSkip }) {
+function QuizModal({ state, iframeRef, onAnswer, onReplay, onSkip, onPlayerLoad }) {
   if (!state) return null;
   const quiz = state.quiz;
   return (
@@ -263,15 +263,15 @@ function QuizModal({ state, iframeRef, onAnswer, onReplay, onSkip }) {
             <div className="hm-quiz-audio">
               <div className="hm-quiz-wave"><i /><i /><i /><i /><i /><i /><i /></div>
               <div><strong>POSŁUCHAJ FRAGMENTU</strong><small>Wskaż poprawny wykonawca — tytuł</small></div>
-              <button type="button" onClick={onReplay}><Play size={16} fill="currentColor" /> JESZCZE RAZ</button>
+              <button type="button" onClick={onReplay}><Play size={16} fill="currentColor" /> ODTWÓRZ PONOWNIE</button>
               <iframe
-                key={`${quiz.song.videoId}-${quiz.startSeconds}`}
+                key={`${quiz.song.videoId}-${quiz.startSeconds}-${state.playToken || 0}`}
                 ref={iframeRef}
                 title="hit-match-quiz-player"
                 className="hm-quiz-player"
-                src={`https://www.youtube.com/embed/${quiz.song.videoId}?enablejsapi=1&autoplay=1&mute=0&start=${quiz.startSeconds}&controls=0&modestbranding=1&rel=0&playsinline=1`}
-                allow="autoplay; encrypted-media"
-                onLoad={onReplay}
+                src={`https://www.youtube.com/embed/${quiz.song.videoId}?enablejsapi=1&autoplay=1&mute=0&start=${quiz.startSeconds}&controls=0&modestbranding=1&rel=0&playsinline=1&origin=${encodeURIComponent(window.location.origin)}`}
+                allow="autoplay; encrypted-media; picture-in-picture"
+                onLoad={() => onPlayerLoad?.(quiz)}
               />
             </div>
 
@@ -309,7 +309,7 @@ function QuizModal({ state, iframeRef, onAnswer, onReplay, onSkip }) {
   );
 }
 
-function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate }) {
+function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEntry, onProgressUpdate }) {
   const inactiveIndices = LEVEL?.layout?.inactive || [];
   const initialShieldState = () => createShieldState(LEVEL);
   const [board, setBoard] = useState(() => createPlayableBoard(inactiveIndices));
@@ -340,12 +340,17 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
   const [rewardState, setRewardState] = useState(null);
   const [shields, setShields] = useState(() => initialShieldState());
   const [colorSweep, setColorSweep] = useState(null);
+  const [resultDisplayScore, setResultDisplayScore] = useState(0);
+  const [resultDisplayStars, setResultDisplayStars] = useState(0);
+  const [resultRewardsVisible, setResultRewardsVisible] = useState(false);
+  const [resultActionsVisible, setResultActionsVisible] = useState(false);
 
   const pointerStartRef = useRef(null);
   const suppressClickRef = useRef(false);
   const runTokenRef = useRef(0);
   const endingRef = useRef(false);
   const comboTimerRef = useRef(null);
+  const comboAudioTimerRef = useRef(null);
   const quizPoolRef = useRef(null);
   const quizIframeRef = useRef(null);
   const shieldsRef = useRef(initialShieldState());
@@ -376,8 +381,12 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
   const showCombo = useCallback((level) => {
     if (level < 2) return;
     if (comboTimerRef.current) window.clearTimeout(comboTimerRef.current);
+    if (comboAudioTimerRef.current) window.clearTimeout(comboAudioTimerRef.current);
     setComboNotice({ level, id: `${Date.now()}_${level}` });
+    setHitMatchMusicIntensity(Math.min(5, level));
+    playHitMatchComboSound(level);
     comboTimerRef.current = window.setTimeout(() => setComboNotice(null), 1050);
+    comboAudioTimerRef.current = window.setTimeout(() => setHitMatchMusicIntensity(0), 1550);
   }, []);
 
   useEffect(() => {
@@ -387,6 +396,8 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
   useEffect(() => () => {
     runTokenRef.current += 1;
     if (comboTimerRef.current) window.clearTimeout(comboTimerRef.current);
+    if (comboAudioTimerRef.current) window.clearTimeout(comboAudioTimerRef.current);
+    stopHitMatchMusic();
   }, []);
 
   // Zaczynamy dociągać pulę dopiero pod koniec ładowania paska. Dzięki temu
@@ -395,6 +406,60 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
     if (hitMeter < 70 || quizPoolRef.current) return;
     loadQuizPool().then((pool) => { quizPoolRef.current = pool; }).catch(() => {});
   }, [hitMeter]);
+
+  // Adaptacyjny podkład działa tylko podczas aktywnej planszy. Quiz i ekran końcowy
+  // zatrzymują groove, żeby muzyka nie walczyła z fragmentem utworu / fanfarą.
+  useEffect(() => {
+    if (status === "running" && !quizState && !endgame) {
+      startHitMatchMusic();
+      setHitMatchMusicIntensity(0);
+      return;
+    }
+    stopHitMatchMusic();
+  }, [status, Boolean(quizState), Boolean(endgame)]);
+
+  // Sekwencja wyniku: licznik -> gwiazdki jedna po drugiej -> nagroda -> akcje.
+  useEffect(() => {
+    if (status !== "won") {
+      setResultDisplayScore(0);
+      setResultDisplayStars(0);
+      setResultRewardsVisible(false);
+      setResultActionsVisible(false);
+      return undefined;
+    }
+
+    const timers = [];
+    const targetScore = Math.max(0, Number(score || 0));
+    const duration = 760;
+    const startAt = performance.now();
+    let raf = 0;
+    const tick = (now) => {
+      const p = Math.min(1, (now - startAt) / duration);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setResultDisplayScore(Math.round(targetScore * eased));
+      if (p < 1) raf = window.requestAnimationFrame(tick);
+    };
+    raf = window.requestAnimationFrame(tick);
+
+    const firstStarAt = 420;
+    for (let star = 1; star <= resultStars; star += 1) {
+      timers.push(window.setTimeout(() => {
+        setResultDisplayStars(star);
+        playHitMatchStarSound(star);
+      }, firstStarAt + (star - 1) * 330));
+    }
+    const rewardAt = firstStarAt + Math.max(1, resultStars) * 330 + 130;
+    timers.push(window.setTimeout(() => {
+      setResultRewardsVisible(true);
+      playHitMatchRewardSound();
+    }, rewardAt));
+    timers.push(window.setTimeout(() => setResultActionsVisible(true), rewardAt + 240));
+
+    return () => {
+      if (raf) window.cancelAnimationFrame(raf);
+      timers.forEach((id) => window.clearTimeout(id));
+    };
+  }, [status, score, resultStars]);
 
   const resetGame = useCallback((autoStart = false) => {
     runTokenRef.current += 1;
@@ -421,6 +486,10 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
     setQuizState(null);
     setResultStars(0);
     setRewardState(null);
+    setResultDisplayScore(0);
+    setResultDisplayStars(0);
+    setResultRewardsVisible(false);
+    setResultActionsVisible(false);
     const nextShields = initialShieldState();
     shieldsRef.current = nextShields;
     setShields(nextShields);
@@ -504,6 +573,7 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
         ]);
         setEndgame({ phase: "blast", total: remaining, left: 0 });
         setSpecialPulse("mega");
+        playHitMatchComboSound(5);
         await wait(520);
         if (runTokenRef.current !== token) return;
       }
@@ -826,31 +896,54 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
     if (target !== null) attemptSwap(index, target);
   }, [attemptSwap, busy, quizState, status]);
 
-  const replayQuiz = useCallback(() => {
+  const sendQuizCommand = useCallback((func, args = []) => {
     const win = quizIframeRef.current?.contentWindow;
-    const quiz = quizState?.quiz;
-    if (!win || !quiz) return;
+    if (!win) return;
+    win.postMessage(JSON.stringify({ event: "command", func, args }), "*");
+  }, []);
+
+  const kickQuizPlayback = useCallback((quiz) => {
+    if (!quiz) return;
     unlockAudio();
-    win.postMessage(JSON.stringify({ event: "command", func: "unMute", args: [] }), "*");
-    win.postMessage(JSON.stringify({ event: "command", func: "setVolume", args: [100] }), "*");
-    win.postMessage(JSON.stringify({ event: "command", func: "seekTo", args: [quiz.startSeconds, true] }), "*");
-    win.postMessage(JSON.stringify({ event: "command", func: "playVideo", args: [] }), "*");
-  }, [quizState?.quiz]);
+    const play = (seek = false) => {
+      sendQuizCommand("unMute", []);
+      sendQuizCommand("setVolume", [100]);
+      if (seek) sendQuizCommand("seekTo", [quiz.startSeconds, true]);
+      sendQuizCommand("playVideo", []);
+    };
+    // YouTube potrafi zgłosić onLoad zanim player jest w pełni gotowy na komendy.
+    // Pierwsza próba ustawia pozycję, kolejne tylko ponawiają PLAY — bez słyszalnego
+    // cofania fragmentu, jeśli player ruszył już za pierwszym razem.
+    play(true);
+    window.setTimeout(() => play(false), 180);
+    window.setTimeout(() => play(false), 520);
+  }, [sendQuizCommand]);
+
+  const replayQuiz = useCallback(() => {
+    const quiz = quizState?.quiz;
+    if (!quiz) return;
+    unlockAudio();
+    // Natychmiast próbujemy sterować istniejącym playerem…
+    kickQuizPlayback(quiz);
+    // …i równocześnie remountujemy iframe. Dzięki temu przycisk działa również,
+    // gdy poprzedni embed YouTube wszedł w błędny / zablokowany stan.
+    setQuizState((prev) => prev ? { ...prev, playToken: (prev.playToken || 0) + 1 } : prev);
+  }, [kickQuizPlayback, quizState?.quiz]);
 
   const openHitQuiz = useCallback(async () => {
     if (status !== "running" || busy || statsRef.current.hitMeter < 100 || quizState) return;
     unlockAudio();
+    stopHitMatchMusic();
     setBusy(true);
     statsRef.current.hitMeter = 0;
     syncStats();
-    setQuizState({ loading: true, answered: false });
+    setQuizState({ loading: true, answered: false, playToken: 0 });
     try {
       const pool = quizPoolRef.current || await loadQuizPool();
       quizPoolRef.current = pool;
       const quiz = buildQuiz(pool);
       if (!quiz) throw new Error("Za mało utworów do quizu.");
-      setQuizState({ loading: false, quiz, answered: false });
-      window.setTimeout(replayQuiz, 220);
+      setQuizState({ loading: false, quiz, answered: false, playToken: 1 });
     } catch (error) {
       statsRef.current.hitMeter = 100; // awaria źródła nie zabiera paska
       syncStats();
@@ -858,13 +951,13 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
       setBusy(false);
       flashBanner("QUIZ NIEDOSTĘPNY", "HIT METER został zwrócony", "pink", 1300);
     }
-  }, [busy, flashBanner, quizState, replayQuiz, status, syncStats]);
+  }, [busy, flashBanner, quizState, status, syncStats]);
 
   const skipQuizSong = useCallback(() => {
     const pool = quizPoolRef.current || [];
     const next = buildQuiz(pool, quizState?.quiz?.song?.videoId);
     if (!next) return;
-    setQuizState({ loading: false, quiz: next, answered: false });
+    setQuizState((prev) => ({ loading: false, quiz: next, answered: false, playToken: (prev?.playToken || 0) + 1 }));
   }, [quizState?.quiz?.song?.videoId]);
 
   const answerQuiz = useCallback((answer) => {
@@ -908,7 +1001,7 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
       <main className="hm-layout">
         <section className="hm-stage-panel">
           <div className="hm-stage-heading">
-            <div><span>STAGE {currentStage.number} · POZIOM {LEVEL.number}</span><h2>{LEVEL.title.toUpperCase()}</h2><p>{currentStage.number === 2 ? "Nowe układy planszy i Neon Shield." : "Łącz muzyczne symbole i buduj kaskady."}</p></div>
+            <div><span>{currentStage.title} · POZIOM {LEVEL.number}</span><h2>{LEVEL.title.toUpperCase()}</h2><p>{currentStage.number === 2 ? "Nowe układy planszy i Neon Shield." : "Łącz muzyczne symbole i buduj kaskady."}</p></div>
             <div className="hm-stage-score-block">
               <Stars count={previousStars} size={20} />
               <small>TWÓJ REKORD GWIAZDEK</small>
@@ -1043,7 +1136,7 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
         </div>
       ) : null}
 
-      <QuizModal state={quizState} iframeRef={quizIframeRef} onAnswer={answerQuiz} onReplay={replayQuiz} onSkip={skipQuizSong} />
+      <QuizModal state={quizState} iframeRef={quizIframeRef} onAnswer={answerQuiz} onReplay={replayQuiz} onSkip={skipQuizSong} onPlayerLoad={kickQuizPlayback} />
 
       {status === "won" || status === "lost" ? (
         <div className="hm-overlay">
@@ -1051,25 +1144,40 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
             <div className="hm-result-icon">{status === "won" ? <Trophy size={38} /> : <Music2 size={36} />}</div>
             <span className="hm-modal-kicker">POZIOM {LEVEL.number}</span>
             <h2>{status === "won" ? "KONCERT ZALICZONY!" : "JESZCZE RAZ!"}</h2>
-            {status === "won" ? <Stars count={resultStars} size={38} className="hm-result-stars" /> : null}
+            {status === "won" ? (
+              <div className="hm-result-stars hm-result-stars-sequenced">
+                {[1, 2, 3].map((n) => <Star key={n} size={42} fill={n <= resultDisplayStars ? "currentColor" : "none"} className={n <= resultDisplayStars ? "earned reveal" : ""} />)}
+              </div>
+            ) : null}
             <p>{status === "won" ? "Cele wykonane. Niewykorzystane ruchy dały stały bonus ENCORE." : "Skończyły się ruchy. Zmiksuj planszę i spróbuj ponownie."}</p>
             <div className="hm-result-stats">
-              <div><span>WYNIK</span><strong>{score.toLocaleString("pl-PL")}</strong></div>
+              <div className="hm-score-counter"><span>WYNIK</span><strong>{(status === "won" ? resultDisplayScore : score).toLocaleString("pl-PL")}</strong></div>
               <div className="bonus"><span>BONUS ENCORE</span><strong>+{bonusScore.toLocaleString("pl-PL")}</strong></div>
               <div><span>NAJLEPSZA KASKADA</span><strong>x{Math.max(1, bestCascade)}</strong></div>
               <div><span>RUCHY</span><strong>{moves}</strong></div>
             </div>
             {status === "won" ? (
-              <div className="hm-reward-result">
-                {rewardState?.saving ? <span>Zapisuję wynik i nagrodę…</span> : null}
-                {rewardState?.saved && rewardState.gainedStars > 0 ? <><strong>NOWE GWIAZDKI: +{rewardState.gainedStars}</strong><span>+{rewardState.xp} XP · +{rewardState.hitcoin} HITCOIN</span></> : null}
-                {rewardState?.saved && rewardState.gainedStars === 0 ? <span>Wynik zapisany · nagrody za te gwiazdki były już odebrane.</span> : null}
-                {rewardState?.guest ? <span>Zaloguj się, aby zapisywać gwiazdki i nagrody.</span> : null}
-                {rewardState?.error ? <span className="error">{rewardState.error}</span> : null}
+              <div className={`hm-reward-result ${resultRewardsVisible ? "show" : "waiting"}`}>
+                {!resultRewardsVisible ? <span>Podsumowuję koncert…</span> : null}
+                {resultRewardsVisible && rewardState?.saving ? <span>Zapisuję wynik i nagrodę…</span> : null}
+                {resultRewardsVisible && rewardState?.saved && rewardState.gainedStars > 0 ? (
+                  <>
+                    <strong>NOWE GWIAZDKI: +{rewardState.gainedStars}</strong>
+                    <div className="hm-reward-fly"><b>+{rewardState.xp} XP</b><b>+{rewardState.hitcoin} HITCOIN</b></div>
+                  </>
+                ) : null}
+                {resultRewardsVisible && rewardState?.saved && rewardState.gainedStars === 0 ? <span>Wynik zapisany · nagrody za te gwiazdki były już odebrane.</span> : null}
+                {resultRewardsVisible && rewardState?.guest ? <span>Zaloguj się, aby zapisywać gwiazdki i nagrody.</span> : null}
+                {resultRewardsVisible && rewardState?.error ? <span className="error">{rewardState.error}</span> : null}
               </div>
             ) : null}
-            <button type="button" className="hm-primary" onClick={() => resetGame(true)}><RotateCcw size={18} /> ZAGRAJ PONOWNIE</button>
-            <button type="button" className="hm-secondary" onClick={onBack}>WRÓĆ DO HUBU</button>
+            <div className={`hm-result-actions ${status === "lost" || resultActionsVisible ? "show" : ""}`}>
+              {status === "won" && nextLevel && onNextLevel ? (
+                <button type="button" className="hm-primary hm-next-level" onClick={onNextLevel}><ChevronRight size={20} /> NASTĘPNY LEVEL · {nextLevel.number}</button>
+              ) : null}
+              <button type="button" className={status === "won" && nextLevel ? "hm-secondary" : "hm-primary"} onClick={() => resetGame(true)}><RotateCcw size={18} /> ZAGRAJ PONOWNIE</button>
+              <button type="button" className="hm-secondary hm-hub-return" onClick={onBack}>WRÓĆ DO HUBU</button>
+            </div>
           </div>
         </div>
       ) : null}
@@ -1155,6 +1263,8 @@ function HitMatchHub({ onBack }) {
         key={activeLevel.id}
         level={activeLevel}
         progressEntry={progress.levels?.[activeLevel.id] || null}
+        nextLevel={levelIndex >= 0 ? HIT_MATCH_LEVELS[levelIndex + 1] || null : null}
+        onNextLevel={levelIndex >= 0 && HIT_MATCH_LEVELS[levelIndex + 1] ? () => setActiveLevelId(HIT_MATCH_LEVELS[levelIndex + 1].id) : null}
         onProgressUpdate={(nextProgress) => setProgress(nextProgress)}
         onBack={() => setActiveLevelId(null)}
       />
@@ -1190,9 +1300,9 @@ function HitMatchHub({ onBack }) {
         <main className="hm-hub-main">
           <section className="hm-hub-hero">
             <div className="hm-hub-hero-copy">
-              <span className="hm-hub-kicker">2 STAGE · 20 POZIOMÓW</span>
+              <span className="hm-hub-kicker">20 POZIOMÓW · 60 GWIAZDEK</span>
               <h2>PIERWSZA <b>TRASA</b></h2>
-              <p>Stage 1 uczy podstaw. Stage 2 zmienia układ planszy i wprowadza <strong>Neon Shield</strong>. Każda nowa gwiazdka to <strong>20 XP + 10 HITCOIN</strong>.</p>
+              <p>Pierwsza część trasy uczy podstaw, kolejne dziesiątki zmieniają układ planszy i dokładają nowe mechaniki. Każda nowa gwiazdka to <strong>20 XP + 10 HITCOIN</strong>.</p>
               <button type="button" className="hm-primary hm-hub-continue" onClick={() => setActiveLevelId(nextLevel.id)}>
                 <Play size={19} fill="currentColor" /> {progress.levels?.[nextLevel.id]?.completed ? "ZAGRAJ PONOWNIE" : `GRAJ · LEVEL ${nextLevel.number}`}
               </button>
@@ -1222,7 +1332,7 @@ function HitMatchHub({ onBack }) {
                 return (
                   <div key={stage.id} className={`hm-stage-group stage-${stage.number} ${stageUnlocked ? "open" : "locked"}`}>
                     <div className="hm-stage-group-heading">
-                      <div><span>STAGE {String(stage.number).padStart(2,"0")}</span><h4>{stage.title}</h4><small>{stage.subtitle}</small></div>
+                      <div><span>POZIOMY {stage.from}–{stage.to}</span><h4>{stage.title}</h4><small>{stage.subtitle}</small></div>
                       <div className="hm-stage-group-meta"><b>{stageStars} / {stageLevels.length * 3} ★</b><span>{stage.mechanic}</span></div>
                     </div>
                     <div className="hm-level-grid">
