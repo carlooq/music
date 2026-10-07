@@ -30,7 +30,16 @@ import {
   swapBoardCells,
   uniqueMatchedIndices,
 } from "./hitMatchEngine.js";
-import { HIT_MATCH_LEVELS, HIT_MATCH_TOTAL_STARS, isHitMatchLevelCompleted, starsForHitMatchLevel } from "./hitMatchConfig.js";
+import {
+  HIT_MATCH_LEVELS,
+  HIT_MATCH_STAGES,
+  HIT_MATCH_TOTAL_STARS,
+  countShieldHp,
+  createShieldState,
+  getHitMatchStage,
+  isHitMatchLevelCompleted,
+  starsForHitMatchLevel,
+} from "./hitMatchConfig.js";
 import { fetchHitMatchLevelLeaderboard, fetchHitMatchStarsLeaderboard, getHitMatchProgress, submitHitMatchLevelResult } from "./hitMatchDb.js";
 import "./hitmatch.css";
 
@@ -57,12 +66,16 @@ function emptyCollected(level) {
   return Object.keys(level?.goals || {}).reduce((acc, type) => { acc[type] = 0; return acc; }, {});
 }
 
-function levelProgressPercent(level, collected, score) {
+function levelProgressPercent(level, collected, score, shieldsRemaining = 0) {
   const parts = [];
   Object.entries(level?.goals || {}).forEach(([type, target]) => {
     parts.push(Math.min(1, Number(collected?.[type] || 0) / Math.max(1, Number(target || 1))));
   });
   if (level?.scoreGoal) parts.push(Math.min(1, Number(score || 0) / Math.max(1, Number(level.scoreGoal || 1))));
+  if ((level?.shields || []).length) {
+    const totalShieldHp = countShieldHp(createShieldState(level));
+    parts.push(totalShieldHp ? Math.max(0, Math.min(1, 1 - Number(shieldsRemaining || 0) / totalShieldHp)) : 1);
+  }
   if (!parts.length) return 0;
   return Math.round((parts.reduce((sum, value) => sum + value, 0) / parts.length) * 100);
 }
@@ -74,6 +87,7 @@ function compactGoal(level) {
     ? [`Po ${entries[0][1]} każdego symbolu`]
     : entries.map(([type, target]) => `${TYPE_LABELS[type] || type} ${target}`);
   if (level?.scoreGoal) bits.push(`${Number(level.scoreGoal).toLocaleString("pl-PL")} pkt`);
+  if ((level?.shields || []).length) bits.push(`Neon Shield ${countShieldHp(createShieldState(level))}`);
   return bits.join(" · ") || "Graj na wynik";
 }
 
@@ -144,7 +158,7 @@ function buildSpecialFx(board, indices = []) {
   return fx;
 }
 
-function HitMatchPiece({ tile, index, selected, matched, activated, dragging, onPointerDown, onPointerMove, onPointerUp, onClick }) {
+function HitMatchPiece({ tile, index, selected, matched, activated, dragging, colorPhase, colorOrder = -1, onPointerDown, onPointerMove, onPointerUp, onClick }) {
   const row = rowOf(index);
   const col = colOf(index);
   const image = ICONS[tile.type] || ICONS.vinyl;
@@ -158,6 +172,8 @@ function HitMatchPiece({ tile, index, selected, matched, activated, dragging, on
     dragging ? "is-dragging" : "",
     tile.fresh ? "is-fresh" : "",
     tile.freshSpecial ? "is-special-born" : "",
+    colorPhase === "charge" ? "is-color-charged" : "",
+    colorPhase === "vanish" ? "is-color-vanishing" : "",
   ].filter(Boolean).join(" ");
 
   return (
@@ -167,6 +183,7 @@ function HitMatchPiece({ tile, index, selected, matched, activated, dragging, on
         "--hm-row": row,
         "--hm-col": col,
         "--hm-spawn-delay": `${Math.min(120, (tile.spawnOrder || 0) * 18)}ms`,
+        "--hm-color-delay": `${Math.max(0, colorOrder) * 16}ms`,
       }}
     >
       <button
@@ -181,8 +198,8 @@ function HitMatchPiece({ tile, index, selected, matched, activated, dragging, on
       >
         <span className="hm-piece-glow" />
         <img src={image} alt="" draggable="false" />
-        {tile.special === "row" ? <span className="hm-special-mark line horizontal"><i /><i /></span> : null}
-        {tile.special === "col" ? <span className="hm-special-mark line vertical"><i /><i /></span> : null}
+        {tile.special === "row" ? <span className="hm-special-arrows horizontal" aria-hidden="true"><b>←</b><b>→</b></span> : null}
+        {tile.special === "col" ? <span className="hm-special-arrows vertical" aria-hidden="true"><b>↑</b><b>↓</b></span> : null}
         {tile.special === "bomb" ? <span className="hm-special-mark bomb"><Zap size={16} fill="currentColor" /></span> : null}
         {tile.special === "color" ? <span className="hm-special-mark color"><Star size={17} fill="currentColor" /></span> : null}
       </button>
@@ -207,6 +224,17 @@ function ScoreGoalChip({ value, target }) {
     <div className={`hm-goal-chip hm-score-goal ${done ? "done" : ""}`}>
       <Trophy size={22} />
       <span><small>Wynik</small><strong>{Math.min(Number(value || 0), Number(target || 0)).toLocaleString("pl-PL")} / {Number(target || 0).toLocaleString("pl-PL")}</strong></span>
+      {done ? <b>✓</b> : null}
+    </div>
+  );
+}
+
+function ShieldGoalChip({ remaining = 0, total = 0 }) {
+  const done = remaining <= 0;
+  return (
+    <div className={`hm-goal-chip hm-shield-goal ${done ? "done" : ""}`}>
+      <span className="hm-shield-mini">◆</span>
+      <span><small>NEON SHIELD</small><strong>{Math.max(0, remaining)} / {Math.max(0, total)}</strong></span>
       {done ? <b>✓</b> : null}
     </div>
   );
@@ -282,7 +310,9 @@ function QuizModal({ state, iframeRef, onAnswer, onReplay, onSkip }) {
 }
 
 function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate }) {
-  const [board, setBoard] = useState(() => createPlayableBoard());
+  const inactiveIndices = LEVEL?.layout?.inactive || [];
+  const initialShieldState = () => createShieldState(LEVEL);
+  const [board, setBoard] = useState(() => createPlayableBoard(inactiveIndices));
   const [selected, setSelected] = useState(null);
   const [draggingIndex, setDraggingIndex] = useState(null);
   const [matched, setMatched] = useState([]);
@@ -308,6 +338,8 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
   const [resultStars, setResultStars] = useState(0);
   const [previousStars, setPreviousStars] = useState(() => Number(progressEntry?.stars || 0));
   const [rewardState, setRewardState] = useState(null);
+  const [shields, setShields] = useState(() => initialShieldState());
+  const [colorSweep, setColorSweep] = useState(null);
 
   const pointerStartRef = useRef(null);
   const suppressClickRef = useRef(false);
@@ -316,12 +348,14 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
   const comboTimerRef = useRef(null);
   const quizPoolRef = useRef(null);
   const quizIframeRef = useRef(null);
+  const shieldsRef = useRef(initialShieldState());
   const statsRef = useRef({
     moves: LEVEL.moves,
     score: 0,
     bonusScore: 0,
     collected: emptyCollected(LEVEL),
     hitMeter: 0,
+    shieldsRemaining: countShieldHp(initialShieldState()),
   });
 
   const syncStats = useCallback(() => {
@@ -364,7 +398,7 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
 
   const resetGame = useCallback((autoStart = false) => {
     runTokenRef.current += 1;
-    setBoard(createPlayableBoard());
+    setBoard(createPlayableBoard(inactiveIndices));
     setSelected(null);
     setDraggingIndex(null);
     setMatched([]);
@@ -387,6 +421,10 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
     setQuizState(null);
     setResultStars(0);
     setRewardState(null);
+    const nextShields = initialShieldState();
+    shieldsRef.current = nextShields;
+    setShields(nextShields);
+    setColorSweep(null);
     endingRef.current = false;
     statsRef.current = {
       moves: LEVEL.moves,
@@ -394,6 +432,7 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
       bonusScore: 0,
       collected: emptyCollected(LEVEL),
       hitMeter: 0,
+      shieldsRemaining: countShieldHp(nextShields),
     };
     setStatus(autoStart ? "running" : "intro");
   }, [LEVEL]);
@@ -494,12 +533,12 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
       return;
     }
 
-    if (!hasPossibleMove(finalBoard)) {
+    if (!hasPossibleMove(finalBoard, inactiveIndices)) {
       flashBanner("BRAK RUCHÓW", "Miksujemy planszę", "violet", 900);
       await wait(260);
       if (runTokenRef.current !== token) return;
       setMotionMode("shuffle");
-      setBoard(shufflePlayable(finalBoard));
+      setBoard(shufflePlayable(finalBoard, inactiveIndices));
       await wait(260);
     }
     if (runTokenRef.current === token) {
@@ -519,8 +558,27 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
     });
     const base = actualIndices.length * 100 * cascadeLevel;
     const specialBonus = specialCreation ? (specialCreation.special === "color" ? 900 : specialCreation.special === "bomb" ? 600 : 350) : 0;
-    stats.score += base + specialBonus;
-    // V4: pasek ma być nagrodą rzadką, mniej więcej raz na kilkanaście ruchów.
+    let shieldHits = 0;
+    if ((LEVEL.shields || []).length) {
+      const nextShields = { ...shieldsRef.current };
+      const shieldContactIndices = specialCreation?.index !== undefined
+        ? [...new Set([...actualIndices, specialCreation.index])]
+        : actualIndices;
+      shieldContactIndices.forEach((index) => {
+        const hp = Number(nextShields[index] || 0);
+        if (hp > 0) {
+          nextShields[index] = Math.max(0, hp - 1);
+          shieldHits += 1;
+        }
+      });
+      if (shieldHits) {
+        shieldsRef.current = nextShields;
+        setShields(nextShields);
+        stats.shieldsRemaining = countShieldHp(nextShields);
+      }
+    }
+    stats.score += base + specialBonus + shieldHits * 250;
+    // HIT METER ma być rzadkim bonusem, nie czymś odpalanym co kilka ruchów.
     stats.hitMeter = clamp(stats.hitMeter + actualIndices.length * 2 + Math.max(0, cascadeLevel - 1) * 5, 0, 100);
     syncStats();
   }, [syncStats]);
@@ -551,11 +609,12 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
     await wait(35);
     if (runTokenRef.current !== token) return;
 
-    const dropped = collapseAndRefill(removed);
+    const dropped = collapseAndRefill(removed, inactiveIndices);
     setMatched([]);
     setActiveSpecials([]);
     setFxMarks([]);
     setSpecialPulse("");
+    setColorSweep(null);
     setMotionMode("fall");
     setBoard(dropped);
     await wait(300);
@@ -574,25 +633,34 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
   const resolveColorMove = useCallback(async (swapped, a, b, token) => {
     const affected = resolveColorSwap(swapped, a, b) || [];
     const triggeredSpecials = affected.filter((index) => swapped[index]?.special);
+    const colorIndex = swapped[a]?.special === "color" ? a : b;
+    const partnerIndex = colorIndex === a ? b : a;
+    const partnerType = swapped[partnerIndex]?.type;
     setCascade(1);
-    setMatched(affected);
-    setActiveSpecials(triggeredSpecials);
-    setFxMarks([{ key: `gold-${Date.now()}`, kind: "color" }, ...buildSpecialFx(swapped, triggeredSpecials.filter((index) => swapped[index]?.special !== "color"))]);
+    setMatched([]);
+    setActiveSpecials([colorIndex, ...triggeredSpecials.filter((index) => index !== colorIndex)]);
+    setFxMarks([{ key: `gold-${Date.now()}`, kind: "color" }]);
     setSpecialPulse("gold");
+    setColorSweep({ phase:"charge", targets:affected, sourceIndex:colorIndex, targetType:partnerType });
     playCorrectSound();
-    flashBanner("ZŁOTY WINYL!", "Wybrany symbol znika z planszy", "gold", 1000);
-    await wait(380);
+    flashBanner("ZŁOTY WINYL!", `${TYPE_LABELS[partnerType] || "Wybrane symbole"} pod napięciem…`, "gold", 1100);
+    await wait(300);
+    if (runTokenRef.current !== token) return;
+    setColorSweep({ phase:"vanish", targets:affected, sourceIndex:colorIndex, targetType:partnerType });
+    setFxMarks([{ key:`gold-wave-${Date.now()}`, kind:"color" }, ...buildSpecialFx(swapped, triggeredSpecials.filter((index) => swapped[index]?.special !== "color"))]);
+    await wait(560);
     if (runTokenRef.current !== token) return;
 
     applyRemovalStats(swapped, affected, 1, { special: "color" });
     const removed = removeIndices(swapped, affected, null);
     setBoard(removed);
     await wait(35);
-    const dropped = collapseAndRefill(removed);
+    const dropped = collapseAndRefill(removed, inactiveIndices);
     setMatched([]);
     setActiveSpecials([]);
     setFxMarks([]);
     setSpecialPulse("");
+    setColorSweep(null);
     setMotionMode("fall");
     setBoard(dropped);
     await wait(310);
@@ -627,7 +695,7 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
     const removed = removeIndices(swapped, affected, null);
     setBoard(removed);
     await wait(35);
-    const dropped = collapseAndRefill(removed);
+    const dropped = collapseAndRefill(removed, inactiveIndices);
     setMatched([]);
     setActiveSpecials([]);
     setFxMarks([]);
@@ -647,7 +715,7 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
   }, [applyRemovalStats, finishOrShuffle, flashBanner, resolveCascades, syncStats]);
 
   const attemptSwap = useCallback(async (a, b) => {
-    if (status !== "running" || busy || quizState || !areAdjacent(a, b)) return;
+    if (status !== "running" || busy || quizState || !areAdjacent(a, b) || !board[a] || !board[b]) return;
     unlockAudio();
     setSelected(null);
     setDraggingIndex(null);
@@ -822,10 +890,13 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
     flashBanner(`LEVEL ${LEVEL.number}`, LEVEL.title, "cyan", 1000);
   };
 
-  const progressPct = levelProgressPercent(LEVEL, collected, score);
+  const shieldsRemaining = countShieldHp(shields);
+  const shieldsTotal = countShieldHp(createShieldState(LEVEL));
+  const progressPct = levelProgressPercent(LEVEL, collected, score, shieldsRemaining);
+  const currentStage = getHitMatchStage(LEVEL.number);
 
   return (
-    <div className={`hm-page hm-v4 hm-motion-${motionMode} ${invalidFlash ? "hm-invalid" : ""}`}>
+    <div className={`hm-page hm-v4 hm-stage-${currentStage.number} hm-motion-${motionMode} ${invalidFlash ? "hm-invalid" : ""}`}>
       <div className="hm-bg" aria-hidden="true"><i /><i /><i /></div>
 
       <header className="hm-topbar">
@@ -837,7 +908,7 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
       <main className="hm-layout">
         <section className="hm-stage-panel">
           <div className="hm-stage-heading">
-            <div><span>POZIOM {LEVEL.number}</span><h2>{LEVEL.title.toUpperCase()}</h2><p>Łącz muzyczne symbole i buduj kaskady.</p></div>
+            <div><span>STAGE {currentStage.number} · POZIOM {LEVEL.number}</span><h2>{LEVEL.title.toUpperCase()}</h2><p>{currentStage.number === 2 ? "Nowe układy planszy i Neon Shield." : "Łącz muzyczne symbole i buduj kaskady."}</p></div>
             <div className="hm-stage-score-block">
               <Stars count={previousStars} size={20} />
               <small>TWÓJ REKORD GWIAZDEK</small>
@@ -858,6 +929,9 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
           <div className="hm-board-wrap">
             <div className={`hm-board-shell ${specialPulse ? `hm-fx-${specialPulse}` : ""}`}>
               <div className="hm-board" role="grid" aria-label="Plansza Hit Match">
+                {inactiveIndices.map((index) => (
+                  <span key={`void-${index}`} className="hm-board-void" style={{ "--hm-row": rowOf(index), "--hm-col": colOf(index) }} aria-hidden="true" />
+                ))}
                 {board.map((tile, index) => tile ? (
                   <HitMatchPiece
                     key={tile.id}
@@ -867,12 +941,19 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
                     matched={matched.includes(index)}
                     activated={activeSpecials.includes(index)}
                     dragging={draggingIndex === index}
+                    colorPhase={colorSweep?.targets?.includes(index) ? colorSweep.phase : null}
+                    colorOrder={colorSweep?.targets?.indexOf(index) ?? -1}
                     onPointerDown={handlePointerDown}
                     onPointerMove={handlePointerMove}
                     onPointerUp={handlePointerUp}
                     onClick={handlePieceClick}
                   />
                 ) : null)}
+                {Object.entries(shields).filter(([, hp]) => Number(hp) > 0).map(([rawIndex, hp]) => {
+                  const index = Number(rawIndex);
+                  const maxHp = Number(LEVEL.shields?.find((item) => Number(item.index) === index)?.hp || 1);
+                  return <span key={`shield-${index}`} className={`hm-neon-shield hp-${hp} ${maxHp > 1 ? "reinforced" : ""}`} style={{ "--hm-row":rowOf(index), "--hm-col":colOf(index) }} aria-hidden="true"><i /><b>{maxHp > 1 ? hp : ""}</b></span>;
+                })}
                 <span className="hm-board-shine" aria-hidden="true" />
               </div>
 
@@ -903,6 +984,7 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
             <div className="hm-goals-mobile">
               {Object.entries(LEVEL.goals).map(([type, target]) => <GoalChip key={type} type={type} value={collected[type] || 0} target={target} />)}
               {LEVEL.scoreGoal ? <ScoreGoalChip value={score} target={LEVEL.scoreGoal} /> : null}
+              {shieldsTotal ? <ShieldGoalChip remaining={shieldsRemaining} total={shieldsTotal} /> : null}
             </div>
           </div>
         </section>
@@ -910,10 +992,11 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
         <aside className="hm-side-panel">
           <section className="hm-panel hm-objectives">
             <div className="hm-panel-title"><Target size={17} /><span>CEL POZIOMU</span></div>
-            <p>{LEVEL.scoreGoal && Object.keys(LEVEL.goals).length ? "Zrealizuj cele i osiągnij wymagany wynik przed końcem ruchów." : LEVEL.scoreGoal ? "Zdobądź wymagany wynik przed końcem ruchów." : "Zbierz wszystkie wymagane symbole przed końcem ruchów."}</p>
+            <p>{shieldsTotal ? "Zrealizuj cele i rozbij wszystkie warstwy Neon Shield przed końcem ruchów." : LEVEL.scoreGoal && Object.keys(LEVEL.goals).length ? "Zrealizuj cele i osiągnij wymagany wynik przed końcem ruchów." : LEVEL.scoreGoal ? "Zdobądź wymagany wynik przed końcem ruchów." : "Zbierz wszystkie wymagane symbole przed końcem ruchów."}</p>
             <div className="hm-goal-list">
               {Object.entries(LEVEL.goals).map(([type, target]) => <GoalChip key={type} type={type} value={collected[type] || 0} target={target} />)}
               {LEVEL.scoreGoal ? <ScoreGoalChip value={score} target={LEVEL.scoreGoal} /> : null}
+              {shieldsTotal ? <ShieldGoalChip remaining={shieldsRemaining} total={shieldsTotal} /> : null}
             </div>
           </section>
 
@@ -927,7 +1010,7 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
           <section className="hm-panel hm-specials">
             <div className="hm-panel-title"><Zap size={17} /><span>SPECJALNE COMBO</span></div>
             <div className="hm-special-list">
-              <div><b>4</b><span><strong>Bass Line</strong><small>czyści cały rząd lub kolumnę</small></span></div>
+              <div><b>4</b><span><strong>Bass Line</strong><small>po utworzeniu włącz go do kolejnego matchu, aby wyczyścić linię</small></span></div>
               <div><b>L/T</b><span><strong>Bomba 3×3</strong><small>wybucha dokładnie wokół siebie</small></span></div>
               <div><b>5</b><span><strong>Złoty Winyl</strong><small>usuwa wszystkie symbole wybranego typu</small></span></div>
             </div>
@@ -949,9 +1032,11 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
             <div className="hm-intro-goals">
               {Object.entries(LEVEL.goals).map(([type, target]) => <div key={type}><img src={ICONS[type]} alt="" /><strong>{target}</strong><span>{TYPE_LABELS[type]}</span></div>)}
               {LEVEL.scoreGoal ? <div className="score-goal"><Trophy size={26} /><strong>{Number(LEVEL.scoreGoal).toLocaleString("pl-PL")}</strong><span>punktów</span></div> : null}
+              {shieldsTotal ? <div className="shield-goal"><span className="hm-shield-intro-icon">◆</span><strong>{shieldsTotal}</strong><span>Neon Shield</span></div> : null}
               <div className="moves"><Move size={26} /><strong>{LEVEL.moves}</strong><span>ruchów</span></div>
             </div>
             <div className="hm-intro-stars"><span><b>★</b> ukończenie</span><span><b>★★</b> {LEVEL.starScoreThresholds[2].toLocaleString("pl-PL")} pkt</span><span><b>★★★</b> {LEVEL.starScoreThresholds[3].toLocaleString("pl-PL")} pkt</span></div>
+            {shieldsTotal ? <div className="hm-stage2-intro-note"><span>◆</span><p><strong>NEON SHIELD</strong><small>Zrób match, który usuwa kafel stojący na osłonie. Każde trafienie zdejmuje jedną warstwę.</small></p></div> : null}
             <button type="button" className="hm-primary" onClick={startGame}><Zap size={19} fill="currentColor" /> ZACZYNAMY</button>
             <small>Przeciągnij kafel w dowolnym kierunku albo kliknij dwa sąsiadujące pola.</small>
           </div>
@@ -995,14 +1080,15 @@ function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate })
             <button type="button" className="hm-modal-close" onClick={() => setShowHelp(false)}>×</button>
             <span className="hm-modal-kicker">SZYBKA INSTRUKCJA</span>
             <h2>JAK <b>GRAĆ?</b></h2>
-            <p>Przeciągnij kafel w górę, dół, lewo lub prawo. Ruch jest zaliczony tylko wtedy, gdy tworzy połączenie albo odpala booster.</p>
+            <p>Przeciągnij kafel w górę, dół, lewo lub prawo. Ruch jest zaliczony tylko wtedy, gdy tworzy połączenie. Dwa boostery można połączyć bezpośrednio.</p>
             <div className="hm-how-grid">
               <div className="hm-how-card"><span className="hm-demo-icons">{[0,1,2].map((n) => <img key={n} src={microphoneImg} alt="" />)}</span><strong>3 = MATCH</strong><small>Podstawowe połączenie usuwa symbole.</small></div>
-              <div className="hm-how-card"><span className="hm-demo-icons four">{[0,1,2,3].map((n) => <img key={n} src={cassetteImg} alt="" />)}</span><strong>4 = BASS LINE</strong><small>Powstaje booster czyszczący rząd lub kolumnę.</small></div>
+              <div className="hm-how-card"><span className="hm-demo-icons four">{[0,1,2,3].map((n) => <img key={n} src={cassetteImg} alt="" />)}</span><strong>4 = BASS LINE</strong><small>Strzałki pokazują kierunek. Booster odpala się dopiero, gdy ponownie wejdzie w match.</small></div>
               <div className="hm-how-card"><span className="hm-demo-special bomb"><Zap size={30} /></span><strong>L/T = BOMBA 3×3</strong><small>Wybucha wokół swojego pola.</small></div>
               <div className="hm-how-card"><span className="hm-demo-special gold"><img src={vinylImg} alt="" /></span><strong>5 = ZŁOTY WINYL</strong><small>Zamień go z symbolem, aby usunąć wszystkie takie kafle.</small></div>
             </div>
             <div className="hm-help-power"><Music2 size={22} /><span><strong>HIT METER</strong><small>Przy 100% uruchom krótki quiz. Poprawna odpowiedź daje +3 ruchy.</small></span></div>
+            {currentStage.number >= 2 ? <div className="hm-help-power hm-help-shield"><span className="hm-shield-mini">◆</span><span><strong>NEON SHIELD</strong><small>Usuń kafel z osłoniętego pola, aby zdjąć warstwę. Wzmocnione osłony wymagają kilku trafień.</small></span></div> : null}
             <button type="button" className="hm-primary" onClick={() => setShowHelp(false)}>ROZUMIEM</button>
           </div>
         </div>
@@ -1104,9 +1190,9 @@ function HitMatchHub({ onBack }) {
         <main className="hm-hub-main">
           <section className="hm-hub-hero">
             <div className="hm-hub-hero-copy">
-              <span className="hm-hub-kicker">SERIA 01 · 11 POZIOMÓW</span>
-              <h2>NEONOWA <b>SCENA</b></h2>
-              <p>Łącz symbole, buduj kaskady i zdobywaj po trzy gwiazdki na każdym poziomie. Każda nowa gwiazdka to <strong>20 XP + 10 HITCOIN</strong>.</p>
+              <span className="hm-hub-kicker">2 STAGE · 20 POZIOMÓW</span>
+              <h2>PIERWSZA <b>TRASA</b></h2>
+              <p>Stage 1 uczy podstaw. Stage 2 zmienia układ planszy i wprowadza <strong>Neon Shield</strong>. Każda nowa gwiazdka to <strong>20 XP + 10 HITCOIN</strong>.</p>
               <button type="button" className="hm-primary hm-hub-continue" onClick={() => setActiveLevelId(nextLevel.id)}>
                 <Play size={19} fill="currentColor" /> {progress.levels?.[nextLevel.id]?.completed ? "ZAGRAJ PONOWNIE" : `GRAJ · LEVEL ${nextLevel.number}`}
               </button>
@@ -1127,32 +1213,49 @@ function HitMatchHub({ onBack }) {
               <div><span>WYBIERZ POZIOM</span><h3>PIERWSZA TRASA</h3></div>
               <div className="hm-levels-legend"><span><i className="open" /> dostępny</span><span><i className="done" /> ukończony</span><span><i className="locked" /> zablokowany</span></div>
             </div>
-            <div className="hm-level-grid">
-              {HIT_MATCH_LEVELS.map((level, index) => {
-                const entry = progress.levels?.[level.id] || {};
-                const unlocked = isUnlocked(level, index);
-                const completed = !!entry.completed;
-                const stars = Number(entry.stars || 0);
+
+            <div className="hm-stage-groups">
+              {HIT_MATCH_STAGES.map((stage) => {
+                const stageLevels = HIT_MATCH_LEVELS.filter((level) => level.number >= stage.from && level.number <= stage.to);
+                const stageUnlocked = stage.number === 1 || !!progress.levels?.[`level_${stage.from - 1}`]?.completed || stageLevels.some((level) => progress.levels?.[level.id]?.completed);
+                const stageStars = stageLevels.reduce((sum, level) => sum + Number(progress.levels?.[level.id]?.stars || 0), 0);
                 return (
-                  <button
-                    type="button"
-                    key={level.id}
-                    className={`hm-level-card ${unlocked ? "unlocked" : "locked"} ${completed ? "completed" : ""} ${level.number === 11 ? "finale" : ""}`}
-                    disabled={!unlocked}
-                    onClick={() => unlocked && setActiveLevelId(level.id)}
-                  >
-                    <div className="hm-level-number">{unlocked ? String(level.number).padStart(2, "0") : <Lock size={18} />}</div>
-                    <div className="hm-level-card-body">
-                      <span className="hm-level-subtitle">{level.subtitle}</span>
-                      <strong>{level.title}</strong>
-                      <small>{unlocked ? compactGoal(level) : `Ukończ level ${index}`}</small>
+                  <div key={stage.id} className={`hm-stage-group stage-${stage.number} ${stageUnlocked ? "open" : "locked"}`}>
+                    <div className="hm-stage-group-heading">
+                      <div><span>STAGE {String(stage.number).padStart(2,"0")}</span><h4>{stage.title}</h4><small>{stage.subtitle}</small></div>
+                      <div className="hm-stage-group-meta"><b>{stageStars} / {stageLevels.length * 3} ★</b><span>{stage.mechanic}</span></div>
                     </div>
-                    <div className="hm-level-card-side">
-                      <Stars count={stars} size={18} />
-                      {entry.bestScore ? <small>{Number(entry.bestScore).toLocaleString("pl-PL")} pkt</small> : <small>{unlocked ? `${level.moves} ruchów` : "LOCK"}</small>}
-                      {unlocked ? <ChevronRight size={19} /> : null}
+                    <div className="hm-level-grid">
+                      {stageLevels.map((level) => {
+                        const index = HIT_MATCH_LEVELS.findIndex((item) => item.id === level.id);
+                        const entry = progress.levels?.[level.id] || {};
+                        const unlocked = isUnlocked(level, index);
+                        const completed = !!entry.completed;
+                        const stars = Number(entry.stars || 0);
+                        return (
+                          <button
+                            type="button"
+                            key={level.id}
+                            className={`hm-level-card ${unlocked ? "unlocked" : "locked"} ${completed ? "completed" : ""} ${level.finale ? "finale" : ""} ${stage.number === 2 ? "stage-two" : ""}`}
+                            disabled={!unlocked}
+                            onClick={() => unlocked && setActiveLevelId(level.id)}
+                          >
+                            <div className="hm-level-number">{unlocked ? String(level.number).padStart(2, "0") : <Lock size={18} />}</div>
+                            <div className="hm-level-card-body">
+                              <span className="hm-level-subtitle">{level.subtitle}</span>
+                              <strong>{level.title}</strong>
+                              <small>{unlocked ? compactGoal(level) : `Ukończ level ${level.number - 1}`}</small>
+                            </div>
+                            <div className="hm-level-card-side">
+                              <Stars count={stars} size={18} />
+                              {entry.bestScore ? <small>{Number(entry.bestScore).toLocaleString("pl-PL")} pkt</small> : <small>{unlocked ? `${level.moves} ruchów` : "LOCK"}</small>}
+                              {unlocked ? <ChevronRight size={19} /> : null}
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>

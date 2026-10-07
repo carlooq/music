@@ -70,23 +70,28 @@ function createsImmediateTriple(board, index, type) {
   return false;
 }
 
-export function createPlayableBoard() {
-  for (let attempt = 0; attempt < 120; attempt += 1) {
+function inactiveSetOf(inactiveIndices = []) {
+  return inactiveIndices instanceof Set ? inactiveIndices : new Set(inactiveIndices || []);
+}
+
+export function createPlayableBoard(inactiveIndices = []) {
+  const inactive = inactiveSetOf(inactiveIndices);
+  for (let attempt = 0; attempt < 160; attempt += 1) {
     const board = Array(HIT_MATCH_ROWS * HIT_MATCH_COLS).fill(null);
     for (let i = 0; i < board.length; i += 1) {
+      if (inactive.has(i)) continue;
       const disallowed = [];
       for (const type of HIT_MATCH_TYPES) {
         if (createsImmediateTriple(board, i, type)) disallowed.push(type);
       }
       board[i] = makeHitMatchTile(randomType(disallowed));
     }
-    if (findMatches(board).length === 0 && hasPossibleMove(board)) return board;
+    if (findMatches(board).length === 0 && hasPossibleMove(board, inactive)) return board;
   }
 
-  // Awaryjnie zwracamy poprawną planszę bez startowych matchy;
-  // view może ją przetasować, jeżeli akurat trafi się układ bez ruchów.
   const board = Array(HIT_MATCH_ROWS * HIT_MATCH_COLS).fill(null);
   for (let i = 0; i < board.length; i += 1) {
+    if (inactive.has(i)) continue;
     const disallowed = [];
     for (const type of HIT_MATCH_TYPES) {
       if (createsImmediateTriple(board, i, type)) disallowed.push(type);
@@ -152,18 +157,24 @@ export function uniqueMatchedIndices(groups) {
   return [...new Set(groups.flatMap((group) => group.indices))];
 }
 
-export function hasPossibleMove(board) {
+export function hasPossibleMove(board, inactiveIndices = []) {
+  const inactive = inactiveSetOf(inactiveIndices);
   for (let row = 0; row < HIT_MATCH_ROWS; row += 1) {
     for (let col = 0; col < HIT_MATCH_COLS; col += 1) {
       const a = indexOf(row, col);
       const tile = board[a];
-      if (!tile) continue;
-      if (tile.special) return true;
+      if (!tile || inactive.has(a)) continue;
       const neighbours = [];
       if (col + 1 < HIT_MATCH_COLS) neighbours.push(indexOf(row, col + 1));
       if (row + 1 < HIT_MATCH_ROWS) neighbours.push(indexOf(row + 1, col));
       for (const b of neighbours) {
-        if (board[b]?.special) return true;
+        if (inactive.has(b) || !board[b]) continue;
+        const other = board[b];
+        // Złoty Winyl zawsze może zostać zamieniony z sąsiadem. Dwa specjale
+        // również są legalnym ruchem. Pojedynczy line/bomb musi wejść w match.
+        if (tile.special === "color" || other?.special === "color") return true;
+        if (tile.special === "bomb" || other?.special === "bomb") return true;
+        if (tile.special && other?.special) return true;
         const swapped = swapBoardCells(board, a, b);
         if (findMatches(swapped).length > 0) return true;
       }
@@ -298,12 +309,18 @@ export function resolveSpecialSwap(board, a, b) {
   const specialB = tileB?.special || null;
   const affected = new Set();
 
-  // Specjal + zwykły: booster odpala się zawsze dokładnie w miejscu,
-  // do którego został przesunięty. Dzięki temu gracz kontroluje efekt.
-  if (specialA && !specialB) return expandSpecialEffects(board, [a]);
-  if (specialB && !specialA) return expandSpecialEffects(board, [b]);
+  // Bass Line z match-4 nie odpala się już od zwykłej zamiany — musi ponownie
+  // wejść w match. Bomba zachowuje dotychczasowe zachowanie, a dwa specjale
+  // nadal można łączyć bezpośrednio.
+  if (specialA && !specialB) {
+    if (specialA === "row" || specialA === "col") return null;
+    return expandSpecialEffects(board, [a]);
+  }
+  if (specialB && !specialA) {
+    if (specialB === "row" || specialB === "col") return null;
+    return expandSpecialEffects(board, [b]);
+  }
 
-  // Dwa boostery dają mocniejsze, jednoznaczne kombinacje jak w klasycznym match-3.
   if (specialA === "bomb" && specialB === "bomb") {
     addArea(affected, rowOf(b) - 2, rowOf(b) + 2, colOf(b) - 2, colOf(b) + 2);
   } else if (specialA === "bomb" || specialB === "bomb") {
@@ -323,7 +340,6 @@ export function resolveSpecialSwap(board, a, b) {
       addArea(affected, rowOf(center) - 1, rowOf(center) + 1, colOf(center) - 1, colOf(center) + 1);
     }
   } else {
-    // Dwa boostery liniowe: czyścimy ich linie i dokładamy krzyż w miejscu zamiany.
     [a, b].forEach((index) => {
       const tile = board[index];
       if (tile?.special === "row") {
@@ -364,29 +380,37 @@ export function removeIndices(board, indices, specialCreation = null) {
   return next;
 }
 
-export function collapseAndRefill(board) {
+export function collapseAndRefill(board, inactiveIndices = []) {
+  const inactive = inactiveSetOf(inactiveIndices);
   const next = Array(HIT_MATCH_ROWS * HIT_MATCH_COLS).fill(null);
+
   for (let col = 0; col < HIT_MATCH_COLS; col += 1) {
-    const existing = [];
-    for (let row = HIT_MATCH_ROWS - 1; row >= 0; row -= 1) {
-      const tile = board[indexOf(row, col)];
-      if (tile) existing.push({ ...tile, fresh: false, spawnOrder: 0, freshSpecial: false });
-    }
+    let row = HIT_MATCH_ROWS - 1;
+    while (row >= 0) {
+      while (row >= 0 && inactive.has(indexOf(row, col))) row -= 1;
+      if (row < 0) break;
+      const segmentBottom = row;
+      while (row >= 0 && !inactive.has(indexOf(row, col))) row -= 1;
+      const segmentTop = row + 1;
 
-    let targetRow = HIT_MATCH_ROWS - 1;
-    existing.forEach((tile) => {
-      next[indexOf(targetRow, col)] = tile;
-      targetRow -= 1;
-    });
+      const existing = [];
+      for (let sourceRow = segmentBottom; sourceRow >= segmentTop; sourceRow -= 1) {
+        const tile = board[indexOf(sourceRow, col)];
+        if (tile) existing.push({ ...tile, fresh: false, spawnOrder: 0, freshSpecial: false });
+      }
 
-    let spawnOrder = 0;
-    while (targetRow >= 0) {
-      next[indexOf(targetRow, col)] = makeHitMatchTile(randomType(), {
-        fresh: true,
-        spawnOrder,
+      let targetRow = segmentBottom;
+      existing.forEach((tile) => {
+        next[indexOf(targetRow, col)] = tile;
+        targetRow -= 1;
       });
-      targetRow -= 1;
-      spawnOrder += 1;
+
+      let spawnOrder = 0;
+      while (targetRow >= segmentTop) {
+        next[indexOf(targetRow, col)] = makeHitMatchTile(randomType(), { fresh: true, spawnOrder });
+        targetRow -= 1;
+        spawnOrder += 1;
+      }
     }
   }
   return next;
@@ -402,15 +426,23 @@ export function countRemovedByType(boardBefore, indices) {
   return counts;
 }
 
-export function shufflePlayable(board) {
-  const tiles = board.filter(Boolean).map((tile) => ({ ...tile, fresh: false, spawnOrder: 0, freshSpecial: false, special: null, type: tile.type === "wild" ? randomType() : tile.type }));
-  for (let attempt = 0; attempt < 200; attempt += 1) {
+export function shufflePlayable(board, inactiveIndices = []) {
+  const inactive = inactiveSetOf(inactiveIndices);
+  const positions = Array.from({ length: HIT_MATCH_ROWS * HIT_MATCH_COLS }, (_, index) => index).filter((index) => !inactive.has(index));
+  const sourceTiles = positions.map((index) => board[index]).filter(Boolean);
+  while (sourceTiles.length < positions.length) sourceTiles.push(makeHitMatchTile(randomType()));
+  const tiles = sourceTiles.map((tile) => ({ ...tile, fresh:false, spawnOrder:0, freshSpecial:false, special:null, type:tile.type === "wild" ? randomType() : tile.type }));
+
+  for (let attempt = 0; attempt < 240; attempt += 1) {
     const pool = tiles.slice();
     for (let i = pool.length - 1; i > 0; i -= 1) {
       const j = Math.floor(Math.random() * (i + 1));
       [pool[i], pool[j]] = [pool[j], pool[i]];
     }
-    if (findMatches(pool).length === 0 && hasPossibleMove(pool)) return pool;
+    const candidate = Array(HIT_MATCH_ROWS * HIT_MATCH_COLS).fill(null);
+    positions.forEach((position, index) => { candidate[position] = pool[index]; });
+    if (findMatches(candidate).length === 0 && hasPossibleMove(candidate, inactive)) return candidate;
   }
-  return createPlayableBoard();
+  return createPlayableBoard(inactive);
 }
+

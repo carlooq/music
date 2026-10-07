@@ -1301,3 +1301,193 @@
   .hm-rank-score{min-width:86px;}
   .hm-rank-score strong{font-size:14px;}
 }
+
+/* =========================================================
+   HIT MATCH v6 — Stage 2, Neon Shield, czytelniejsze specjale
+   ========================================================= */
+
+/* Match-4: proste migające strzałki kierunku. */
+.hm-special-arrows{
+  position:absolute;
+  inset:0;
+  z-index:7;
+  pointer-events:none;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 5px;
+  color:#fff;
+  font-family:'Space Mono',monospace;
+  font-size:clamp(16px,2.2vw,25px);
+  font-weight:900;
+  line-height:1;
+  text-shadow:0 0 7px #fff,0 0 13px var(--tile),0 0 22px var(--tile);
+}
+.hm-special-arrows.vertical{
+  flex-direction:column;
+  justify-content:space-between;
+  padding:5px 0;
+}
+.hm-special-arrows b{display:block;animation:hmArrowBlink .74s ease-in-out infinite alternate;}
+.hm-special-arrows b:nth-child(2){animation-delay:.22s;}
+
+/* Stage 2: prawdziwe wycięte pola. */
+.hm-board-void{
+  position:absolute;
+  left:0;top:0;
+  width:12.5%;height:12.5%;
+  transform:translate3d(calc(var(--hm-col) * 100%),calc(var(--hm-row) * 100%),0);
+  z-index:3;
+  pointer-events:none;
+  background:
+    linear-gradient(145deg,rgba(2,3,12,.98),rgba(7,8,21,.98)),
+    repeating-linear-gradient(135deg,rgba(255,255,255,.025) 0 4px,transparent 4px 8px);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.035),inset 0 0 18px rgba(0,0,0,.75);
+}
+.hm-stage-2 .hm-board-shell{
+  border-color:rgba(255,86,209,.2);
+  box-shadow:0 28px 80px rgba(0,0,0,.46),0 0 44px rgba(255,67,203,.07),inset 0 0 0 1px rgba(255,255,255,.025);
+}
+
+/* Neon Shield siedzi nad polem, ale nie przechwytuje dotyku. */
+.hm-neon-shield{
+  position:absolute;
+  left:0;top:0;
+  width:12.5%;height:12.5%;
+  transform:translate3d(calc(var(--hm-col) * 100%),calc(var(--hm-row) * 100%),0);
+  z-index:11;
+  pointer-events:none;
+  padding:5px;
+}
+.hm-neon-shield::before{
+  content:"";
+  position:absolute;
+  inset:7px;
+  border:2px solid rgba(255,81,211,.72);
+  border-radius:15px;
+  box-shadow:0 0 8px rgba(255,73,207,.5),inset 0 0 12px rgba(255,73,207,.14);
+  animation:hmShieldPulse 1.15s ease-in-out infinite alternate;
+}
+.hm-neon-shield i{
+  position:absolute;
+  left:50%;top:50%;
+  width:44%;height:44%;
+  transform:translate(-50%,-50%) rotate(45deg);
+  border:1px solid rgba(119,233,255,.74);
+  border-radius:5px;
+  box-shadow:0 0 10px rgba(92,226,255,.44);
+  opacity:.75;
+}
+.hm-neon-shield b{
+  position:absolute;
+  right:8px;top:7px;
+  min-width:20px;height:20px;
+  padding:0 5px;
+  border-radius:999px;
+  display:grid;place-items:center;
+  color:#17051b;
+  background:linear-gradient(135deg,#fff0a9,#ff72cf);
+  box-shadow:0 0 10px rgba(255,105,208,.55);
+  font-family:'Space Mono',monospace;
+  font-size:9px;
+}
+.hm-neon-shield:not(.reinforced) b{display:none;}
+.hm-shield-mini,.hm-shield-intro-icon{color:#ff76d4;text-shadow:0 0 10px rgba(255,91,210,.7);}
+.hm-shield-goal{border-color:rgba(255,82,205,.18)!important;background:linear-gradient(135deg,rgba(255,74,201,.08),rgba(75,217,255,.04))!important;}
+.hm-shield-goal .hm-shield-mini{width:28px;height:28px;display:grid;place-items:center;font-size:20px;}
+
+/* Złoty Winyl: najpierw zaznacza wszystkie cele, potem usuwa je falą. */
+.hm-v4 .hm-piece.is-color-charged{
+  z-index:22;
+  animation:hmColorCharge .48s ease-in-out var(--hm-color-delay) both;
+}
+.hm-v4 .hm-piece.is-color-charged::before{
+  display:block;
+  border-color:rgba(255,226,91,.95);
+  box-shadow:0 0 0 2px rgba(255,206,69,.18),0 0 22px rgba(255,202,54,.55);
+}
+.hm-v4 .hm-piece.is-color-vanishing{
+  z-index:24;
+  animation:hmColorVanish .52s cubic-bezier(.2,.78,.18,1) var(--hm-color-delay) both;
+  pointer-events:none;
+}
+.hm-v4 .hm-piece.is-color-vanishing::after{
+  display:block;
+  content:"";
+  position:absolute;
+  inset:18%;
+  border-radius:50%;
+  background:radial-gradient(circle,#fff8c7 0 12%,#ffd95b 13% 28%,rgba(255,82,205,.7) 29% 45%,transparent 68%);
+  animation:hmColorSpark .52s ease-out var(--hm-color-delay) both;
+}
+
+/* HUB podzielony na stage. */
+.hm-stage-groups{display:grid;gap:26px;}
+.hm-stage-group{
+  padding:18px;
+  border-radius:24px;
+  background:linear-gradient(145deg,rgba(15,19,42,.76),rgba(7,8,23,.86));
+  border:1px solid rgba(88,220,255,.1);
+}
+.hm-stage-group.stage-2{
+  background:linear-gradient(145deg,rgba(37,12,47,.76),rgba(8,9,28,.9));
+  border-color:rgba(255,88,211,.16);
+  box-shadow:0 18px 50px rgba(0,0,0,.22),inset 0 0 36px rgba(255,75,205,.025);
+}
+.hm-stage-group.locked{opacity:.64;}
+.hm-stage-group-heading{display:flex;justify-content:space-between;gap:18px;align-items:flex-end;margin:0 0 15px;padding:0 2px;}
+.hm-stage-group-heading>div:first-child>span{color:#5ce8ff;font-family:'Space Mono',monospace;font-size:8px;font-weight:900;letter-spacing:.15em;}
+.hm-stage-group.stage-2 .hm-stage-group-heading>div:first-child>span{color:#ff7bd7;}
+.hm-stage-group-heading h4{margin:3px 0 0;color:#f8f5ff;font-family:'Bebas Neue',sans-serif;font-size:30px;font-weight:400;letter-spacing:.03em;}
+.hm-stage-group-heading small{display:block;margin-top:2px;color:#81798c;font-size:10px;}
+.hm-stage-group-meta{text-align:right;display:flex;flex-direction:column;gap:3px;}
+.hm-stage-group-meta b{color:#ffd661;font-family:'Space Mono',monospace;font-size:10px;}
+.hm-stage-group-meta span{color:#8e8798;font-size:9px;}
+.hm-level-card.stage-two{border-color:rgba(255,88,211,.11);}
+.hm-level-card.stage-two.unlocked:hover{border-color:rgba(255,88,211,.3);box-shadow:0 13px 30px rgba(0,0,0,.26),0 0 24px rgba(255,72,204,.05);}
+
+@keyframes hmArrowBlink{
+  0%{opacity:.35;transform:scale(.84)}
+  100%{opacity:1;transform:scale(1.14)}
+}
+@keyframes hmShieldPulse{
+  from{opacity:.56;filter:brightness(.9)}
+  to{opacity:1;filter:brightness(1.2)}
+}
+@keyframes hmColorCharge{
+  0%{transform:scale(1);filter:brightness(1)}
+  45%{transform:scale(1.08);filter:brightness(1.5)}
+  100%{transform:scale(1.02);filter:brightness(1.18)}
+}
+@keyframes hmColorVanish{
+  0%{opacity:1;transform:scale(1) rotate(0deg);filter:brightness(1.35)}
+  36%{opacity:1;transform:scale(1.13) rotate(-4deg);filter:brightness(1.9)}
+  100%{opacity:0;transform:scale(.08) rotate(38deg);filter:brightness(2.2)}
+}
+@keyframes hmColorSpark{
+  0%{opacity:0;transform:scale(.25)}
+  30%{opacity:1;transform:scale(.8)}
+  100%{opacity:0;transform:scale(2.2)}
+}
+
+@media (max-width:700px){
+  .hm-stage-group{padding:12px 9px;border-radius:18px;}
+  .hm-stage-group-heading{align-items:flex-start;margin-bottom:11px;}
+  .hm-stage-group-heading h4{font-size:24px;}
+  .hm-stage-group-meta span{max-width:120px;}
+  .hm-neon-shield{padding:2px;}
+  .hm-neon-shield::before{inset:3px;border-radius:9px;border-width:1.5px;}
+  .hm-neon-shield b{right:3px;top:2px;min-width:16px;height:16px;font-size:7px;}
+  .hm-special-arrows{padding:0 2px;font-size:17px;}
+  .hm-special-arrows.vertical{padding:2px 0;}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .hm-special-arrows b,.hm-neon-shield::before,.hm-v4 .hm-piece.is-color-charged,.hm-v4 .hm-piece.is-color-vanishing{animation:none!important;}
+}
+.hm-stage2-intro-note{margin:-4px 0 15px;padding:11px 12px;border-radius:13px;display:flex;align-items:center;gap:10px;text-align:left;background:linear-gradient(120deg,rgba(255,77,207,.09),rgba(73,220,255,.05));border:1px solid rgba(255,91,211,.17);}
+.hm-stage2-intro-note>span{width:34px;height:34px;display:grid;place-items:center;flex:0 0 auto;color:#ff78d7;font-size:24px;text-shadow:0 0 13px rgba(255,77,207,.65);}
+.hm-stage2-intro-note p{margin:0!important;display:flex;flex-direction:column;gap:2px;}
+.hm-stage2-intro-note strong{color:#ff9be2;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.1em;}
+.hm-stage2-intro-note small{color:#9b93a7;font-size:9px;line-height:1.45;}
+.hm-help-shield{margin-top:8px;border-color:rgba(255,83,207,.16)!important;background:rgba(255,69,198,.045)!important;}
