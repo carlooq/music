@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, RotateCcw, Sparkles, Star, Trophy, Zap, Music2, Move, Target, Play, SkipForward, BarChart3, Lock, ChevronRight, Crown, Gamepad2 } from "lucide-react";
-import { playCorrectSound, playWrongSound, playVictorySound, unlockAudio, startHitMatchMusic, stopHitMatchMusic, setHitMatchMusicIntensity, playHitMatchComboSound, playHitMatchStarSound, playHitMatchRewardSound } from "../sounds.js";
+import { playCorrectSound, playWrongSound, playVictorySound, unlockAudio, startHitMatchMusic, stopHitMatchMusic, setHitMatchMusicIntensity, playHitMatchComboSound, playHitMatchStarSound, playHitMatchRewardSound, playHitMatchMeterReadySound } from "../sounds.js";
 import { auth } from "../firebase-config.js";
 import { fetchAllSongsFromDb } from "../songsDb.js";
 import { REAL_SONGS } from "../songs.js";
@@ -35,6 +35,7 @@ import {
   HIT_MATCH_STAGES,
   HIT_MATCH_TOTAL_STARS,
   countShieldHp,
+  countShieldCells,
   createShieldState,
   getHitMatchStage,
   isHitMatchLevelCompleted,
@@ -87,11 +88,12 @@ function compactGoal(level) {
     ? [`Po ${entries[0][1]} każdego symbolu`]
     : entries.map(([type, target]) => `${TYPE_LABELS[type] || type} ${target}`);
   if (level?.scoreGoal) bits.push(`${Number(level.scoreGoal).toLocaleString("pl-PL")} pkt`);
-  if ((level?.shields || []).length) bits.push(`Neon Shield ${countShieldHp(createShieldState(level))}`);
+  if ((level?.shields || []).length) bits.push(`Neon Shield ${(level.shields || []).length}`);
   return bits.join(" · ") || "Graj na wynik";
 }
 
 const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+const settleBoardVisuals = (board) => (board || []).map((tile) => tile ? ({ ...tile, fresh: false, freshSpecial: false, spawnOrder: 0 }) : tile);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const shuffle = (arr) => {
   const next = arr.slice();
@@ -158,7 +160,7 @@ function buildSpecialFx(board, indices = []) {
   return fx;
 }
 
-function HitMatchPiece({ tile, index, selected, matched, activated, dragging, colorPhase, colorOrder = -1, onPointerDown, onPointerMove, onPointerUp, onClick }) {
+function HitMatchPiece({ tile, index, selected, matched, activated, dragging, colorPhase, colorOrder = -1, swapOffset = null, onPointerDown, onPointerMove, onPointerUp, onClick }) {
   const row = rowOf(index);
   const col = colOf(index);
   const image = ICONS[tile.type] || ICONS.vinyl;
@@ -178,10 +180,11 @@ function HitMatchPiece({ tile, index, selected, matched, activated, dragging, co
 
   return (
     <div
-      className="hm-piece-slot"
+      className={`hm-piece-slot ${swapOffset ? "is-swap-animating" : ""}`}
       style={{
         "--hm-row": row,
         "--hm-col": col,
+        transform: `translate(${col * 100 + (swapOffset?.x || 0)}%, ${row * 100 + (swapOffset?.y || 0)}%)`,
         "--hm-spawn-delay": `${Math.min(120, (tile.spawnOrder || 0) * 18)}ms`,
         "--hm-color-delay": `${Math.max(0, colorOrder) * 16}ms`,
       }}
@@ -333,7 +336,9 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   const [endgame, setEndgame] = useState(null);
   const [bonusScore, setBonusScore] = useState(0);
   const [motionMode, setMotionMode] = useState("idle");
+  const [visualSwap, setVisualSwap] = useState(null);
   const [comboNotice, setComboNotice] = useState(null);
+  const [meterReadyNotice, setMeterReadyNotice] = useState(null);
   const [quizState, setQuizState] = useState(null);
   const [resultStars, setResultStars] = useState(0);
   const [previousStars, setPreviousStars] = useState(() => Number(progressEntry?.stars || 0));
@@ -351,6 +356,8 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   const endingRef = useRef(false);
   const comboTimerRef = useRef(null);
   const comboAudioTimerRef = useRef(null);
+  const meterReadyTimerRef = useRef(null);
+  const previousHitMeterRef = useRef(0);
   const quizPoolRef = useRef(null);
   const quizIframeRef = useRef(null);
   const shieldsRef = useRef(initialShieldState());
@@ -397,8 +404,27 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     runTokenRef.current += 1;
     if (comboTimerRef.current) window.clearTimeout(comboTimerRef.current);
     if (comboAudioTimerRef.current) window.clearTimeout(comboAudioTimerRef.current);
+    if (meterReadyTimerRef.current) window.clearTimeout(meterReadyTimerRef.current);
     stopHitMatchMusic();
   }, []);
+
+  // HIT METER ma własny, jednoznaczny feedback. Komunikat pojawia się dopiero
+  // po przekroczeniu 100%, dzięki czemu nie spamuje po każdym rerenderze.
+  useEffect(() => {
+    const previous = previousHitMeterRef.current;
+    previousHitMeterRef.current = hitMeter;
+    if (previous < 100 && hitMeter >= 100 && status === "running" && !quizState && !endgame) {
+      playHitMatchMeterReadySound();
+      if (meterReadyTimerRef.current) window.clearTimeout(meterReadyTimerRef.current);
+      const id = `${Date.now()}_meter`;
+      // Krótkie opóźnienie pozwala dokończyć komunikat COMBO bez nakładania napisów.
+      meterReadyTimerRef.current = window.setTimeout(() => {
+        setMeterReadyNotice({ id });
+        meterReadyTimerRef.current = window.setTimeout(() => setMeterReadyNotice(null), 1450);
+      }, 520);
+    }
+    if (hitMeter < 100) setMeterReadyNotice(null);
+  }, [hitMeter, status, Boolean(quizState), Boolean(endgame)]);
 
   // Zaczynamy dociągać pulę dopiero pod koniec ładowania paska. Dzięki temu
   // wejście do Hit Match nie generuje tysięcy odczytów, jeśli gracz szybko wyjdzie.
@@ -482,7 +508,11 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     setEndgame(null);
     setBonusScore(0);
     setMotionMode("idle");
+    setVisualSwap(null);
     setComboNotice(null);
+    setMeterReadyNotice(null);
+    previousHitMeterRef.current = 0;
+    if (meterReadyTimerRef.current) window.clearTimeout(meterReadyTimerRef.current);
     setQuizState(null);
     setResultStars(0);
     setRewardState(null);
@@ -689,15 +719,17 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     setBoard(dropped);
     await wait(300);
     if (runTokenRef.current !== token) return;
+    const settled = settleBoardVisuals(dropped);
     setMotionMode("idle");
+    setBoard(settled);
 
-    const nextGroups = findMatches(dropped);
+    const nextGroups = findMatches(settled);
     if (nextGroups.length) {
       await wait(75);
-      await resolve(dropped, nextGroups, token, cascadeLevel + 1, null);
+      await resolve(settled, nextGroups, token, cascadeLevel + 1, null);
       return;
     }
-    await finishOrShuffle(dropped, token);
+    await finishOrShuffle(settled, token);
   }, [applyRemovalStats, finishOrShuffle, showCombo]);
 
   const resolveColorMove = useCallback(async (swapped, a, b, token) => {
@@ -735,14 +767,16 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     setBoard(dropped);
     await wait(310);
     if (runTokenRef.current !== token) return;
+    const settled = settleBoardVisuals(dropped);
     setMotionMode("idle");
+    setBoard(settled);
 
-    const groups = findMatches(dropped);
+    const groups = findMatches(settled);
     if (groups.length) {
-      await resolveCascades(dropped, groups, token, 2, null);
+      await resolveCascades(settled, groups, token, 2, null);
       return;
     }
-    await finishOrShuffle(dropped, token);
+    await finishOrShuffle(settled, token);
   }, [applyRemovalStats, finishOrShuffle, flashBanner, resolveCascades]);
 
   const resolveSpecialMove = useCallback(async (swapped, a, b, affected, token) => {
@@ -774,14 +808,16 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     setBoard(dropped);
     await wait(310);
     if (runTokenRef.current !== token) return;
+    const settled = settleBoardVisuals(dropped);
     setMotionMode("idle");
+    setBoard(settled);
 
-    const groups = findMatches(dropped);
+    const groups = findMatches(settled);
     if (groups.length) {
-      await resolveCascades(dropped, groups, token, 2, null);
+      await resolveCascades(settled, groups, token, 2, null);
       return;
     }
-    await finishOrShuffle(dropped, token);
+    await finishOrShuffle(settled, token);
   }, [applyRemovalStats, finishOrShuffle, flashBanner, resolveCascades, syncStats]);
 
   const attemptSwap = useCallback(async (a, b) => {
@@ -793,12 +829,50 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     const token = runTokenRef.current;
     const original = board;
     const swapped = swapBoardCells(original, a, b);
+
+    // Najpierw liczymy wynik ruchu w pamięci. DOM/React nadal pokazuje ORYGINALNĄ
+    // planszę — animowane są wyłącznie dwa wskazane sloty. To usuwa artefakt,
+    // w którym pionowy swap reorganizował po drodze inne kafle w liście Reacta.
+    const colorClear = resolveColorSwap(swapped, a, b);
+    const specialClear = colorClear ? null : resolveSpecialSwap(swapped, a, b);
+    const groups = colorClear || specialClear?.length ? [] : findMatches(swapped);
+    const validMove = Boolean(colorClear || specialClear?.length || groups.length);
+
+    const deltaCol = colOf(b) - colOf(a);
+    const deltaRow = rowOf(b) - rowOf(a);
     setMotionMode("swap");
-    setBoard(swapped);
-    await wait(175);
+    setVisualSwap({
+      a, b,
+      aOffset: { x: deltaCol * 100, y: deltaRow * 100 },
+      bOffset: { x: -deltaCol * 100, y: -deltaRow * 100 },
+    });
+    await wait(185);
     if (runTokenRef.current !== token) return;
 
-    const colorClear = resolveColorSwap(swapped, a, b);
+    if (!validMove) {
+      playWrongSound();
+      setInvalidFlash(true);
+      // Cofnięcie też dotyczy tylko dwóch kafli — dane planszy nie zostały ruszone.
+      // Trzymamy klasę animacji do końca powrotu, a dopiero potem ją zdejmujemy.
+      setVisualSwap({ a, b, aOffset: { x: 0, y: 0 }, bOffset: { x: 0, y: 0 } });
+      await wait(185);
+      if (runTokenRef.current !== token) return;
+      setInvalidFlash(false);
+      setVisualSwap(null);
+      setMotionMode("idle");
+      setBusy(false);
+      return;
+    }
+
+    // Commit bez transition: kafel jest już wizualnie w punkcie docelowym, więc
+    // podmiana danych nie może wywołać dodatkowego ruchu sąsiednich elementów.
+    setMotionMode("commit");
+    setBoard(swapped);
+    setVisualSwap(null);
+    await wait(24);
+    if (runTokenRef.current !== token) return;
+    setMotionMode("idle");
+
     if (colorClear) {
       statsRef.current.moves -= 1;
       syncStats();
@@ -806,23 +880,10 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       return;
     }
 
-    const specialClear = resolveSpecialSwap(swapped, a, b);
     if (specialClear?.length) {
       statsRef.current.moves -= 1;
       syncStats();
       await resolveSpecialMove(swapped, a, b, specialClear, token);
-      return;
-    }
-
-    const groups = findMatches(swapped);
-    if (!groups.length) {
-      playWrongSound();
-      setInvalidFlash(true);
-      setBoard(original);
-      await wait(175);
-      setInvalidFlash(false);
-      setMotionMode("idle");
-      setBusy(false);
       return;
     }
 
@@ -983,9 +1044,11 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     flashBanner(`LEVEL ${LEVEL.number}`, LEVEL.title, "cyan", 1000);
   };
 
-  const shieldsRemaining = countShieldHp(shields);
-  const shieldsTotal = countShieldHp(createShieldState(LEVEL));
-  const progressPct = levelProgressPercent(LEVEL, collected, score, shieldsRemaining);
+  const shieldsRemainingHp = countShieldHp(shields);
+  const shieldsTotalHp = countShieldHp(createShieldState(LEVEL));
+  const shieldsRemaining = countShieldCells(shields);
+  const shieldsTotal = (LEVEL.shields || []).length;
+  const progressPct = levelProgressPercent(LEVEL, collected, score, shieldsRemainingHp);
   const currentStage = getHitMatchStage(LEVEL.number);
 
   return (
@@ -1023,7 +1086,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
             <div className={`hm-board-shell ${specialPulse ? `hm-fx-${specialPulse}` : ""}`}>
               <div className="hm-board" role="grid" aria-label="Plansza Hit Match">
                 {inactiveIndices.map((index) => (
-                  <span key={`void-${index}`} className="hm-board-void" style={{ "--hm-row": rowOf(index), "--hm-col": colOf(index) }} aria-hidden="true" />
+                  <span key={`void-${index}`} className="hm-board-void" style={{ left: `${colOf(index) * 12.5}%`, top: `${rowOf(index) * 12.5}%`, transform: "none" }} aria-hidden="true" />
                 ))}
                 {board.map((tile, index) => tile ? (
                   <HitMatchPiece
@@ -1036,6 +1099,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
                     dragging={draggingIndex === index}
                     colorPhase={colorSweep?.targets?.includes(index) ? colorSweep.phase : null}
                     colorOrder={colorSweep?.targets?.indexOf(index) ?? -1}
+                    swapOffset={visualSwap?.a === index ? visualSwap.aOffset : visualSwap?.b === index ? visualSwap.bOffset : null}
                     onPointerDown={handlePointerDown}
                     onPointerMove={handlePointerMove}
                     onPointerUp={handlePointerUp}
@@ -1045,7 +1109,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
                 {Object.entries(shields).filter(([, hp]) => Number(hp) > 0).map(([rawIndex, hp]) => {
                   const index = Number(rawIndex);
                   const maxHp = Number(LEVEL.shields?.find((item) => Number(item.index) === index)?.hp || 1);
-                  return <span key={`shield-${index}`} className={`hm-neon-shield hp-${hp} ${maxHp > 1 ? "reinforced" : ""}`} style={{ "--hm-row":rowOf(index), "--hm-col":colOf(index) }} aria-hidden="true"><i /><b>{maxHp > 1 ? hp : ""}</b></span>;
+                  return <span key={`shield-${index}`} className={`hm-neon-shield hp-${hp} ${maxHp > 1 ? "reinforced" : ""}`} style={{ left:`${colOf(index) * 12.5}%`, top:`${rowOf(index) * 12.5}%`, transform:"none" }} aria-hidden="true"><i /><b>{maxHp > 1 ? hp : ""}</b></span>;
                 })}
                 <span className="hm-board-shine" aria-hidden="true" />
               </div>
@@ -1070,6 +1134,12 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
               {comboNotice && status === "running" && !endgame ? (
                 <div key={comboNotice.id} className={`hm-combo-badge combo-${Math.min(comboNotice.level, 5)}`}>
                   COMBO <b>x{comboNotice.level}</b><small>{comboNotice.level >= 4 ? "MEGA KASKADA" : comboNotice.level === 3 ? "ŚWIETNA SERIA" : "KASKADA"}</small>
+                </div>
+              ) : null}
+
+              {meterReadyNotice && status === "running" && !endgame && !quizState ? (
+                <div key={meterReadyNotice.id} className="hm-meter-ready-badge">
+                  HIT METER <b>GOTOWY!</b><small>ODPAL QUIZ · +3 RUCHY</small>
                 </div>
               ) : null}
             </div>
@@ -1098,6 +1168,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
             <div className="hm-star-rule"><Star size={18} fill="currentColor" /><span><strong>Ukończ poziom</strong><small>+20 XP · +10 HITCOIN</small></span></div>
             <div className="hm-star-rule"><span className="two-stars">★★</span><span><strong>{LEVEL.starScoreThresholds[2].toLocaleString("pl-PL")} pkt</strong><small>kolejna gwiazdka i nagroda</small></span></div>
             <div className="hm-star-rule"><span className="three-stars">★★★</span><span><strong>{LEVEL.starScoreThresholds[3].toLocaleString("pl-PL")} pkt</strong><small>pełny komplet</small></span></div>
+            <div className="hm-star-rule hm-encore-rule"><span className="encore-mark">↯</span><span><strong>ENCORE +{Number(LEVEL.endgameMoveBonus || 0).toLocaleString("pl-PL")}</strong><small>za każdy niewykorzystany ruch</small></span></div>
           </section>
 
           <section className="hm-panel hm-specials">
