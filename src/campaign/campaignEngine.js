@@ -73,7 +73,7 @@ export function applyStageResult(campaign, progress, chapterId, stageId, rawResu
   const nextChapter = {
     ...prevChapter,
     stages: { ...prevChapter.stages, [stageId]: { stars: newStarsTotal, best, cleared, ...(perfect ? { perfect: true } : {}) } },
-    perfectShow: !!prevChapter.perfectShow || (stage.isFinale && perfect),
+    perfectShow: !!prevChapter.perfectShow || (!!stage.isFinale && perfect),
   };
 
   const next = { ...base, chapters: { ...base.chapters, [chapterId]: nextChapter } };
