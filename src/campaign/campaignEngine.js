@@ -288,7 +288,7 @@ export function buildRunPlan(stage) {
 
 // Wynik jednej części z surowych danych rozgrywki.
 //  timeline:  { correct }                 quiz: { correct }
-//  yearGuess: { guesses:[{guess,actual}] } rush: { correct }
+//  yearGuess: { guesses:[{guess,actual}] } rush: { bestCombo }
 export function scorePart(part, raw) {
   if (part.type === "yearGuess") {
     const g = raw.guesses || [];
@@ -296,6 +296,12 @@ export function scorePart(part, raw) {
     const maxDiff = part.maxYearDiff ?? 2;
     const hits = g.filter((x) => x.guess != null && Math.abs(x.guess - x.actual) <= maxDiff).length;
     return { type: "yearGuess", score, hits, total: part.rounds };
+  }
+  if (part.type === "rush") {
+    // W kampanii wynik Neonowego Sprintu = najwyższe combo, nie suma trafień.
+    const bestCombo = Math.max(0, Math.floor(Number(raw.bestCombo) || 0));
+    const score = Math.min(bestCombo, part.comboGoal ?? bestCombo);
+    return { type: "rush", score, hits: score, total: part.comboGoal ?? null };
   }
   const correct = Math.max(0, Math.floor(Number(raw.correct) || 0));
   const total = part.type === "timeline" ? part.scoredCount : part.type === "quiz" ? part.questionCount : null;
@@ -307,4 +313,16 @@ export function scorePart(part, raw) {
 export function computeStageScore(stage, partResults) {
   if (stage.type === "finale") return partResults.reduce((s, r) => s + (r.hits || 0), 0);
   return partResults[0]?.score || 0;
+}
+
+// Liczniki osi czasu w Kampanii pokazują wykonane próby, a nie liczbę kart
+// na osi (ta zawiera kartę startową i pomija błędne ułożenia).
+// room.target pozostaje technicznym zabezpieczeniem przed przedwczesnym końcem.
+export function getTimelineDisplayProgress(room, playerId) {
+  const isCampaign = !!room?.campaignMode && Number(room.campaignScoredCount) > 0;
+  const target = isCampaign ? Number(room.campaignScoredCount) : Number(room?.target || 0);
+  const played = isCampaign
+    ? (room.playedCards || []).filter((card) => card.playerId === playerId && !card.bought).length
+    : (room?.timelines?.[playerId] || []).length;
+  return { completed: Math.min(target, played), target };
 }

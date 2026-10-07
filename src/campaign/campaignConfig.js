@@ -10,7 +10,7 @@
 //   timeline  – liczba poprawnie ułożonych utworów (karta startowa się nie liczy)
 //   quiz      – liczba poprawnych odpowiedzi
 //   yearGuess – suma punktów (10/8/6/4/2/0 za rundę), max = rounds × 10
-//   rush      – liczba poprawnych odpowiedzi do upływu czasu
+//   rush      – najlepsze combo poprawnych odpowiedzi z rzędu
 //   finale    – liczba trafionych prób ze wszystkich części (max = suma prób)
 
 // Nagroda za KAŻDĄ zdobytą gwiazdkę. Wypłacana tylko za gwiazdki, których
@@ -39,13 +39,13 @@ const STAGES_80S = [
   },
   {
     id: "80s_4", title: "Neonowy Sprint", type: "rush",
-    description: "Hit Rush na utworach z lat 80. Błąd zeruje combo i kosztuje czas.",
-    params: { roundSeconds: 60 },
-    starThresholds: [6, 9, 12], maxScore: 60, unlockAfter: "80s_3",
+    description: "Masz 30 sekund na serię trafień! Zdobądź 10 combo, aby zakończyć etap zwycięstwem.",
+    params: { roundSeconds: 30, comboGoal: 10 },
+    starThresholds: [5, 7, 10], maxScore: 10, unlockAfter: "80s_3",
   },
   {
     id: "80s_5", title: "Quiz Dekady", type: "quiz",
-    description: "Trudniejszy quiz — więcej pytań i ciaśniejsze lata.",
+    description: "Sprawdź, jak dobrze pamiętasz muzykę lat 80. — wykonawców, tytuły i lata w jednym quizie.",
     params: { questionCount: 12, questionTypes: ["artist", "title", "year"], yearOptionSpread: "tight" },
     starThresholds: [6, 9, 11], maxScore: 12, unlockAfter: "80s_4",
   },

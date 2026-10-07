@@ -49,6 +49,7 @@ import cardDiamentImg from './assets/icons/card-diamentowa.webp';
 import { effectiveRarity } from './cards.js';
 import { getTournamentUserState, tournamentTimeLeftLabel, getLeagueUserState } from './tournaments.js';
 import { WEEKLY_RANKING_REWARDS } from './stats.js';
+import { getTimelineDisplayProgress } from './campaign/campaignEngine.js';
 
 const PRACTICE_DECADES = [
   { key: 'pre70', label: 'Do 1969', from: null, to: 1969 },
@@ -899,6 +900,7 @@ function MobileRoundResult({ room, advanceCountdown }) {
   const ownerId = room.currentPlayerId;
   const ownerName = room.players.find((player) => player.id === ownerId)?.name || 'Gracz';
   const ownerTimeline = [...(room.timelines?.[ownerId] || [])].sort((a, b) => a.year - b.year);
+  const ownerProgress = getTimelineDisplayProgress(room, ownerId);
   const placementGood = Boolean(result.bought || result.correct);
   const headline = result.timedOut ? 'CZAS MINĄŁ' : result.bought ? 'KARTA ZDOBYTA' : placementGood ? 'DOBRE MIEJSCE!' : 'NIE TYM RAZEM';
   const hasGhost = !result.timedOut && !result.correct && result.chosenSlot !== undefined && result.chosenSlot !== null;
@@ -914,7 +916,7 @@ function MobileRoundResult({ room, advanceCountdown }) {
         <div className="mgv-result-countdown"><Clock3 size={18} /><span>{room.leagueMode ? 'KOLEJNY UTWÓR LIGI' : room.tournamentMode ? 'KOLEJNY UTWÓR MECZU' : room.practiceMode ? 'KOLEJNY UTWÓR' : 'KOLEJNA TURA'}</span><strong>{advanceCountdown ?? 5}</strong><em>sek.</em></div>
         {displayCards.length ? (
           <div className="mgv-result-timeline">
-            <div className="mgv-subhead"><span>{room.leagueMode ? 'TWOJA OŚ LIGOWA' : room.tournamentMode ? 'TWOJA OŚ TURNIEJOWA' : room.practiceMode ? 'TWOJA OŚ' : `OŚ · ${ownerName}`}</span><b>{ownerTimeline.length}/{room.target}</b></div>
+            <div className="mgv-subhead"><span>{room.campaignMode ? 'POSTĘP ETAPU' : room.leagueMode ? 'TWOJA OŚ LIGOWA' : room.tournamentMode ? 'TWOJA OŚ TURNIEJOWA' : room.practiceMode ? 'TWOJA OŚ' : `OŚ · ${ownerName}`}</span><b>{ownerProgress.completed}/{ownerProgress.target}</b></div>
             <div className="mgv-timeline-scroll compact"><div className="mgv-timeline-row">{displayCards.map((card, index) => <TimelineCard key={card.__ghost ? 'ghost' : card.id || index} card={card} compact highlight={card.__ghost ? 'bad' : ''} />)}</div></div>
           </div>
         ) : null}
@@ -928,6 +930,8 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
   const [cardPreview, setCardPreview] = useState(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [tokenToolsOpen, setTokenToolsOpen] = useState(false);
+  const myProgress = getTimelineDisplayProgress(room, playerId);
+  const activeProgress = getTimelineDisplayProgress(room, displayedPlayerId);
   const [keyboardInset, setKeyboardInset] = useState(0);
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -981,7 +985,7 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
           <Panel className="mgv-placement-panel" accent="violet">
             <div className="mgv-placement-head">
               <div><span className="mgv-eyebrow">OŚ CZASU</span><h2>{isMyTurn ? 'GDZIE PASUJE TEN UTWÓR?' : `OŚ · ${displayedPlayerName}`}</h2></div>
-              <div className="mgv-target-badge"><strong>{activeTimelineLength}</strong><span>/{room.target}</span></div>
+              <div className="mgv-target-badge"><strong>{activeProgress.completed}</strong><span>/{activeProgress.target}</span></div>
             </div>
             {screen === 'playing' && isMyTurn ? (
               <>
@@ -1036,8 +1040,8 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
 
       {room.practiceMode ? (
         <Panel className={`mgv-practice-live ${room.tournamentMode ? 'tournament' : room.leagueMode ? 'league' : ''}`} accent={room.tournamentMode ? 'gold' : room.leagueMode ? 'cyan' : 'green'}>
-          <div className="mgv-section-title"><Zap size={17} /><span>{room.leagueMode ? 'WYNIK MECZU LIGOWEGO' : room.tournamentMode ? 'WYNIK MECZU TURNIEJOWEGO' : room.dailyPlaylistMode ? 'POSTĘP PLAYLISTY' : 'POSTĘP TRENINGU'}</span><b>{(room.tournamentMode || room.leagueMode) ? `${practicePlayed.length}/10` : `${(room.timelines?.[playerId] || []).length}/${room.target}`}</b></div>
-          <div className="mgv-progress"><span style={{ width: `${Math.min(100, (room.tournamentMode || room.leagueMode) ? (practicePlayed.length / 10) * 100 : ((room.timelines?.[playerId] || []).length / Math.max(1, room.target)) * 100)}%` }} /></div>
+          <div className="mgv-section-title"><Zap size={17} /><span>{room.campaignMode ? 'POSTĘP ETAPU KAMPANII' : room.leagueMode ? 'WYNIK MECZU LIGOWEGO' : room.tournamentMode ? 'WYNIK MECZU TURNIEJOWEGO' : room.dailyPlaylistMode ? 'POSTĘP PLAYLISTY' : 'POSTĘP TRENINGU'}</span><b>{(room.tournamentMode || room.leagueMode) ? `${practicePlayed.length}/10` : `${myProgress.completed}/${myProgress.target}`}</b></div>
+          <div className="mgv-progress"><span style={{ width: `${Math.min(100, (room.tournamentMode || room.leagueMode) ? (practicePlayed.length / 10) * 100 : (myProgress.completed / Math.max(1, myProgress.target)) * 100)}%` }} /></div>
           <div className="mgv-mini-stats"><div className="good"><Check size={17} /><span>Trafienia</span><b>{practiceCorrect}</b></div><div className="bad"><X size={17} /><span>Pomyłki</span><b>{practiceWrong}</b></div></div>
           {room.tournamentMode ? <small className="mgv-tournament-match-hint">10 utworów · przy remisie liczy się łączny czas</small> : room.leagueMode ? <small className="mgv-tournament-match-hint">10 utworów · równy wynik oznacza remis</small> : null}
         </Panel>
@@ -1073,7 +1077,7 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
                     <span className="mgv-avatar" style={player.avatarUrl ? { backgroundImage: `url(${player.avatarUrl})` } : undefined}>{!player.avatarUrl ? initials(player.name) : null}</span>
                     <span><strong>{player.name}</strong><small>{player.id === playerId ? 'TY' : active ? 'TERAZ GRA' : 'GRACZ'}</small></span>
                   </span>
-                  <b className="mgv-live-player-cards">{cardsCount}<i>/</i>{room.target}</b>
+                  <b className="mgv-live-player-cards">{getTimelineDisplayProgress(room, player.id).completed}<i>/</i>{getTimelineDisplayProgress(room, player.id).target}</b>
                   <b className="mgv-live-player-tokens"><img src={iconToken} alt="" />{tokenCount}</b>
                 </button>
               );
@@ -1087,7 +1091,7 @@ export function MobilePlayingView({ screen, room, playerId, isMyTurn, turnPlayer
           <aside className="mgv-bottom-sheet mgv-timeline-preview-sheet" onClick={(event) => event.stopPropagation()}>
             <div className="mgv-sheet-handle" />
             <div className="mgv-sheet-head"><strong>OŚ CZASU · {timelinePreviewPlayer.name}</strong><button type="button" onClick={() => setTimelinePreviewId(null)}><X size={19} /></button></div>
-            <div className="mgv-timeline-preview-meta"><span><Music2 size={15} /> {timelinePreviewCards.length}/{room.target} KART</span><span><img src={iconToken} alt="" /> {room.tokens?.[timelinePreviewPlayer.id] || 0} TOKENÓW</span></div>
+            <div className="mgv-timeline-preview-meta"><span><Music2 size={15} /> {getTimelineDisplayProgress(room, timelinePreviewPlayer.id).completed}/{getTimelineDisplayProgress(room, timelinePreviewPlayer.id).target} {room.campaignMode ? 'UTWORÓW' : 'KART'}</span><span><img src={iconToken} alt="" /> {room.tokens?.[timelinePreviewPlayer.id] || 0} TOKENÓW</span></div>
             {timelinePreviewCards.length ? <MobileTimeline timeline={timelinePreviewCards} interactive={false} onCardClick={setCardPreview} /> : <div className="mgv-empty-timeline">Ten gracz nie ma jeszcze kart na osi.</div>}
           </aside>
         </div>
@@ -1818,8 +1822,8 @@ export function MobileHitRushGameView({ hitRush, iframeRef, onReplay, onAnswer, 
   return (
     <MobileSession className={`mgv-hitrush-game ${difficultyClass}`}>
       <MobileHeader eyebrow="HIT RUSH" title="WCZEŚNIEJ / PÓŹNIEJ" onBack={onExit} right={<span className={`mgv-timer ${hitRush.timeLeft <= 10 ? 'danger' : ''}`}><Clock3 size={15} />{hitRush.timeLeft}s</span>} />
-      <div className="mgv-hr-scorebar"><div><span>WYNIK</span><strong>{hitRush.score}</strong></div><div><span>COMBO</span><strong>🔥 {hitRush.combo}</strong></div><div className={`difficulty ${difficultyClass}`}><span>POZIOM</span><strong>{difficultyLabel}</strong></div></div>
-      <div className="mgv-combo-track"><span style={{ width: `${comboPct}%` }} /><small>Jeszcze {nextBonus.remaining} do +{nextBonus.seconds}s (combo {nextBonus.combo})</small></div>
+      <div className="mgv-hr-scorebar"><div><span>{hitRush.campaign ? 'NAJLEPSZE COMBO' : 'WYNIK'}</span><strong>{hitRush.campaign ? hitRush.bestCombo : hitRush.score}</strong></div><div><span>COMBO</span><strong>🔥 {hitRush.combo}</strong></div><div className={`difficulty ${difficultyClass}`}><span>POZIOM</span><strong>{difficultyLabel}</strong></div></div>
+      <div className="mgv-combo-track"><span style={{ width: `${hitRush.campaign ? Math.min(100, (hitRush.combo / (hitRush.comboGoal ?? 10)) * 100) : comboPct}%` }} /><small>{hitRush.campaign ? '⭐ 5 combo · ⭐⭐ 7 combo · ⭐⭐⭐ 10 combo' : `Jeszcze ${nextBonus.remaining} do +${nextBonus.seconds}s (combo ${nextBonus.combo})`}</small></div>
       <Panel className="mgv-hr-audio-card" accent="green">
         <div className="mgv-hidden-player"><iframe key={hitRush.currentCard.videoId} ref={iframeRef} title="hit-rush-player" src={`https://www.youtube.com/embed/${hitRush.currentCard.videoId}?enablejsapi=1&autoplay=1&mute=0&start=${hitRush.currentStartSeconds}&controls=0&modestbranding=1&rel=0&playsinline=1`} allow="autoplay; encrypted-media" onLoad={onReplay} /></div>
         <div className="mgv-unknown-song"><Disc3 size={38} /><span>NOWY UTWÓR</span><strong>???</strong><small>Porównaj z kartą referencyjną</small></div>

@@ -72,7 +72,7 @@ function stageSummary(stage) {
     case "timeline": return `${p.scoredCount} utworów · ${p.decisionSeconds}s na decyzję`;
     case "quiz": return `${p.questionCount} pytań`;
     case "yearGuess": return `${p.rounds} rund · ${p.roundSeconds}s na rundę`;
-    case "rush": return `${p.roundSeconds}s`;
+    case "rush": return `${p.roundSeconds}s · cel: ${p.comboGoal || 10} combo`;
     case "finale": return p.parts.map((x) => `${TYPE_LABEL[x.type]} (${x.scoredCount || x.questionCount || x.rounds})`).join(" + ");
     default: return "";
   }
@@ -84,7 +84,7 @@ function thresholdLabel(stage, n) {
     case "timeline": return `${t} poprawnych`;
     case "quiz": return `${t} poprawnych`;
     case "yearGuess": return `${t} pkt`;
-    case "rush": return `${t} poprawnych`;
+    case "rush": return `${t} combo`;
     case "finale": return `${t} z ${stage.maxScore}`;
     default: return String(t);
   }

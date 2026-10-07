@@ -3615,9 +3615,11 @@ export default function App() {
       const isCorrect = guess === "earlier" ? prev.currentCard.year < prev.referenceCard.year : prev.currentCard.year > prev.referenceCard.year;
       const newCombo = isCorrect ? prev.combo + 1 : 0;
       const points = isCorrect ? computeHitRushPoints(newCombo) : 0;
-      const timeBonus = isCorrect ? checkHitRushTimeBonus(newCombo) : 0;
-      const timePenalty = isCorrect ? 0 : HIT_RUSH_CONFIG.WRONG_ANSWER_TIME_PENALTY;
+      // Kampania ma sztywne 30 sekund: bez bonusów i kar do zegara.
+      const timeBonus = isCorrect && !prev.campaign ? checkHitRushTimeBonus(newCombo) : 0;
+      const timePenalty = !isCorrect && !prev.campaign ? HIT_RUSH_CONFIG.WRONG_ANSWER_TIME_PENALTY : 0;
       const nextTimeLeft = Math.max(0, prev.timeLeft + timeBonus - timePenalty);
+      const goalReached = !!prev.campaign && newCombo >= (prev.comboGoal ?? 10);
       return {
         ...prev,
         feedback: { correct: isCorrect, year: prev.currentCard.year, points, timeBonus, timePenalty },
@@ -3627,7 +3629,8 @@ export default function App() {
         correct: prev.correct + (isCorrect ? 1 : 0),
         wrong: prev.wrong + (isCorrect ? 0 : 1),
         timeLeft: nextTimeLeft,
-        running: nextTimeLeft > 0,
+        running: nextTimeLeft > 0 && !goalReached,
+        goalReached,
         answerReady: false,
         maxDifficulty: isCorrect ? difficultyLabel(newCombo) : prev.maxDifficulty,
       };
@@ -3650,9 +3653,9 @@ export default function App() {
     if (!hitRush) return;
     if (hitRush.campaign) {
       // Kampania: osobne nagrody — żadnego rankingu/XP/wyzwań Hit Rush.
-      const correct = hitRush.correct;
+      const bestCombo = hitRush.bestCombo;
       setHitRush(null);
-      campaign.completePart({ correct });
+      campaign.completePart({ bestCombo });
       return;
     }
     const result = { score: hitRush.score, correct: hitRush.correct, wrong: hitRush.wrong, bestCombo: hitRush.bestCombo, maxDifficulty: hitRush.maxDifficulty };
@@ -3692,10 +3695,10 @@ export default function App() {
   }, [hitRush?.running]);
 
   useEffect(() => {
-    if (hitRush && !hitRush.running && hitRush.timeLeft === 0 && !hitRushResult) {
+    if (hitRush && !hitRush.running && (hitRush.timeLeft === 0 || (hitRush.campaign && hitRush.goalReached)) && !hitRushResult) {
       finishHitRush();
     }
-  }, [hitRush?.running, hitRush?.timeLeft]);
+  }, [hitRush?.running, hitRush?.timeLeft, hitRush?.goalReached]);
 
   function unlockHitRushAudio() {
     const win = hitRushIframeRef.current?.contentWindow;

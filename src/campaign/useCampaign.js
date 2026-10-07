@@ -191,8 +191,9 @@ export function useCampaign(deps) {
       d.setHitRush({
         pool: rushPool, referenceCard, currentCard, currentStartSeconds: randomStartSeconds(),
         score: 0, combo: 0, bestCombo: 0, correct: 0, wrong: 0, usedIds,
-        timeLeft: part.roundSeconds || 60, running: true, feedback: null, answerReady: false, maxDifficulty: "easy",
-        campaign: true, pickFn: pickRushSongInDecade, roundSeconds: part.roundSeconds || 60,
+        timeLeft: part.roundSeconds ?? 30, running: true, feedback: null, answerReady: false, maxDifficulty: "easy",
+        campaign: true, comboGoal: part.comboGoal ?? 10, goalReached: false,
+        pickFn: pickRushSongInDecade, roundSeconds: part.roundSeconds ?? 30,
       });
       d.setScreen("hitRush");
       return;

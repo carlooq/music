@@ -44,6 +44,7 @@ import glPrezent from './assets/icons/gl-prezent.png';
 import glTurniej from './assets/icons/gl-turniej.png';
 import { getTournamentUserState, tournamentTimeLeftLabel, getLeagueUserState } from './tournaments.js';
 import { WEEKLY_RANKING_REWARDS } from './stats.js';
+import { getTimelineDisplayProgress } from './campaign/campaignEngine.js';
 import { DesktopPlayerProfileModal } from './DesktopShell.jsx';
 
 const PRACTICE_DECADES = [
@@ -671,17 +672,17 @@ export function DesktopHitRushGameView({ hitRush, iframeRef, onReplay, onAnswer,
 
           <aside className="dgv-hr-side">
             <section className="dgv-panel dgv-hr-score-card">
-              <div className="dgv-eyebrow">AKTUALNY WYNIK</div>
-              <strong>{Number(hitRush.score || 0).toLocaleString('pl-PL')}</strong>
-              <span>PKT</span>
+              <div className="dgv-eyebrow">{hitRush.campaign ? 'NAJLEPSZE COMBO' : 'AKTUALNY WYNIK'}</div>
+              <strong>{hitRush.campaign ? hitRush.bestCombo : Number(hitRush.score || 0).toLocaleString('pl-PL')}</strong>
+              <span>{hitRush.campaign ? `Z ${hitRush.comboGoal ?? 10}` : 'PKT'}</span>
               <div className="dgv-hr-mini-stats"><div className="good"><Check size={16} /><b>{hitRush.correct}</b><small>trafień</small></div><div className="bad"><X size={16} /><b>{hitRush.wrong}</b><small>błędów</small></div></div>
             </section>
 
             <section className="dgv-panel dgv-hr-combo-card">
               <div className="dgv-section-heading"><Flame size={18} /> COMBO</div>
               <div className="dgv-hr-combo-value">{hitRush.combo}<span>x</span></div>
-              <div className="dgv-hr-combo-track"><span style={{ width: `${bonusProgress}%` }} /></div>
-              <p>Jeszcze {untilBonus} {untilBonus === 1 ? 'trafienie' : 'trafień'} do +{nextBonus.seconds}s (combo {nextBonus.combo})</p>
+              <div className="dgv-hr-combo-track"><span style={{ width: `${hitRush.campaign ? Math.min(100, (hitRush.combo / (hitRush.comboGoal ?? 10)) * 100) : bonusProgress}%` }} /></div>
+              <p>{hitRush.campaign ? '⭐ 5 combo · ⭐⭐ 7 combo · ⭐⭐⭐ 10 combo — automatyczny koniec' : `Jeszcze ${untilBonus} ${untilBonus === 1 ? 'trafienie' : 'trafień'} do +${nextBonus.seconds}s (combo ${nextBonus.combo})`}</p>
               <div className="dgv-hr-best-combo"><span>NAJLEPSZE W TYM RUNIE</span><strong>{hitRush.bestCombo}</strong></div>
             </section>
 
@@ -1182,6 +1183,7 @@ function ResultOverlay({ room, advanceCountdown }) {
   const ownerId = room.currentPlayerId;
   const ownerName = room.players.find((p) => p.id === ownerId)?.name || 'Gracz';
   const ownerTimeline = [...(room.timelines?.[ownerId] || [])].sort((a, b) => a.year - b.year);
+  const ownerProgress = getTimelineDisplayProgress(room, ownerId);
   const hasGhost = !result.timedOut && !result.correct && result.chosenSlot !== undefined && result.chosenSlot !== null;
   const displayCards = hasGhost ? (() => {
     const next = [...ownerTimeline];
@@ -1247,7 +1249,7 @@ function ResultOverlay({ room, advanceCountdown }) {
                 <div className="dgv-eyebrow">{room.leagueMode ? 'TWOJA OŚ LIGOWA' : room.tournamentMode ? 'TWOJA OŚ TURNIEJOWA' : room.practiceMode ? 'TWOJA OŚ CZASU' : `OŚ CZASU · ${ownerName}`}</div>
                 <strong>PO TEJ RUNDZIE</strong>
               </div>
-              <span>{ownerTimeline.length} / {room.target}</span>
+              <span>{ownerProgress.completed} / {ownerProgress.target}</span>
             </div>
             <div className="dgv-timeline-row compact result-row">
               {displayCards.map((card, index) => {
@@ -1333,6 +1335,8 @@ export function DesktopPlayingView({
   const practiceCorrect = practicePlayed.filter((card) => card.correct).length;
   const practiceWrong = practicePlayed.filter((card) => !card.correct).length;
   const activeTimelineLength = (room.timelines?.[displayedPlayerId] || []).length;
+  const activeProgress = getTimelineDisplayProgress(room, displayedPlayerId);
+  const myProgress = getTimelineDisplayProgress(room, playerId);
   const audioLeft = Math.max(0, Math.ceil(playCapSeconds - playElapsed));
 
   return (
@@ -1375,7 +1379,7 @@ export function DesktopPlayingView({
                 <h2>{isMyTurn ? 'GDZIE PASUJE TEN UTWÓR?' : `OŚ GRACZA ${displayedPlayerName}`}</h2>
                 <p>{isMyTurn ? 'Kliknij + pomiędzy kartami. Rok poznasz dopiero po zatwierdzeniu.' : 'Podgląd aktualnie wybranej osi czasu.'}</p>
               </div>
-              <div className="dgv-target-progress"><b>{activeTimelineLength}</b><span>/ {room.target}</span></div>
+              <div className="dgv-target-progress"><b>{activeProgress.completed}</b><span>/ {activeProgress.target}</span></div>
             </div>
 
             {screen === 'playing' && isMyTurn ? (
@@ -1444,11 +1448,11 @@ export function DesktopPlayingView({
 
             {room.practiceMode ? (
               <section className={`dgv-panel dgv-practice-progress-panel dgv-v3-progress-panel ${room.tournamentMode ? 'tournament' : room.leagueMode ? 'league' : ''}`}>
-                <div className="dgv-section-heading"><Zap size={18} /> {room.leagueMode ? 'WYNIK MECZU LIGOWEGO' : room.tournamentMode ? 'WYNIK MECZU TURNIEJOWEGO' : 'POSTĘP TRENINGU'}</div>
+                <div className="dgv-section-heading"><Zap size={18} /> {room.campaignMode ? 'POSTĘP ETAPU KAMPANII' : room.leagueMode ? 'WYNIK MECZU LIGOWEGO' : room.tournamentMode ? 'WYNIK MECZU TURNIEJOWEGO' : 'POSTĘP TRENINGU'}</div>
                 <div className="dgv-practice-progress-main">
-                  <strong>{(room.tournamentMode || room.leagueMode) ? practicePlayed.length : (room.timelines?.[playerId] || []).length}</strong><span>/ {(room.tournamentMode || room.leagueMode) ? 10 : room.target} {(room.tournamentMode || room.leagueMode) ? 'utworów' : 'kart'}</span>
+                  <strong>{(room.tournamentMode || room.leagueMode) ? practicePlayed.length : myProgress.completed}</strong><span>/ {(room.tournamentMode || room.leagueMode) ? 10 : myProgress.target} {(room.tournamentMode || room.leagueMode || room.campaignMode) ? 'utworów' : 'kart'}</span>
                 </div>
-                <div className="dgv-practice-progress-bar"><span style={{ width: `${Math.min(100, (room.tournamentMode || room.leagueMode) ? (practicePlayed.length / 10) * 100 : ((room.timelines?.[playerId] || []).length / Math.max(1, room.target)) * 100)}%` }} /></div>
+                <div className="dgv-practice-progress-bar"><span style={{ width: `${Math.min(100, (room.tournamentMode || room.leagueMode) ? (practicePlayed.length / 10) * 100 : (myProgress.completed / Math.max(1, myProgress.target)) * 100)}%` }} /></div>
                 <div className="dgv-practice-mini-stats">
                   <div className="good"><Check size={18} /><span>Trafienia</span><strong>{practiceCorrect}</strong></div>
                   <div className="bad"><X size={18} /><span>Pomyłki</span><strong>{practiceWrong}</strong></div>
