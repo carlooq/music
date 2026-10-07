@@ -1,4 +1,4 @@
-// System osiągnięć — 41 pozycji w 7 kategoriach. Każde osiągnięcie ma
+// System osiągnięć — wiele kategorii (w tym tryby: Hit Rush, Playlista dnia, Zgadnij Rok, Turniej, Liga). Każde osiągnięcie ma
 // funkcję `check(stats)` zwracającą true/false na podstawie już zebranych
 // danych w dokumencie userStats (żadne dodatkowe odczyty nie są tu potrzebne).
 // XP nie dolicza się automatycznie — gracz odbiera je ręcznie w podglądzie
@@ -156,6 +156,82 @@ ACHIEVEMENTS.push(
   },
   { id: "cards_trader", name: "Handlarz", category: "Kolekcja", desc: "Sprzedaj łącznie 50 duplikatów", xp: 55, check: (s) => (s.duplicatesSold || 0) >= 50 }
 );
+
+// --- Tryby rywalizacji i dodatkowe tryby gry ---
+// Wszystkie warunki opierają się na danych, które już zapisujemy w userStats
+// (żadnych nowych liczników) — więc część graczy odblokuje je od razu.
+function countClaims(obj, key) {
+  return Object.values(obj || {}).filter((c) => c && (key ? c[key] : true)).length;
+}
+function tiered(list, build) {
+  list.forEach((tier, i) => ACHIEVEMENTS.push(build(tier, i)));
+}
+
+// Hit Rush
+tiered([10, 50, 200], (n, i) => ({
+  id: `hr_runs_${n}`, name: ["Rozgrzewka rushu", "Biegacz", "Maratończyk"][i], category: "Hit Rush",
+  desc: `Ukończ ${n} podejść w Hit Rush`, xp: tierXp(i), check: (s) => (s.hitRushRunsTotal || 0) >= n,
+}));
+tiered([500, 1500, 3000, 5000, 8000], (n, i) => ({
+  id: `hr_score_${n}`, name: ["Rush: Brąz", "Rush: Srebro", "Rush: Złoto", "Rush: Platyna", "Rush: Diament"][i], category: "Hit Rush",
+  desc: `Zdobądź ${n} pkt w jednym podejściu`, xp: tierXp(i), check: (s) => (s.hitRushBestScore || 0) >= n,
+}));
+tiered([10, 20, 30], (n, i) => ({
+  id: `hr_combo_${n}`, name: ["Kombinator", "Mistrz combo", "Nieśmiertelny"][i], category: "Hit Rush",
+  desc: `Osiągnij combo ${n} w Hit Rush`, xp: tierXp(i + 1), check: (s) => (s.hitRushBestCombo || 0) >= n,
+}));
+
+// Playlista dnia
+tiered([7, 30, 100], (n, i) => ({
+  id: `pl_games_${n}`, name: ["Stały bywalec", "Playlistoman", "Playlista to mój dom"][i], category: "Playlista dnia",
+  desc: `Zagraj w ${n} Playlist dnia`, xp: tierXp(i), check: (s) => (s.playlistGamesPlayed || 0) >= n,
+}));
+tiered([100, 500, 1500], (n, i) => ({
+  id: `pl_points_${n}`, name: ["Playlistowy maniak", "Playlistowy mistrz", "Playlistowa legenda"][i], category: "Playlista dnia",
+  desc: `Zbierz łącznie ${n} pkt w Playlistach dnia`, xp: tierXp(i + 1), check: (s) => (s.playlistTotalScore || 0) >= n,
+}));
+
+// Zgadnij Rok
+tiered([10, 50, 150], (n, i) => ({
+  id: `yg_games_${n}`, name: ["Podróżnik w czasie", "Kronikarz", "Strażnik epok"][i], category: "Zgadnij Rok",
+  desc: `Rozegraj ${n} gier w Zgadnij Rok`, xp: tierXp(i), check: (s) => (s.yearGuessRanking?.gamesPlayed || 0) >= n,
+}));
+tiered([10, 50, 200], (n, i) => ({
+  id: `yg_exact_${n}`, name: ["Trafiony rok", "Jasnowidz", "Zegarmistrz"][i], category: "Zgadnij Rok",
+  desc: `Trafij dokładny rok ${n} razy`, xp: tierXp(i + 1), check: (s) => (s.yearGuessRanking?.exactYears || 0) >= n,
+}));
+tiered([5, 25], (n, i) => ({
+  id: `yg_wins_${n}`, name: ["Zwycięzca lat", "Pan czasu"][i], category: "Zgadnij Rok",
+  desc: `Wygraj ${n} gier w Zgadnij Rok`, xp: tierXp(i + 1), check: (s) => (s.yearGuessRanking?.gamesWon || 0) >= n,
+}));
+
+// Turniej (puchar)
+ACHIEVEMENTS.push({
+  id: "cup_debut", name: "Debiut w pucharze", category: "Turniej", desc: "Weź udział w turnieju pucharowym",
+  xp: tierXp(0), check: (s) => countClaims(s.tournamentRewardClaims) >= 1,
+});
+tiered([1, 3, 10], (n, i) => ({
+  id: `cup_wins_${n}`, name: ["Mistrz pucharu", "Pucharowy rekin", "Legenda pucharu"][i], category: "Turniej",
+  desc: n === 1 ? "Wygraj turniej pucharowy" : `Wygraj ${n} turniejów pucharowych`, xp: [70, 100, 150][i], check: (s) => (s.tournamentsWon || 0) >= n,
+}));
+
+// Liga
+tiered([10, 50], (n, i) => ({
+  id: `lg_played_${n}`, name: ["Ligowiec", "Weteran ligi"][i], category: "Liga",
+  desc: `Rozegraj ${n} meczów ligowych`, xp: tierXp(i), check: (s) => countClaims(s.leagueMatchStatClaims, "participation") >= n,
+}));
+tiered([5, 25], (n, i) => ({
+  id: `lg_wins_${n}`, name: ["Pogromca ligi", "Postrach ligi"][i], category: "Liga",
+  desc: `Wygraj ${n} meczów ligowych`, xp: tierXp(i + 1), check: (s) => countClaims(s.leagueMatchStatClaims, "win") >= n,
+}));
+tiered([1, 5], (n, i) => ({
+  id: `lg_podium_${n}`, name: ["Na podium", "Stały bywalec podium"][i], category: "Liga",
+  desc: n === 1 ? "Zajmij miejsce na podium ligi (1.–3.)" : `Zajmij miejsce na podium ligi ${n} razy`, xp: tierXp(i + 1), check: (s) => countClaims(s.leagueRewardClaims) >= n,
+}));
+tiered([1, 3], (n, i) => ({
+  id: `lg_titles_${n}`, name: ["Mistrz ligi", "Dynastia"][i], category: "Liga",
+  desc: n === 1 ? "Wygraj ligę" : `Wygraj ${n} lig`, xp: [100, 150][i], check: (s) => (s.leaguesWon || 0) >= n,
+}));
 
 export function getAchievementProgress(stats, level) {
   const claimed = new Set(stats?.claimedAchievements || []);
