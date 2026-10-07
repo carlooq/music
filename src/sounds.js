@@ -257,3 +257,12 @@ export function playHitMatchRewardSound() {
   tone(659.25, 0.07, 0.12, "triangle", 0.12);
   tone(880.0, 0.15, 0.24, "sine", 0.13);
 }
+
+// Krótki, charakterystyczny sygnał pełnego HIT METERA. Ma być wyraźny,
+// ale nie agresywny i nie powinien zagłuszać trwającego efektu COMBO.
+export function playHitMatchMeterReadySound() {
+  tone(659.25, 0, 0.10, "triangle", 0.10);
+  tone(880.0, 0.09, 0.14, "sine", 0.12);
+  tone(1174.66, 0.19, 0.24, "sine", 0.14);
+  tone(1567.98, 0.28, 0.30, "triangle", 0.08);
+}
