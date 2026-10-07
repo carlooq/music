@@ -33,11 +33,11 @@ export async function submitStageResult(uid, chapterId, stageId, rawResult) {
   return outcome;
 }
 
-// Prosty ranking: kolejność wg łącznej liczby gwiazdek (przy remisie — wynik punktowy).
+// Ranking kampanii: wyłącznie łączna liczba zdobytych gwiazdek.
 export async function fetchCampaignLeaderboard(count = 20) {
   const q = query(collection(db, PROGRESS_COLLECTION), orderBy("totalStars", "desc"), limit(count));
   const snap = await getDocs(q);
   return snap.docs
-    .map((d) => ({ uid: d.id, totalStars: d.data().totalStars || 0, campaignScore: d.data().campaignScore || 0 }))
-    .sort((a, b) => b.totalStars - a.totalStars || b.campaignScore - a.campaignScore);
+    .map((d) => ({ uid: d.id, totalStars: d.data().totalStars || 0 }))
+    .sort((a, b) => b.totalStars - a.totalStars);
 }

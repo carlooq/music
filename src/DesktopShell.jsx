@@ -713,7 +713,7 @@ export function DesktopHomeView(props) {
               <DesktopModeCard icon={glHitRush} title="HIT RUSH" desc="Szybki tryb solo z presją czasu" accent="green" footer="Nowy rekord czeka" locked={isGuest} onClick={isGuest ? requestLogin : onHitRush} />
               <DesktopModeCard icon={glPiosenka} title="PIOSENKA DNIA" desc="Jedna piosenka dla wszystkich" accent="pink" footer="Codzienna szansa" locked={isGuest} onClick={isGuest ? requestLogin : onDailySong} />
               <DesktopModeCard icon={glPlaylista} title="PLAYLISTA DNIA" desc="Codzienna nowa playlista" accent="violet" footer="Porównaj się z innymi" locked={isGuest} onClick={isGuest ? requestLogin : onDailyPlaylist} />
-              <DesktopModeCard icon={glTurniej} title="KAMPANIA" desc="Trasa koncertowa — solo, etapy i gwiazdki" accent="pink" footer="Lata 80. — Neonowa era" locked={isGuest} onClick={isGuest ? requestLogin : onCampaign} />
+              <DesktopModeCard icon={glTurniej} title="KAMPANIA" desc="Trasa koncertowa — solo, etapy i gwiazdki" accent="pink" badge="NOWOŚĆ" footer="Lata 80. — Neonowa era" locked={isGuest} onClick={isGuest ? requestLogin : onCampaign} />
               <DesktopModeCard icon={glTurniej} title="TURNIEJ" desc="Rywalizuj o najwyższe miejsca" accent="gold" badge="PREMIUM" locked={isGuest} footer={activeTournament ? `${activeTournament.signups?.length || 0}/${activeTournament.maxPlayers || 0} zapisanych` : lastCompletedTournament ? `Wygrał: ${lastCompletedTournament.signups?.find((p) => p.uid === lastCompletedTournament.winnerUid)?.name || '?'}` : 'Wkrótce kolejny'} onClick={isGuest ? requestLogin : onTournament} />
             </div>
 
