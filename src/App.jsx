@@ -27,6 +27,9 @@ import { createTournament, cancelTournament, fetchActiveTournament, fetchLastCom
 import { awardHitcoin, computeWinHitcoin, computeSecondPlaceHitcoin, computeThirdPlaceHitcoin, claimDailyHitcoin, drawCardAfterGame, effectiveRarity, PACKS, openPack, SELL_PRICES, sellDuplicateCard, sellAllDuplicates } from "./cards.js";
 import { DAILY_REWARD_SEGMENTS, claimDailyWheelReward } from "./dailyWheel.js";
 import { HIT_RUSH_CONFIG, pickNextHitRushSong, computeHitRushPoints, checkHitRushTimeBonus, nextHitRushTimeBonus, difficultyLabel, submitHitRushRun, fetchHitRushLeaderboard, processHitRushWeeklyRewardsIfNeeded } from "./hitRush.js";
+import { useCampaign } from "./campaign/useCampaign.js";
+import { CAMPAIGN, getChapter as getCampaignChapter, getStage as getCampaignStage } from "./campaign/campaignConfig.js";
+import { CampaignMapView, CampaignStageView, CampaignPlayView, CampaignIntermissionView, CampaignResultView, CampaignLeaderboardView } from "./campaign/CampaignViews.jsx";
 import { updateHeadToHead, fetchHeadToHeadOpponents } from "./headToHead.js";
 import { getAchievementProgress, ACHIEVEMENTS } from "./achievements.js";
 import { playCorrectSound, playWrongSound, playApplause, playVictorySound, unlockAudio } from "./sounds.js";
@@ -3635,7 +3638,7 @@ export default function App() {
         const newReference = prev.currentCard;
         const usedIds = new Set(prev.usedIds);
         usedIds.add(newReference.id);
-        const nextCard = pickNextHitRushSong(prev.pool, newReference.year, prev.combo, usedIds);
+        const nextCard = (prev.pickFn || pickNextHitRushSong)(prev.pool, newReference.year, prev.combo, usedIds);
         if (!nextCard) return { ...prev, running: false, timeLeft: 0, feedback: null, answerReady: false };
         usedIds.add(nextCard.id);
         return { ...prev, referenceCard: newReference, currentCard: nextCard, currentStartSeconds: randomStartSeconds(), usedIds, feedback: null, answerReady: false };
@@ -3645,6 +3648,13 @@ export default function App() {
 
   async function finishHitRush() {
     if (!hitRush) return;
+    if (hitRush.campaign) {
+      // Kampania: osobne nagrody — żadnego rankingu/XP/wyzwań Hit Rush.
+      const correct = hitRush.correct;
+      setHitRush(null);
+      campaign.completePart({ correct });
+      return;
+    }
     const result = { score: hitRush.score, correct: hitRush.correct, wrong: hitRush.wrong, bestCombo: hitRush.bestCombo, maxDifficulty: hitRush.maxDifficulty };
     setHitRushResult({ ...result, pending: true });
     if (user) {
@@ -3731,6 +3741,15 @@ export default function App() {
     }, HIT_RUSH_CONFIG.MIN_LISTEN_MS);
     return () => clearTimeout(timer);
   }, [hitRushCurrentCardId, hitRush?.running, hitRush?.feedback, playbackUx?.status, playbackUx?.mode, playbackUx?.cardId]);
+
+  // Kampania ("Trasa koncertowa") — cały stan i przebieg w campaign/useCampaign.js
+  const campaign = useCampaign({
+    screen, room, roomId, user, playbackUx, playerId, name, stats,
+    setScreen, setError, setBusy, setRoomId, setRoom, setHitRush, setMyXp, setMyHitcoin,
+    loadPool: getDailyFeaturesPool,
+    enrichRows: enrichPlayerRows,
+    requestLogin: (msg) => { setShowAuthForm(true); setError(msg); },
+  });
 
   async function handleClaimWeeklyChallengeReward(challengeId) {
     if (!user) return;
@@ -3869,7 +3888,7 @@ export default function App() {
     if (decisionIntervalRef.current) clearInterval(decisionIntervalRef.current);
     const turnStartedAtMs = toMillis(room?.turnStartedAt);
     if (screen !== "playing" || !turnStartedAtMs) return;
-    const turnDeadlineMs = turnStartedAtMs + DECISION_SECONDS * 1000;
+    const turnDeadlineMs = turnStartedAtMs + (room?.decisionSeconds || DECISION_SECONDS) * 1000;
 
     const FALLBACK_EXTRA_MS = 8000;
     const isResponsible = room.currentPlayerId === playerId;
@@ -3886,7 +3905,7 @@ export default function App() {
     tick();
     decisionIntervalRef.current = setInterval(tick, 500);
     return () => clearInterval(decisionIntervalRef.current);
-  }, [screen, toMillis(room?.turnStartedAt), room?.currentPlayerId]);
+  }, [screen, toMillis(room?.turnStartedAt), room?.currentPlayerId, room?.decisionSeconds]);
 
   // automatyczne przejście do kolejnej tury po wyniku rundy (licznik 3-2-1);
   // normalnie robi to klient gracza, którego tura się kończy — ale gdyby jego
@@ -5255,6 +5274,15 @@ export default function App() {
 
   // HIT RUSH nie ma pokoju w Firestore, więc po potwierdzonym błędzie
   // podmieniamy tylko bieżącą kartę runu, nie zmieniając wyniku ani combo.
+  // Uszkodzony link w kampanii: zgłoszenie do panelu admina + podmiana na
+  // zapasowe pytanie/utwór (bez żadnej kary dla gracza).
+  function handleBrokenCampaignLink(card) {
+    if (!card) return;
+    logBrokenLink(card).catch(() => {});
+    notifyBrokenLinkHandled(card);
+    campaign.replaceBrokenCard(card);
+  }
+
   function handleBrokenHitRushLink(card) {
     if (!card) return;
     logBrokenLink(card).catch(() => {});
@@ -5263,7 +5291,7 @@ export default function App() {
       if (!prev || !prev.running || !prev.currentCard || prev.currentCard.videoId !== card.videoId) return prev;
       const usedIds = new Set(prev.usedIds || []);
       usedIds.add(card.id || card.videoId);
-      const nextCard = pickNextHitRushSong(prev.pool || [], prev.referenceCard.year, prev.combo, usedIds);
+      const nextCard = (prev.pickFn || pickNextHitRushSong)(prev.pool || [], prev.referenceCard.year, prev.combo, usedIds);
       if (!nextCard) return { ...prev, running: false, timeLeft: 0 };
       usedIds.add(nextCard.id || nextCard.videoId);
       return {
@@ -5373,7 +5401,9 @@ export default function App() {
             ? "hitRush"
             : screen === "home" && showDailySong && dailySong && !dailyResult
               ? "dailySong"
-              : null;
+              : screen === "campaignPlay" && campaign.currentCard
+                ? "campaign"
+                : null;
 
   const brokenValidationCard =
     brokenValidationMode === "opener"
@@ -5386,7 +5416,9 @@ export default function App() {
             ? hitRush?.currentCard
             : brokenValidationMode === "dailySong"
               ? dailySong
-              : null;
+              : brokenValidationMode === "campaign"
+                ? campaign.currentCard
+                : null;
 
   // Jeden validator dla wszystkich ekranów odtwarzania. Błąd musi wystąpić
   // dwa razy dla TEJ SAMEJ karty. Dopiero wtedy logujemy ją do brokenLinks i
@@ -5435,6 +5467,7 @@ export default function App() {
       else if (currentMode === "yearGuess") handleBrokenYearGuessLink(currentCard);
       else if (currentMode === "hitRush") handleBrokenHitRushLink(currentCard);
       else if (currentMode === "dailySong") handleBrokenDailySongLink(currentCard);
+      else if (currentMode === "campaign") handleBrokenCampaignLink(currentCard);
     };
 
     const markReady = () => {
@@ -5598,7 +5631,10 @@ export default function App() {
 
         const someoneReachedTarget = Object.values(data.timelines).some((t) => t.length >= data.target);
         const finishingRound = data.finishingRound || someoneReachedTarget;
-        const deckExhausted = data.deckIndex >= data.deck.length;
+        const deckExhausted = data.deckIndex >= data.deck.length
+          // Kampania: koniec po zadanej liczbie ocenianych kart (talia zawiera
+          // też zapas na uszkodzone linki, więc sama talia nie wyznacza końca).
+          || (!!data.campaignMode && !!data.campaignScoredCount && (data.playedCards || []).filter((c) => !c.bought).length >= data.campaignScoredCount);
         // runda kończy się, gdy tura wraca do gracza, który zaczynał —
         // wtedy wszyscy mieli dokładnie tyle samo tur
         const lapWillComplete = players[nextIdx].id === data.startingPlayerId;
@@ -6623,6 +6659,85 @@ export default function App() {
     </>
   );
 
+  // ----- Kampania: te same ekrany na mobile i desktopie -----
+  if (screen === "gameover" && room?.campaignMode) {
+    return renderSessionUx(<div className="cmp-page"><p>Zapisuję wynik etapu…</p></div>);
+  }
+  if (screen === "campaignMap" && campaign.progress) {
+    return renderSessionUx(
+      <CampaignMapView
+        chapter={campaign.chapter}
+        progress={campaign.progress}
+        onSelectStage={campaign.selectStage}
+        onLeaderboard={campaign.openLeaderboard}
+        onBack={goHome}
+      />
+    );
+  }
+  if (screen === "campaignLeaderboard") {
+    return renderSessionUx(<CampaignLeaderboardView rows={campaign.leaderboard} myUid={user?.uid} onBack={campaign.backToMap} />);
+  }
+  if (screen === "campaignStage" && campaign.progress) {
+    const stage = getCampaignStage(campaign.chapter, campaign.selectedStageId);
+    if (stage) {
+      return renderSessionUx(
+        <CampaignStageView
+          chapter={campaign.chapter}
+          stage={stage}
+          progress={campaign.progress}
+          busy={busy}
+          onStart={() => campaign.startStage(stage.id)}
+          onBack={campaign.backToMap}
+        />
+      );
+    }
+  }
+  if (screen === "campaignPlay" && campaign.play && campaign.run) {
+    const stage = getCampaignStage(campaign.chapter, campaign.run.stageId);
+    return renderSessionUx(
+      <CampaignPlayView
+        stage={stage}
+        run={campaign.run}
+        play={campaign.play}
+        onAnswerQuiz={campaign.answerQuiz}
+        onSubmitYear={campaign.submitYear}
+        onNext={campaign.nextQuestion}
+        onExit={campaign.abortRun}
+      />
+    );
+  }
+  if (screen === "campaignIntermission" && campaign.run) {
+    const stage = getCampaignStage(campaign.chapter, campaign.run.stageId);
+    return renderSessionUx(
+      <CampaignIntermissionView stage={stage} run={campaign.run} busy={busy} onContinue={campaign.continueRun} onExit={campaign.abortRun} />
+    );
+  }
+  if (screen === "campaignResult" && campaign.run && campaign.outcome) {
+    const stage = getCampaignStage(campaign.chapter, campaign.run.stageId);
+    const idx = campaign.chapter.stages.findIndex((s) => s.id === stage.id);
+    const nextStage = campaign.chapter.stages[idx + 1] || null;
+    return renderSessionUx(
+      <CampaignResultView
+        stage={stage}
+        outcome={campaign.outcome}
+        nextStage={nextStage}
+        onRetry={() => campaign.startStage(stage.id)}
+        onNext={() => campaign.selectStage(nextStage.id)}
+        onMap={campaign.backToMap}
+        onRetrySave={campaign.retrySubmit}
+      />
+    );
+  }
+  // zabezpieczenie: ekran kampanii bez danych (np. po odświeżeniu) → wróć do mapy/domu
+  if (typeof screen === "string" && screen.startsWith("campaign") && screen !== "campaignMap") {
+    return renderSessionUx(
+      <div className="cmp-page">
+        <p>Ta sesja kampanii wygasła.</p>
+        <button className="cmp-btn primary" onClick={campaign.openCampaign}>Wróć do mapy kampanii</button>
+      </div>
+    );
+  }
+
   if (useDesktopSessionViews && screen === "competitionHub") {
     return renderSessionUx(
       <DesktopCompetitionHubView
@@ -6708,11 +6823,12 @@ export default function App() {
         onReplay={replayHitRushAudio}
         onAnswer={answerHitRush}
         onExit={() => {
+          if (hitRush.campaign) { campaign.abortRun(); return; }
           setHitRush(null);
           setHitRushResult(null);
           setScreen("hitRushMenu");
         }}
-        roundSeconds={HIT_RUSH_CONFIG.ROUND_SECONDS}
+        roundSeconds={hitRush.roundSeconds || HIT_RUSH_CONFIG.ROUND_SECONDS}
         bonusEvery={HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO}
         bonusSchedule={HIT_RUSH_CONFIG.TIME_BONUS_SCHEDULE}
         wrongPenalty={HIT_RUSH_CONFIG.WRONG_ANSWER_TIME_PENALTY}
@@ -7114,11 +7230,12 @@ export default function App() {
         onReplay={replayHitRushAudio}
         onAnswer={answerHitRush}
         onExit={() => {
+          if (hitRush.campaign) { campaign.abortRun(); return; }
           setHitRush(null);
           setHitRushResult(null);
           setScreen("hitRushMenu");
         }}
-        roundSeconds={HIT_RUSH_CONFIG.ROUND_SECONDS}
+        roundSeconds={hitRush.roundSeconds || HIT_RUSH_CONFIG.ROUND_SECONDS}
         bonusEvery={HIT_RUSH_CONFIG.TIME_BONUS_EVERY_COMBO}
         bonusSchedule={HIT_RUSH_CONFIG.TIME_BONUS_SCHEDULE}
         wrongPenalty={HIT_RUSH_CONFIG.WRONG_ANSWER_TIME_PENALTY}
@@ -7487,6 +7604,7 @@ export default function App() {
         onJoinYearGuessRoom={() => joinRoom(undefined, { yearGuessOnly: true })}
         onLoadYearGuessLeaderboard={loadYearGuessLeaderboardData}
         onHitRush={() => setScreen("hitRushMenu")}
+        onCampaign={campaign.openCampaign}
         onDailySong={openDailySong}
         onDailyPlaylist={openDailyPlaylistHub}
         onTournament={openTournamentOrLeagueHub}
@@ -7647,6 +7765,7 @@ export default function App() {
         onForgetRecentRoom={() => forgetRecentRoom()}
         onPractice={() => setScreen("practiceSetup")}
         onHitRush={() => setScreen("hitRushMenu")}
+        onCampaign={campaign.openCampaign}
         onDailySong={openDailySong}
         onDailyPlaylist={openDailyPlaylistHub}
         onTournament={openTournamentOrLeagueHub}

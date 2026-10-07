@@ -1,0 +1,60 @@
+/* Kampania — wyłącznie układ strukturalny (czytelny, bez ozdób).
+   Oprawa graficzna ma być dopracowana osobno; klasy cmp-* są stabilne. */
+.cmp-page { width: 100%; max-width: 560px; margin: 0 auto; padding: 16px 16px 40px; display: flex; flex-direction: column; gap: 14px; color: #fff; box-sizing: border-box; }
+.cmp-header { display: flex; flex-direction: column; gap: 4px; }
+.cmp-title { font-family: 'Bebas Neue', sans-serif; font-size: 30px; margin: 0; }
+.cmp-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: .7; margin: 0; }
+.cmp-total, .cmp-progress, .cmp-status, .cmp-note { font-size: 13px; opacity: .85; margin: 0; }
+.cmp-back { align-self: flex-start; background: none; border: 0; color: inherit; cursor: pointer; padding: 0 0 6px; font-size: 13px; }
+.cmp-h2 { font-size: 15px; margin: 0 0 6px; }
+.cmp-panel { border: 1px solid rgba(255,255,255,.2); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.cmp-facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 13px; }
+.cmp-facts dt { opacity: .7; }
+.cmp-facts dd { margin: 0; }
+.cmp-thresholds { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.cmp-thresholds li.done { opacity: .6; }
+.cmp-star.on { color: #f5c451; }
+.cmp-star.off { opacity: .4; }
+.cmp-map { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 14px; }
+.cmp-node.left .cmp-card { margin-right: 18%; }
+.cmp-node.right .cmp-card { margin-left: 18%; }
+.cmp-card { width: 82%; text-align: left; display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.3); background: rgba(255,255,255,.04); color: inherit; cursor: pointer; position: relative; }
+.cmp-node.right .cmp-card { margin-left: auto; }
+.cmp-node.locked .cmp-card { opacity: .45; cursor: not-allowed; }
+.cmp-node.current .cmp-card { border-color: #ff5fc9; }
+.cmp-node.finale .cmp-card { border-color: #f5c451; }
+.cmp-card-no { font-size: 10px; text-transform: uppercase; opacity: .7; }
+.cmp-card-name { font-weight: bold; }
+.cmp-card-type { font-size: 12px; opacity: .75; }
+.cmp-here { font-size: 10px; color: #ff5fc9; font-weight: bold; }
+.cmp-crown { position: absolute; top: 8px; right: 10px; }
+.cmp-btn { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,.35); background: transparent; color: inherit; font-weight: bold; cursor: pointer; font-size: 15px; }
+.cmp-btn.primary { background: #ff5fc9; border-color: #ff5fc9; color: #14001a; }
+.cmp-btn.small { width: auto; align-self: flex-start; padding: 6px 12px; font-size: 12px; }
+.cmp-btn:disabled { opacity: .5; cursor: not-allowed; }
+.cmp-question { font-size: 18px; margin: 0; }
+.cmp-options { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.cmp-option { text-align: left; padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,.3); background: rgba(255,255,255,.04); color: inherit; cursor: pointer; font-size: 15px; }
+.cmp-option:disabled { cursor: default; }
+.cmp-option.correct, .cmp-year.correct { border-color: #2af598; background: rgba(42,245,152,.18); }
+.cmp-option.wrong, .cmp-year.wrong { border-color: #e8615d; background: rgba(232,97,93,.18); }
+.cmp-letter { display: inline-block; width: 22px; font-weight: bold; opacity: .8; }
+.cmp-years { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.cmp-year { padding: 12px 0; border-radius: 10px; border: 1px solid rgba(255,255,255,.3); background: rgba(255,255,255,.04); color: inherit; cursor: pointer; font-size: 15px; }
+.cmp-year.picked { border-color: #ff5fc9; background: rgba(255,95,201,.18); }
+.cmp-timer { font-family: 'Bebas Neue', sans-serif; font-size: 24px; margin: 0; }
+.cmp-timer.danger { color: #e8615d; }
+.cmp-feedback .good { color: #2af598; font-weight: bold; margin: 0; }
+.cmp-feedback .bad { color: #e8615d; font-weight: bold; margin: 0; }
+.cmp-song { margin: 0; font-size: 14px; }
+.cmp-score { text-align: center; align-items: center; }
+.cmp-big { font-family: 'Bebas Neue', sans-serif; font-size: 48px; margin: 0; }
+.cmp-parts { list-style: none; padding: 0; margin: 0; font-size: 13px; }
+.cmp-reward { color: #f5c451; font-weight: bold; margin: 0; }
+.cmp-crown-line { color: #f5c451; font-weight: bold; margin: 0; }
+.cmp-error { color: #e8615d; margin: 0; }
+.cmp-board { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.cmp-board li { display: flex; gap: 12px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.2); border-radius: 10px; }
+.cmp-board li.me { border-color: #ff5fc9; }
+.cmp-rank { width: 24px; opacity: .7; }
+.cmp-name { flex: 1; }
