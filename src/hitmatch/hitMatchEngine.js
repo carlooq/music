@@ -158,12 +158,12 @@ export function hasPossibleMove(board) {
       const a = indexOf(row, col);
       const tile = board[a];
       if (!tile) continue;
-      if (tile.special === "color") return true;
+      if (tile.special) return true;
       const neighbours = [];
       if (col + 1 < HIT_MATCH_COLS) neighbours.push(indexOf(row, col + 1));
       if (row + 1 < HIT_MATCH_ROWS) neighbours.push(indexOf(row + 1, col));
       for (const b of neighbours) {
-        if (board[b]?.special === "color") return true;
+        if (board[b]?.special) return true;
         const swapped = swapBoardCells(board, a, b);
         if (findMatches(swapped).length > 0) return true;
       }
@@ -294,14 +294,55 @@ export function resolveSpecialSwap(board, a, b) {
   if (!tileA?.special && !tileB?.special) return null;
   if (tileA?.special === "color" || tileB?.special === "color") return null;
 
-  const initial = [];
-  if (tileA?.special) initial.push(a);
-  if (tileB?.special) initial.push(b);
-  if (!initial.length) return null;
+  const specialA = tileA?.special || null;
+  const specialB = tileB?.special || null;
+  const affected = new Set();
 
-  // Każdy zwykły special może zostać odpalony samą zamianą.
-  // Zamiana dwóch speciali odpala oba i pozwala efektom chainować.
-  return expandSpecialEffects(board, initial);
+  // Specjal + zwykły: booster odpala się zawsze dokładnie w miejscu,
+  // do którego został przesunięty. Dzięki temu gracz kontroluje efekt.
+  if (specialA && !specialB) return expandSpecialEffects(board, [a]);
+  if (specialB && !specialA) return expandSpecialEffects(board, [b]);
+
+  // Dwa boostery dają mocniejsze, jednoznaczne kombinacje jak w klasycznym match-3.
+  if (specialA === "bomb" && specialB === "bomb") {
+    addArea(affected, rowOf(b) - 2, rowOf(b) + 2, colOf(b) - 2, colOf(b) + 2);
+  } else if (specialA === "bomb" || specialB === "bomb") {
+    const lineSpecial = specialA === "bomb" ? specialB : specialA;
+    const center = specialA === "bomb" ? b : a;
+    if (lineSpecial === "row") {
+      for (let row = rowOf(center) - 1; row <= rowOf(center) + 1; row += 1) {
+        if (row < 0 || row >= HIT_MATCH_ROWS) continue;
+        for (let col = 0; col < HIT_MATCH_COLS; col += 1) affected.add(indexOf(row, col));
+      }
+    } else if (lineSpecial === "col") {
+      for (let col = colOf(center) - 1; col <= colOf(center) + 1; col += 1) {
+        if (col < 0 || col >= HIT_MATCH_COLS) continue;
+        for (let row = 0; row < HIT_MATCH_ROWS; row += 1) affected.add(indexOf(row, col));
+      }
+    } else {
+      addArea(affected, rowOf(center) - 1, rowOf(center) + 1, colOf(center) - 1, colOf(center) + 1);
+    }
+  } else {
+    // Dwa boostery liniowe: czyścimy ich linie i dokładamy krzyż w miejscu zamiany.
+    [a, b].forEach((index) => {
+      const tile = board[index];
+      if (tile?.special === "row") {
+        const row = rowOf(index);
+        for (let col = 0; col < HIT_MATCH_COLS; col += 1) affected.add(indexOf(row, col));
+      }
+      if (tile?.special === "col") {
+        const col = colOf(index);
+        for (let row = 0; row < HIT_MATCH_ROWS; row += 1) affected.add(indexOf(row, col));
+      }
+    });
+    const crossRow = rowOf(b);
+    const crossCol = colOf(b);
+    for (let col = 0; col < HIT_MATCH_COLS; col += 1) affected.add(indexOf(crossRow, col));
+    for (let row = 0; row < HIT_MATCH_ROWS; row += 1) affected.add(indexOf(row, crossCol));
+  }
+
+  const expanded = expandSpecialEffects(board, [...affected]);
+  return [...new Set(expanded)];
 }
 
 export function removeIndices(board, indices, specialCreation = null) {
