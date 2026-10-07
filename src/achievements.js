@@ -5,6 +5,8 @@
 // poziomu, stąd checki są tanie i mogą być liczone tylko na żądanie (przy
 // otwarciu ekranu statystyk), a nie przy każdej akcji w grze.
 
+import { CAMPAIGN, maxStarsForCampaign } from "./campaign/campaignConfig.js";
+
 function tierXp(index) {
   return 25 + index * 15; // 25, 40, 55, 70, 85...
 }
@@ -232,6 +234,48 @@ tiered([1, 3], (n, i) => ({
   id: `lg_titles_${n}`, name: ["Mistrz ligi", "Dynastia"][i], category: "Liga",
   desc: n === 1 ? "Wygraj ligę" : `Wygraj ${n} lig`, xp: [100, 150][i], check: (s) => (s.leaguesWon || 0) >= n,
 }));
+
+// Kampania ("Trasa koncertowa") — dane z userStats.campaignSummary, które
+// kampania aktualizuje w tej samej transakcji co zapis wyniku etapu.
+const campSum = (s) => s.campaignSummary || {};
+const CAMPAIGN_CHAPTERS = CAMPAIGN.chapters.length;
+const CAMPAIGN_MAX_STARS = maxStarsForCampaign(CAMPAIGN);
+
+ACHIEVEMENTS.push({
+  id: "camp_first_stage", name: "Pierwszy koncert", category: "Kampania", desc: "Zalicz pierwszy etap Kampanii (min. 1★)",
+  xp: tierXp(0), check: (s) => (campSum(s).stagesCleared || 0) >= 1,
+});
+tiered([10, 30, 60, 100, CAMPAIGN_MAX_STARS], (n, i) => ({
+  id: `camp_stars_${n}`, name: ["Zbieracz gwiazdek", "Gwiazdor", "Konstelacja", "Droga Mleczna", "Cała galaktyka"][i], category: "Kampania",
+  desc: i === 4 ? `Zdobądź wszystkie ${n} gwiazdek w Kampanii` : `Zdobądź ${n} gwiazdek w Kampanii`,
+  xp: [tierXp(1), tierXp(2), tierXp(3), 100, 250][i], check: (s) => (campSum(s).totalStars || 0) >= n,
+}));
+tiered([7, 21], (n, i) => ({
+  id: `camp_threestar_${n}`, name: ["Perfekcjonista", "Złota trasa"][i], category: "Kampania",
+  desc: `Zdobądź 3★ w ${n} etapach`, xp: [tierXp(2), 100][i], check: (s) => (campSum(s).threeStarStages || 0) >= n,
+}));
+tiered([1, 3, CAMPAIGN_CHAPTERS], (n, i) => ({
+  id: `camp_chapters_${n}`, name: ["Pierwsza epoka", "Podróżnik w czasie", "Pełna trasa"][i], category: "Kampania",
+  desc: n === CAMPAIGN_CHAPTERS ? `Ukończ Wielki Finał we wszystkich ${n} rozdziałach` : n === 1 ? "Ukończ Wielki Finał w dowolnym rozdziale" : `Ukończ Wielki Finał w ${n} rozdziałach`,
+  xp: [tierXp(1), tierXp(3), 150][i], check: (s) => (campSum(s).clearedChapters || []).length >= n,
+}));
+tiered([1, 3, CAMPAIGN_CHAPTERS], (n, i) => ({
+  id: `camp_full_${n}`, name: ["Komplet w epoce", "Kolekcjoner epok", "Legenda trasy"][i], category: "Kampania",
+  desc: n === CAMPAIGN_CHAPTERS ? "Zdobądź komplet gwiazdek we wszystkich rozdziałach" : n === 1 ? "Zdobądź komplet gwiazdek w jednym rozdziale" : `Zdobądź komplet gwiazdek w ${n} rozdziałach`,
+  xp: [70, 110, 200][i], check: (s) => (campSum(s).fullChapters || []).length >= n,
+}));
+tiered([1, 3, CAMPAIGN_CHAPTERS], (n, i) => ({
+  id: `camp_perfect_${n}`, name: ["PERFECT SHOW", "Showman", "Król sceny"][i], category: "Kampania",
+  desc: n === 1 ? "Zdobądź 12/12 w Wielkim Finale (PERFECT SHOW)" : `Zdobądź PERFECT SHOW w ${n} rozdziałach`,
+  xp: [90, 130, 200][i], check: (s) => (campSum(s).perfectChapters || []).length >= n,
+}));
+CAMPAIGN.chapters.forEach((ch) => {
+  ACHIEVEMENTS.push({
+    id: `camp_ch_${ch.id}`, name: `Trasa: ${ch.menuTitle || ch.title}`, category: "Kampania",
+    desc: `Ukończ Wielki Finał w rozdziale ${ch.menuTitle || ch.title}`, xp: tierXp(2),
+    check: (s) => (campSum(s).clearedChapters || []).includes(ch.id),
+  });
+});
 
 export function getAchievementProgress(stats, level) {
   const claimed = new Set(stats?.claimedAchievements || []);

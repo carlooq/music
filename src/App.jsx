@@ -3748,7 +3748,7 @@ export default function App() {
   // Kampania ("Trasa koncertowa") — cały stan i przebieg w campaign/useCampaign.js
   const campaign = useCampaign({
     screen, room, roomId, user, playbackUx, playerId, name, stats,
-    setScreen, setError, setBusy, setRoomId, setRoom, setHitRush, setMyXp, setMyHitcoin,
+    setScreen, setError, setBusy, setRoomId, setRoom, setHitRush, setMyXp, setMyHitcoin, setStats,
     loadPool: getDailyFeaturesPool,
     enrichRows: enrichPlayerRows,
     requestLogin: (msg) => { setShowAuthForm(true); setError(msg); },

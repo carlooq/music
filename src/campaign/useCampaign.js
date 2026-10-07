@@ -12,7 +12,7 @@ import {
   buildQuizQuestions, buildYearGuessSongs, buildTimelineDeck, buildRunPlan, scorePart,
   computeStageScore, filterDecadePool, pickRushSongInDecade, yearGuessPoints, getStageStatus, isChapterUnlocked,
 } from "./campaignEngine.js";
-import { getCampaignProgress, submitStageResult, fetchCampaignLeaderboard } from "./campaignDb.js";
+import { getCampaignProgress, submitStageResult, fetchCampaignLeaderboard, syncCampaignSummary } from "./campaignDb.js";
 
 export const CAMPAIGN_MIN_LISTEN_MS = 1000;
 const POOL_SAFETY_MARGIN = 10; // ile utworów ponad absolutne minimum chcemy mieć w dekadzie
@@ -68,7 +68,12 @@ export function useCampaign(deps) {
     d.setHitRush?.(null);
     setLoading(true);
     try {
-      setProgress(await getCampaignProgress(d.user.uid));
+      const loaded = await getCampaignProgress(d.user.uid);
+      setProgress(loaded);
+      // dosynchronizuj dane do osiągnięć (gracze z postępem sprzed osiągnięć)
+      syncCampaignSummary(d.user.uid, loaded)
+        .then((summary) => d.setStats?.((st) => (st ? { ...st, campaignSummary: summary } : st)))
+        .catch(() => {});
       d.setScreen("campaignHome");
     } catch (e) {
       d.setError("Nie udało się wczytać kampanii: " + (e?.message || e));
@@ -266,6 +271,7 @@ export function useCampaign(deps) {
     try {
       const out = await submitStageResult(d.user.uid, runState.chapterId, runState.stageId, { score });
       setProgress(out.progress);
+      d.setStats?.((st) => (st ? { ...st, campaignSummary: out.summary } : st));
       if (out.rewards.xp) d.setMyXp?.((x) => (x || 0) + out.rewards.xp);
       if (out.rewards.hitcoin) d.setMyHitcoin?.((h) => (h || 0) + out.rewards.hitcoin);
       setOutcome({ pending: false, score, partResults, stageId: stage.id, ...out });

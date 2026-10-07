@@ -339,3 +339,33 @@ export function getTimelineDisplayProgress(room, playerId) {
     : (room?.timelines?.[playerId] || []).length;
   return { completed: Math.min(target, played), target };
 }
+
+// Skrót postępu kampanii zapisywany w userStats.campaignSummary — z niego
+// liczą się osiągnięcia (system osiągnięć czyta wyłącznie userStats).
+// Wyliczany zawsze z pełnego postępu, więc jest idempotentny i można go
+// bezpiecznie przeliczyć ponownie w dowolnym momencie.
+export function summarizeProgress(campaign, progress) {
+  const summary = {
+    totalStars: 0, stagesCleared: 0, threeStarStages: 0,
+    clearedChapters: [], fullChapters: [], perfectChapters: [],
+  };
+  for (const chapter of campaign.chapters) {
+    const chProg = progress?.chapters?.[chapter.id];
+    if (!chProg) continue;
+    let stars = 0;
+    for (const stage of chapter.stages) {
+      const e = chProg.stages?.[stage.id];
+      if (!e) continue;
+      stars += e.stars || 0;
+      if (e.cleared || (e.stars || 0) > 0) summary.stagesCleared += 1;
+      if ((e.stars || 0) >= 3) summary.threeStarStages += 1;
+    }
+    summary.totalStars += stars;
+    const finale = chapter.stages.find((s) => s.isFinale);
+    const fe = finale && chProg.stages?.[finale.id];
+    if (fe && (fe.cleared || (fe.stars || 0) > 0)) summary.clearedChapters.push(chapter.id);
+    if (stars >= maxStarsForChapter(chapter)) summary.fullChapters.push(chapter.id);
+    if (chProg.perfectShow) summary.perfectChapters.push(chapter.id);
+  }
+  return summary;
+}

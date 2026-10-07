@@ -1,10 +1,10 @@
 // Zapis postępu kampanii i wypłata nagród. Postęp i nagroda zapisują się
 // W JEDNEJ transakcji (campaignProgress + userStats), więc reload, drugie
 // urządzenie ani ponowne podejście nie wypłacą nagrody drugi raz.
-import { doc, getDoc, runTransaction, collection, query, orderBy, limit, getDocs, increment } from "firebase/firestore";
+import { doc, getDoc, updateDoc, runTransaction, collection, query, orderBy, limit, getDocs, increment } from "firebase/firestore";
 import { db } from "../firebase-config.js";
 import { CAMPAIGN } from "./campaignConfig.js";
-import { applyStageResult, emptyProgress } from "./campaignEngine.js";
+import { applyStageResult, emptyProgress, summarizeProgress } from "./campaignEngine.js";
 
 const PROGRESS_COLLECTION = "campaignProgress";
 
@@ -23,8 +23,11 @@ export async function submitStageResult(uid, chapterId, stageId, rawResult) {
     const current = progressSnap.exists() ? progressSnap.data() : emptyProgress();
     outcome = applyStageResult(CAMPAIGN, current, chapterId, stageId, rawResult);
     tx.set(progressRef, { ...outcome.progress, updatedAt: Date.now() });
-    if (statsSnap.exists() && (outcome.rewards.xp || outcome.rewards.hitcoin)) {
+    outcome.summary = summarizeProgress(CAMPAIGN, outcome.progress);
+    if (statsSnap.exists()) {
+      // nagroda + podsumowanie pod osiągnięcia — w tej samej transakcji co postęp
       tx.update(statsRef, {
+        campaignSummary: outcome.summary,
         ...(outcome.rewards.xp ? { xp: increment(outcome.rewards.xp) } : {}),
         ...(outcome.rewards.hitcoin ? { hitcoin: increment(outcome.rewards.hitcoin) } : {}),
       });
@@ -40,4 +43,18 @@ export async function fetchCampaignLeaderboard(count = 20) {
   return snap.docs
     .map((d) => ({ uid: d.id, totalStars: d.data().totalStars || 0 }))
     .sort((a, b) => b.totalStars - a.totalStars);
+}
+
+// Dla graczy z postępem sprzed wprowadzenia osiągnięć kampanii: przelicza
+// podsumowanie z zapisanego postępu, jeśli różni się od tego w userStats.
+// Nic nie wypłaca — tylko synchronizuje dane do osiągnięć.
+export async function syncCampaignSummary(uid, progress) {
+  const summary = summarizeProgress(CAMPAIGN, progress);
+  const statsRef = doc(db, "userStats", uid);
+  const snap = await getDoc(statsRef);
+  if (!snap.exists()) return summary;
+  if (JSON.stringify(snap.data().campaignSummary || null) !== JSON.stringify(summary)) {
+    await updateDoc(statsRef, { campaignSummary: summary });
+  }
+  return summary;
 }
