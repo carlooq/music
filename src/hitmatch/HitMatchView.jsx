@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, RotateCcw, Sparkles, Star, Trophy, Zap, Music2, Move, Target, Play, SkipForward } from "lucide-react";
+import { ArrowLeft, RotateCcw, Sparkles, Star, Trophy, Zap, Music2, Move, Target, Play, SkipForward, BarChart3, Lock, ChevronRight, Crown, Gamepad2 } from "lucide-react";
 import { playCorrectSound, playWrongSound, playVictorySound, unlockAudio } from "../sounds.js";
 import { auth } from "../firebase-config.js";
 import { fetchAllSongsFromDb } from "../songsDb.js";
@@ -30,8 +30,8 @@ import {
   swapBoardCells,
   uniqueMatchedIndices,
 } from "./hitMatchEngine.js";
-import { HIT_MATCH_LEVEL_1 as LEVEL, starsForHitMatchLevel } from "./hitMatchConfig.js";
-import { getHitMatchProgress, submitHitMatchLevelResult } from "./hitMatchDb.js";
+import { HIT_MATCH_LEVELS, HIT_MATCH_TOTAL_STARS, isHitMatchLevelCompleted, starsForHitMatchLevel } from "./hitMatchConfig.js";
+import { fetchHitMatchLevelLeaderboard, fetchHitMatchStarsLeaderboard, getHitMatchProgress, submitHitMatchLevelResult } from "./hitMatchDb.js";
 import "./hitmatch.css";
 
 const ICONS = {
@@ -53,6 +53,30 @@ const TYPE_LABELS = {
   note: "Nuty",
 };
 
+function emptyCollected(level) {
+  return Object.keys(level?.goals || {}).reduce((acc, type) => { acc[type] = 0; return acc; }, {});
+}
+
+function levelProgressPercent(level, collected, score) {
+  const parts = [];
+  Object.entries(level?.goals || {}).forEach(([type, target]) => {
+    parts.push(Math.min(1, Number(collected?.[type] || 0) / Math.max(1, Number(target || 1))));
+  });
+  if (level?.scoreGoal) parts.push(Math.min(1, Number(score || 0) / Math.max(1, Number(level.scoreGoal || 1))));
+  if (!parts.length) return 0;
+  return Math.round((parts.reduce((sum, value) => sum + value, 0) / parts.length) * 100);
+}
+
+function compactGoal(level) {
+  const entries = Object.entries(level?.goals || {});
+  const sameTarget = entries.length === 6 && new Set(entries.map(([, target]) => target)).size === 1;
+  const bits = sameTarget
+    ? [`Po ${entries[0][1]} każdego symbolu`]
+    : entries.map(([type, target]) => `${TYPE_LABELS[type] || type} ${target}`);
+  if (level?.scoreGoal) bits.push(`${Number(level.scoreGoal).toLocaleString("pl-PL")} pkt`);
+  return bits.join(" · ") || "Graj na wynik";
+}
+
 const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const shuffle = (arr) => {
@@ -67,9 +91,13 @@ const shuffle = (arr) => {
 let quizPoolPromise = null;
 async function loadQuizPool() {
   if (!quizPoolPromise) {
+    const allowed = (song) => {
+      const categories = (song?.categories || []).map((value) => String(value || "").trim().toLowerCase());
+      return song?.videoId && song?.artist && song?.title && !categories.includes("rap") && !categories.includes("religijne");
+    };
     quizPoolPromise = fetchAllSongsFromDb()
-      .then((rows) => rows.filter((s) => s?.videoId && s?.artist && s?.title))
-      .catch(() => REAL_SONGS.filter((s) => s?.videoId && s?.artist && s?.title));
+      .then((rows) => rows.filter(allowed))
+      .catch(() => REAL_SONGS.filter(allowed));
   }
   return quizPoolPromise;
 }
@@ -173,6 +201,17 @@ function GoalChip({ type, value, target }) {
   );
 }
 
+function ScoreGoalChip({ value, target }) {
+  const done = Number(value || 0) >= Number(target || 0);
+  return (
+    <div className={`hm-goal-chip hm-score-goal ${done ? "done" : ""}`}>
+      <Trophy size={22} />
+      <span><small>Wynik</small><strong>{Math.min(Number(value || 0), Number(target || 0)).toLocaleString("pl-PL")} / {Number(target || 0).toLocaleString("pl-PL")}</strong></span>
+      {done ? <b>✓</b> : null}
+    </div>
+  );
+}
+
 function Stars({ count = 0, size = 18, className = "" }) {
   return (
     <span className={`hm-stars ${className}`.trim()}>
@@ -242,14 +281,14 @@ function QuizModal({ state, iframeRef, onAnswer, onReplay, onSkip }) {
   );
 }
 
-export default function HitMatchView({ onBack }) {
+function HitMatchGame({ onBack, level: LEVEL, progressEntry, onProgressUpdate }) {
   const [board, setBoard] = useState(() => createPlayableBoard());
   const [selected, setSelected] = useState(null);
   const [draggingIndex, setDraggingIndex] = useState(null);
   const [matched, setMatched] = useState([]);
   const [moves, setMoves] = useState(LEVEL.moves);
   const [score, setScore] = useState(0);
-  const [collected, setCollected] = useState({ vinyl: 0, microphone: 0 });
+  const [collected, setCollected] = useState(() => emptyCollected(LEVEL));
   const [hitMeter, setHitMeter] = useState(0);
   const [status, setStatus] = useState("intro");
   const [busy, setBusy] = useState(false);
@@ -267,7 +306,7 @@ export default function HitMatchView({ onBack }) {
   const [comboNotice, setComboNotice] = useState(null);
   const [quizState, setQuizState] = useState(null);
   const [resultStars, setResultStars] = useState(0);
-  const [previousStars, setPreviousStars] = useState(0);
+  const [previousStars, setPreviousStars] = useState(() => Number(progressEntry?.stars || 0));
   const [rewardState, setRewardState] = useState(null);
 
   const pointerStartRef = useRef(null);
@@ -281,7 +320,7 @@ export default function HitMatchView({ onBack }) {
     moves: LEVEL.moves,
     score: 0,
     bonusScore: 0,
-    collected: { vinyl: 0, microphone: 0 },
+    collected: emptyCollected(LEVEL),
     hitMeter: 0,
   });
 
@@ -308,12 +347,8 @@ export default function HitMatchView({ onBack }) {
   }, []);
 
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
-    if (!uid || auth.currentUser?.isAnonymous) return;
-    getHitMatchProgress(uid).then((progress) => {
-      setPreviousStars(Number(progress?.levels?.[LEVEL.id]?.stars || 0));
-    }).catch(() => {});
-  }, []);
+    setPreviousStars(Number(progressEntry?.stars || 0));
+  }, [progressEntry?.stars, LEVEL.id]);
 
   useEffect(() => () => {
     runTokenRef.current += 1;
@@ -335,7 +370,7 @@ export default function HitMatchView({ onBack }) {
     setMatched([]);
     setMoves(LEVEL.moves);
     setScore(0);
-    setCollected({ vinyl: 0, microphone: 0 });
+    setCollected(emptyCollected(LEVEL));
     setHitMeter(0);
     setBusy(false);
     setBanner(null);
@@ -357,11 +392,11 @@ export default function HitMatchView({ onBack }) {
       moves: LEVEL.moves,
       score: 0,
       bonusScore: 0,
-      collected: { vinyl: 0, microphone: 0 },
+      collected: emptyCollected(LEVEL),
       hitMeter: 0,
     };
     setStatus(autoStart ? "running" : "intro");
-  }, []);
+  }, [LEVEL]);
 
   const saveCompletedLevel = useCallback(async (finalScore, stars, token) => {
     const user = auth.currentUser;
@@ -374,17 +409,18 @@ export default function HitMatchView({ onBack }) {
       const result = await submitHitMatchLevelResult(user.uid, LEVEL, { score: finalScore, stars });
       if (runTokenRef.current !== token) return;
       setPreviousStars(result.stars);
+      onProgressUpdate?.(result.progress);
       setRewardState({ saved: true, ...result });
     } catch (error) {
       if (runTokenRef.current !== token) return;
       setRewardState({ saved: false, error: error?.message || "Nie udało się zapisać nagrody." });
     }
-  }, []);
+  }, [LEVEL, onProgressUpdate]);
 
   const finishOrShuffle = useCallback(async (finalBoard, token) => {
     if (runTokenRef.current !== token) return;
     const stats = statsRef.current;
-    const won = Object.entries(LEVEL.goals).every(([type, target]) => (stats.collected[type] || 0) >= target);
+    const won = isHitMatchLevelCompleted(LEVEL, stats);
 
     if (won) {
       if (endingRef.current) return;
@@ -783,10 +819,10 @@ export default function HitMatchView({ onBack }) {
   const startGame = () => {
     unlockAudio();
     resetGame(true);
-    flashBanner("LEVEL 1", "Zbierz cele, zanim skończą się ruchy", "cyan", 1000);
+    flashBanner(`LEVEL ${LEVEL.number}`, LEVEL.title, "cyan", 1000);
   };
 
-  const progressPct = Math.round((Object.entries(LEVEL.goals).reduce((sum, [type, target]) => sum + Math.min(1, (collected[type] || 0) / target), 0) / Object.keys(LEVEL.goals).length) * 100);
+  const progressPct = levelProgressPercent(LEVEL, collected, score);
 
   return (
     <div className={`hm-page hm-v4 hm-motion-${motionMode} ${invalidFlash ? "hm-invalid" : ""}`}>
@@ -866,6 +902,7 @@ export default function HitMatchView({ onBack }) {
 
             <div className="hm-goals-mobile">
               {Object.entries(LEVEL.goals).map(([type, target]) => <GoalChip key={type} type={type} value={collected[type] || 0} target={target} />)}
+              {LEVEL.scoreGoal ? <ScoreGoalChip value={score} target={LEVEL.scoreGoal} /> : null}
             </div>
           </div>
         </section>
@@ -873,13 +910,16 @@ export default function HitMatchView({ onBack }) {
         <aside className="hm-side-panel">
           <section className="hm-panel hm-objectives">
             <div className="hm-panel-title"><Target size={17} /><span>CEL POZIOMU</span></div>
-            <p>Zbierz wszystkie wymagane symbole przed końcem ruchów.</p>
-            <div className="hm-goal-list">{Object.entries(LEVEL.goals).map(([type, target]) => <GoalChip key={type} type={type} value={collected[type] || 0} target={target} />)}</div>
+            <p>{LEVEL.scoreGoal && Object.keys(LEVEL.goals).length ? "Zrealizuj cele i osiągnij wymagany wynik przed końcem ruchów." : LEVEL.scoreGoal ? "Zdobądź wymagany wynik przed końcem ruchów." : "Zbierz wszystkie wymagane symbole przed końcem ruchów."}</p>
+            <div className="hm-goal-list">
+              {Object.entries(LEVEL.goals).map(([type, target]) => <GoalChip key={type} type={type} value={collected[type] || 0} target={target} />)}
+              {LEVEL.scoreGoal ? <ScoreGoalChip value={score} target={LEVEL.scoreGoal} /> : null}
+            </div>
           </section>
 
           <section className="hm-panel hm-star-rules">
             <div className="hm-panel-title"><Star size={17} /><span>GWIAZDKI I NAGRODY</span></div>
-            <div className="hm-star-rule"><Star size={18} fill="currentColor" /><span><strong>Ukończ poziom</strong><small>+20 XP · +15 HITCOIN</small></span></div>
+            <div className="hm-star-rule"><Star size={18} fill="currentColor" /><span><strong>Ukończ poziom</strong><small>+20 XP · +10 HITCOIN</small></span></div>
             <div className="hm-star-rule"><span className="two-stars">★★</span><span><strong>{LEVEL.starScoreThresholds[2].toLocaleString("pl-PL")} pkt</strong><small>kolejna gwiazdka i nagroda</small></span></div>
             <div className="hm-star-rule"><span className="three-stars">★★★</span><span><strong>{LEVEL.starScoreThresholds[3].toLocaleString("pl-PL")} pkt</strong><small>pełny komplet</small></span></div>
           </section>
@@ -903,11 +943,12 @@ export default function HitMatchView({ onBack }) {
       {status === "intro" ? (
         <div className="hm-overlay">
           <div className="hm-modal hm-intro-modal">
-            <span className="hm-modal-kicker">HITSTERIADA ARCADE · POZIOM 1</span>
+            <span className="hm-modal-kicker">HITSTERIADA ARCADE · POZIOM {LEVEL.number}</span>
             <h2>HIT <b>MATCH</b></h2>
             <p>Łącz muzyczne symbole, buduj kaskady i zrealizuj cele przed końcem ruchów.</p>
             <div className="hm-intro-goals">
               {Object.entries(LEVEL.goals).map(([type, target]) => <div key={type}><img src={ICONS[type]} alt="" /><strong>{target}</strong><span>{TYPE_LABELS[type]}</span></div>)}
+              {LEVEL.scoreGoal ? <div className="score-goal"><Trophy size={26} /><strong>{Number(LEVEL.scoreGoal).toLocaleString("pl-PL")}</strong><span>punktów</span></div> : null}
               <div className="moves"><Move size={26} /><strong>{LEVEL.moves}</strong><span>ruchów</span></div>
             </div>
             <div className="hm-intro-stars"><span><b>★</b> ukończenie</span><span><b>★★</b> {LEVEL.starScoreThresholds[2].toLocaleString("pl-PL")} pkt</span><span><b>★★★</b> {LEVEL.starScoreThresholds[3].toLocaleString("pl-PL")} pkt</span></div>
@@ -943,7 +984,7 @@ export default function HitMatchView({ onBack }) {
               </div>
             ) : null}
             <button type="button" className="hm-primary" onClick={() => resetGame(true)}><RotateCcw size={18} /> ZAGRAJ PONOWNIE</button>
-            <button type="button" className="hm-secondary" onClick={onBack}>WRÓĆ DO HITSTERIADY</button>
+            <button type="button" className="hm-secondary" onClick={onBack}>WRÓĆ DO HUBU</button>
           </div>
         </div>
       ) : null}
@@ -968,4 +1009,209 @@ export default function HitMatchView({ onBack }) {
       ) : null}
     </div>
   );
+}
+
+function HitMatchHub({ onBack }) {
+  const [progress, setProgress] = useState({ levels: {}, totalStars: 0, completedLevels: 0, updatedAt: 0 });
+  const [loadingProgress, setLoadingProgress] = useState(true);
+  const [activeLevelId, setActiveLevelId] = useState(null);
+  const [screen, setScreen] = useState("levels");
+  const [rankingMode, setRankingMode] = useState("stars");
+  const [rankingRows, setRankingRows] = useState(null);
+  const [rankingError, setRankingError] = useState("");
+  const currentUser = auth.currentUser;
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoadingProgress(true);
+      try {
+        const next = currentUser?.uid ? await getHitMatchProgress(currentUser.uid) : { levels: {}, totalStars: 0, completedLevels: 0, updatedAt: 0 };
+        if (!cancelled) setProgress(next);
+      } catch {
+        if (!cancelled) setProgress({ levels: {}, totalStars: 0, completedLevels: 0, updatedAt: 0 });
+      } finally {
+        if (!cancelled) setLoadingProgress(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [currentUser?.uid]);
+
+  useEffect(() => {
+    if (screen !== "ranking") return;
+    let cancelled = false;
+    setRankingRows(null);
+    setRankingError("");
+    const load = async () => {
+      try {
+        const rows = rankingMode === "stars"
+          ? await fetchHitMatchStarsLeaderboard(20)
+          : await fetchHitMatchLevelLeaderboard(rankingMode, 20);
+        if (!cancelled) setRankingRows(rows);
+      } catch (error) {
+        if (!cancelled) {
+          setRankingRows([]);
+          setRankingError(error?.message || "Nie udało się pobrać rankingu.");
+        }
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [screen, rankingMode]);
+
+  const levelIndex = activeLevelId ? HIT_MATCH_LEVELS.findIndex((level) => level.id === activeLevelId) : -1;
+  const activeLevel = levelIndex >= 0 ? HIT_MATCH_LEVELS[levelIndex] : null;
+
+  if (activeLevel) {
+    return (
+      <HitMatchGame
+        key={activeLevel.id}
+        level={activeLevel}
+        progressEntry={progress.levels?.[activeLevel.id] || null}
+        onProgressUpdate={(nextProgress) => setProgress(nextProgress)}
+        onBack={() => setActiveLevelId(null)}
+      />
+    );
+  }
+
+  const isUnlocked = (level, index) => {
+    if (index === 0) return true;
+    if (progress.levels?.[level.id]?.completed) return true;
+    const previous = HIT_MATCH_LEVELS[index - 1];
+    return !!progress.levels?.[previous.id]?.completed;
+  };
+
+  const nextLevel = HIT_MATCH_LEVELS.find((level, index) => isUnlocked(level, index) && !progress.levels?.[level.id]?.completed)
+    || HIT_MATCH_LEVELS.find((level, index) => isUnlocked(level, index))
+    || HIT_MATCH_LEVELS[0];
+
+  const progressPct = Math.max(0, Math.min(100, Math.round((Number(progress.totalStars || 0) / HIT_MATCH_TOTAL_STARS) * 100)));
+  const selectedRankingLevel = rankingMode === "stars" ? null : HIT_MATCH_LEVELS.find((level) => level.id === rankingMode);
+
+  return (
+    <div className="hm-page hm-hub-page">
+      <div className="hm-bg" aria-hidden="true"><i /><i /><i /></div>
+      <header className="hm-topbar hm-hub-topbar">
+        <button type="button" className="hm-back" onClick={onBack}><ArrowLeft size={19} /> <span>WRÓĆ</span></button>
+        <div className="hm-title-lockup"><span className="hm-eyebrow">HITSTERIADA ARCADE</span><h1>HIT <b>MATCH</b></h1></div>
+        <button type="button" className={`hm-hub-rank-btn ${screen === "ranking" ? "active" : ""}`} onClick={() => setScreen(screen === "ranking" ? "levels" : "ranking")}>
+          <BarChart3 size={18} /><span>{screen === "ranking" ? "POZIOMY" : "RANKING"}</span>
+        </button>
+      </header>
+
+      {screen === "levels" ? (
+        <main className="hm-hub-main">
+          <section className="hm-hub-hero">
+            <div className="hm-hub-hero-copy">
+              <span className="hm-hub-kicker">SERIA 01 · 11 POZIOMÓW</span>
+              <h2>NEONOWA <b>SCENA</b></h2>
+              <p>Łącz symbole, buduj kaskady i zdobywaj po trzy gwiazdki na każdym poziomie. Każda nowa gwiazdka to <strong>20 XP + 10 HITCOIN</strong>.</p>
+              <button type="button" className="hm-primary hm-hub-continue" onClick={() => setActiveLevelId(nextLevel.id)}>
+                <Play size={19} fill="currentColor" /> {progress.levels?.[nextLevel.id]?.completed ? "ZAGRAJ PONOWNIE" : `GRAJ · LEVEL ${nextLevel.number}`}
+              </button>
+            </div>
+            <div className="hm-hub-progress-card">
+              <div className="hm-hub-progress-ring" style={{ "--hm-progress": `${progressPct}%` }}>
+                <span><strong>{loadingProgress ? "…" : progress.totalStars || 0}</strong><small>/ {HIT_MATCH_TOTAL_STARS} ★</small></span>
+              </div>
+              <div className="hm-hub-progress-meta">
+                <span><small>UKOŃCZONE</small><strong>{progress.completedLevels || 0} / {HIT_MATCH_LEVELS.length}</strong></span>
+                <span><small>POSTĘP</small><strong>{progressPct}%</strong></span>
+              </div>
+            </div>
+          </section>
+
+          <section className="hm-levels-section">
+            <div className="hm-levels-heading">
+              <div><span>WYBIERZ POZIOM</span><h3>PIERWSZA TRASA</h3></div>
+              <div className="hm-levels-legend"><span><i className="open" /> dostępny</span><span><i className="done" /> ukończony</span><span><i className="locked" /> zablokowany</span></div>
+            </div>
+            <div className="hm-level-grid">
+              {HIT_MATCH_LEVELS.map((level, index) => {
+                const entry = progress.levels?.[level.id] || {};
+                const unlocked = isUnlocked(level, index);
+                const completed = !!entry.completed;
+                const stars = Number(entry.stars || 0);
+                return (
+                  <button
+                    type="button"
+                    key={level.id}
+                    className={`hm-level-card ${unlocked ? "unlocked" : "locked"} ${completed ? "completed" : ""} ${level.number === 11 ? "finale" : ""}`}
+                    disabled={!unlocked}
+                    onClick={() => unlocked && setActiveLevelId(level.id)}
+                  >
+                    <div className="hm-level-number">{unlocked ? String(level.number).padStart(2, "0") : <Lock size={18} />}</div>
+                    <div className="hm-level-card-body">
+                      <span className="hm-level-subtitle">{level.subtitle}</span>
+                      <strong>{level.title}</strong>
+                      <small>{unlocked ? compactGoal(level) : `Ukończ level ${index}`}</small>
+                    </div>
+                    <div className="hm-level-card-side">
+                      <Stars count={stars} size={18} />
+                      {entry.bestScore ? <small>{Number(entry.bestScore).toLocaleString("pl-PL")} pkt</small> : <small>{unlocked ? `${level.moves} ruchów` : "LOCK"}</small>}
+                      {unlocked ? <ChevronRight size={19} /> : null}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </main>
+      ) : (
+        <main className="hm-ranking-main">
+          <section className="hm-ranking-hero">
+            <div>
+              <span className="hm-hub-kicker">HIT MATCH · RANKING</span>
+              <h2>NAJLEPSI NA <b>SCENIE</b></h2>
+              <p>Ranking główny liczy zdobyte gwiazdki. Wyniki punktowe porównujemy wyłącznie w obrębie tego samego levelu.</p>
+            </div>
+            <div className="hm-ranking-filter">
+              <label htmlFor="hm-ranking-mode">Ranking</label>
+              <select id="hm-ranking-mode" value={rankingMode} onChange={(event) => setRankingMode(event.target.value)}>
+                <option value="stars">Łączna liczba gwiazdek</option>
+                {HIT_MATCH_LEVELS.map((level) => <option key={level.id} value={level.id}>Level {level.number} · {level.title}</option>)}
+              </select>
+            </div>
+          </section>
+
+          <section className="hm-ranking-card">
+            <div className="hm-ranking-title-row">
+              <div><Trophy size={22} /><span><strong>{rankingMode === "stars" ? "GWIAZDKI" : `LEVEL ${selectedRankingLevel?.number}`}</strong><small>{rankingMode === "stars" ? `maks. ${HIT_MATCH_TOTAL_STARS} ★` : selectedRankingLevel?.title}</small></span></div>
+              {rankingMode !== "stars" ? <span className="hm-ranking-goal">{compactGoal(selectedRankingLevel)}</span> : null}
+            </div>
+
+            {rankingRows === null ? (
+              <div className="hm-ranking-empty"><Sparkles size={28} /><strong>Ładuję ranking…</strong></div>
+            ) : rankingError ? (
+              <div className="hm-ranking-empty error"><Music2 size={28} /><strong>Nie udało się pobrać rankingu</strong><span>{rankingError}</span></div>
+            ) : rankingRows.length === 0 ? (
+              <div className="hm-ranking-empty"><Gamepad2 size={28} /><strong>Jeszcze bez wyników</strong><span>Zagraj jako pierwszy.</span></div>
+            ) : (
+              <div className="hm-ranking-list">
+                {rankingRows.map((row, index) => {
+                  const isMe = row.uid === currentUser?.uid;
+                  return (
+                    <div key={`${row.uid}-${index}`} className={`hm-ranking-row ${isMe ? "me" : ""} place-${index + 1}`}>
+                      <div className="hm-rank-place">{index === 0 ? <Crown size={18} fill="currentColor" /> : index + 1}</div>
+                      <div className="hm-rank-name"><strong>{row.name}</strong>{isMe ? <small>TY</small> : null}</div>
+                      {rankingMode === "stars" ? (
+                        <div className="hm-rank-score"><strong>{row.stars} ★</strong><small>{row.completedLevels} lvl</small></div>
+                      ) : (
+                        <div className="hm-rank-score"><strong>{Number(row.score || 0).toLocaleString("pl-PL")}</strong><Stars count={row.stars || 0} size={13} /></div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </main>
+      )}
+    </div>
+  );
+}
+
+export default function HitMatchView({ onBack }) {
+  return <HitMatchHub onBack={onBack} />;
 }

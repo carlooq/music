@@ -1,4 +1,4 @@
-import { doc, getDoc, increment, runTransaction } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, increment, limit, orderBy, query, runTransaction } from "firebase/firestore";
 import { db } from "../firebase-config.js";
 
 function emptyProgress() {
@@ -46,7 +46,7 @@ export async function submitHitMatchLevelResult(uid, level, { score = 0, stars =
     const values = Object.values(levels);
     const totalStars = values.reduce((sum, entry) => sum + Math.max(0, Math.min(3, Number(entry?.stars || 0))), 0);
     const completedLevels = values.filter((entry) => entry?.completed).length;
-    const rewardPerStar = level.rewardPerStar || { xp: 20, hitcoin: 15 };
+    const rewardPerStar = level.rewardPerStar || { xp: 20, hitcoin: 10 };
     const xp = gainedStars * Number(rewardPerStar.xp || 0);
     const hitcoin = gainedStars * Number(rewardPerStar.hitcoin || 0);
     const progress = { levels, totalStars, completedLevels, updatedAt: Date.now() };
@@ -62,4 +62,32 @@ export async function submitHitMatchLevelResult(uid, level, { score = 0, stars =
   });
 
   return outcome;
+}
+
+export async function fetchHitMatchStarsLeaderboard(count = 20) {
+  const q = query(collection(db, "userStats"), orderBy("hitMatchSummary.totalStars", "desc"), limit(count));
+  const snap = await getDocs(q);
+  return snap.docs
+    .map((entry) => ({
+      uid: entry.id,
+      name: entry.data()?.username || "Gracz",
+      stars: Number(entry.data()?.hitMatchSummary?.totalStars || 0),
+      completedLevels: Number(entry.data()?.hitMatchSummary?.completedLevels || 0),
+    }))
+    .filter((entry) => entry.stars > 0);
+}
+
+export async function fetchHitMatchLevelLeaderboard(levelId, count = 20) {
+  if (!levelId) return [];
+  const field = `hitMatchProgress.levels.${levelId}.bestScore`;
+  const q = query(collection(db, "userStats"), orderBy(field, "desc"), limit(count));
+  const snap = await getDocs(q);
+  return snap.docs
+    .map((entry) => ({
+      uid: entry.id,
+      name: entry.data()?.username || "Gracz",
+      score: Number(entry.data()?.hitMatchProgress?.levels?.[levelId]?.bestScore || 0),
+      stars: Number(entry.data()?.hitMatchProgress?.levels?.[levelId]?.stars || 0),
+    }))
+    .filter((entry) => entry.score > 0);
 }
