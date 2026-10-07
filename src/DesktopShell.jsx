@@ -553,6 +553,7 @@ export function DesktopHomeView(props) {
     onPractice,
     onYearGuess,
     onHitRush,
+    onHitMatch,
     onCampaign,
     onDailySong,
     onDailyPlaylist,

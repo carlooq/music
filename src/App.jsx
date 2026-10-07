@@ -30,6 +30,7 @@ import { HIT_RUSH_CONFIG, pickNextHitRushSong, computeHitRushPoints, checkHitRus
 import { useCampaign } from "./campaign/useCampaign.js";
 import { CAMPAIGN, getChapter as getCampaignChapter, getStage as getCampaignStage } from "./campaign/campaignConfig.js";
 import { CampaignHomeView, CampaignMapView, CampaignStageView, CampaignPlayView, CampaignIntermissionView, CampaignResultView, CampaignLeaderboardView } from "./campaign/CampaignViews.jsx";
+import HitMatchView from "./hitmatch/HitMatchView.jsx";
 import { updateHeadToHead, fetchHeadToHeadOpponents } from "./headToHead.js";
 import { getAchievementProgress, ACHIEVEMENTS } from "./achievements.js";
 import { playCorrectSound, playWrongSound, playApplause, playVictorySound, unlockAudio } from "./sounds.js";
@@ -5900,6 +5901,38 @@ export default function App() {
               </div>
             )}
 
+            <section
+              className="w-full rounded-2xl p-4"
+              style={{
+                background: "linear-gradient(135deg, rgba(20,228,255,0.10), rgba(214,52,255,0.10))",
+                border: "1px solid rgba(64,220,255,0.38)",
+                boxShadow: "0 12px 30px rgba(0,0,0,.18)",
+              }}
+            >
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <p style={{ fontSize: 10, letterSpacing: ".16em", fontWeight: 800, color: "#55e9ff", textTransform: "uppercase", marginBottom: 4 }}>STREFA TESTOWA</p>
+                  <h3 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: ".04em", margin: 0 }}>HIT MATCH <span style={{ color: "#f062ff" }}>BETA</span></h3>
+                  <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 3 }}>Tryb ukryty przed graczami. Dostępny tylko z Panelu Admina.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAdminPanel(false);
+                    setScreen("hitMatch");
+                  }}
+                  className="px-4 py-2.5 rounded-xl text-sm font-bold"
+                  style={{
+                    background: "linear-gradient(90deg, #13dff3, #c93cf2)",
+                    color: "#07111c",
+                    boxShadow: "0 8px 22px rgba(92,103,255,.28)",
+                  }}
+                >
+                  URUCHOM TEST →
+                </button>
+              </div>
+            </section>
+
             <button
               onClick={() => {
                 setShowProposals((v) => !v);
@@ -6661,6 +6694,18 @@ export default function App() {
       {gameEndReveal && showGameEndRevealPopup && <GameEndRevealPopup data={gameEndReveal} onClose={() => setShowGameEndRevealPopup(false)} levelFromXp={levelFromXp} />}
     </>
   );
+
+  // ----- HIT MATCH: osobny, responsywny moduł arcade -----
+  if (screen === "hitMatch") {
+    return renderSessionUx(
+      <HitMatchView
+        onBack={() => {
+          setScreen("home");
+          if (adminUnlocked) setShowAdminPanel(true);
+        }}
+      />
+    );
+  }
 
   // ----- Kampania: te same ekrany na mobile i desktopie -----
   if (screen === "gameover" && room?.campaignMode) {
@@ -7621,6 +7666,7 @@ export default function App() {
         onJoinYearGuessRoom={() => joinRoom(undefined, { yearGuessOnly: true })}
         onLoadYearGuessLeaderboard={loadYearGuessLeaderboardData}
         onHitRush={() => setScreen("hitRushMenu")}
+        onHitMatch={() => setScreen("hitMatch")}
         onCampaign={campaign.openCampaign}
         onDailySong={openDailySong}
         onDailyPlaylist={openDailyPlaylistHub}
@@ -7782,6 +7828,7 @@ export default function App() {
         onForgetRecentRoom={() => forgetRecentRoom()}
         onPractice={() => setScreen("practiceSetup")}
         onHitRush={() => setScreen("hitRushMenu")}
+        onHitMatch={() => setScreen("hitMatch")}
         onCampaign={campaign.openCampaign}
         onDailySong={openDailySong}
         onDailyPlaylist={openDailyPlaylistHub}
