@@ -370,7 +370,7 @@ export function collapseAndRefill(board) {
     const existing = [];
     for (let row = HIT_MATCH_ROWS - 1; row >= 0; row -= 1) {
       const tile = board[indexOf(row, col)];
-      if (tile) existing.push({ ...tile, freshSpecial: false });
+      if (tile) existing.push({ ...tile, fresh: false, spawnOrder: 0, freshSpecial: false });
     }
 
     let targetRow = HIT_MATCH_ROWS - 1;
@@ -403,7 +403,7 @@ export function countRemovedByType(boardBefore, indices) {
 }
 
 export function shufflePlayable(board) {
-  const tiles = board.filter(Boolean).map((tile) => ({ ...tile, special: null, type: tile.type === "wild" ? randomType() : tile.type }));
+  const tiles = board.filter(Boolean).map((tile) => ({ ...tile, fresh: false, spawnOrder: 0, freshSpecial: false, special: null, type: tile.type === "wild" ? randomType() : tile.type }));
   for (let attempt = 0; attempt < 200; attempt += 1) {
     const pool = tiles.slice();
     for (let i = pool.length - 1; i > 0; i -= 1) {
