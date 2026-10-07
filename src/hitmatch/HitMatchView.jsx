@@ -19,6 +19,7 @@ import {
   hasPossibleMove,
   removeIndices,
   resolveColorSwap,
+  resolveSpecialSwap,
   rowOf,
   chooseSpecialCreation,
   shufflePlayable,
@@ -66,7 +67,7 @@ function specialName(special) {
   return "";
 }
 
-function HitMatchPiece({ tile, index, selected, matched, onPointerDown, onPointerUp, onClick }) {
+function HitMatchPiece({ tile, index, selected, matched, onPointerDown, onPointerMove, onPointerUp, onClick }) {
   const row = rowOf(index);
   const col = colOf(index);
   const image = ICONS[tile.type] || ICONS.vinyl;
@@ -94,6 +95,7 @@ function HitMatchPiece({ tile, index, selected, matched, onPointerDown, onPointe
         className={classNames}
         aria-label={`${TYPE_LABELS[tile.type] || "Specjalny kafel"}${tile.special ? `, ${specialName(tile.special)}` : ""}`}
         onPointerDown={(event) => onPointerDown(event, index)}
+        onPointerMove={(event) => onPointerMove(event, index)}
         onPointerUp={(event) => onPointerUp(event, index)}
         onPointerCancel={(event) => onPointerUp(event, index, true)}
         onClick={() => onClick(index)}
@@ -135,6 +137,8 @@ export default function HitMatchView({ onBack }) {
   const [cascade, setCascade] = useState(0);
   const [bestCascade, setBestCascade] = useState(0);
   const [showHelp, setShowHelp] = useState(false);
+  const [showPower, setShowPower] = useState(false);
+  const [specialPulse, setSpecialPulse] = useState("");
 
   const pointerStartRef = useRef(null);
   const suppressClickRef = useRef(false);
@@ -174,6 +178,8 @@ export default function HitMatchView({ onBack }) {
     setCascade(0);
     setBestCascade(0);
     setInvalidFlash(false);
+    setShowPower(false);
+    setSpecialPulse("");
     statsRef.current = {
       moves: LEVEL.moves,
       score: 0,
@@ -218,24 +224,6 @@ export default function HitMatchView({ onBack }) {
     }
   }, [flashBanner]);
 
-  const grantHitDrop = useCallback(async (currentBoard, token) => {
-    if (runTokenRef.current !== token) return currentBoard;
-    const candidates = currentBoard
-      .map((tile, index) => ({ tile, index }))
-      .filter(({ tile }) => tile && !tile.special && tile.type !== "wild");
-    if (!candidates.length) return currentBoard;
-    const picked = candidates[Math.floor(Math.random() * candidates.length)];
-    const next = currentBoard.slice();
-    next[picked.index] = { ...picked.tile, special: "bomb", freshSpecial: true };
-    statsRef.current.moves += 1;
-    statsRef.current.hitMeter = Math.max(0, statsRef.current.hitMeter - 100);
-    syncStats();
-    setBoard(next);
-    flashBanner("HIT DROP!", "+1 ruch i specjalny kafel", "lime", 1050);
-    await wait(320);
-    return next;
-  }, [flashBanner, syncStats]);
-
   const applyRemovalStats = useCallback((boardBefore, actualIndices, cascadeLevel, specialCreation) => {
     const counts = countRemovedByType(boardBefore, actualIndices);
     const stats = statsRef.current;
@@ -247,7 +235,7 @@ export default function HitMatchView({ onBack }) {
     const base = actualIndices.length * 100 * cascadeLevel;
     const specialBonus = specialCreation ? (specialCreation.special === "color" ? 900 : specialCreation.special === "bomb" ? 600 : 350) : 0;
     stats.score += base + specialBonus;
-    stats.hitMeter = clamp(stats.hitMeter + actualIndices.length * 4 + Math.max(0, cascadeLevel - 1) * 10, 0, 125);
+    stats.hitMeter = clamp(stats.hitMeter + actualIndices.length * 4 + Math.max(0, cascadeLevel - 1) * 10, 0, 100);
     syncStats();
   }, [syncStats]);
 
@@ -255,7 +243,7 @@ export default function HitMatchView({ onBack }) {
     if (runTokenRef.current !== token) return;
     setCascade(cascadeLevel);
     setBestCascade((value) => Math.max(value, cascadeLevel));
-    if (cascadeLevel >= 2) flashBanner(`COMBO x${cascadeLevel}`, "Kaskada!", cascadeLevel >= 4 ? "gold" : "cyan", 650);
+    if (cascadeLevel >= 2) flashBanner(`COMBO x${cascadeLevel}`, cascadeLevel >= 4 ? "MEGA KASKADA!" : "Kaskada!", cascadeLevel >= 4 ? "gold" : "cyan", 1050);
 
     const specialCreation = swapMeta ? chooseSpecialCreation(groups, currentBoard, swapMeta.a, swapMeta.b) : null;
     const matchedBase = uniqueMatchedIndices(groups);
@@ -264,19 +252,19 @@ export default function HitMatchView({ onBack }) {
 
     setMatched(affected);
     playCorrectSound();
-    await wait(210);
+    await wait(340);
     if (runTokenRef.current !== token) return;
 
     applyRemovalStats(currentBoard, affected, cascadeLevel, specialCreation);
     let removed = removeIndices(currentBoard, affected, specialCreation);
     setBoard(removed);
-    await wait(70);
+    await wait(130);
     if (runTokenRef.current !== token) return;
 
     let dropped = collapseAndRefill(removed);
     setMatched([]);
     setBoard(dropped);
-    await wait(310);
+    await wait(440);
     if (runTokenRef.current !== token) return;
 
     const nextGroups = findMatches(dropped);
@@ -285,12 +273,8 @@ export default function HitMatchView({ onBack }) {
       return;
     }
 
-    if (statsRef.current.hitMeter >= 100) {
-      dropped = await grantHitDrop(dropped, token);
-      if (runTokenRef.current !== token) return;
-    }
     await finishOrShuffle(dropped, token);
-  }, [applyRemovalStats, finishOrShuffle, flashBanner, grantHitDrop]);
+  }, [applyRemovalStats, finishOrShuffle, flashBanner]);
 
   const resolveColorMove = useCallback(async (swapped, a, b, token) => {
     const affected = resolveColorSwap(swapped, a, b) || [];
@@ -298,19 +282,19 @@ export default function HitMatchView({ onBack }) {
     setMatched(affected);
     playCorrectSound();
     flashBanner("ZŁOTY WINYL!", "Cały kolor znika z planszy", "gold", 900);
-    await wait(220);
+    await wait(420);
     if (runTokenRef.current !== token) return;
 
     applyRemovalStats(swapped, affected, 1, { special: "color" });
     let removed = removeIndices(swapped, affected, null);
     setBoard(removed);
-    await wait(70);
+    await wait(130);
     if (runTokenRef.current !== token) return;
 
     let dropped = collapseAndRefill(removed);
     setMatched([]);
     setBoard(dropped);
-    await wait(320);
+    await wait(450);
     if (runTokenRef.current !== token) return;
 
     const groups = findMatches(dropped);
@@ -318,9 +302,112 @@ export default function HitMatchView({ onBack }) {
       await resolveCascades(dropped, groups, token, 2, null);
       return;
     }
-    if (statsRef.current.hitMeter >= 100) dropped = await grantHitDrop(dropped, token);
     await finishOrShuffle(dropped, token);
-  }, [applyRemovalStats, finishOrShuffle, flashBanner, grantHitDrop, resolveCascades]);
+  }, [applyRemovalStats, finishOrShuffle, flashBanner, resolveCascades]);
+
+  const resolveSpecialMove = useCallback(async (swapped, a, b, affected, token) => {
+    const specials = [swapped[a], swapped[b]].filter((tile) => tile?.special);
+    const label = specials.length > 1 ? "SPECJALNE COMBO!" : specialName(specials[0]?.special);
+    setCascade(1);
+    setSpecialPulse(specials.length > 1 ? "mega" : specials[0]?.special || "special");
+    setMatched(affected);
+    playCorrectSound();
+    flashBanner(label || "HIT POWER!", specials.length > 1 ? "Dwa boostery odpalone razem" : "Booster aktywowany", specials.length > 1 ? "gold" : "violet", 1200);
+    await wait(430);
+    if (runTokenRef.current !== token) return;
+
+    applyRemovalStats(swapped, affected, 1, null);
+    statsRef.current.score += specials.length > 1 ? 1200 : 500;
+    syncStats();
+    let removed = removeIndices(swapped, affected, null);
+    setBoard(removed);
+    await wait(150);
+    if (runTokenRef.current !== token) return;
+
+    let dropped = collapseAndRefill(removed);
+    setMatched([]);
+    setBoard(dropped);
+    await wait(480);
+    if (runTokenRef.current !== token) return;
+    setSpecialPulse("");
+
+    const groups = findMatches(dropped);
+    if (groups.length) {
+      await resolveCascades(dropped, groups, token, 2, null);
+      return;
+    }
+    await finishOrShuffle(dropped, token);
+  }, [applyRemovalStats, finishOrShuffle, flashBanner, resolveCascades, syncStats]);
+
+  const activateHitPower = useCallback(async (kind) => {
+    if (status !== "running" || busy || statsRef.current.hitMeter < 100) return;
+    unlockAudio();
+    setShowPower(false);
+    setBusy(true);
+    const token = runTokenRef.current;
+
+    if (kind === "encore") {
+      statsRef.current.hitMeter = 0;
+      statsRef.current.moves += 3;
+      syncStats();
+      flashBanner("ENCORE!", "+3 ruchy", "lime", 1200);
+      setSpecialPulse("power");
+      await wait(520);
+      setSpecialPulse("");
+      setBusy(false);
+      return;
+    }
+
+    if (kind === "gold") {
+      const candidates = board.map((tile, index) => ({ tile, index })).filter(({ tile }) => tile && !tile.special);
+      const picked = candidates[Math.floor(Math.random() * candidates.length)];
+      if (picked) {
+        const next = board.slice();
+        next[picked.index] = { ...picked.tile, type: "wild", special: "color", freshSpecial: true };
+        statsRef.current.hitMeter = 0;
+        syncStats();
+        setBoard(next);
+        setSpecialPulse("gold");
+        flashBanner("ZŁOTY WINYL!", "Specjalny kafel gotowy", "gold", 1200);
+        await wait(620);
+        setSpecialPulse("");
+      }
+      setBusy(false);
+      return;
+    }
+
+    // BASS BLAST: natychmiast czyści losowy rząd i kolumnę.
+    const row = Math.floor(Math.random() * 8);
+    const col = Math.floor(Math.random() * 8);
+    const base = [];
+    for (let c = 0; c < 8; c += 1) base.push(row * 8 + c);
+    for (let r = 0; r < 8; r += 1) base.push(r * 8 + col);
+    const affected = expandSpecialEffects(board, [...new Set(base)]);
+    setMatched(affected);
+    setSpecialPulse("blast");
+    playCorrectSound();
+    flashBanner("BASS BLAST!", "Rząd + kolumna", "cyan", 1200);
+    await wait(470);
+    if (runTokenRef.current !== token) return;
+    applyRemovalStats(board, affected, 1, null);
+    statsRef.current.hitMeter = 0;
+    statsRef.current.score += 800;
+    syncStats();
+    let removed = removeIndices(board, affected, null);
+    setBoard(removed);
+    await wait(150);
+    let dropped = collapseAndRefill(removed);
+    setMatched([]);
+    setBoard(dropped);
+    await wait(500);
+    setSpecialPulse("");
+    const groups = findMatches(dropped);
+    if (groups.length) {
+      await resolveCascades(dropped, groups, token, 2, null);
+      return;
+    }
+    await finishOrShuffle(dropped, token);
+  }, [applyRemovalStats, board, busy, finishOrShuffle, flashBanner, resolveCascades, status, syncStats]);
 
   const attemptSwap = useCallback(async (a, b) => {
     if (status !== "running" || busy || !areAdjacent(a, b)) return;
@@ -342,6 +429,14 @@ export default function HitMatchView({ onBack }) {
       return;
     }
 
+    const specialClear = resolveSpecialSwap(swapped, a, b);
+    if (specialClear?.length) {
+      statsRef.current.moves -= 1;
+      syncStats();
+      await resolveSpecialMove(swapped, a, b, specialClear, token);
+      return;
+    }
+
     const groups = findMatches(swapped);
     if (!groups.length) {
       playWrongSound();
@@ -358,7 +453,7 @@ export default function HitMatchView({ onBack }) {
     statsRef.current.moves -= 1;
     syncStats();
     await resolveCascades(swapped, groups, token, 1, { a, b });
-  }, [board, busy, resolveCascades, resolveColorMove, status, syncStats]);
+  }, [board, busy, resolveCascades, resolveColorMove, resolveSpecialMove, status, syncStats]);
 
   const handlePieceClick = useCallback((index) => {
     if (suppressClickRef.current) {
@@ -383,6 +478,7 @@ export default function HitMatchView({ onBack }) {
 
   const handlePointerDown = useCallback((event, index) => {
     if (busy || status !== "running") return;
+    event.preventDefault();
     pointerStartRef.current = {
       index,
       x: event.clientX,
@@ -391,6 +487,30 @@ export default function HitMatchView({ onBack }) {
     };
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }, [busy, status]);
+
+
+  const handlePointerMove = useCallback((event, index) => {
+    const start = pointerStartRef.current;
+    if (!start || start.index !== index || start.pointerId !== event.pointerId || busy || status !== "running") return;
+    event.preventDefault();
+    const dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 18) return;
+    event.preventDefault();
+    pointerStartRef.current = null;
+    suppressClickRef.current = true;
+    const row = rowOf(index);
+    const col = colOf(index);
+    let target = null;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      const nextCol = col + (dx > 0 ? 1 : -1);
+      if (nextCol >= 0 && nextCol < HIT_MATCH_COLS) target = row * HIT_MATCH_COLS + nextCol;
+    } else {
+      const nextRow = row + (dy > 0 ? 1 : -1);
+      if (nextRow >= 0 && nextRow < 8) target = nextRow * HIT_MATCH_COLS + col;
+    }
+    if (target !== null) attemptSwap(index, target);
+  }, [attemptSwap, busy, status]);
 
   const handlePointerUp = useCallback((event, index, cancelled = false) => {
     const start = pointerStartRef.current;
@@ -445,14 +565,15 @@ export default function HitMatchView({ onBack }) {
           <div className="hm-hud-row">
             <div className="hm-stat-card moves"><Move size={18} /><span><small>RUCHY</small><strong>{moves}</strong></span></div>
             <div className="hm-stat-card score"><Trophy size={18} /><span><small>WYNIK</small><strong>{score.toLocaleString("pl-PL")}</strong></span></div>
-            <div className="hm-meter-card">
-              <div><Music2 size={17} /><span><small>HIT METER</small><strong>{Math.min(hitMeter, 100)}%</strong></span></div>
+            <button type="button" className={`hm-meter-card ${hitMeter >= 100 ? "ready" : ""}`} onClick={() => hitMeter >= 100 && !busy && setShowPower(true)} disabled={hitMeter < 100 || busy}>
+              <div><Music2 size={19} /><span><small>{hitMeter >= 100 ? "HIT POWER GOTOWY" : "HIT METER"}</small><strong>{Math.min(hitMeter, 100)}%</strong></span></div>
               <b><i style={{ width: `${Math.min(hitMeter, 100)}%` }} /></b>
-            </div>
+              {hitMeter >= 100 ? <em>ODPAL HIT POWER</em> : null}
+            </button>
           </div>
 
           <div className="hm-board-wrap">
-            <div className="hm-board-shell">
+            <div className={`hm-board-shell ${specialPulse ? `hm-fx-${specialPulse}` : ""}`}>
               <div className="hm-board" role="grid" aria-label="Plansza Hit Match">
                 {board.map((tile, index) => tile ? (
                   <HitMatchPiece
@@ -462,13 +583,14 @@ export default function HitMatchView({ onBack }) {
                     selected={selected === index}
                     matched={matched.includes(index)}
                     onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
                     onPointerUp={handlePointerUp}
                     onClick={handlePieceClick}
                   />
                 ) : null)}
                 <span className="hm-board-shine" aria-hidden="true" />
               </div>
-              {cascade >= 2 && status === "running" ? <div className={`hm-combo-badge combo-${Math.min(cascade, 5)}`}>COMBO <b>x{cascade}</b></div> : null}
+              {cascade >= 2 && status === "running" ? <div key={cascade} className={`hm-combo-badge combo-${Math.min(cascade, 5)}`}>COMBO <b>x{cascade}</b></div> : null}
             </div>
 
             <div className="hm-goals-mobile">
@@ -496,7 +618,7 @@ export default function HitMatchView({ onBack }) {
           </section>
 
           <section className="hm-panel hm-tip">
-            <span>♪</span><p><strong>TIP</strong> Kaskady szybciej ładują HIT METER. Pełny pasek daje +1 ruch i specjalny kafel.</p>
+            <span>♪</span><p><strong>TIP</strong> Kaskady szybciej ładują HIT METER. Przy 100% sam wybierasz HIT POWER.</p>
           </section>
 
           <button type="button" className="hm-restart" onClick={() => resetGame(true)}><RotateCcw size={16} /> NOWA PLANSZA</button>
@@ -517,6 +639,23 @@ export default function HitMatchView({ onBack }) {
             </div>
             <button type="button" className="hm-primary" onClick={startGame}><Zap size={19} fill="currentColor" /> ZACZYNAMY</button>
             <small>Możesz przeciągać kafelki albo klikać dwa sąsiadujące pola.</small>
+          </div>
+        </div>
+      ) : null}
+
+
+      {showPower ? (
+        <div className="hm-overlay hm-power-overlay" onClick={() => !busy && setShowPower(false)}>
+          <div className="hm-modal hm-power-modal" onClick={(event) => event.stopPropagation()}>
+            <span className="hm-modal-kicker">HIT METER · 100%</span>
+            <h2>WYBIERZ <b>HIT POWER</b></h2>
+            <p>Pasek jest pełny. Wybierz bonus, który najlepiej pasuje do sytuacji na planszy.</p>
+            <div className="hm-power-grid">
+              <button type="button" onClick={() => activateHitPower("encore")}><span className="power-icon encore"><Music2 size={30} /></span><strong>ENCORE</strong><small>+3 ruchy</small></button>
+              <button type="button" onClick={() => activateHitPower("blast")}><span className="power-icon blast"><Zap size={30} /></span><strong>BASS BLAST</strong><small>czyści rząd i kolumnę</small></button>
+              <button type="button" onClick={() => activateHitPower("gold")}><span className="power-icon gold"><Star size={30} fill="currentColor" /></span><strong>ZŁOTY WINYL</strong><small>tworzy color bomb</small></button>
+            </div>
+            <button type="button" className="hm-secondary" onClick={() => setShowPower(false)}>JESZCZE NIE</button>
           </div>
         </div>
       ) : null}
@@ -544,7 +683,7 @@ export default function HitMatchView({ onBack }) {
           <button type="button" onClick={() => setShowHelp(false)}>×</button>
           <strong>Jak grać?</strong>
           <p>Połącz minimum 3 identyczne symbole. Możesz przeciągać kafelki albo zaznaczyć dwa sąsiadujące.</p>
-          <ul><li>4 symbole tworzą liniowy booster.</li><li>Układ L/T tworzy bombę 3×3.</li><li>5 symboli tworzy Złoty Winyl.</li><li>Niepoprawna zamiana cofa się i nie zabiera ruchu.</li></ul>
+          <ul><li>4 symbole tworzą liniowy booster.</li><li>Układ L/T tworzy bombę 3×3.</li><li>5 symboli tworzy Złoty Winyl.</li><li>Specjalny kafel możesz odpalić także przez zamianę z sąsiednim polem.</li><li>Przy 100% HIT METER wybierasz jedną z trzech mocy.</li><li>Niepoprawna zwykła zamiana cofa się i nie zabiera ruchu.</li></ul>
         </div>
       ) : null}
     </div>

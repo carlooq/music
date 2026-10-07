@@ -287,6 +287,23 @@ export function resolveColorSwap(board, a, b) {
   return [...new Set([colorIndex, ...expanded])];
 }
 
+
+export function resolveSpecialSwap(board, a, b) {
+  const tileA = board[a];
+  const tileB = board[b];
+  if (!tileA?.special && !tileB?.special) return null;
+  if (tileA?.special === "color" || tileB?.special === "color") return null;
+
+  const initial = [];
+  if (tileA?.special) initial.push(a);
+  if (tileB?.special) initial.push(b);
+  if (!initial.length) return null;
+
+  // Każdy zwykły special może zostać odpalony samą zamianą.
+  // Zamiana dwóch speciali odpala oba i pozwala efektom chainować.
+  return expandSpecialEffects(board, initial);
+}
+
 export function removeIndices(board, indices, specialCreation = null) {
   const removeSet = new Set(indices);
   if (specialCreation) removeSet.delete(specialCreation.index);

@@ -277,3 +277,183 @@
   .hm-piece-slot,.hm-piece,.hm-meter-card>b i,.hm-stage-progress i { transition:none!important; }
   .hm-piece.is-matched,.hm-piece.is-fresh,.hm-piece.is-special-born,.hm-combo-badge,.hm-banner,.hm-overlay,.hm-modal,.hm-bg i,.hm-invalid .hm-board-shell { animation:none!important; }
 }
+
+/* ===== HIT MATCH v2 — scale, readability, motion and HIT POWER ===== */
+.hm-layout {
+  width:min(1760px,calc(100% - 28px));
+  grid-template-columns:minmax(0,1fr) 360px;
+  gap:28px;
+  padding-top:22px;
+}
+.hm-topbar { width:min(1760px,calc(100% - 28px)); min-height:84px; }
+.hm-title-lockup h1 { font-size:39px; }
+.hm-stage-heading h2 { font-size:48px; }
+.hm-stage-heading p { font-size:13px; }
+.hm-hud-row { grid-template-columns:150px 200px minmax(290px,1fr); gap:12px; margin-bottom:14px; }
+.hm-stat-card,.hm-meter-card { min-height:72px; padding:12px 16px; border-radius:18px; }
+.hm-stat-card small,.hm-meter-card small { font-size:7px; }
+.hm-stat-card strong { font-size:30px; }
+
+.hm-meter-card {
+  appearance:none;
+  width:100%;
+  color:inherit;
+  text-align:left;
+  cursor:default;
+  position:relative;
+  transition:border-color .22s ease,box-shadow .22s ease,transform .22s ease,filter .22s ease;
+}
+.hm-meter-card:disabled { opacity:1; }
+.hm-meter-card.ready {
+  cursor:pointer;
+  border-color:rgba(206,255,72,.62);
+  box-shadow:inset 0 0 0 1px rgba(206,255,72,.1),0 0 30px rgba(188,255,60,.17);
+  animation:hmMeterReady 1.25s ease-in-out infinite alternate;
+}
+.hm-meter-card.ready:hover { transform:translateY(-2px); filter:brightness(1.06); }
+.hm-meter-card.ready>div>span strong { color:#eaff78; text-shadow:0 0 18px rgba(210,255,68,.45); }
+.hm-meter-card em { display:block; margin-top:6px; color:#ddff6b; font-family:'Space Mono',monospace; font-size:7px; font-style:normal; font-weight:800; letter-spacing:.12em; text-align:right; }
+
+.hm-board-wrap { align-items:flex-start; }
+.hm-board-shell {
+  width:min(100%,940px);
+  padding:15px;
+  border-radius:34px;
+  box-shadow:0 34px 100px rgba(0,0,0,.52),0 0 58px rgba(69,190,255,.1),inset 0 0 0 1px rgba(255,255,255,.03);
+}
+.hm-board { border-radius:23px; touch-action:none !important; overscroll-behavior:contain; }
+.hm-piece-slot {
+  padding:5px;
+  transition:transform 310ms cubic-bezier(.22,.82,.22,1);
+  touch-action:none;
+}
+.hm-piece {
+  touch-action:none;
+  user-select:none;
+  -webkit-user-select:none;
+  border-radius:20px;
+  background:
+    radial-gradient(circle at 30% 20%,color-mix(in srgb,var(--tile) 30%,transparent),transparent 39%),
+    linear-gradient(145deg,color-mix(in srgb,var(--tile) 14%,#151a38),rgba(6,8,24,.96) 72%);
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in srgb,var(--tile) 40%,transparent),
+    inset 0 -12px 24px rgba(0,0,0,.2),
+    0 4px 12px rgba(0,0,0,.25),
+    0 0 14px color-mix(in srgb,var(--tile) 8%,transparent);
+  transition:transform .18s cubic-bezier(.22,.8,.2,1),filter .18s ease,box-shadow .18s ease,opacity .2s ease;
+}
+.hm-piece img { width:94%; height:94%; filter:drop-shadow(0 6px 10px rgba(0,0,0,.4)); }
+/* Vinyl i słuchawki dostają różne proporcje i bardzo różne tło, żeby nie zlewały się na planszy. */
+.hm-piece.type-vinyl { border-radius:50%; background:radial-gradient(circle at 48% 46%,rgba(148,98,255,.31),rgba(32,21,69,.93) 54%,rgba(7,7,24,.98) 76%); }
+.hm-piece.type-vinyl img { width:88%; height:88%; }
+.hm-piece.type-headphones { border-radius:25% 25% 38% 38%; background:linear-gradient(160deg,rgba(57,218,255,.28),rgba(10,45,76,.94) 50%,rgba(5,10,26,.98)); }
+.hm-piece.type-headphones img { width:82%; height:82%; filter:drop-shadow(0 0 10px rgba(65,220,255,.28)) drop-shadow(0 5px 8px rgba(0,0,0,.32)); }
+.hm-piece.type-microphone { background:linear-gradient(145deg,rgba(255,62,186,.28),rgba(76,13,76,.93) 56%,rgba(14,5,27,.98)); }
+.hm-piece.type-cassette { border-radius:16px; background:linear-gradient(145deg,rgba(35,231,207,.27),rgba(8,73,74,.92) 58%,rgba(4,18,27,.98)); }
+.hm-piece.type-speaker { background:radial-gradient(circle,rgba(255,172,60,.31),rgba(84,36,15,.92) 57%,rgba(22,9,15,.98)); }
+.hm-piece.type-note { background:linear-gradient(145deg,rgba(204,255,56,.25),rgba(54,83,15,.9) 58%,rgba(7,22,20,.98)); }
+
+.hm-piece.is-matched { animation:hmPopV2 390ms cubic-bezier(.2,.72,.2,1) forwards; }
+.hm-piece.is-fresh { animation:hmSpawnV2 .5s cubic-bezier(.16,.82,.2,1.05) var(--hm-spawn-delay) both; }
+.hm-piece.is-special-born { animation:hmSpecialBornV2 .68s cubic-bezier(.16,.86,.2,1.12) both; z-index:12; }
+
+.hm-special-mark.line i { width:13%; height:78%; box-shadow:0 0 10px #fff,0 0 22px var(--tile),0 0 34px var(--tile); animation:hmLineCharge .9s ease-in-out infinite alternate; }
+.hm-special-mark.bomb,.hm-special-mark.color { width:31px; height:31px; right:5px; top:5px; box-shadow:0 0 20px rgba(255,179,54,.78),0 0 36px rgba(255,79,195,.25),inset 0 0 0 1px rgba(255,255,255,.76); }
+.hm-piece.special-row,.hm-piece.special-col,.hm-piece.special-bomb,.hm-piece.special-color { box-shadow:inset 0 0 0 2px rgba(255,255,255,.44),0 0 24px color-mix(in srgb,var(--tile) 35%,transparent); }
+
+.hm-combo-badge {
+  top:46%;
+  padding:14px 28px 12px;
+  border-radius:19px;
+  font-size:52px;
+  text-shadow:0 3px 0 rgba(0,0,0,.35);
+  box-shadow:0 18px 55px rgba(0,0,0,.45),0 0 44px rgba(88,216,255,.33);
+  animation:hmComboV2 1.15s cubic-bezier(.16,.84,.2,1.08) both;
+}
+.hm-combo-badge b { font-size:1.25em; }
+.hm-banner { min-width:290px; padding:14px 24px; border-radius:18px; animation:hmBannerV2 .7s cubic-bezier(.16,.84,.2,1.08) both; }
+.hm-banner strong { font-size:34px; }
+.hm-banner span { margin-top:6px; font-size:11px; }
+
+.hm-board-shell.hm-fx-row,.hm-board-shell.hm-fx-col,.hm-board-shell.hm-fx-bomb,.hm-board-shell.hm-fx-special { animation:hmBoardPulse .62s ease; }
+.hm-board-shell.hm-fx-mega,.hm-board-shell.hm-fx-blast { animation:hmBoardMega .9s ease; }
+.hm-board-shell.hm-fx-gold { animation:hmBoardGold 1s ease; }
+.hm-board-shell.hm-fx-power { animation:hmBoardPower .8s ease; }
+
+.hm-power-modal { width:min(100%,720px); padding:34px; }
+.hm-power-modal>p { width:min(100%,560px); }
+.hm-power-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:25px 0 18px; }
+.hm-power-grid>button { min-height:190px; padding:18px 12px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; border-radius:20px; color:#fff; cursor:pointer; background:linear-gradient(155deg,rgba(20,25,55,.95),rgba(7,9,25,.98)); border:1px solid rgba(255,255,255,.09); transition:.2s cubic-bezier(.2,.8,.2,1); }
+.hm-power-grid>button:hover { transform:translateY(-4px) scale(1.015); border-color:rgba(99,228,255,.38); box-shadow:0 18px 45px rgba(0,0,0,.3),0 0 25px rgba(93,220,255,.1); }
+.hm-power-grid .power-icon { width:74px; height:74px; display:grid; place-items:center; border-radius:23px; margin-bottom:4px; }
+.hm-power-grid .power-icon.encore { color:#dfff6e; background:linear-gradient(145deg,rgba(195,255,61,.22),rgba(31,71,49,.45)); box-shadow:0 0 30px rgba(195,255,61,.12); }
+.hm-power-grid .power-icon.blast { color:#63ebff; background:linear-gradient(145deg,rgba(68,229,255,.22),rgba(28,39,99,.5)); box-shadow:0 0 30px rgba(68,229,255,.13); }
+.hm-power-grid .power-icon.gold { color:#ffd461; background:linear-gradient(145deg,rgba(255,213,83,.25),rgba(104,43,63,.48)); box-shadow:0 0 30px rgba(255,207,71,.14); }
+.hm-power-grid strong { font-family:'Bebas Neue',sans-serif; font-size:27px; font-weight:400; letter-spacing:.045em; }
+.hm-power-grid small { color:#8d8698; font-size:10px; line-height:1.35; }
+
+@keyframes hmPopV2 {
+  0%{transform:scale(1);opacity:1;filter:brightness(1)}
+  24%{transform:scale(.9);opacity:1;filter:brightness(1.25)}
+  56%{transform:scale(1.2);opacity:1;filter:brightness(2.05)}
+  100%{transform:scale(.08);opacity:0;filter:brightness(2.4)}
+}
+@keyframes hmSpawnV2 { 0%{transform:translateY(-135%) scale(.78);opacity:0} 70%{transform:translateY(5%) scale(1.03);opacity:1} 100%{transform:none;opacity:1} }
+@keyframes hmSpecialBornV2 { 0%{transform:scale(.35) rotate(-14deg);filter:brightness(2.8)} 45%{transform:scale(1.28) rotate(5deg);filter:brightness(2)} 72%{transform:scale(.94) rotate(-2deg);filter:brightness(1.35)} 100%{transform:none;filter:none} }
+@keyframes hmComboV2 { 0%{opacity:0;transform:translate(-50%,-50%) scale(.32) rotate(-8deg)} 25%{opacity:1;transform:translate(-50%,-50%) scale(1.18) rotate(-2deg)} 62%{opacity:1;transform:translate(-50%,-52%) scale(1) rotate(1deg)} 100%{opacity:0;transform:translate(-50%,-76%) scale(.96) rotate(3deg)} }
+@keyframes hmBannerV2 { 0%{opacity:0;transform:translate(-50%,-24px) scale(.82)} 35%{opacity:1;transform:translate(-50%,4px) scale(1.06)} 100%{opacity:1;transform:translate(-50%,0) scale(1)} }
+@keyframes hmLineCharge { from{opacity:.62;filter:brightness(1)} to{opacity:1;filter:brightness(1.55)} }
+@keyframes hmBoardPulse { 0%,100%{filter:none} 42%{filter:brightness(1.22) saturate(1.24);box-shadow:0 34px 100px rgba(0,0,0,.52),0 0 75px rgba(118,113,255,.34)} }
+@keyframes hmBoardMega { 0%,100%{transform:none;filter:none} 25%{transform:scale(1.012);filter:brightness(1.22)} 45%{transform:translateX(-3px)} 58%{transform:translateX(3px)} 72%{transform:none;box-shadow:0 34px 100px rgba(0,0,0,.52),0 0 95px rgba(255,203,80,.38)} }
+@keyframes hmBoardGold { 0%,100%{filter:none} 45%{filter:brightness(1.28) saturate(1.35);box-shadow:0 34px 100px rgba(0,0,0,.52),0 0 100px rgba(255,205,71,.42)} }
+@keyframes hmBoardPower { 0%,100%{transform:none} 35%{transform:scale(1.012);box-shadow:0 34px 100px rgba(0,0,0,.52),0 0 90px rgba(205,255,67,.34)} }
+@keyframes hmMeterReady { from{box-shadow:inset 0 0 0 1px rgba(206,255,72,.1),0 0 18px rgba(188,255,60,.1)} to{box-shadow:inset 0 0 0 1px rgba(206,255,72,.18),0 0 34px rgba(188,255,60,.24)} }
+
+@media (max-width:1350px) and (min-width:901px) {
+  .hm-layout { grid-template-columns:minmax(0,1fr) 315px; gap:18px; }
+  .hm-board-shell { width:min(100%,820px); }
+}
+
+@media (max-width:900px) {
+  .hm-topbar { width:calc(100% - 12px); }
+  .hm-layout { width:100%; padding:12px 4px 26px; }
+  .hm-stage-panel { width:100%; }
+  .hm-stage-heading { padding:0 8px; }
+  .hm-hud-row { padding:0 5px; grid-template-columns:94px 126px minmax(0,1fr); }
+  .hm-board-wrap { width:100%; display:block; }
+  .hm-board-shell { width:min(100%,760px); max-width:none; margin:0 auto; padding:7px; border-radius:21px; }
+  .hm-piece-slot { padding:2.6px; }
+  .hm-piece { border-radius:14px; }
+  .hm-piece.type-vinyl { border-radius:50%; }
+  .hm-piece.type-headphones { border-radius:22% 22% 34% 34%; }
+  .hm-combo-badge { font-size:43px; padding:11px 22px 10px; }
+  .hm-goals-mobile { padding:0 5px; }
+  .hm-power-modal { width:min(100%,650px); }
+}
+
+@media (max-width:560px) {
+  .hm-layout { width:100%; padding:7px 2px 16px; }
+  .hm-stage-heading { padding:0 7px; margin-bottom:7px; }
+  .hm-stage-heading h2 { font-size:33px; }
+  .hm-hud-row { grid-template-columns:78px 108px minmax(0,1fr); gap:5px; padding:0 3px; }
+  .hm-stat-card,.hm-meter-card { min-height:54px; padding:7px 8px; }
+  .hm-stat-card strong { font-size:21px; }
+  .hm-meter-card em { font-size:5.5px; margin-top:3px; }
+  .hm-board-shell { width:calc(100vw - 4px); padding:4px; border-radius:16px; }
+  .hm-board { border-radius:12px; }
+  .hm-piece-slot { padding:1.7px; }
+  .hm-piece { border-radius:10px; }
+  .hm-piece img { width:96%; height:96%; }
+  .hm-piece.type-vinyl img { width:90%; height:90%; }
+  .hm-piece.type-headphones img { width:84%; height:84%; }
+  .hm-special-mark.bomb,.hm-special-mark.color { width:23px; height:23px; right:2px; top:2px; }
+  .hm-combo-badge { font-size:36px; padding:10px 18px 8px; }
+  .hm-banner { top:62px; min-width:235px; padding:11px 18px; }
+  .hm-banner strong { font-size:29px; }
+  .hm-power-modal { padding:25px 14px 17px; }
+  .hm-power-grid { grid-template-columns:1fr; gap:8px; margin:18px 0 12px; }
+  .hm-power-grid>button { min-height:91px; display:grid; grid-template-columns:60px 1fr; grid-template-rows:auto auto; column-gap:12px; text-align:left; justify-items:start; padding:11px 13px; }
+  .hm-power-grid .power-icon { width:56px; height:56px; grid-row:1/3; margin:0; }
+  .hm-power-grid strong { font-size:23px; align-self:end; }
+  .hm-power-grid small { align-self:start; font-size:9px; }
+}
