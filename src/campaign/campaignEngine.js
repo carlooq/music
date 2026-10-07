@@ -20,6 +20,12 @@ export function isChapterUnlocked(campaign, progress, chapterId) {
   const chapter = getChapter(campaign, chapterId);
   if (!chapter) return false;
   if (!chapter.unlockAfterChapter) return true;
+
+  // Zachowujemy dostęp do rozdziałów, w których gracz ma już postęp
+  // (ważne po rozszerzeniu pierwotnej kampanii Lat 80. o wcześniejsze epoki).
+  const ownStages = progress?.chapters?.[chapterId]?.stages || {};
+  if (Object.values(ownStages).some((entry) => entry?.cleared || (entry?.stars || 0) > 0)) return true;
+
   const prev = getChapter(campaign, chapter.unlockAfterChapter);
   const finale = prev?.stages.find((s) => s.isFinale) || prev?.stages[prev.stages.length - 1];
   return !!finale && stageEntry(progress, prev.id, finale.id).cleared;
@@ -92,10 +98,15 @@ export function applyStageResult(campaign, progress, chapterId, stageId, rawResu
 
   const nextIdx = chapter.stages.findIndex((s) => s.id === stageId) + 1;
   const newlyUnlocked = !prev.cleared && cleared && chapter.stages[nextIdx] ? chapter.stages[nextIdx].id : null;
+  const chapterIdx = campaign.chapters.findIndex((c) => c.id === chapterId);
+  const nextChapterDef = campaign.chapters[chapterIdx + 1] || null;
+  const newlyUnlockedChapterId = !prev.cleared && cleared && stage.isFinale && nextChapterDef && isChapterUnlocked(campaign, next, nextChapterDef.id)
+    ? nextChapterDef.id
+    : null;
 
   return {
     progress: next,
-    result: { score, stars, previousStars: prev.stars, gainedStars, newBest: score > prev.best, previousBest: prev.best, perfect, newlyUnlockedStageId: newlyUnlocked },
+    result: { score, stars, previousStars: prev.stars, gainedStars, newBest: score > prev.best, previousBest: prev.best, perfect, newlyUnlockedStageId: newlyUnlocked, newlyUnlockedChapterId },
     rewards,
   };
 }
@@ -142,7 +153,9 @@ export function filterDecadePool(songs, decadeStart, decadeEnd) {
   for (const s of songs || []) {
     const year = Number(s?.year);
     if (!s || !s.videoId || !s.artist || !s.title) continue;
-    if (!Number.isInteger(year) || year < decadeStart || year > decadeEnd) continue;
+    if (!Number.isInteger(year)) continue;
+    if (Number.isFinite(decadeStart) && year < decadeStart) continue;
+    if (Number.isFinite(decadeEnd) && year > decadeEnd) continue;
     if (seenVideo.has(s.videoId)) continue;
     seenVideo.add(s.videoId);
     out.push({ ...s, year, id: s.id || s.videoId });

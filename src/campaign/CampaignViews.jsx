@@ -23,8 +23,8 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { getStageStatus, chapterStars } from "./campaignEngine.js";
-import { CAMPAIGN, maxStarsForChapter } from "./campaignConfig.js";
+import { getStageStatus, chapterStars, isChapterUnlocked } from "./campaignEngine.js";
+import { CAMPAIGN, maxStarsForChapter, maxStarsForCampaign } from "./campaignConfig.js";
 import "./campaign.css";
 
 const TYPE_LABEL = {
@@ -117,6 +117,98 @@ function StageStatusBadge({ status, current, perfect }) {
   return <span className="cmp-status-badge open">DOSTĘPNY</span>;
 }
 
+// ------------------------------------------------------------ MENU GŁÓWNE KAMPANII
+export function CampaignHomeView({ progress, onSelectChapter, onLeaderboard, onBack }) {
+  const max = maxStarsForCampaign(CAMPAIGN);
+  const have = progress?.totalStars || 0;
+  const completion = max ? Math.round((have / max) * 100) : 0;
+  const clearedChapters = CAMPAIGN.chapters.filter((chapter) => {
+    const finale = chapter.stages.find((stage) => stage.isFinale);
+    return !!progress?.chapters?.[chapter.id]?.stages?.[finale?.id]?.cleared;
+  }).length;
+
+  return (
+    <div className="cmp-page cmp-home-page">
+      <CampaignBackdrop />
+      <div className="cmp-top-actions">
+        <CampaignBackButton onClick={onBack}>Strona główna</CampaignBackButton>
+        <button className="cmp-ranking-link" onClick={onLeaderboard}><Trophy size={15} /> Ranking gwiazdek</button>
+      </div>
+
+      <header className="cmp-home-hero">
+        <div className="cmp-hero-kicker"><MapPinned size={14} /> KAMPANIA SOLO</div>
+        <div className="cmp-home-title-wrap">
+          <div>
+            <p>HITSTERIADA</p>
+            <h1>TRASA KONCERTOWA</h1>
+            <span>Przemierzaj historię muzyki, zaliczaj kolejne etapy i zbieraj gwiazdki. Każdy rozdział to inny okres i siedem muzycznych prób.</span>
+          </div>
+          <div className="cmp-home-total">
+            <span>TWÓJ POSTĘP</span>
+            <strong><Star size={23} fill="currentColor" /> {have}<small> / {max}</small></strong>
+            <div className="cmp-progress-track"><i style={{ width: `${completion}%` }} /></div>
+            <small>{clearedChapters} / {CAMPAIGN.chapters.length} rozdziałów ukończonych</small>
+          </div>
+        </div>
+      </header>
+
+      <section className="cmp-rules-panel">
+        <div className="cmp-rules-heading">
+          <span className="cmp-panel-label">JAK TO DZIAŁA?</span>
+          <h2>Jedna trasa, wiele sposobów grania</h2>
+        </div>
+        <div className="cmp-rules-grid">
+          <div><span>01</span><strong>Ukończ etap</strong><small>Jedna gwiazdka wystarczy, aby ruszyć dalej.</small></div>
+          <div><span>02</span><strong>Poprawiaj wyniki</strong><small>Wracaj do etapów i walcz o komplet 3 gwiazdek.</small></div>
+          <div><span>03</span><strong>Losowe utwory</strong><small>Każde nowe podejście może przynieść inny zestaw piosenek.</small></div>
+          <div><span>04</span><strong>Odblokuj epoki</strong><small>Pokonaj wielki finał, aby otworzyć kolejny rozdział.</small></div>
+        </div>
+      </section>
+
+      <section className="cmp-chapters-section">
+        <div className="cmp-route-heading">
+          <span>WYBIERZ OKRES</span>
+          <small>Ranking kampanii liczy wyłącznie zdobyte gwiazdki</small>
+        </div>
+        <div className="cmp-chapter-grid">
+          {CAMPAIGN.chapters.map((chapter, index) => {
+            const unlocked = isChapterUnlocked(CAMPAIGN, progress, chapter.id);
+            const stars = chapterStars(progress, chapter.id);
+            const chapterMax = maxStarsForChapter(chapter);
+            const chProg = progress?.chapters?.[chapter.id];
+            const finale = chapter.stages.find((stage) => stage.isFinale);
+            const complete = !!chProg?.stages?.[finale?.id]?.cleared;
+            const stagesCleared = chapter.stages.filter((stage) => chProg?.stages?.[stage.id]?.cleared).length;
+            const previous = chapter.unlockAfterChapter ? CAMPAIGN.chapters.find((c) => c.id === chapter.unlockAfterChapter) : null;
+            return (
+              <button
+                key={chapter.id}
+                className={`cmp-chapter-card${unlocked ? " unlocked" : " locked"}${complete ? " complete" : ""}`}
+                style={{ "--chapter-accent": chapter.accent, "--chapter-accent-2": chapter.accent2 }}
+                disabled={!unlocked}
+                onClick={() => onSelectChapter(chapter.id)}
+              >
+                <span className="cmp-chapter-index">{String(index + 1).padStart(2, "0")}</span>
+                <span className="cmp-chapter-card-top">
+                  <span className="cmp-chapter-period">{chapter.subtitle}</span>
+                  {complete ? <span className="cmp-chapter-state complete"><Check size={12} /> UKOŃCZONO</span> : unlocked ? <span className="cmp-chapter-state">DOSTĘPNY</span> : <span className="cmp-chapter-state locked"><LockKeyhole size={12} /> ZABLOKOWANY</span>}
+                </span>
+                <strong>{chapter.menuTitle}</strong>
+                <p>{chapter.description}</p>
+                <span className="cmp-chapter-card-bottom">
+                  <span><Star size={15} fill="currentColor" /> {stars} / {chapterMax}</span>
+                  <span>{stagesCleared} / {chapter.stages.length} etapów</span>
+                </span>
+                {!unlocked && previous ? <span className="cmp-chapter-lock-copy">Ukończ finał: {previous.menuTitle}</span> : <span className="cmp-chapter-open-copy">WEJDŹ NA TRASĘ <ChevronRight size={16} /></span>}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 // ------------------------------------------------------------ MAPA
 export function CampaignMapView({ chapter, progress, onSelectStage, onLeaderboard, onBack }) {
   const max = maxStarsForChapter(chapter);
@@ -127,12 +219,12 @@ export function CampaignMapView({ chapter, progress, onSelectStage, onLeaderboar
   const heading = chapterDisplayTitle(chapter.title);
 
   return (
-    <div className="cmp-page cmp-map-page">
+    <div className="cmp-page cmp-map-page" style={{ "--cmp-theme": chapter.accent, "--cmp-theme-2": chapter.accent2 }}>
       <CampaignBackdrop />
 
       <header className="cmp-map-hero">
         <div className="cmp-top-actions">
-          <CampaignBackButton onClick={onBack}>Strona główna</CampaignBackButton>
+          <CampaignBackButton onClick={onBack}>Wybór okresu</CampaignBackButton>
           <button className="cmp-ranking-link" onClick={onLeaderboard}><Trophy size={15} /> Ranking gwiazdek</button>
         </div>
 
@@ -140,7 +232,7 @@ export function CampaignMapView({ chapter, progress, onSelectStage, onLeaderboar
         <div className="cmp-hero-copy">
           <p>{heading.era}</p>
           <h1>{heading.name}</h1>
-          <span>Przejdź muzyczną trasę dekady, zdobywaj gwiazdki i odblokuj wielki finał.</span>
+          <span>Przejdź muzyczną trasę tego okresu, zdobywaj gwiazdki i odblokuj wielki finał.</span>
         </div>
 
         <div className="cmp-chapter-progress">
@@ -161,7 +253,7 @@ export function CampaignMapView({ chapter, progress, onSelectStage, onLeaderboar
 
       <section className="cmp-route-wrap">
         <div className="cmp-route-heading">
-          <span>TRASA DEKADY</span>
+          <span>TRASA ROZDZIAŁU</span>
           <small>{chapter.stages.filter((s) => chProg.stages?.[s.id]?.cleared).length} / {chapter.stages.length} etapów ukończonych</small>
         </div>
 
@@ -369,16 +461,34 @@ export function CampaignPlayView({ stage, run, play, onAnswerQuiz, onSubmitYear,
           <span className="cmp-question-kicker">ZGADNIJ ROK</span>
           <h2 className="cmp-question">Który to rok?</h2>
           <p className="cmp-question-help">Wybierz rok wydania utworu.</p>
-          <div className="cmp-years">
-            {Array.from({ length: play.yearMax - play.yearMin + 1 }, (_, i) => play.yearMin + i).map((y) => {
-              let cls = "cmp-year";
-              if (play.feedback) {
-                if (y === play.feedback.actual) cls += " correct";
-                else if (y === play.feedback.guess) cls += " wrong";
-              } else if (y === picked) cls += " picked";
-              return <button key={y} className={cls} disabled={!!play.feedback || !play.ready} onClick={() => setPicked(y)}>{y}</button>;
-            })}
-          </div>
+          {play.yearMax - play.yearMin + 1 > 20 ? (
+            <div className="cmp-year-slider-wrap">
+              <div className={`cmp-year-slider-value${play.feedback ? (picked === play.feedback.actual ? " correct" : "") : ""}`}>{picked ?? "—"}</div>
+              <input
+                className="cmp-year-slider"
+                type="range"
+                min={play.yearMin}
+                max={play.yearMax}
+                step="1"
+                value={picked ?? Math.round((play.yearMin + play.yearMax) / 2)}
+                disabled={!!play.feedback || !play.ready}
+                onChange={(e) => setPicked(Number(e.target.value))}
+              />
+              <div className="cmp-year-slider-scale"><span>{play.yearMin}</span><span>{play.yearMax}</span></div>
+              {play.feedback ? <div className="cmp-year-slider-answer">Poprawny rok: <strong>{play.feedback.actual}</strong></div> : null}
+            </div>
+          ) : (
+            <div className="cmp-years">
+              {Array.from({ length: play.yearMax - play.yearMin + 1 }, (_, i) => play.yearMin + i).map((y) => {
+                let cls = "cmp-year";
+                if (play.feedback) {
+                  if (y === play.feedback.actual) cls += " correct";
+                  else if (y === play.feedback.guess) cls += " wrong";
+                } else if (y === picked) cls += " picked";
+                return <button key={y} className={cls} disabled={!!play.feedback || !play.ready} onClick={() => setPicked(y)}>{y}</button>;
+              })}
+            </div>
+          )}
           {!play.feedback ? (
             <button className="cmp-btn primary" disabled={picked == null || !play.ready} onClick={() => onSubmitYear(picked)}>ZATWIERDŹ ROK <ChevronRight size={17} /></button>
           ) : null}
@@ -426,7 +536,7 @@ export function CampaignIntermissionView({ stage, run, busy, onContinue, onExit 
 }
 
 // ------------------------------------------------------------ WYNIK ETAPU
-export function CampaignResultView({ stage, outcome, nextStage, onRetry, onNext, onMap, onRetrySave }) {
+export function CampaignResultView({ stage, outcome, nextStage, nextChapter, onRetry, onNext, onNextChapter, onMap, onRetrySave }) {
   if (!outcome) return null;
   const r = outcome.result;
   const title = outcome.pending ? "Zapisuję wynik…" : outcome.saveError ? "Nie udało się zapisać" : r.stars > 0 ? "Etap zaliczony!" : "Spróbuj jeszcze raz";
@@ -453,6 +563,7 @@ export function CampaignResultView({ stage, outcome, nextStage, onRetry, onNext,
             {(outcome.rewards.xp || outcome.rewards.hitcoin) ? <p className="cmp-reward"><Sparkles size={15} /> +{outcome.rewards.xp} XP · +{outcome.rewards.hitcoin} HITCOIN</p> : null}
             {outcome.rewards.completion ? <p className="cmp-reward"><Trophy size={15} /> Komplet gwiazdek w rozdziale — bonus wypłacony!</p> : null}
             {r.newlyUnlockedStageId && nextStage ? <p className="cmp-unlocked"><LockKeyhole size={14} /> Odblokowano: <b>{nextStage.title}</b></p> : null}
+            {r.newlyUnlockedChapterId && nextChapter ? <p className="cmp-unlocked"><Sparkles size={14} /> Nowy rozdział: <b>{nextChapter.menuTitle}</b></p> : null}
           </div>
         ) : null}
         {outcome.saveError ? <p className="cmp-error">{outcome.saveError}</p> : null}
@@ -460,6 +571,7 @@ export function CampaignResultView({ stage, outcome, nextStage, onRetry, onNext,
         <div className="cmp-result-actions">
           {outcome.saveError ? <button className="cmp-btn primary" onClick={onRetrySave}>Spróbuj zapisać ponownie</button> : null}
           {!outcome.pending && !outcome.saveError && r.stars > 0 && nextStage ? <button className="cmp-btn primary" onClick={onNext}>NASTĘPNY ETAP <ChevronRight size={17} /></button> : null}
+          {!outcome.pending && !outcome.saveError && r.stars > 0 && !nextStage && nextChapter ? <button className="cmp-btn primary" onClick={onNextChapter}>NASTĘPNY ROZDZIAŁ <ChevronRight size={17} /></button> : null}
           {!outcome.pending && !outcome.saveError ? <button className="cmp-btn secondary" onClick={onRetry}><RotateCcw size={16} /> ZAGRAJ PONOWNIE</button> : null}
           <button className="cmp-text-btn" disabled={outcome.pending} onClick={onMap}><MapPinned size={14} /> Mapa kampanii</button>
         </div>
@@ -473,7 +585,7 @@ export function CampaignLeaderboardView({ rows, myUid, onBack }) {
   return (
     <div className="cmp-page cmp-board-page">
       <CampaignBackdrop />
-      <div className="cmp-top-actions"><CampaignBackButton onClick={onBack}>Mapa trasy</CampaignBackButton></div>
+      <div className="cmp-top-actions"><CampaignBackButton onClick={onBack}>Kampania</CampaignBackButton></div>
       <header className="cmp-board-hero">
         <div className="cmp-stage-emblem"><Trophy size={29} /></div>
         <div><p className="cmp-eyebrow">TRASA KONCERTOWA</p><h1 className="cmp-title">Ranking gwiazdek</h1><p>Liczy się wyłącznie liczba zdobytych gwiazdek w kampanii.</p></div>

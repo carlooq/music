@@ -380,7 +380,7 @@ function MobileHomeView(props) {
       <section className="mob-section-block">
         <div className="mob-block-title"><Sparkles size={15} /> TRYBY GRY</div>
         <div className="mob-mode-grid">
-          <MobileModeCard icon={glTurniej} title="KAMPANIA" desc="Trasa koncertowa — Lata 80. Zbieraj gwiazdki" tone="pink" locked={locked} badge="NOWOŚĆ" wide onClick={requireUser(props.onCampaign)} />
+          <MobileModeCard icon={glTurniej} title="KAMPANIA" desc="Trasa koncertowa — wszystkie epoki. Zbieraj gwiazdki" tone="pink" locked={locked} badge="NOWOŚĆ" wide onClick={requireUser(props.onCampaign)} />
           <MobileModeCard icon={glTrening} title="TRENING" desc="Ćwicz bez presji i poznawaj muzykę" tone="cyan" onClick={props.onPractice} />
           <MobileModeCard icon={glZgadnijRok} title="ZGADNIJ ROK" desc="Wszyscy słuchają tego samego utworu i typują rok" tone="pink" locked={locked} onClick={requireUser(() => { props.onClearAppError?.(); props.onNavigate?.('yearGuess'); })} />
           <MobileModeCard icon={glHitRush} title="HIT RUSH" desc="Wcześniej czy później? Liczy się tempo" tone="green" locked={locked} onClick={requireUser(props.onHitRush)} />

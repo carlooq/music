@@ -29,7 +29,7 @@ import { DAILY_REWARD_SEGMENTS, claimDailyWheelReward } from "./dailyWheel.js";
 import { HIT_RUSH_CONFIG, pickNextHitRushSong, computeHitRushPoints, checkHitRushTimeBonus, nextHitRushTimeBonus, difficultyLabel, submitHitRushRun, fetchHitRushLeaderboard, processHitRushWeeklyRewardsIfNeeded } from "./hitRush.js";
 import { useCampaign } from "./campaign/useCampaign.js";
 import { CAMPAIGN, getChapter as getCampaignChapter, getStage as getCampaignStage } from "./campaign/campaignConfig.js";
-import { CampaignMapView, CampaignStageView, CampaignPlayView, CampaignIntermissionView, CampaignResultView, CampaignLeaderboardView } from "./campaign/CampaignViews.jsx";
+import { CampaignHomeView, CampaignMapView, CampaignStageView, CampaignPlayView, CampaignIntermissionView, CampaignResultView, CampaignLeaderboardView } from "./campaign/CampaignViews.jsx";
 import { updateHeadToHead, fetchHeadToHeadOpponents } from "./headToHead.js";
 import { getAchievementProgress, ACHIEVEMENTS } from "./achievements.js";
 import { playCorrectSound, playWrongSound, playApplause, playVictorySound, unlockAudio } from "./sounds.js";
@@ -6666,6 +6666,16 @@ export default function App() {
   if (screen === "gameover" && room?.campaignMode) {
     return renderSessionUx(<div className="cmp-page"><p>Zapisuję wynik etapu…</p></div>);
   }
+  if (screen === "campaignHome" && campaign.progress) {
+    return renderSessionUx(
+      <CampaignHomeView
+        progress={campaign.progress}
+        onSelectChapter={campaign.selectChapter}
+        onLeaderboard={campaign.openLeaderboard}
+        onBack={goHome}
+      />
+    );
+  }
   if (screen === "campaignMap" && campaign.progress) {
     return renderSessionUx(
       <CampaignMapView
@@ -6673,12 +6683,12 @@ export default function App() {
         progress={campaign.progress}
         onSelectStage={campaign.selectStage}
         onLeaderboard={campaign.openLeaderboard}
-        onBack={goHome}
+        onBack={campaign.backToCampaignHome}
       />
     );
   }
   if (screen === "campaignLeaderboard") {
-    return renderSessionUx(<CampaignLeaderboardView rows={campaign.leaderboard} myUid={user?.uid} onBack={campaign.backToMap} />);
+    return renderSessionUx(<CampaignLeaderboardView rows={campaign.leaderboard} myUid={user?.uid} onBack={campaign.backToCampaignHome} />);
   }
   if (screen === "campaignStage" && campaign.progress) {
     const stage = getCampaignStage(campaign.chapter, campaign.selectedStageId);
@@ -6719,24 +6729,28 @@ export default function App() {
     const stage = getCampaignStage(campaign.chapter, campaign.run.stageId);
     const idx = campaign.chapter.stages.findIndex((s) => s.id === stage.id);
     const nextStage = campaign.chapter.stages[idx + 1] || null;
+    const chapterIdx = CAMPAIGN.chapters.findIndex((c) => c.id === campaign.chapter.id);
+    const nextChapter = CAMPAIGN.chapters[chapterIdx + 1] || null;
     return renderSessionUx(
       <CampaignResultView
         stage={stage}
         outcome={campaign.outcome}
         nextStage={nextStage}
+        nextChapter={nextChapter}
         onRetry={() => campaign.startStage(stage.id)}
-        onNext={() => campaign.selectStage(nextStage.id)}
+        onNext={() => nextStage && campaign.selectStage(nextStage.id)}
+        onNextChapter={() => nextChapter && campaign.selectChapter(nextChapter.id)}
         onMap={campaign.backToMap}
         onRetrySave={campaign.retrySubmit}
       />
     );
   }
   // zabezpieczenie: ekran kampanii bez danych (np. po odświeżeniu) → wróć do mapy/domu
-  if (typeof screen === "string" && screen.startsWith("campaign") && screen !== "campaignMap") {
+  if (typeof screen === "string" && screen.startsWith("campaign") && !["campaignHome", "campaignMap"].includes(screen)) {
     return renderSessionUx(
       <div className="cmp-page">
         <p>Ta sesja kampanii wygasła.</p>
-        <button className="cmp-btn primary" onClick={campaign.openCampaign}>Wróć do mapy kampanii</button>
+        <button className="cmp-btn primary" onClick={campaign.openCampaign}>Wróć do kampanii</button>
       </div>
     );
   }

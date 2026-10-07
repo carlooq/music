@@ -10,7 +10,7 @@ import { randomStartSeconds } from "../utils.js";
 import { CAMPAIGN, getChapter, getStage } from "./campaignConfig.js";
 import {
   buildQuizQuestions, buildYearGuessSongs, buildTimelineDeck, buildRunPlan, scorePart,
-  computeStageScore, filterDecadePool, pickRushSongInDecade, yearGuessPoints, getStageStatus,
+  computeStageScore, filterDecadePool, pickRushSongInDecade, yearGuessPoints, getStageStatus, isChapterUnlocked,
 } from "./campaignEngine.js";
 import { getCampaignProgress, submitStageResult, fetchCampaignLeaderboard } from "./campaignDb.js";
 
@@ -69,7 +69,7 @@ export function useCampaign(deps) {
     setLoading(true);
     try {
       setProgress(await getCampaignProgress(d.user.uid));
-      d.setScreen("campaignMap");
+      d.setScreen("campaignHome");
     } catch (e) {
       d.setError("Nie udało się wczytać kampanii: " + (e?.message || e));
     } finally {
@@ -81,6 +81,22 @@ export function useCampaign(deps) {
     setRun(null); setPlay(null); setOutcome(null);
     depsRef.current.setHitRush?.(null);
     depsRef.current.setScreen("campaignMap");
+  }, [setRun]);
+
+  const selectChapter = useCallback((nextChapterId) => {
+    const d = depsRef.current;
+    if (!progress || !isChapterUnlocked(CAMPAIGN, progress, nextChapterId)) return;
+    setChapterId(nextChapterId);
+    setSelectedStageId(null);
+    setRun(null); setPlay(null); setOutcome(null);
+    d.setHitRush?.(null);
+    d.setScreen("campaignMap");
+  }, [progress, setRun]);
+
+  const backToCampaignHome = useCallback(() => {
+    setRun(null); setPlay(null); setOutcome(null);
+    depsRef.current.setHitRush?.(null);
+    depsRef.current.setScreen("campaignHome");
   }, [setRun]);
 
   const selectStage = useCallback((stageId) => {
@@ -107,13 +123,17 @@ export function useCampaign(deps) {
     const d = depsRef.current;
     const ch = getChapter(CAMPAIGN, runState.chapterId);
     const part = runState.parts[runState.partIndex];
-    const base = { decadeStart: ch.decadeStart, decadeEnd: ch.decadeEnd };
+    const allYears = (poolRef.current || []).map((s) => Number(s.year)).filter(Number.isFinite);
+    const base = {
+      decadeStart: Number.isFinite(ch.decadeStart) ? ch.decadeStart : Math.min(...allYears),
+      decadeEnd: Number.isFinite(ch.decadeEnd) ? ch.decadeEnd : Math.max(...allYears),
+    };
     const available = poolRef.current.filter((s) => !usedRef.current.has(s.id));
     const markUsed = (songs) => songs.forEach((s) => usedRef.current.add(s.id || s.songId));
 
     if (part.type === "timeline") {
       const songs = buildTimelineDeck(available, { ...base, scoredCount: part.scoredCount });
-      if (songs.length < part.scoredCount + 1) throw new Error("Za mało utworów z tej dekady w bazie.");
+      if (songs.length < part.scoredCount + 1) throw new Error("Za mało utworów z tego okresu w bazie.");
       markUsed(songs);
       const deck = songs.map((s) => ({ id: s.id, videoId: s.videoId, artist: s.artist, title: s.title, year: s.year, startSeconds: randomStartSeconds() }));
       const code = generateRoomCode();
@@ -163,7 +183,7 @@ export function useCampaign(deps) {
       const { questions, spares } = buildQuizQuestions(available, {
         ...base, count: part.questionCount, questionTypes: part.questionTypes, yearOptionSpread: part.yearOptionSpread,
       });
-      if (questions.length < part.questionCount) throw new Error("Za mało utworów z tej dekady, żeby ułożyć quiz.");
+      if (questions.length < part.questionCount) throw new Error("Za mało utworów z tego okresu, żeby ułożyć quiz.");
       markUsed([...questions, ...spares]);
       const tag = (q) => ({ ...q, startSeconds: randomStartSeconds() });
       setPlay({ kind: "quiz", items: questions.map(tag), spares: spares.map(tag), index: 0, results: [], feedback: null, ready: false, readyAt: null, roundSeconds: null });
@@ -173,10 +193,10 @@ export function useCampaign(deps) {
 
     if (part.type === "yearGuess") {
       const { songs, spares } = buildYearGuessSongs(available, { ...base, rounds: part.rounds });
-      if (songs.length < part.rounds) throw new Error("Za mało utworów z tej dekady dla Zgadnij Rok.");
+      if (songs.length < part.rounds) throw new Error("Za mało utworów z tego okresu dla Zgadnij Rok.");
       markUsed([...songs, ...spares]);
       const tag = (s) => ({ id: s.id, songId: s.id, videoId: s.videoId, artist: s.artist, title: s.title, year: s.year, startSeconds: randomStartSeconds() });
-      setPlay({ kind: "yearGuess", items: songs.map(tag), spares: spares.map(tag), index: 0, results: [], feedback: null, ready: false, readyAt: null, roundSeconds: part.roundSeconds || 60, yearMin: ch.decadeStart, yearMax: ch.decadeEnd });
+      setPlay({ kind: "yearGuess", items: songs.map(tag), spares: spares.map(tag), index: 0, results: [], feedback: null, ready: false, readyAt: null, roundSeconds: part.roundSeconds || 60, yearMin: base.decadeStart, yearMax: base.decadeEnd });
       d.setScreen("campaignPlay");
       return;
     }
@@ -186,7 +206,7 @@ export function useCampaign(deps) {
       const referenceCard = rushPool[Math.floor(Math.random() * rushPool.length)];
       const usedIds = new Set([referenceCard.id]);
       const currentCard = pickRushSongInDecade(rushPool, referenceCard.year, 0, usedIds);
-      if (!currentCard) throw new Error("Nie udało się dobrać utworów do Neonowego Sprintu.");
+      if (!currentCard) throw new Error("Nie udało się dobrać utworów do Sprintu.");
       usedIds.add(currentCard.id);
       d.setHitRush({
         pool: rushPool, referenceCard, currentCard, currentStartSeconds: randomStartSeconds(),
@@ -218,7 +238,7 @@ export function useCampaign(deps) {
       const pool = filterDecadePool(live, ch.decadeStart, ch.decadeEnd);
       const parts = buildRunPlan(stage);
       if (pool.length < requiredSongs(parts) + POOL_SAFETY_MARGIN) {
-        throw new Error(`Za mało utworów z lat ${ch.decadeStart}–${ch.decadeEnd} w bazie, żeby uruchomić ten etap (jest ${pool.length}).`);
+        throw new Error(`Za mało utworów z okresu ${ch.subtitle || ch.title} w bazie, żeby uruchomić ten etap (jest ${pool.length}).`);
       }
       poolRef.current = pool;
       usedRef.current = new Set();
@@ -402,7 +422,7 @@ export function useCampaign(deps) {
   return {
     progress, chapter, chapterId, selectedStageId, run, play, outcome, leaderboard, loading,
     currentCard,
-    openCampaign, backToMap, selectStage, openLeaderboard, startStage, continueRun, retrySubmit, abortRun,
+    openCampaign, selectChapter, backToCampaignHome, backToMap, selectStage, openLeaderboard, startStage, continueRun, retrySubmit, abortRun,
     answerQuiz, submitYear, nextQuestion, replaceBrokenCard, completePart,
   };
 }
