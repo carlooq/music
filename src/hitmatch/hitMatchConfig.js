@@ -40,21 +40,21 @@ const route2 = [
   { id:"level_20", number:20, title:"Neon Lab: Finał", subtitle:"Finał Neon Lab", moves:26, goals:{ vinyl:6, microphone:6, headphones:6, cassette:6, speaker:6, note:6 }, scoreGoal:22000, layout:{ inactive:C.plusCorners }, shields:[{index:18,hp:2},{index:21,hp:2},{index:26,hp:1},{index:29,hp:1},{index:34,hp:1},{index:37,hp:1},{index:42,hp:2},{index:45,hp:2}], starScoreThresholds:{2:26000,3:32500}, endgameMoveBonus:900, finale:true },
 ];
 
-// Poziomy 21–30: DROP THE MIC. Specjalny mikrofon jest nieruchomy dla gracza,
-// ale spada razem z grawitacją, gdy usuwasz kafle pod nim. Trzeba doprowadzić
-// wszystkie mikrofony do wyjścia na dole ich kolumny. W późniejszych levelach
-// łączymy delivery z wyciętymi polami i Neon Shieldami.
+// Poziomy 21–30: DROP THE MIC. Mikrofon wpada do DWUPOLowej strefy wyjścia
+// na dole swojej kolumny — nie trzeba już wymuszać jednego, bardzo losowego
+// ostatniego zbicia. Trudność rośnie przez liczbę celów, layout i Shieldy,
+// a nie przez pech na ostatnim polu.
 const route3 = [
-  { id:"level_21", number:21, title:"Drop the Mic", subtitle:"Nowy cel · sprowadź mikrofon", moves:18, goals:{ note:10 }, deliveries:[{index:10}], deliveryGoal:1, starScoreThresholds:{2:15500,3:20500}, endgameMoveBonus:800 },
-  { id:"level_22", number:22, title:"Podwójne Zejście", subtitle:"Dwa mikrofony", moves:20, goals:{ microphone:10 }, deliveries:[{index:10},{index:13}], deliveryGoal:2, starScoreThresholds:{2:18000,3:23000}, endgameMoveBonus:800 },
-  { id:"level_23", number:23, title:"Ścięty Drop", subtitle:"Mniej miejsca", moves:20, goals:{ cassette:10, note:10 }, layout:{ inactive:C.corners }, deliveries:[{index:18},{index:21}], deliveryGoal:2, starScoreThresholds:{2:19000,3:24000}, endgameMoveBonus:825 },
-  { id:"level_24", number:24, title:"Trzy Na Dół", subtitle:"Delivery + wynik", moves:22, goals:{ vinyl:10 }, scoreGoal:15000, layout:{ inactive:C.sideNotches }, deliveries:[{index:11},{index:12},{index:13}], deliveryGoal:3, starScoreThresholds:{2:21500,3:27000}, endgameMoveBonus:825 },
-  { id:"level_25", number:25, title:"Zamknięta Droga", subtitle:"Drop Mic + Shield", moves:24, goals:{ speaker:10 }, layout:{ inactive:C.corners }, deliveries:[{index:10},{index:13}], deliveryGoal:2, shields:[{index:26,hp:1},{index:29,hp:1},{index:34,hp:1},{index:37,hp:1}], starScoreThresholds:{2:22000,3:28000}, endgameMoveBonus:850 },
-  { id:"level_26", number:26, title:"Crossfade", subtitle:"Wąska scena", moves:22, goals:{ headphones:10, cassette:10 }, layout:{ inactive:C.plusCorners }, deliveries:[{index:19},{index:20}], deliveryGoal:2, starScoreThresholds:{2:20500,3:26000}, endgameMoveBonus:850 },
-  { id:"level_27", number:27, title:"Backstage Rush", subtitle:"Cztery mikrofony", moves:25, goals:{}, scoreGoal:17000, layout:{ inactive:C.deepCorners }, deliveries:[{index:10},{index:11},{index:12},{index:13}], deliveryGoal:4, starScoreThresholds:{2:23500,3:29500}, endgameMoveBonus:850 },
-  { id:"level_28", number:28, title:"Blokada Basu", subtitle:"Drop + Shield x2", moves:24, goals:{ vinyl:8, note:8 }, layout:{ inactive:C.hourglass }, deliveries:[{index:27},{index:28}], deliveryGoal:2, shields:[{index:26,hp:1},{index:29,hp:1},{index:35,hp:2},{index:36,hp:2}], starScoreThresholds:{2:23000,3:29000}, endgameMoveBonus:875 },
-  { id:"level_29", number:29, title:"Próba Generalna", subtitle:"Wszystko naraz", moves:26, goals:{ microphone:8, headphones:8, speaker:8 }, scoreGoal:19000, layout:{ inactive:C.sideNotches }, deliveries:[{index:10},{index:12},{index:13},{index:21}], deliveryGoal:4, starScoreThresholds:{2:26500,3:32500}, endgameMoveBonus:875 },
-  { id:"level_30", number:30, title:"Drop Zone: Finał", subtitle:"Finał Drop Zone", moves:29, goals:{ vinyl:4, microphone:4, headphones:4, cassette:4, speaker:4, note:4 }, scoreGoal:24000, layout:{ inactive:C.plusCorners }, deliveries:[{index:10},{index:11},{index:12},{index:13},{index:20}], deliveryGoal:5, shields:[{index:26,hp:1},{index:29,hp:1},{index:35,hp:2},{index:36,hp:2},{index:42,hp:1},{index:45,hp:1}], starScoreThresholds:{2:30500,3:37500}, endgameMoveBonus:900, finale:true },
+  { id:"level_21", number:21, title:"Drop the Mic", subtitle:"Nowy cel · sprowadź mikrofon", moves:19, goals:{ note:8 }, deliveries:[{index:10}], deliveryGoal:1, starScoreThresholds:{2:15500,3:20500}, endgameMoveBonus:800 },
+  { id:"level_22", number:22, title:"Podwójne Zejście", subtitle:"Dwa mikrofony", moves:21, goals:{ microphone:8 }, deliveries:[{index:10},{index:13}], deliveryGoal:2, starScoreThresholds:{2:18000,3:23000}, endgameMoveBonus:800 },
+  { id:"level_23", number:23, title:"Ścięty Drop", subtitle:"Mniej miejsca", moves:21, goals:{ cassette:8, note:8 }, layout:{ inactive:C.corners }, deliveries:[{index:18},{index:21}], deliveryGoal:2, starScoreThresholds:{2:19000,3:24000}, endgameMoveBonus:825 },
+  { id:"level_24", number:24, title:"Drop pod Presją", subtitle:"Delivery + wynik", moves:23, goals:{ vinyl:8 }, scoreGoal:13500, layout:{ inactive:C.sideNotches }, deliveries:[{index:11},{index:13}], deliveryGoal:2, starScoreThresholds:{2:21000,3:26500}, endgameMoveBonus:825 },
+  { id:"level_25", number:25, title:"Zamknięta Droga", subtitle:"Drop Mic + Shield", moves:25, goals:{ speaker:8 }, layout:{ inactive:C.corners }, deliveries:[{index:10},{index:13}], deliveryGoal:2, shields:[{index:26,hp:1},{index:29,hp:1},{index:34,hp:1},{index:37,hp:1}], starScoreThresholds:{2:22000,3:28000}, endgameMoveBonus:850 },
+  { id:"level_26", number:26, title:"Crossfade", subtitle:"Wąska scena", moves:23, goals:{ headphones:8, cassette:8 }, layout:{ inactive:C.plusCorners }, deliveries:[{index:19},{index:20}], deliveryGoal:2, starScoreThresholds:{2:20500,3:26000}, endgameMoveBonus:850 },
+  { id:"level_27", number:27, title:"Backstage Rush", subtitle:"Trzy mikrofony", moves:25, goals:{}, scoreGoal:15500, layout:{ inactive:C.deepCorners }, deliveries:[{index:10},{index:12},{index:13}], deliveryGoal:3, starScoreThresholds:{2:23500,3:29500}, endgameMoveBonus:850 },
+  { id:"level_28", number:28, title:"Blokada Basu", subtitle:"Drop + Shield x2", moves:26, goals:{ vinyl:7, note:7 }, layout:{ inactive:C.hourglass }, deliveries:[{index:27},{index:28}], deliveryGoal:2, shields:[{index:26,hp:1},{index:29,hp:1},{index:35,hp:2},{index:36,hp:2}], starScoreThresholds:{2:23000,3:29000}, endgameMoveBonus:875 },
+  { id:"level_29", number:29, title:"Próba Generalna", subtitle:"Wszystko naraz", moves:27, goals:{ microphone:6, headphones:6, speaker:6 }, scoreGoal:17500, layout:{ inactive:C.sideNotches }, deliveries:[{index:10},{index:12},{index:21}], deliveryGoal:3, starScoreThresholds:{2:26500,3:32500}, endgameMoveBonus:875 },
+  { id:"level_30", number:30, title:"Drop Zone: Finał", subtitle:"Finał Drop Zone", moves:30, goals:{ vinyl:3, microphone:3, headphones:3, cassette:3, speaker:3, note:3 }, scoreGoal:21000, layout:{ inactive:C.plusCorners }, deliveries:[{index:10},{index:11},{index:13},{index:20}], deliveryGoal:4, shields:[{index:26,hp:1},{index:29,hp:1},{index:35,hp:2},{index:36,hp:2},{index:42,hp:1},{index:45,hp:1}], starScoreThresholds:{2:30500,3:37500}, endgameMoveBonus:900, finale:true },
 ];
 
 export const HIT_MATCH_LEVELS = Object.freeze([...route1, ...route2, ...route3].map((level) => ({ ...level, rewardPerStar:HIT_MATCH_REWARD_PER_STAR })));
@@ -99,12 +99,13 @@ function neighbours4(index) {
   return values;
 }
 
-function bottomActiveIndex(col, inactive = new Set()) {
-  for (let row = 7; row >= 0; row -= 1) {
+function deliveryExitIndices(col, inactive = new Set(), depth = 2) {
+  const exits = [];
+  for (let row = 7; row >= 0 && exits.length < depth; row -= 1) {
     const index = row * 8 + col;
-    if (!inactive.has(index)) return index;
+    if (!inactive.has(index)) exits.push(index);
   }
-  return null;
+  return exits;
 }
 
 export function validateHitMatchLevelDefinitions(levels = HIT_MATCH_LEVELS) {
@@ -147,8 +148,8 @@ export function validateHitMatchLevelDefinitions(levels = HIT_MATCH_LEVELS) {
       if (deliverySeen.has(index)) issues.push(`Level ${level.number}: zduplikowany Drop Mic ${index}`);
       deliverySeen.add(index);
       const col = index % 8;
-      const exit = bottomActiveIndex(col, inactive);
-      if (exit === index) issues.push(`Level ${level.number}: Drop Mic ${index} startuje już na wyjściu`);
+      const exits = deliveryExitIndices(col, inactive, 2);
+      if (exits.includes(index)) issues.push(`Level ${level.number}: Drop Mic ${index} startuje już w strefie wyjścia`);
       const hasPath = Array.from({ length: 8 - Math.floor(index / 8) - 1 }, (_, offset) => index + (offset + 1) * 8)
         .some((candidate) => !inactive.has(candidate));
       if (!hasPath) issues.push(`Level ${level.number}: Drop Mic ${index} nie ma drogi w dół`);
