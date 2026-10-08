@@ -247,6 +247,19 @@ export function chooseSpecialCreation(groups, board, swapA, swapB) {
     return { index: cross, special: "bomb", type: board[cross]?.type || groups[0].type };
   }
 
+  // Dwa osobne match-3 utworzone jednym swapem też nagradzamy Bombą 3×3.
+  // Dotyczy to np. sytuacji, gdy oba zamienione kafle jednocześnie domykają
+  // po jednej trójce. Kaskady bez swapMeta nie trafiają tutaj.
+  const swapGroups = groups.filter((group) =>
+    group.indices.length === 3 && group.indices.some((index) => swapIndices.includes(index))
+  );
+  if (swapGroups.length >= 2) {
+    const index = swapIndices.find((value) => swapGroups.some((group) => group.indices.includes(value)))
+      ?? swapGroups[0].indices[1]
+      ?? swapGroups[0].indices[0];
+    return { index, special: "bomb", type: board[index]?.type || swapGroups[0].type };
+  }
+
   const five = groups.find((group) => group.indices.length >= 5 && group.indices.some((index) => swapIndices.includes(index)))
     || groups.find((group) => group.indices.length >= 5);
   if (five) {
