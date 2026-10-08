@@ -483,25 +483,35 @@ export function countRemovedByType(boardBefore, indices) {
 }
 
 
-export function collectDeliveredTiles(board, inactiveIndices = []) {
+export function getDeliveryExitIndices(inactiveIndices = [], depth = 2) {
   const inactive = inactiveSetOf(inactiveIndices);
-  const next = board.slice();
-  const deliveredIndices = [];
+  const exits = new Set();
+  const safeDepth = Math.max(1, Math.min(HIT_MATCH_ROWS, Number(depth) || 2));
 
   for (let col = 0; col < HIT_MATCH_COLS; col += 1) {
-    let exitIndex = null;
-    for (let row = HIT_MATCH_ROWS - 1; row >= 0; row -= 1) {
+    let found = 0;
+    for (let row = HIT_MATCH_ROWS - 1; row >= 0 && found < safeDepth; row -= 1) {
       const index = indexOf(row, col);
-      if (!inactive.has(index)) {
-        exitIndex = index;
-        break;
-      }
-    }
-    if (exitIndex !== null && next[exitIndex]?.type === "delivery") {
-      next[exitIndex] = null;
-      deliveredIndices.push(exitIndex);
+      if (inactive.has(index)) continue;
+      exits.add(index);
+      found += 1;
     }
   }
+
+  return [...exits];
+}
+
+export function collectDeliveredTiles(board, inactiveIndices = [], exitDepth = 2) {
+  const next = board.slice();
+  const exitSet = new Set(getDeliveryExitIndices(inactiveIndices, exitDepth));
+  const deliveredIndices = [];
+
+  exitSet.forEach((index) => {
+    if (next[index]?.type === "delivery") {
+      next[index] = null;
+      deliveredIndices.push(index);
+    }
+  });
 
   return { board:next, deliveredIndices };
 }
