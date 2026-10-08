@@ -55,21 +55,21 @@ export function swapBoardCells(board, a, b) {
 }
 
 function createsImmediateTriple(board, index, type, blockedIndices = []) {
-  const blocked = inactiveSetOf(blockedIndices);
+  // blockedIndices oznacza teraz wyłącznie pola NIERUCHOME (Shield): nie można
+  // nimi swapować i zatrzymują grawitację, ale ich symbol nadal normalnie
+  // uczestniczy w match-3+. Dlatego przy wykrywaniu gotowego matcha nie
+  // traktujemy Shielda jak dziury w planszy. Parametr zostaje dla zgodności API.
+  void blockedIndices;
   const row = rowOf(index);
   const col = colOf(index);
   if (col >= 2) {
-    const aIndex = index - 1;
-    const bIndex = index - 2;
-    const a = blocked.has(aIndex) ? null : board[aIndex];
-    const b = blocked.has(bIndex) ? null : board[bIndex];
+    const a = board[index - 1];
+    const b = board[index - 2];
     if (a?.type === type && b?.type === type) return true;
   }
   if (row >= 2) {
-    const aIndex = index - HIT_MATCH_COLS;
-    const bIndex = index - HIT_MATCH_COLS * 2;
-    const a = blocked.has(aIndex) ? null : board[aIndex];
-    const b = blocked.has(bIndex) ? null : board[bIndex];
+    const a = board[index - HIT_MATCH_COLS];
+    const b = board[index - HIT_MATCH_COLS * 2];
     if (a?.type === type && b?.type === type) return true;
   }
   return false;
@@ -88,7 +88,7 @@ export function createPlayableBoard(inactiveIndices = [], blockedIndices = []) {
       if (inactive.has(i)) continue;
       const disallowed = [];
       for (const type of HIT_MATCH_TYPES) {
-        if (!blocked.has(i) && createsImmediateTriple(board, i, type, blocked)) disallowed.push(type);
+        if (createsImmediateTriple(board, i, type, blocked)) disallowed.push(type);
       }
       board[i] = makeHitMatchTile(randomType(disallowed));
     }
@@ -100,7 +100,7 @@ export function createPlayableBoard(inactiveIndices = [], blockedIndices = []) {
     if (inactive.has(i)) continue;
     const disallowed = [];
     for (const type of HIT_MATCH_TYPES) {
-      if (!blocked.has(i) && createsImmediateTriple(board, i, type, blocked)) disallowed.push(type);
+      if (createsImmediateTriple(board, i, type, blocked)) disallowed.push(type);
     }
     board[i] = makeHitMatchTile(randomType(disallowed));
   }
@@ -108,14 +108,17 @@ export function createPlayableBoard(inactiveIndices = [], blockedIndices = []) {
 }
 
 export function findMatches(board, blockedIndices = []) {
+  // Shield blokuje RUCH, nie MATCH. Osłonięty kafel może być częścią
+  // poziomego/pionowego match-3+, więc blockedIndices nie rozcina sekwencji.
+  // Parametr zostaje, bo pozostałe wywołania przekazują listę Shieldów.
+  void blockedIndices;
   const groups = [];
-  const blocked = inactiveSetOf(blockedIndices);
 
   for (let row = 0; row < HIT_MATCH_ROWS; row += 1) {
     let startCol = 0;
     while (startCol < HIT_MATCH_COLS) {
       const startIndex = indexOf(row, startCol);
-      const type = blocked.has(startIndex) ? null : board[startIndex]?.type;
+      const type = board[startIndex]?.type;
       if (!type || type === "wild") {
         startCol += 1;
         continue;
@@ -123,7 +126,7 @@ export function findMatches(board, blockedIndices = []) {
       let endCol = startCol + 1;
       while (endCol < HIT_MATCH_COLS) {
         const nextIndex = indexOf(row, endCol);
-        if (blocked.has(nextIndex) || board[nextIndex]?.type !== type) break;
+        if (board[nextIndex]?.type !== type) break;
         endCol += 1;
       }
       const length = endCol - startCol;
@@ -142,7 +145,7 @@ export function findMatches(board, blockedIndices = []) {
     let startRow = 0;
     while (startRow < HIT_MATCH_ROWS) {
       const startIndex = indexOf(startRow, col);
-      const type = blocked.has(startIndex) ? null : board[startIndex]?.type;
+      const type = board[startIndex]?.type;
       if (!type || type === "wild") {
         startRow += 1;
         continue;
@@ -150,7 +153,7 @@ export function findMatches(board, blockedIndices = []) {
       let endRow = startRow + 1;
       while (endRow < HIT_MATCH_ROWS) {
         const nextIndex = indexOf(endRow, col);
-        if (blocked.has(nextIndex) || board[nextIndex]?.type !== type) break;
+        if (board[nextIndex]?.type !== type) break;
         endRow += 1;
       }
       const length = endRow - startRow;
