@@ -54,17 +54,22 @@ export function swapBoardCells(board, a, b) {
   return next;
 }
 
-function createsImmediateTriple(board, index, type) {
+function createsImmediateTriple(board, index, type, blockedIndices = []) {
+  const blocked = inactiveSetOf(blockedIndices);
   const row = rowOf(index);
   const col = colOf(index);
   if (col >= 2) {
-    const a = board[index - 1];
-    const b = board[index - 2];
+    const aIndex = index - 1;
+    const bIndex = index - 2;
+    const a = blocked.has(aIndex) ? null : board[aIndex];
+    const b = blocked.has(bIndex) ? null : board[bIndex];
     if (a?.type === type && b?.type === type) return true;
   }
   if (row >= 2) {
-    const a = board[index - HIT_MATCH_COLS];
-    const b = board[index - HIT_MATCH_COLS * 2];
+    const aIndex = index - HIT_MATCH_COLS;
+    const bIndex = index - HIT_MATCH_COLS * 2;
+    const a = blocked.has(aIndex) ? null : board[aIndex];
+    const b = blocked.has(bIndex) ? null : board[bIndex];
     if (a?.type === type && b?.type === type) return true;
   }
   return false;
@@ -74,19 +79,20 @@ function inactiveSetOf(inactiveIndices = []) {
   return inactiveIndices instanceof Set ? inactiveIndices : new Set(inactiveIndices || []);
 }
 
-export function createPlayableBoard(inactiveIndices = []) {
+export function createPlayableBoard(inactiveIndices = [], blockedIndices = []) {
   const inactive = inactiveSetOf(inactiveIndices);
+  const blocked = inactiveSetOf(blockedIndices);
   for (let attempt = 0; attempt < 160; attempt += 1) {
     const board = Array(HIT_MATCH_ROWS * HIT_MATCH_COLS).fill(null);
     for (let i = 0; i < board.length; i += 1) {
       if (inactive.has(i)) continue;
       const disallowed = [];
       for (const type of HIT_MATCH_TYPES) {
-        if (createsImmediateTriple(board, i, type)) disallowed.push(type);
+        if (!blocked.has(i) && createsImmediateTriple(board, i, type, blocked)) disallowed.push(type);
       }
       board[i] = makeHitMatchTile(randomType(disallowed));
     }
-    if (findMatches(board).length === 0 && hasPossibleMove(board, inactive)) return board;
+    if (findMatches(board, blocked).length === 0 && hasPossibleMove(board, inactive, blocked)) return board;
   }
 
   const board = Array(HIT_MATCH_ROWS * HIT_MATCH_COLS).fill(null);
@@ -94,27 +100,32 @@ export function createPlayableBoard(inactiveIndices = []) {
     if (inactive.has(i)) continue;
     const disallowed = [];
     for (const type of HIT_MATCH_TYPES) {
-      if (createsImmediateTriple(board, i, type)) disallowed.push(type);
+      if (!blocked.has(i) && createsImmediateTriple(board, i, type, blocked)) disallowed.push(type);
     }
     board[i] = makeHitMatchTile(randomType(disallowed));
   }
   return board;
 }
 
-export function findMatches(board) {
+export function findMatches(board, blockedIndices = []) {
   const groups = [];
+  const blocked = inactiveSetOf(blockedIndices);
 
   for (let row = 0; row < HIT_MATCH_ROWS; row += 1) {
     let startCol = 0;
     while (startCol < HIT_MATCH_COLS) {
       const startIndex = indexOf(row, startCol);
-      const type = board[startIndex]?.type;
+      const type = blocked.has(startIndex) ? null : board[startIndex]?.type;
       if (!type || type === "wild") {
         startCol += 1;
         continue;
       }
       let endCol = startCol + 1;
-      while (endCol < HIT_MATCH_COLS && board[indexOf(row, endCol)]?.type === type) endCol += 1;
+      while (endCol < HIT_MATCH_COLS) {
+        const nextIndex = indexOf(row, endCol);
+        if (blocked.has(nextIndex) || board[nextIndex]?.type !== type) break;
+        endCol += 1;
+      }
       const length = endCol - startCol;
       if (length >= 3) {
         groups.push({
@@ -131,13 +142,17 @@ export function findMatches(board) {
     let startRow = 0;
     while (startRow < HIT_MATCH_ROWS) {
       const startIndex = indexOf(startRow, col);
-      const type = board[startIndex]?.type;
+      const type = blocked.has(startIndex) ? null : board[startIndex]?.type;
       if (!type || type === "wild") {
         startRow += 1;
         continue;
       }
       let endRow = startRow + 1;
-      while (endRow < HIT_MATCH_ROWS && board[indexOf(endRow, col)]?.type === type) endRow += 1;
+      while (endRow < HIT_MATCH_ROWS) {
+        const nextIndex = indexOf(endRow, col);
+        if (blocked.has(nextIndex) || board[nextIndex]?.type !== type) break;
+        endRow += 1;
+      }
       const length = endRow - startRow;
       if (length >= 3) {
         groups.push({
@@ -157,18 +172,19 @@ export function uniqueMatchedIndices(groups) {
   return [...new Set(groups.flatMap((group) => group.indices))];
 }
 
-export function hasPossibleMove(board, inactiveIndices = []) {
+export function hasPossibleMove(board, inactiveIndices = [], blockedIndices = []) {
   const inactive = inactiveSetOf(inactiveIndices);
+  const blocked = inactiveSetOf(blockedIndices);
   for (let row = 0; row < HIT_MATCH_ROWS; row += 1) {
     for (let col = 0; col < HIT_MATCH_COLS; col += 1) {
       const a = indexOf(row, col);
       const tile = board[a];
-      if (!tile || inactive.has(a)) continue;
+      if (!tile || inactive.has(a) || blocked.has(a)) continue;
       const neighbours = [];
       if (col + 1 < HIT_MATCH_COLS) neighbours.push(indexOf(row, col + 1));
       if (row + 1 < HIT_MATCH_ROWS) neighbours.push(indexOf(row + 1, col));
       for (const b of neighbours) {
-        if (inactive.has(b) || !board[b]) continue;
+        if (inactive.has(b) || blocked.has(b) || !board[b]) continue;
         const other = board[b];
         // Złoty Winyl zawsze może zostać zamieniony z sąsiadem. Dwa specjale
         // również są legalnym ruchem. Pojedynczy line/bomb musi wejść w match.
@@ -176,7 +192,7 @@ export function hasPossibleMove(board, inactiveIndices = []) {
         if (tile.special === "bomb" || other?.special === "bomb") return true;
         if (tile.special && other?.special) return true;
         const swapped = swapBoardCells(board, a, b);
-        if (findMatches(swapped).length > 0) return true;
+        if (findMatches(swapped, blocked).length > 0) return true;
       }
     }
   }
@@ -380,38 +396,53 @@ export function removeIndices(board, indices, specialCreation = null) {
   return next;
 }
 
-export function collapseAndRefill(board, inactiveIndices = []) {
+export function collapseAndRefill(board, inactiveIndices = [], blockedIndices = []) {
   const inactive = inactiveSetOf(inactiveIndices);
+  const blocked = inactiveSetOf(blockedIndices);
   const next = Array(HIT_MATCH_ROWS * HIT_MATCH_COLS).fill(null);
 
-  for (let col = 0; col < HIT_MATCH_COLS; col += 1) {
-    let row = HIT_MATCH_ROWS - 1;
-    while (row >= 0) {
-      while (row >= 0 && inactive.has(indexOf(row, col))) row -= 1;
-      if (row < 0) break;
-      const segmentBottom = row;
-      while (row >= 0 && !inactive.has(indexOf(row, col))) row -= 1;
-      const segmentTop = row + 1;
+  // Zablokowany Shieldem kafel zostaje dokładnie na swoim polu i dzieli kolumnę
+  // na niezależne segmenty grawitacji. Po zniszczeniu Shielda pole automatycznie
+  // wraca do normalnego przepływu przy następnym resolve.
+  blocked.forEach((index) => {
+    if (inactive.has(index)) return;
+    const tile = board[index];
+    if (tile) next[index] = { ...tile, fresh:false, spawnOrder:0, freshSpecial:false };
+  });
 
-      const existing = [];
-      for (let sourceRow = segmentBottom; sourceRow >= segmentTop; sourceRow -= 1) {
-        const tile = board[indexOf(sourceRow, col)];
-        if (tile) existing.push({ ...tile, fresh: false, spawnOrder: 0, freshSpecial: false });
-      }
-
-      let targetRow = segmentBottom;
-      existing.forEach((tile) => {
-        next[indexOf(targetRow, col)] = tile;
-        targetRow -= 1;
-      });
-
-      let spawnOrder = 0;
-      while (targetRow >= segmentTop) {
-        next[indexOf(targetRow, col)] = makeHitMatchTile(randomType(), { fresh: true, spawnOrder });
-        targetRow -= 1;
+  const processSegment = (col, rows) => {
+    if (!rows.length) return;
+    const existing = [];
+    for (let i = rows.length - 1; i >= 0; i -= 1) {
+      const tile = board[indexOf(rows[i], col)];
+      if (tile) existing.push({ ...tile, fresh:false, spawnOrder:0, freshSpecial:false });
+    }
+    let cursor = 0;
+    let spawnOrder = 0;
+    for (let i = rows.length - 1; i >= 0; i -= 1) {
+      const index = indexOf(rows[i], col);
+      if (cursor < existing.length) {
+        next[index] = existing[cursor];
+        cursor += 1;
+      } else {
+        next[index] = makeHitMatchTile(randomType(), { fresh:true, spawnOrder });
         spawnOrder += 1;
       }
     }
+  };
+
+  for (let col = 0; col < HIT_MATCH_COLS; col += 1) {
+    let segment = [];
+    for (let row = 0; row < HIT_MATCH_ROWS; row += 1) {
+      const index = indexOf(row, col);
+      if (inactive.has(index) || blocked.has(index)) {
+        processSegment(col, segment);
+        segment = [];
+      } else {
+        segment.push(row);
+      }
+    }
+    processSegment(col, segment);
   }
   return next;
 }
@@ -426,9 +457,10 @@ export function countRemovedByType(boardBefore, indices) {
   return counts;
 }
 
-export function shufflePlayable(board, inactiveIndices = []) {
+export function shufflePlayable(board, inactiveIndices = [], blockedIndices = []) {
   const inactive = inactiveSetOf(inactiveIndices);
-  const positions = Array.from({ length: HIT_MATCH_ROWS * HIT_MATCH_COLS }, (_, index) => index).filter((index) => !inactive.has(index));
+  const blocked = inactiveSetOf(blockedIndices);
+  const positions = Array.from({ length: HIT_MATCH_ROWS * HIT_MATCH_COLS }, (_, index) => index).filter((index) => !inactive.has(index) && !blocked.has(index));
   const sourceTiles = positions.map((index) => board[index]).filter(Boolean);
   while (sourceTiles.length < positions.length) sourceTiles.push(makeHitMatchTile(randomType()));
   const tiles = sourceTiles.map((tile) => ({ ...tile, fresh:false, spawnOrder:0, freshSpecial:false, special:null, type:tile.type === "wild" ? randomType() : tile.type }));
@@ -440,9 +472,12 @@ export function shufflePlayable(board, inactiveIndices = []) {
       [pool[i], pool[j]] = [pool[j], pool[i]];
     }
     const candidate = Array(HIT_MATCH_ROWS * HIT_MATCH_COLS).fill(null);
+    blocked.forEach((position) => { if (!inactive.has(position) && board[position]) candidate[position] = { ...board[position], fresh:false, spawnOrder:0, freshSpecial:false }; });
     positions.forEach((position, index) => { candidate[position] = pool[index]; });
-    if (findMatches(candidate).length === 0 && hasPossibleMove(candidate, inactive)) return candidate;
+    if (findMatches(candidate, blocked).length === 0 && hasPossibleMove(candidate, inactive, blocked)) return candidate;
   }
-  return createPlayableBoard(inactive);
+  const fallback = createPlayableBoard(inactive, blocked);
+  blocked.forEach((position) => { if (!inactive.has(position) && board[position]) fallback[position] = { ...board[position], fresh:false, spawnOrder:0, freshSpecial:false }; });
+  return fallback;
 }
 

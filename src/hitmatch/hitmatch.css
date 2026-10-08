@@ -1820,3 +1820,121 @@
       linear-gradient(180deg,#050717,#08091b 58%,#050614);
   }
 }
+
+/* ===== HIT MATCH — FROZEN SHIELD PASS =====
+   Shield ma być bardzo czytelny jako przeszkoda, ale nie może zasłaniać symbolu.
+   Środek pola pozostaje niemal całkowicie przezroczysty; czytelność daje rama,
+   narożniki i mały badge warstw. */
+.hm-piece.is-shield-locked {
+  opacity:1 !important;
+  filter:none !important;
+  cursor:not-allowed;
+}
+.hm-piece.is-shield-locked::after {
+  content:"";
+  position:absolute;
+  inset:5px;
+  border-radius:14px;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.10);
+  pointer-events:none;
+}
+.hm-neon-shield {
+  z-index:16;
+  padding:0;
+  background:transparent !important;
+  box-shadow:none !important;
+  pointer-events:none;
+  overflow:visible;
+}
+.hm-neon-shield::before {
+  content:"";
+  position:absolute;
+  inset:4px;
+  border:2px solid rgba(255,92,216,.96);
+  border-radius:13px;
+  background:transparent !important;
+  box-shadow:0 0 8px rgba(255,77,209,.76),0 0 18px rgba(255,70,204,.30),inset 0 0 8px rgba(255,97,219,.09);
+  animation:hmShieldFramePulse 1.15s ease-in-out infinite alternate;
+}
+.hm-neon-shield::after {
+  content:"LOCK";
+  position:absolute;
+  left:50%;
+  bottom:5px;
+  transform:translateX(-50%);
+  padding:1px 5px 0;
+  border-radius:6px;
+  color:rgba(255,242,252,.96);
+  background:rgba(25,8,34,.78);
+  border:1px solid rgba(255,112,222,.45);
+  font-size:7px;
+  font-weight:900;
+  line-height:1.35;
+  letter-spacing:.09em;
+  text-shadow:0 0 6px rgba(255,86,213,.95);
+  opacity:.88;
+}
+.hm-neon-shield i {
+  position:absolute;
+  inset:8px;
+  width:auto;
+  height:auto;
+  border:none;
+  border-radius:10px;
+  background:
+    linear-gradient(#74ecff,#74ecff) left top/11px 2px no-repeat,
+    linear-gradient(#74ecff,#74ecff) left top/2px 11px no-repeat,
+    linear-gradient(#74ecff,#74ecff) right top/11px 2px no-repeat,
+    linear-gradient(#74ecff,#74ecff) right top/2px 11px no-repeat,
+    linear-gradient(#74ecff,#74ecff) left bottom/11px 2px no-repeat,
+    linear-gradient(#74ecff,#74ecff) left bottom/2px 11px no-repeat,
+    linear-gradient(#74ecff,#74ecff) right bottom/11px 2px no-repeat,
+    linear-gradient(#74ecff,#74ecff) right bottom/2px 11px no-repeat;
+  box-shadow:none;
+  opacity:.9;
+}
+.hm-neon-shield b,
+.hm-neon-shield:not(.reinforced) b {
+  display:none;
+}
+.hm-neon-shield.reinforced b {
+  display:grid;
+  position:absolute;
+  right:1px;
+  top:1px;
+  min-width:20px;
+  height:20px;
+  padding:0 4px;
+  place-items:center;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.74);
+  color:#19031d;
+  background:linear-gradient(135deg,#fff1a1,#ff7bd8 58%,#76efff);
+  box-shadow:0 0 9px rgba(255,255,255,.42),0 0 17px rgba(255,83,205,.58);
+  font-size:8px;
+  font-weight:1000;
+}
+.hm-neon-shield.reinforced::before {
+  border-color:#ffd66c;
+  box-shadow:0 0 9px rgba(255,215,100,.72),0 0 20px rgba(255,72,198,.30),inset 0 0 8px rgba(255,213,96,.08);
+}
+@keyframes hmShieldFramePulse {
+  from { opacity:.72; transform:scale(.985); }
+  to { opacity:1; transform:scale(1); }
+}
+@media (max-width:700px) {
+  .hm-neon-shield::before { inset:3px; border-width:1.5px; border-radius:9px; }
+  .hm-neon-shield i { inset:6px; }
+  .hm-neon-shield::after { bottom:3px; font-size:5.5px; padding:1px 3px 0; }
+  .hm-neon-shield.reinforced b { min-width:17px; height:17px; right:0; top:0; font-size:7px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .hm-neon-shield::before { animation:none !important; }
+}
+.hm-neon-shield { animation:hmShieldHit .26s cubic-bezier(.2,.9,.25,1); }
+@keyframes hmShieldHit {
+  0% { opacity:.35; filter:brightness(1.8); }
+  58% { opacity:1; filter:brightness(1.35); }
+  100% { opacity:1; filter:brightness(1); }
+}
+@media (prefers-reduced-motion:reduce) { .hm-neon-shield { animation:none!important; } }

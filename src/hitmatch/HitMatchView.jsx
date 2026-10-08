@@ -145,6 +145,17 @@ function specialName(special) {
   return "";
 }
 
+function orthogonalNeighbours(index) {
+  const row = rowOf(index);
+  const col = colOf(index);
+  const result = [];
+  if (row > 0) result.push(index - HIT_MATCH_COLS);
+  if (row < HIT_MATCH_ROWS - 1) result.push(index + HIT_MATCH_COLS);
+  if (col > 0) result.push(index - 1);
+  if (col < HIT_MATCH_COLS - 1) result.push(index + 1);
+  return result;
+}
+
 function buildSpecialFx(board, indices = []) {
   const seen = new Set();
   const fx = [];
@@ -160,7 +171,7 @@ function buildSpecialFx(board, indices = []) {
   return fx;
 }
 
-function HitMatchPiece({ tile, index, selected, matched, activated, dragging, colorPhase, colorOrder = -1, swapOffset = null, onPointerDown, onPointerMove, onPointerUp, onClick }) {
+function HitMatchPiece({ tile, index, selected, matched, activated, dragging, locked = false, colorPhase, colorOrder = -1, swapOffset = null, onPointerDown, onPointerMove, onPointerUp, onClick }) {
   const row = rowOf(index);
   const col = colOf(index);
   const image = ICONS[tile.type] || ICONS.vinyl;
@@ -172,6 +183,7 @@ function HitMatchPiece({ tile, index, selected, matched, activated, dragging, co
     matched ? "is-matched" : "",
     activated ? "is-activated-special" : "",
     dragging ? "is-dragging" : "",
+    locked ? "is-shield-locked" : "",
     tile.fresh ? "is-fresh" : "",
     tile.freshSpecial ? "is-special-born" : "",
     colorPhase === "charge" ? "is-color-charged" : "",
@@ -315,7 +327,8 @@ function QuizModal({ state, iframeRef, onAnswer, onReplay, onSkip, onPlayerLoad 
 function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEntry, onProgressUpdate }) {
   const inactiveIndices = LEVEL?.layout?.inactive || [];
   const initialShieldState = () => createShieldState(LEVEL);
-  const [board, setBoard] = useState(() => createPlayableBoard(inactiveIndices));
+  const initialShieldIndices = (LEVEL?.shields || []).map(({ index }) => Number(index));
+  const [board, setBoard] = useState(() => createPlayableBoard(inactiveIndices, initialShieldIndices));
   const [selected, setSelected] = useState(null);
   const [draggingIndex, setDraggingIndex] = useState(null);
   const [matched, setMatched] = useState([]);
@@ -378,6 +391,17 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     setCollected({ ...stats.collected });
     setHitMeter(stats.hitMeter);
   }, []);
+
+  const getLockedShieldIndices = useCallback(() => Object.entries(shieldsRef.current || {})
+    .filter(([, hp]) => Number(hp || 0) > 0)
+    .map(([index]) => Number(index)), []);
+
+  const isShieldLocked = useCallback((index) => Number(shieldsRef.current?.[index] || 0) > 0, []);
+
+  const filterLockedShieldCells = useCallback((indices = []) => {
+    const locked = new Set(getLockedShieldIndices());
+    return [...new Set(indices)].filter((index) => !locked.has(Number(index)));
+  }, [getLockedShieldIndices]);
 
   const flashBanner = useCallback((title, subtitle = "", tone = "cyan", hold = 850) => {
     const id = `${Date.now()}_${Math.random()}`;
@@ -489,7 +513,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
 
   const resetGame = useCallback((autoStart = false) => {
     runTokenRef.current += 1;
-    setBoard(createPlayableBoard(inactiveIndices));
+    setBoard(createPlayableBoard(inactiveIndices, initialShieldIndices));
     setSelected(null);
     setDraggingIndex(null);
     setMatched([]);
@@ -633,12 +657,13 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       return;
     }
 
-    if (!hasPossibleMove(finalBoard, inactiveIndices)) {
+    const lockedShieldIndices = getLockedShieldIndices();
+    if (!hasPossibleMove(finalBoard, inactiveIndices, lockedShieldIndices)) {
       flashBanner("BRAK RUCHÓW", "Miksujemy planszę", "violet", 900);
       await wait(260);
       if (runTokenRef.current !== token) return;
       setMotionMode("shuffle");
-      setBoard(shufflePlayable(finalBoard, inactiveIndices));
+      setBoard(shufflePlayable(finalBoard, inactiveIndices, lockedShieldIndices));
       await wait(260);
     }
     if (runTokenRef.current === token) {
@@ -646,7 +671,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       setMotionMode("idle");
       setBusy(false);
     }
-  }, [flashBanner, saveCompletedLevel, syncStats]);
+  }, [flashBanner, saveCompletedLevel, syncStats, getLockedShieldIndices]);
 
   const applyRemovalStats = useCallback((boardBefore, actualIndices, cascadeLevel, specialCreation) => {
     const counts = countRemovedByType(boardBefore, actualIndices);
@@ -661,12 +686,17 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     let shieldHits = 0;
     if ((LEVEL.shields || []).length) {
       const nextShields = { ...shieldsRef.current };
-      const shieldContactIndices = specialCreation?.index !== undefined
-        ? [...new Set([...actualIndices, specialCreation.index])]
-        : actualIndices;
-      shieldContactIndices.forEach((index) => {
-        const hp = Number(nextShields[index] || 0);
-        if (hp > 0) {
+      const contactIndices = specialCreation?.index !== undefined ? [...actualIndices, specialCreation.index] : actualIndices;
+      const removedSet = new Set(contactIndices.map(Number));
+      // Shield jest nieruchomą przeszkodą. Nie niszczymy go przez usunięcie
+      // kafla "pod nim" — warstwę zdejmuje wyłącznie match/efekt na jednym z
+      // czterech pól bezpośrednio obok. Jedna fala resolve = maks. 1 HP na Shield.
+      Object.entries(nextShields).forEach(([rawIndex, rawHp]) => {
+        const index = Number(rawIndex);
+        const hp = Number(rawHp || 0);
+        if (hp <= 0) return;
+        const touched = orthogonalNeighbours(index).some((neighbour) => removedSet.has(neighbour));
+        if (touched) {
           nextShields[index] = Math.max(0, hp - 1);
           shieldHits += 1;
         }
@@ -691,7 +721,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
 
     const specialCreation = swapMeta ? chooseSpecialCreation(groups, currentBoard, swapMeta.a, swapMeta.b) : null;
     const matchedBase = uniqueMatchedIndices(groups);
-    let affected = expandSpecialEffects(currentBoard, matchedBase);
+    let affected = filterLockedShieldCells(expandSpecialEffects(currentBoard, matchedBase));
     if (specialCreation) affected = affected.filter((index) => index !== specialCreation.index);
 
     const triggeredSpecials = affected.filter((index) => currentBoard[index]?.special);
@@ -709,7 +739,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     await wait(35);
     if (runTokenRef.current !== token) return;
 
-    const dropped = collapseAndRefill(removed, inactiveIndices);
+    const dropped = collapseAndRefill(removed, inactiveIndices, getLockedShieldIndices());
     setMatched([]);
     setActiveSpecials([]);
     setFxMarks([]);
@@ -723,17 +753,17 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     setMotionMode("idle");
     setBoard(settled);
 
-    const nextGroups = findMatches(settled);
+    const nextGroups = findMatches(settled, getLockedShieldIndices());
     if (nextGroups.length) {
       await wait(75);
       await resolve(settled, nextGroups, token, cascadeLevel + 1, null);
       return;
     }
     await finishOrShuffle(settled, token);
-  }, [applyRemovalStats, finishOrShuffle, showCombo]);
+  }, [applyRemovalStats, finishOrShuffle, showCombo, filterLockedShieldCells, getLockedShieldIndices]);
 
   const resolveColorMove = useCallback(async (swapped, a, b, token) => {
-    const affected = resolveColorSwap(swapped, a, b) || [];
+    const affected = filterLockedShieldCells(resolveColorSwap(swapped, a, b) || []);
     const triggeredSpecials = affected.filter((index) => swapped[index]?.special);
     const colorIndex = swapped[a]?.special === "color" ? a : b;
     const partnerIndex = colorIndex === a ? b : a;
@@ -757,7 +787,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     const removed = removeIndices(swapped, affected, null);
     setBoard(removed);
     await wait(35);
-    const dropped = collapseAndRefill(removed, inactiveIndices);
+    const dropped = collapseAndRefill(removed, inactiveIndices, getLockedShieldIndices());
     setMatched([]);
     setActiveSpecials([]);
     setFxMarks([]);
@@ -771,15 +801,16 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     setMotionMode("idle");
     setBoard(settled);
 
-    const groups = findMatches(settled);
+    const groups = findMatches(settled, getLockedShieldIndices());
     if (groups.length) {
       await resolveCascades(settled, groups, token, 2, null);
       return;
     }
     await finishOrShuffle(settled, token);
-  }, [applyRemovalStats, finishOrShuffle, flashBanner, resolveCascades]);
+  }, [applyRemovalStats, finishOrShuffle, flashBanner, resolveCascades, filterLockedShieldCells, getLockedShieldIndices]);
 
   const resolveSpecialMove = useCallback(async (swapped, a, b, affected, token) => {
+    affected = filterLockedShieldCells(affected);
     const specials = [swapped[a], swapped[b]].filter((tile) => tile?.special);
     const triggerIndices = [...new Set([a, b, ...affected].filter((index) => swapped[index]?.special))];
     const label = specials.length > 1 ? "SPECJALNE COMBO!" : specialName(specials[0]?.special);
@@ -799,7 +830,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     const removed = removeIndices(swapped, affected, null);
     setBoard(removed);
     await wait(35);
-    const dropped = collapseAndRefill(removed, inactiveIndices);
+    const dropped = collapseAndRefill(removed, inactiveIndices, getLockedShieldIndices());
     setMatched([]);
     setActiveSpecials([]);
     setFxMarks([]);
@@ -812,16 +843,22 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     setMotionMode("idle");
     setBoard(settled);
 
-    const groups = findMatches(settled);
+    const groups = findMatches(settled, getLockedShieldIndices());
     if (groups.length) {
       await resolveCascades(settled, groups, token, 2, null);
       return;
     }
     await finishOrShuffle(settled, token);
-  }, [applyRemovalStats, finishOrShuffle, flashBanner, resolveCascades, syncStats]);
+  }, [applyRemovalStats, finishOrShuffle, flashBanner, resolveCascades, syncStats, filterLockedShieldCells, getLockedShieldIndices]);
 
   const attemptSwap = useCallback(async (a, b) => {
     if (status !== "running" || busy || quizState || !areAdjacent(a, b) || !board[a] || !board[b]) return;
+    if (isShieldLocked(a) || isShieldLocked(b)) {
+      playWrongSound();
+      flashBanner("NEON SHIELD", "To pole jest zablokowane — zrób match obok osłony", "pink", 850);
+      setSelected(null);
+      return;
+    }
     unlockAudio();
     setSelected(null);
     setDraggingIndex(null);
@@ -835,7 +872,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     // w którym pionowy swap reorganizował po drodze inne kafle w liście Reacta.
     const colorClear = resolveColorSwap(swapped, a, b);
     const specialClear = colorClear ? null : resolveSpecialSwap(swapped, a, b);
-    const groups = colorClear || specialClear?.length ? [] : findMatches(swapped);
+    const groups = colorClear || specialClear?.length ? [] : findMatches(swapped, getLockedShieldIndices());
     const validMove = Boolean(colorClear || specialClear?.length || groups.length);
 
     const deltaCol = colOf(b) - colOf(a);
@@ -890,7 +927,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     statsRef.current.moves -= 1;
     syncStats();
     await resolveCascades(swapped, groups, token, 1, { a, b });
-  }, [board, busy, quizState, resolveCascades, resolveColorMove, resolveSpecialMove, status, syncStats]);
+  }, [board, busy, quizState, resolveCascades, resolveColorMove, resolveSpecialMove, status, syncStats, isShieldLocked, flashBanner, getLockedShieldIndices]);
 
   const handlePieceClick = useCallback((index) => {
     if (suppressClickRef.current) {
@@ -898,6 +935,12 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       return;
     }
     if (busy || quizState || status !== "running") return;
+    if (isShieldLocked(index)) {
+      playWrongSound();
+      flashBanner("NEON SHIELD", "Rozbij go matchem z góry, dołu, lewej lub prawej", "pink", 850);
+      setSelected(null);
+      return;
+    }
     if (selected === null) {
       setSelected(index);
       return;
@@ -911,15 +954,21 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       return;
     }
     setSelected(index);
-  }, [attemptSwap, busy, quizState, selected, status]);
+  }, [attemptSwap, busy, quizState, selected, status, isShieldLocked, flashBanner]);
 
   const handlePointerDown = useCallback((event, index) => {
     if (busy || quizState || status !== "running") return;
+    if (isShieldLocked(index)) {
+      event.preventDefault();
+      pointerStartRef.current = null;
+      setDraggingIndex(null);
+      return;
+    }
     event.preventDefault();
     pointerStartRef.current = { index, x: event.clientX, y: event.clientY, pointerId: event.pointerId };
     setDraggingIndex(index);
     event.currentTarget.setPointerCapture?.(event.pointerId);
-  }, [busy, quizState, status]);
+  }, [busy, quizState, status, isShieldLocked]);
 
   // Nie zmieniamy planszy w trakcie pointermove. To usuwa podwójne swapy i
   // przypadkowe animacje kafli przy pionowym geście na ekranach dotykowych.
@@ -1097,6 +1146,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
                     matched={matched.includes(index)}
                     activated={activeSpecials.includes(index)}
                     dragging={draggingIndex === index}
+                    locked={isShieldLocked(index)}
                     colorPhase={colorSweep?.targets?.includes(index) ? colorSweep.phase : null}
                     colorOrder={colorSweep?.targets?.indexOf(index) ?? -1}
                     swapOffset={visualSwap?.a === index ? visualSwap.aOffset : visualSwap?.b === index ? visualSwap.bOffset : null}
@@ -1109,7 +1159,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
                 {Object.entries(shields).filter(([, hp]) => Number(hp) > 0).map(([rawIndex, hp]) => {
                   const index = Number(rawIndex);
                   const maxHp = Number(LEVEL.shields?.find((item) => Number(item.index) === index)?.hp || 1);
-                  return <span key={`shield-${index}`} className={`hm-neon-shield hp-${hp} ${maxHp > 1 ? "reinforced" : ""}`} style={{ left:`${colOf(index) * 12.5}%`, top:`${rowOf(index) * 12.5}%`, transform:"none" }} aria-hidden="true"><i /><b>{maxHp > 1 ? hp : ""}</b></span>;
+                  return <span key={`shield-${index}-${hp}`} className={`hm-neon-shield hp-${hp} ${maxHp > 1 ? "reinforced" : ""}`} style={{ left:`${colOf(index) * 12.5}%`, top:`${rowOf(index) * 12.5}%`, transform:"none" }} aria-hidden="true"><i /><b>{maxHp > 1 ? hp : ""}</b></span>;
                 })}
                 <span className="hm-board-shine" aria-hidden="true" />
               </div>
@@ -1155,7 +1205,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
         <aside className="hm-side-panel">
           <section className="hm-panel hm-objectives">
             <div className="hm-panel-title"><Target size={17} /><span>CEL POZIOMU</span></div>
-            <p>{shieldsTotal ? "Zrealizuj cele i rozbij wszystkie warstwy Neon Shield przed końcem ruchów." : LEVEL.scoreGoal && Object.keys(LEVEL.goals).length ? "Zrealizuj cele i osiągnij wymagany wynik przed końcem ruchów." : LEVEL.scoreGoal ? "Zdobądź wymagany wynik przed końcem ruchów." : "Zbierz wszystkie wymagane symbole przed końcem ruchów."}</p>
+            <p>{shieldsTotal ? "Zrealizuj cele i rozbij wszystkie Neon Shield matchem na polu bezpośrednio obok." : LEVEL.scoreGoal && Object.keys(LEVEL.goals).length ? "Zrealizuj cele i osiągnij wymagany wynik przed końcem ruchów." : LEVEL.scoreGoal ? "Zdobądź wymagany wynik przed końcem ruchów." : "Zbierz wszystkie wymagane symbole przed końcem ruchów."}</p>
             <div className="hm-goal-list">
               {Object.entries(LEVEL.goals).map(([type, target]) => <GoalChip key={type} type={type} value={collected[type] || 0} target={target} />)}
               {LEVEL.scoreGoal ? <ScoreGoalChip value={score} target={LEVEL.scoreGoal} /> : null}
@@ -1200,7 +1250,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
               <div className="moves"><Move size={26} /><strong>{LEVEL.moves}</strong><span>ruchów</span></div>
             </div>
             <div className="hm-intro-stars"><span><b>★</b> ukończenie</span><span><b>★★</b> {LEVEL.starScoreThresholds[2].toLocaleString("pl-PL")} pkt</span><span><b>★★★</b> {LEVEL.starScoreThresholds[3].toLocaleString("pl-PL")} pkt</span></div>
-            {shieldsTotal ? <div className="hm-stage2-intro-note"><span>◆</span><p><strong>NEON SHIELD</strong><small>Zrób match, który usuwa kafel stojący na osłonie. Każde trafienie zdejmuje jedną warstwę.</small></p></div> : null}
+            {shieldsTotal ? <div className="hm-stage2-intro-note"><span>◆</span><p><strong>NEON SHIELD</strong><small>Shield blokuje kafel i nie można nim ruszać. Zrób match bezpośrednio z góry, dołu, lewej lub prawej strony, aby zdjąć warstwę.</small></p></div> : null}
             <button type="button" className="hm-primary" onClick={startGame}><Zap size={19} fill="currentColor" /> ZACZYNAMY</button>
             <small>Przeciągnij kafel w dowolnym kierunku albo kliknij dwa sąsiadujące pola.</small>
           </div>
@@ -1267,7 +1317,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
               <div className="hm-how-card"><span className="hm-demo-special gold"><img src={vinylImg} alt="" /></span><strong>5 = ZŁOTY WINYL</strong><small>Zamień go z symbolem, aby usunąć wszystkie takie kafle.</small></div>
             </div>
             <div className="hm-help-power"><Music2 size={22} /><span><strong>HIT METER</strong><small>Przy 100% uruchom krótki quiz. Poprawna odpowiedź daje +3 ruchy.</small></span></div>
-            {currentStage.number >= 2 ? <div className="hm-help-power hm-help-shield"><span className="hm-shield-mini">◆</span><span><strong>NEON SHIELD</strong><small>Usuń kafel z osłoniętego pola, aby zdjąć warstwę. Wzmocnione osłony wymagają kilku trafień.</small></span></div> : null}
+            {currentStage.number >= 2 ? <div className="hm-help-power hm-help-shield"><span className="hm-shield-mini">◆</span><span><strong>NEON SHIELD</strong><small>Kafel pod osłoną jest nieruchomy. Match na sąsiednim polu z góry, dołu, lewej lub prawej zdejmuje 1 warstwę.</small></span></div> : null}
             <button type="button" className="hm-primary" onClick={() => setShowHelp(false)}>ROZUMIEM</button>
           </div>
         </div>
