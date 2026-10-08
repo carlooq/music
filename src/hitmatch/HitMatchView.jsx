@@ -1337,7 +1337,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
             <div className="hm-panel-title"><Zap size={17} /><span>SPECJALNE COMBO</span></div>
             <div className="hm-special-list">
               <div><b>4</b><span><strong>Bass Line</strong><small>po utworzeniu włącz go do kolejnego matchu, aby wyczyścić linię</small></span></div>
-              <div><b>L/T</b><span><strong>Bomba 3×3</strong><small>wybucha dokładnie wokół siebie</small></span></div>
+              <div><b>L/T · 2×3</b><span><strong>Bomba 3×3</strong><small>powstaje z układu L/T albo dwóch match-3 zrobionych jednym ruchem</small></span></div>
               <div><b>5</b><span><strong>Złoty Winyl</strong><small>usuwa wszystkie symbole wybranego typu</small></span></div>
             </div>
           </section>
@@ -1427,7 +1427,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
             <div className="hm-how-grid">
               <div className="hm-how-card"><span className="hm-demo-icons">{[0,1,2].map((n) => <img key={n} src={microphoneImg} alt="" />)}</span><strong>3 = MATCH</strong><small>Podstawowe połączenie usuwa symbole.</small></div>
               <div className="hm-how-card"><span className="hm-demo-icons four">{[0,1,2,3].map((n) => <img key={n} src={cassetteImg} alt="" />)}</span><strong>4 = BASS LINE</strong><small>Strzałki pokazują kierunek. Booster odpala się dopiero, gdy ponownie wejdzie w match.</small></div>
-              <div className="hm-how-card"><span className="hm-demo-special bomb"><Zap size={30} /></span><strong>L/T = BOMBA 3×3</strong><small>Wybucha wokół swojego pola.</small></div>
+              <div className="hm-how-card"><span className="hm-demo-special bomb"><Zap size={30} /></span><strong>L/T LUB 2× MATCH-3</strong><small>Tworzy Bombę 3×3, która wybucha wokół swojego pola.</small></div>
               <div className="hm-how-card"><span className="hm-demo-special gold"><img src={vinylImg} alt="" /></span><strong>5 = ZŁOTY WINYL</strong><small>Zamień go z symbolem, aby usunąć wszystkie takie kafle.</small></div>
             </div>
             <div className="hm-help-power"><Music2 size={22} /><span><strong>HIT METER</strong><small>Przy 100% uruchom krótki quiz. Poprawna odpowiedź daje +3 ruchy.</small></span></div>
