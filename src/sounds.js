@@ -245,6 +245,49 @@ export function playHitMatchComboSound(level = 2) {
   if (combo >= 5) tone(base * 2, 0.2, 0.24, "triangle", 0.12);
 }
 
+export function playHitMatchLineSound(direction = "row", strength = 1) {
+  const power = Math.max(1, Math.min(3, Number(strength) || 1));
+  try {
+    const ctx = getCtx();
+    const now = ctx.currentTime;
+    const master = ctx.createGain();
+    master.gain.setValueAtTime(0.0001, now);
+    master.gain.exponentialRampToValueAtTime(0.13 + power * 0.018, now + 0.012);
+    master.gain.exponentialRampToValueAtTime(0.0001, now + 0.34);
+    master.connect(ctx.destination);
+
+    const steps = direction === "col"
+      ? [880, 660, 440, 293.66]
+      : [293.66, 392, 523.25, 783.99];
+    steps.forEach((freq, index) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = direction === "col" ? "triangle" : "sawtooth";
+      osc.frequency.setValueAtTime(freq, now + index * 0.045);
+      gain.gain.setValueAtTime(0.07 + power * 0.012, now + index * 0.045);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + index * 0.045 + 0.11);
+      osc.connect(gain);
+      gain.connect(master);
+      osc.start(now + index * 0.045);
+      osc.stop(now + index * 0.045 + 0.13);
+    });
+
+    const size = Math.floor(ctx.sampleRate * 0.18);
+    const buffer = ctx.createBuffer(1, size, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < size; i += 1) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / size, 2);
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.value = 0.035 + power * 0.008;
+    src.connect(noiseGain);
+    noiseGain.connect(master);
+    src.start(now + 0.02);
+  } catch (e) {
+    // Efekt dźwiękowy nie może blokować gry.
+  }
+}
+
 export function playHitMatchStarSound(star = 1) {
   const notes = [659.25, 783.99, 1046.5];
   const freq = notes[Math.max(0, Math.min(2, Number(star || 1) - 1))];
