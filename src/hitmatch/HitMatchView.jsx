@@ -673,7 +673,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     }
   }, [flashBanner, saveCompletedLevel, syncStats, getLockedShieldIndices]);
 
-  const applyRemovalStats = useCallback((boardBefore, actualIndices, cascadeLevel, specialCreation) => {
+  const applyRemovalStats = useCallback((boardBefore, actualIndices, cascadeLevel, specialCreation, shieldContactIndices = actualIndices) => {
     const counts = countRemovedByType(boardBefore, actualIndices);
     const stats = statsRef.current;
     Object.entries(counts).forEach(([type, value]) => {
@@ -686,17 +686,22 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     let shieldHits = 0;
     if ((LEVEL.shields || []).length) {
       const nextShields = { ...shieldsRef.current };
-      const contactIndices = specialCreation?.index !== undefined ? [...actualIndices, specialCreation.index] : actualIndices;
-      const removedSet = new Set(contactIndices.map(Number));
-      // Shield jest nieruchomą przeszkodą. Nie niszczymy go przez usunięcie
-      // kafla "pod nim" — warstwę zdejmuje wyłącznie match/efekt na jednym z
-      // czterech pól bezpośrednio obok. Jedna fala resolve = maks. 1 HP na Shield.
+      const contactIndices = specialCreation?.index !== undefined
+        ? [...shieldContactIndices, specialCreation.index]
+        : shieldContactIndices;
+      const contactSet = new Set((contactIndices || []).map(Number));
+      // Shield blokuje wyłącznie RUCH kafla. Warstwę można zdjąć na dwa sposoby:
+      // 1) osłonięty symbol SAM wchodzi w match/efekt,
+      // 2) match/efekt trafia jedno z 4 pól ortogonalnie obok.
+      // Jedna fala resolve = maksymalnie 1 HP na konkretny Shield. Sam kafel
+      // pozostaje chroniony do chwili zdjęcia osłony i nie jest usuwany w tej fali.
       Object.entries(nextShields).forEach(([rawIndex, rawHp]) => {
         const index = Number(rawIndex);
         const hp = Number(rawHp || 0);
         if (hp <= 0) return;
-        const touched = orthogonalNeighbours(index).some((neighbour) => removedSet.has(neighbour));
-        if (touched) {
+        const directHit = contactSet.has(index);
+        const adjacentHit = orthogonalNeighbours(index).some((neighbour) => contactSet.has(neighbour));
+        if (directHit || adjacentHit) {
           nextShields[index] = Math.max(0, hp - 1);
           shieldHits += 1;
         }
@@ -721,7 +726,8 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
 
     const specialCreation = swapMeta ? chooseSpecialCreation(groups, currentBoard, swapMeta.a, swapMeta.b) : null;
     const matchedBase = uniqueMatchedIndices(groups);
-    let affected = filterLockedShieldCells(expandSpecialEffects(currentBoard, matchedBase));
+    const rawAffected = expandSpecialEffects(currentBoard, matchedBase);
+    let affected = filterLockedShieldCells(rawAffected);
     if (specialCreation) affected = affected.filter((index) => index !== specialCreation.index);
 
     const triggeredSpecials = affected.filter((index) => currentBoard[index]?.special);
@@ -733,7 +739,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     await wait(triggeredSpecials.length ? 340 : 280);
     if (runTokenRef.current !== token) return;
 
-    applyRemovalStats(currentBoard, affected, cascadeLevel, specialCreation);
+    applyRemovalStats(currentBoard, affected, cascadeLevel, specialCreation, rawAffected);
     const removed = removeIndices(currentBoard, affected, specialCreation);
     setBoard(removed);
     await wait(35);
@@ -763,7 +769,8 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   }, [applyRemovalStats, finishOrShuffle, showCombo, filterLockedShieldCells, getLockedShieldIndices]);
 
   const resolveColorMove = useCallback(async (swapped, a, b, token) => {
-    const affected = filterLockedShieldCells(resolveColorSwap(swapped, a, b) || []);
+    const rawAffected = resolveColorSwap(swapped, a, b) || [];
+    const affected = filterLockedShieldCells(rawAffected);
     const triggeredSpecials = affected.filter((index) => swapped[index]?.special);
     const colorIndex = swapped[a]?.special === "color" ? a : b;
     const partnerIndex = colorIndex === a ? b : a;
@@ -783,7 +790,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     await wait(560);
     if (runTokenRef.current !== token) return;
 
-    applyRemovalStats(swapped, affected, 1, { special: "color" });
+    applyRemovalStats(swapped, affected, 1, { special: "color" }, rawAffected);
     const removed = removeIndices(swapped, affected, null);
     setBoard(removed);
     await wait(35);
@@ -810,7 +817,8 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   }, [applyRemovalStats, finishOrShuffle, flashBanner, resolveCascades, filterLockedShieldCells, getLockedShieldIndices]);
 
   const resolveSpecialMove = useCallback(async (swapped, a, b, affected, token) => {
-    affected = filterLockedShieldCells(affected);
+    const rawAffected = [...affected];
+    affected = filterLockedShieldCells(rawAffected);
     const specials = [swapped[a], swapped[b]].filter((tile) => tile?.special);
     const triggerIndices = [...new Set([a, b, ...affected].filter((index) => swapped[index]?.special))];
     const label = specials.length > 1 ? "SPECJALNE COMBO!" : specialName(specials[0]?.special);
@@ -824,7 +832,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     await wait(specials.length > 1 ? 420 : 340);
     if (runTokenRef.current !== token) return;
 
-    applyRemovalStats(swapped, affected, 1, null);
+    applyRemovalStats(swapped, affected, 1, null, rawAffected);
     statsRef.current.score += specials.length > 1 ? 1400 : 550;
     syncStats();
     const removed = removeIndices(swapped, affected, null);
@@ -855,7 +863,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     if (status !== "running" || busy || quizState || !areAdjacent(a, b) || !board[a] || !board[b]) return;
     if (isShieldLocked(a) || isShieldLocked(b)) {
       playWrongSound();
-      flashBanner("NEON SHIELD", "To pole jest zablokowane — zrób match obok osłony", "pink", 850);
+      flashBanner("NEON SHIELD", "Kafel jest nieruchomy, ale może wejść w match — albo rozbij Shield matchem obok", "pink", 950);
       setSelected(null);
       return;
     }
@@ -937,7 +945,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     if (busy || quizState || status !== "running") return;
     if (isShieldLocked(index)) {
       playWrongSound();
-      flashBanner("NEON SHIELD", "Rozbij go matchem z góry, dołu, lewej lub prawej", "pink", 850);
+      flashBanner("NEON SHIELD", "Nie możesz nim ruszyć. Ułóż match z tym symbolem lub zrób match obok", "pink", 950);
       setSelected(null);
       return;
     }
@@ -1205,7 +1213,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
         <aside className="hm-side-panel">
           <section className="hm-panel hm-objectives">
             <div className="hm-panel-title"><Target size={17} /><span>CEL POZIOMU</span></div>
-            <p>{shieldsTotal ? "Zrealizuj cele i rozbij wszystkie Neon Shield matchem na polu bezpośrednio obok." : LEVEL.scoreGoal && Object.keys(LEVEL.goals).length ? "Zrealizuj cele i osiągnij wymagany wynik przed końcem ruchów." : LEVEL.scoreGoal ? "Zdobądź wymagany wynik przed końcem ruchów." : "Zbierz wszystkie wymagane symbole przed końcem ruchów."}</p>
+            <p>{shieldsTotal ? "Zrealizuj cele i rozbij wszystkie Neon Shield: matchem z osłoniętym symbolem albo na polu bezpośrednio obok." : LEVEL.scoreGoal && Object.keys(LEVEL.goals).length ? "Zrealizuj cele i osiągnij wymagany wynik przed końcem ruchów." : LEVEL.scoreGoal ? "Zdobądź wymagany wynik przed końcem ruchów." : "Zbierz wszystkie wymagane symbole przed końcem ruchów."}</p>
             <div className="hm-goal-list">
               {Object.entries(LEVEL.goals).map(([type, target]) => <GoalChip key={type} type={type} value={collected[type] || 0} target={target} />)}
               {LEVEL.scoreGoal ? <ScoreGoalChip value={score} target={LEVEL.scoreGoal} /> : null}
@@ -1250,7 +1258,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
               <div className="moves"><Move size={26} /><strong>{LEVEL.moves}</strong><span>ruchów</span></div>
             </div>
             <div className="hm-intro-stars"><span><b>★</b> ukończenie</span><span><b>★★</b> {LEVEL.starScoreThresholds[2].toLocaleString("pl-PL")} pkt</span><span><b>★★★</b> {LEVEL.starScoreThresholds[3].toLocaleString("pl-PL")} pkt</span></div>
-            {shieldsTotal ? <div className="hm-stage2-intro-note"><span>◆</span><p><strong>NEON SHIELD</strong><small>Shield blokuje kafel i nie można nim ruszać. Zrób match bezpośrednio z góry, dołu, lewej lub prawej strony, aby zdjąć warstwę.</small></p></div> : null}
+            {shieldsTotal ? <div className="hm-stage2-intro-note"><span>◆</span><p><strong>NEON SHIELD</strong><small>Shield blokuje ruch kafla, ale nie jego udział w matchu. Ułóż match-3+ z osłoniętym symbolem albo zrób match bezpośrednio obok, aby zdjąć warstwę.</small></p></div> : null}
             <button type="button" className="hm-primary" onClick={startGame}><Zap size={19} fill="currentColor" /> ZACZYNAMY</button>
             <small>Przeciągnij kafel w dowolnym kierunku albo kliknij dwa sąsiadujące pola.</small>
           </div>
@@ -1317,7 +1325,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
               <div className="hm-how-card"><span className="hm-demo-special gold"><img src={vinylImg} alt="" /></span><strong>5 = ZŁOTY WINYL</strong><small>Zamień go z symbolem, aby usunąć wszystkie takie kafle.</small></div>
             </div>
             <div className="hm-help-power"><Music2 size={22} /><span><strong>HIT METER</strong><small>Przy 100% uruchom krótki quiz. Poprawna odpowiedź daje +3 ruchy.</small></span></div>
-            {currentStage.number >= 2 ? <div className="hm-help-power hm-help-shield"><span className="hm-shield-mini">◆</span><span><strong>NEON SHIELD</strong><small>Kafel pod osłoną jest nieruchomy. Match na sąsiednim polu z góry, dołu, lewej lub prawej zdejmuje 1 warstwę.</small></span></div> : null}
+            {currentStage.number >= 2 ? <div className="hm-help-power hm-help-shield"><span className="hm-shield-mini">◆</span><span><strong>NEON SHIELD</strong><small>Kafel pod osłoną jest nieruchomy, ale może wejść w match-3+. Match z nim lub na sąsiednim polu góra/dół/lewo/prawo zdejmuje 1 warstwę.</small></span></div> : null}
             <button type="button" className="hm-primary" onClick={() => setShowHelp(false)}>ROZUMIEM</button>
           </div>
         </div>
