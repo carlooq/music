@@ -21,6 +21,7 @@ import {
   createLevelBoard,
   expandSpecialEffects,
   findMatches,
+  getDeliveryExitIndices,
   hasPossibleMove,
   removeIndices,
   resolveColorSwap,
@@ -616,7 +617,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       statsRef.current.score += deliveredIndices.length * 1200;
       syncStats();
       setDeliveryFx(deliveredIndices);
-      flashBanner("DROP THE MIC!", deliveredIndices.length > 1 ? `+${deliveredIndices.length} mikrofony dostarczone` : "Mikrofon dotarł na dół", "cyan", 900);
+      flashBanner("DROP THE MIC!", deliveredIndices.length > 1 ? `+${deliveredIndices.length} mikrofony w strefie wyjścia` : "Mikrofon dotarł do strefy wyjścia", "cyan", 900);
       setBoard(withoutDelivered);
       await wait(190);
       if (runTokenRef.current !== token) return current;
@@ -926,7 +927,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     if (status !== "running" || busy || quizState || !areAdjacent(a, b) || !board[a] || !board[b]) return;
     if (board[a]?.type === "delivery" || board[b]?.type === "delivery") {
       playWrongSound();
-      flashBanner("DROP THE MIC", "Mikrofon spada tylko dzięki usuwaniu kafli pod nim", "cyan", 900);
+      flashBanner("DROP THE MIC", "Mikrofon spada dzięki usuwaniu kafli pod nim — wystarczy dotrzeć do strefy EXIT", "cyan", 1000);
       setSelected(null);
       return;
     }
@@ -1014,7 +1015,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     if (busy || quizState || status !== "running") return;
     if (board[index]?.type === "delivery") {
       playWrongSound();
-      flashBanner("DROP THE MIC", "Usuń kafle pod mikrofonem, aby sprowadzić go na dół", "cyan", 900);
+      flashBanner("DROP THE MIC", "Usuń kafle pod mikrofonem i sprowadź go do dwóch dolnych pól EXIT", "cyan", 1000);
       setSelected(null);
       return;
     }
@@ -1187,6 +1188,10 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   const shieldsRemaining = countShieldCells(shields);
   const shieldsTotal = (LEVEL.shields || []).length;
   const deliveryTarget = Number(LEVEL.deliveryGoal || (LEVEL.deliveries || []).length || 0);
+  const deliveryColumns = new Set((LEVEL.deliveries || []).map(({ index }) => colOf(Number(index))));
+  const deliveryExitIndices = deliveryTarget
+    ? getDeliveryExitIndices(inactiveIndices, 2).filter((index) => deliveryColumns.has(colOf(index)))
+    : [];
   const progressPct = levelProgressPercent(LEVEL, collected, score, shieldsRemainingHp, delivered);
   const currentStage = getHitMatchStage(LEVEL.number);
 
@@ -1227,6 +1232,20 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
                 {inactiveIndices.map((index) => (
                   <span key={`void-${index}`} className="hm-board-void" style={{ left: `${colOf(index) * 12.5}%`, top: `${rowOf(index) * 12.5}%`, transform: "none" }} aria-hidden="true" />
                 ))}
+                {deliveryExitIndices.map((index) => {
+                  const sameCol = deliveryExitIndices.filter((value) => colOf(value) === colOf(index));
+                  const primary = sameCol[0] === index;
+                  return (
+                    <span
+                      key={`exit-${index}`}
+                      className={`hm-delivery-exit-zone ${primary ? "primary" : "secondary"}`}
+                      style={{ left:`${colOf(index) * 12.5}%`, top:`${rowOf(index) * 12.5}%` }}
+                      aria-hidden="true"
+                    >
+                      <b>{primary ? "EXIT" : "↓"}</b>
+                    </span>
+                  );
+                })}
                 {board.map((tile, index) => tile ? (
                   <HitMatchPiece
                     key={tile.id}
@@ -1297,7 +1316,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
         <aside className="hm-side-panel">
           <section className="hm-panel hm-objectives">
             <div className="hm-panel-title"><Target size={17} /><span>CEL POZIOMU</span></div>
-            <p>{deliveryTarget ? "Usuń kafle pod specjalnymi mikrofonami i sprowadź wszystkie Drop Mic na dolne wyjścia. Pozostałe cele również muszą być wykonane." : shieldsTotal ? "Zrealizuj cele i rozbij wszystkie Neon Shield: matchem z osłoniętym symbolem albo na polu bezpośrednio obok." : LEVEL.scoreGoal && Object.keys(LEVEL.goals).length ? "Zrealizuj cele i osiągnij wymagany wynik przed końcem ruchów." : LEVEL.scoreGoal ? "Zdobądź wymagany wynik przed końcem ruchów." : "Zbierz wszystkie wymagane symbole przed końcem ruchów."}</p>
+            <p>{deliveryTarget ? "Usuń kafle pod specjalnymi mikrofonami i sprowadź wszystkie Drop Mic do strefy EXIT — wystarczą dwa najniższe aktywne pola ich kolumny. Pozostałe cele również muszą być wykonane." : shieldsTotal ? "Zrealizuj cele i rozbij wszystkie Neon Shield: matchem z osłoniętym symbolem albo na polu bezpośrednio obok." : LEVEL.scoreGoal && Object.keys(LEVEL.goals).length ? "Zrealizuj cele i osiągnij wymagany wynik przed końcem ruchów." : LEVEL.scoreGoal ? "Zdobądź wymagany wynik przed końcem ruchów." : "Zbierz wszystkie wymagane symbole przed końcem ruchów."}</p>
             <div className="hm-goal-list">
               {Object.entries(LEVEL.goals).map(([type, target]) => <GoalChip key={type} type={type} value={collected[type] || 0} target={target} />)}
               {LEVEL.scoreGoal ? <ScoreGoalChip value={score} target={LEVEL.scoreGoal} /> : null}
@@ -1344,7 +1363,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
               <div className="moves"><Move size={26} /><strong>{LEVEL.moves}</strong><span>ruchów</span></div>
             </div>
             <div className="hm-intro-stars"><span><b>★</b> ukończenie</span><span><b>★★</b> {LEVEL.starScoreThresholds[2].toLocaleString("pl-PL")} pkt</span><span><b>★★★</b> {LEVEL.starScoreThresholds[3].toLocaleString("pl-PL")} pkt</span></div>
-            {deliveryTarget ? <div className="hm-stage2-intro-note hm-delivery-intro-note"><span>↓</span><p><strong>DROP THE MIC</strong><small>Specjalnego mikrofonu nie można przesuwać ani matchować. Usuwaj kafle pod nim, aż spadnie do dolnego aktywnego pola kolumny.</small></p></div> : null}
+            {deliveryTarget ? <div className="hm-stage2-intro-note hm-delivery-intro-note"><span>↓</span><p><strong>DROP THE MIC</strong><small>Specjalnego mikrofonu nie można przesuwać ani matchować. Usuwaj kafle pod nim — gdy wejdzie w jedno z dwóch dolnych pól oznaczonych EXIT, zostaje dostarczony.</small></p></div> : null}
             {shieldsTotal ? <div className="hm-stage2-intro-note"><span>◆</span><p><strong>NEON SHIELD</strong><small>Shield blokuje ruch kafla, ale nie jego udział w matchu. Ułóż match-3+ z osłoniętym symbolem albo zrób match bezpośrednio obok, aby zdjąć warstwę.</small></p></div> : null}
             <button type="button" className="hm-primary" onClick={startGame}><Zap size={19} fill="currentColor" /> ZACZYNAMY</button>
             <small>Przeciągnij kafel w dowolnym kierunku albo kliknij dwa sąsiadujące pola.</small>
@@ -1413,7 +1432,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
             </div>
             <div className="hm-help-power"><Music2 size={22} /><span><strong>HIT METER</strong><small>Przy 100% uruchom krótki quiz. Poprawna odpowiedź daje +3 ruchy.</small></span></div>
             {currentStage.number >= 2 ? <div className="hm-help-power hm-help-shield"><span className="hm-shield-mini">◆</span><span><strong>NEON SHIELD</strong><small>Kafel pod osłoną jest nieruchomy, ale może wejść w match-3+. Match z nim lub na sąsiednim polu góra/dół/lewo/prawo zdejmuje 1 warstwę.</small></span></div> : null}
-            {currentStage.number >= 3 ? <div className="hm-help-power hm-help-delivery"><span className="hm-delivery-mini">↓</span><span><strong>DROP THE MIC</strong><small>Mikrofon nie tworzy matchy i nie można nim ruszać. Czyść pola pod nim, aby sprowadzić go na dół.</small></span></div> : null}
+            {currentStage.number >= 3 ? <div className="hm-help-power hm-help-delivery"><span className="hm-delivery-mini">↓</span><span><strong>DROP THE MIC</strong><small>Mikrofon nie tworzy matchy i nie można nim ruszać. Czyść pola pod nim; dwa dolne aktywne pola kolumny tworzą strefę EXIT.</small></span></div> : null}
             <button type="button" className="hm-primary" onClick={() => setShowHelp(false)}>ROZUMIEM</button>
           </div>
         </div>
