@@ -107,6 +107,27 @@ export function createPlayableBoard(inactiveIndices = [], blockedIndices = []) {
   return board;
 }
 
+
+export function createLevelBoard(inactiveIndices = [], blockedIndices = [], deliveryIndices = []) {
+  const inactive = inactiveSetOf(inactiveIndices);
+  const blocked = inactiveSetOf(blockedIndices);
+  const deliveries = [...new Set((deliveryIndices || []).map(Number).filter((index) => Number.isInteger(index) && index >= 0 && index < HIT_MATCH_ROWS * HIT_MATCH_COLS && !inactive.has(index)))];
+
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const board = createPlayableBoard(inactive, blocked);
+    deliveries.forEach((index, order) => {
+      board[index] = makeHitMatchTile("delivery", { delivery:true, fresh:false, spawnOrder:0, deliveryOrder:order });
+    });
+    if (findMatches(board, blocked).length === 0 && hasPossibleMove(board, inactive, blocked)) return board;
+  }
+
+  const fallback = createPlayableBoard(inactive, blocked);
+  deliveries.forEach((index, order) => {
+    fallback[index] = makeHitMatchTile("delivery", { delivery:true, fresh:false, spawnOrder:0, deliveryOrder:order });
+  });
+  return fallback;
+}
+
 export function findMatches(board, blockedIndices = []) {
   // Shield blokuje RUCH, nie MATCH. Osłonięty kafel może być częścią
   // poziomego/pionowego match-3+, więc blockedIndices nie rozcina sekwencji.
@@ -119,7 +140,7 @@ export function findMatches(board, blockedIndices = []) {
     while (startCol < HIT_MATCH_COLS) {
       const startIndex = indexOf(row, startCol);
       const type = board[startIndex]?.type;
-      if (!type || type === "wild") {
+      if (!type || type === "wild" || type === "delivery") {
         startCol += 1;
         continue;
       }
@@ -146,7 +167,7 @@ export function findMatches(board, blockedIndices = []) {
     while (startRow < HIT_MATCH_ROWS) {
       const startIndex = indexOf(startRow, col);
       const type = board[startIndex]?.type;
-      if (!type || type === "wild") {
+      if (!type || type === "wild" || type === "delivery") {
         startRow += 1;
         continue;
       }
@@ -182,13 +203,14 @@ export function hasPossibleMove(board, inactiveIndices = [], blockedIndices = []
     for (let col = 0; col < HIT_MATCH_COLS; col += 1) {
       const a = indexOf(row, col);
       const tile = board[a];
-      if (!tile || inactive.has(a) || blocked.has(a)) continue;
+      if (!tile || tile.type === "delivery" || inactive.has(a) || blocked.has(a)) continue;
       const neighbours = [];
       if (col + 1 < HIT_MATCH_COLS) neighbours.push(indexOf(row, col + 1));
       if (row + 1 < HIT_MATCH_ROWS) neighbours.push(indexOf(row + 1, col));
       for (const b of neighbours) {
         if (inactive.has(b) || blocked.has(b) || !board[b]) continue;
         const other = board[b];
+        if (other?.type === "delivery") continue;
         // Złoty Winyl zawsze może zostać zamieniony z sąsiadem. Dwa specjale
         // również są legalnym ruchem. Pojedynczy line/bomb musi wejść w match.
         if (tile.special === "color" || other?.special === "color") return true;
@@ -454,17 +476,42 @@ export function countRemovedByType(boardBefore, indices) {
   const counts = {};
   indices.forEach((index) => {
     const type = boardBefore[index]?.type;
-    if (!type || type === "wild") return;
+    if (!type || type === "wild" || type === "delivery") return;
     counts[type] = (counts[type] || 0) + 1;
   });
   return counts;
 }
 
+
+export function collectDeliveredTiles(board, inactiveIndices = []) {
+  const inactive = inactiveSetOf(inactiveIndices);
+  const next = board.slice();
+  const deliveredIndices = [];
+
+  for (let col = 0; col < HIT_MATCH_COLS; col += 1) {
+    let exitIndex = null;
+    for (let row = HIT_MATCH_ROWS - 1; row >= 0; row -= 1) {
+      const index = indexOf(row, col);
+      if (!inactive.has(index)) {
+        exitIndex = index;
+        break;
+      }
+    }
+    if (exitIndex !== null && next[exitIndex]?.type === "delivery") {
+      next[exitIndex] = null;
+      deliveredIndices.push(exitIndex);
+    }
+  }
+
+  return { board:next, deliveredIndices };
+}
+
 export function shufflePlayable(board, inactiveIndices = [], blockedIndices = []) {
   const inactive = inactiveSetOf(inactiveIndices);
   const blocked = inactiveSetOf(blockedIndices);
-  const positions = Array.from({ length: HIT_MATCH_ROWS * HIT_MATCH_COLS }, (_, index) => index).filter((index) => !inactive.has(index) && !blocked.has(index));
-  const sourceTiles = positions.map((index) => board[index]).filter(Boolean);
+  const deliveryPositions = new Set(Array.from({ length: HIT_MATCH_ROWS * HIT_MATCH_COLS }, (_, index) => index).filter((index) => board[index]?.type === "delivery"));
+  const positions = Array.from({ length: HIT_MATCH_ROWS * HIT_MATCH_COLS }, (_, index) => index).filter((index) => !inactive.has(index) && !blocked.has(index) && !deliveryPositions.has(index));
+  const sourceTiles = positions.map((index) => board[index]).filter((tile) => tile && tile.type !== "delivery");
   while (sourceTiles.length < positions.length) sourceTiles.push(makeHitMatchTile(randomType()));
   const tiles = sourceTiles.map((tile) => ({ ...tile, fresh:false, spawnOrder:0, freshSpecial:false, special:null, type:tile.type === "wild" ? randomType() : tile.type }));
 
@@ -476,11 +523,13 @@ export function shufflePlayable(board, inactiveIndices = [], blockedIndices = []
     }
     const candidate = Array(HIT_MATCH_ROWS * HIT_MATCH_COLS).fill(null);
     blocked.forEach((position) => { if (!inactive.has(position) && board[position]) candidate[position] = { ...board[position], fresh:false, spawnOrder:0, freshSpecial:false }; });
+    deliveryPositions.forEach((position) => { if (!inactive.has(position) && board[position]) candidate[position] = { ...board[position], fresh:false, spawnOrder:0, freshSpecial:false }; });
     positions.forEach((position, index) => { candidate[position] = pool[index]; });
     if (findMatches(candidate, blocked).length === 0 && hasPossibleMove(candidate, inactive, blocked)) return candidate;
   }
   const fallback = createPlayableBoard(inactive, blocked);
   blocked.forEach((position) => { if (!inactive.has(position) && board[position]) fallback[position] = { ...board[position], fresh:false, spawnOrder:0, freshSpecial:false }; });
+  deliveryPositions.forEach((position) => { if (!inactive.has(position) && board[position]) fallback[position] = { ...board[position], fresh:false, spawnOrder:0, freshSpecial:false }; });
   return fallback;
 }
 
