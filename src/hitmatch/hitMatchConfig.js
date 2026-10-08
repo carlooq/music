@@ -1,8 +1,8 @@
 export const HIT_MATCH_REWARD_PER_STAR = Object.freeze({ xp: 20, hitcoin: 10 });
 
-// Balans v2: ENCORE wraca blisko pierwotnej wartości. Niewykorzystany ruch ma
-// premiować efektywną grę, ale nie może sam gwarantować 3★. Progi są ustawiane
-// osobno dla każdego levelu, bo cele i geometria planszy nie są porównywalne.
+// ENCORE ma premiować szybkie kończenie, ale nie może sam gwarantować 3★.
+// Progi są ustawiane osobno dla każdego levelu, bo cele i geometria planszy
+// nie są porównywalne między rozdziałami.
 const route1 = [
   { id:"level_1", number:1, title:"Pierwszy Drop", subtitle:"Rozgrzewka", moves:18, goals:{ vinyl:12, microphone:10 }, starScoreThresholds:{2:15500,3:20000}, endgameMoveBonus:750 },
   { id:"level_2", number:2, title:"Kasetowa Fala", subtitle:"Retro mix", moves:20, goals:{ cassette:18, note:10 }, starScoreThresholds:{2:19000,3:23000}, endgameMoveBonus:750 },
@@ -24,10 +24,9 @@ const C = {
   hourglass:[0,7,8,15,16,23,40,47,48,55,56,63],
 };
 
-// Poziomy 11–20: Shield jest nieruchomym polem. Nie można nim swapować ani
-// budować przez niego matcha. Każda fala matcha na polu ortogonalnie obok
-// zdejmuje dokładnie 1 HP z osłony. Układy poniżej zostały rozstawione tak,
-// aby wszystkie Shieldy dało się kolejno odsłonić z co najmniej jednej strony.
+// Poziomy 11–20: Shield blokuje RUCH kafla, ale nie jego udział w matchu.
+// Warstwę można zdjąć matchem zawierającym osłonięty symbol albo matchem
+// bezpośrednio obok (góra/dół/lewo/prawo).
 const route2 = [
   { id:"level_11", number:11, title:"Wejście do Labu", subtitle:"Nowy układ · Neon Shield", moves:18, goals:{ cassette:12, note:12 }, layout:{ inactive:C.corners }, shields:[{index:18,hp:1},{index:21,hp:1},{index:42,hp:1},{index:45,hp:1}], starScoreThresholds:{2:17000,3:22000}, endgameMoveBonus:800 },
   { id:"level_12", number:12, title:"Światło Pod Napięciem", subtitle:"Więcej osłon", moves:19, goals:{ vinyl:12, microphone:10 }, layout:{ inactive:C.corners }, shields:[{index:17,hp:1},{index:18,hp:1},{index:21,hp:1},{index:22,hp:1},{index:41,hp:1},{index:46,hp:1}], starScoreThresholds:{2:18500,3:23000}, endgameMoveBonus:800 },
@@ -41,11 +40,29 @@ const route2 = [
   { id:"level_20", number:20, title:"Neon Lab: Finał", subtitle:"Finał Neon Lab", moves:26, goals:{ vinyl:6, microphone:6, headphones:6, cassette:6, speaker:6, note:6 }, scoreGoal:22000, layout:{ inactive:C.plusCorners }, shields:[{index:18,hp:2},{index:21,hp:2},{index:26,hp:1},{index:29,hp:1},{index:34,hp:1},{index:37,hp:1},{index:42,hp:2},{index:45,hp:2}], starScoreThresholds:{2:26000,3:32500}, endgameMoveBonus:900, finale:true },
 ];
 
-export const HIT_MATCH_LEVELS = Object.freeze([...route1, ...route2].map((level) => ({ ...level, rewardPerStar:HIT_MATCH_REWARD_PER_STAR })));
+// Poziomy 21–30: DROP THE MIC. Specjalny mikrofon jest nieruchomy dla gracza,
+// ale spada razem z grawitacją, gdy usuwasz kafle pod nim. Trzeba doprowadzić
+// wszystkie mikrofony do wyjścia na dole ich kolumny. W późniejszych levelach
+// łączymy delivery z wyciętymi polami i Neon Shieldami.
+const route3 = [
+  { id:"level_21", number:21, title:"Drop the Mic", subtitle:"Nowy cel · sprowadź mikrofon", moves:18, goals:{ note:10 }, deliveries:[{index:10}], deliveryGoal:1, starScoreThresholds:{2:15500,3:20500}, endgameMoveBonus:800 },
+  { id:"level_22", number:22, title:"Podwójne Zejście", subtitle:"Dwa mikrofony", moves:20, goals:{ microphone:10 }, deliveries:[{index:10},{index:13}], deliveryGoal:2, starScoreThresholds:{2:18000,3:23000}, endgameMoveBonus:800 },
+  { id:"level_23", number:23, title:"Ścięty Drop", subtitle:"Mniej miejsca", moves:20, goals:{ cassette:10, note:10 }, layout:{ inactive:C.corners }, deliveries:[{index:18},{index:21}], deliveryGoal:2, starScoreThresholds:{2:19000,3:24000}, endgameMoveBonus:825 },
+  { id:"level_24", number:24, title:"Trzy Na Dół", subtitle:"Delivery + wynik", moves:22, goals:{ vinyl:10 }, scoreGoal:15000, layout:{ inactive:C.sideNotches }, deliveries:[{index:11},{index:12},{index:13}], deliveryGoal:3, starScoreThresholds:{2:21500,3:27000}, endgameMoveBonus:825 },
+  { id:"level_25", number:25, title:"Zamknięta Droga", subtitle:"Drop Mic + Shield", moves:24, goals:{ speaker:10 }, layout:{ inactive:C.corners }, deliveries:[{index:10},{index:13}], deliveryGoal:2, shields:[{index:26,hp:1},{index:29,hp:1},{index:34,hp:1},{index:37,hp:1}], starScoreThresholds:{2:22000,3:28000}, endgameMoveBonus:850 },
+  { id:"level_26", number:26, title:"Crossfade", subtitle:"Wąska scena", moves:22, goals:{ headphones:10, cassette:10 }, layout:{ inactive:C.plusCorners }, deliveries:[{index:19},{index:20}], deliveryGoal:2, starScoreThresholds:{2:20500,3:26000}, endgameMoveBonus:850 },
+  { id:"level_27", number:27, title:"Backstage Rush", subtitle:"Cztery mikrofony", moves:25, goals:{}, scoreGoal:17000, layout:{ inactive:C.deepCorners }, deliveries:[{index:10},{index:11},{index:12},{index:13}], deliveryGoal:4, starScoreThresholds:{2:23500,3:29500}, endgameMoveBonus:850 },
+  { id:"level_28", number:28, title:"Blokada Basu", subtitle:"Drop + Shield x2", moves:24, goals:{ vinyl:8, note:8 }, layout:{ inactive:C.hourglass }, deliveries:[{index:27},{index:28}], deliveryGoal:2, shields:[{index:26,hp:1},{index:29,hp:1},{index:35,hp:2},{index:36,hp:2}], starScoreThresholds:{2:23000,3:29000}, endgameMoveBonus:875 },
+  { id:"level_29", number:29, title:"Próba Generalna", subtitle:"Wszystko naraz", moves:26, goals:{ microphone:8, headphones:8, speaker:8 }, scoreGoal:19000, layout:{ inactive:C.sideNotches }, deliveries:[{index:10},{index:12},{index:13},{index:21}], deliveryGoal:4, starScoreThresholds:{2:26500,3:32500}, endgameMoveBonus:875 },
+  { id:"level_30", number:30, title:"Drop Zone: Finał", subtitle:"Finał Drop Zone", moves:29, goals:{ vinyl:4, microphone:4, headphones:4, cassette:4, speaker:4, note:4 }, scoreGoal:24000, layout:{ inactive:C.plusCorners }, deliveries:[{index:10},{index:11},{index:12},{index:13},{index:20}], deliveryGoal:5, shields:[{index:26,hp:1},{index:29,hp:1},{index:35,hp:2},{index:36,hp:2},{index:42,hp:1},{index:45,hp:1}], starScoreThresholds:{2:30500,3:37500}, endgameMoveBonus:900, finale:true },
+];
+
+export const HIT_MATCH_LEVELS = Object.freeze([...route1, ...route2, ...route3].map((level) => ({ ...level, rewardPerStar:HIT_MATCH_REWARD_PER_STAR })));
 
 export const HIT_MATCH_STAGES = Object.freeze([
   { id:"route_1", number:1, title:"NEONOWA SCENA", subtitle:"Poziomy 1–10", from:1, to:10, mechanic:"Klasyczna plansza" },
-  { id:"route_2", number:2, title:"NEON LAB", subtitle:"Poziomy 11–20", from:11, to:20, mechanic:"Ścięte pola + nieruchome osłony" },
+  { id:"route_2", number:2, title:"NEON LAB", subtitle:"Poziomy 11–20", from:11, to:20, mechanic:"Wycięte pola + Neon Shield" },
+  { id:"route_3", number:3, title:"DROP ZONE", subtitle:"Poziomy 21–30", from:21, to:30, mechanic:"Drop the Mic + przeszkody" },
 ]);
 
 export const HIT_MATCH_TOTAL_STARS = HIT_MATCH_LEVELS.length * 3;
@@ -82,6 +99,14 @@ function neighbours4(index) {
   return values;
 }
 
+function bottomActiveIndex(col, inactive = new Set()) {
+  for (let row = 7; row >= 0; row -= 1) {
+    const index = row * 8 + col;
+    if (!inactive.has(index)) return index;
+  }
+  return null;
+}
+
 export function validateHitMatchLevelDefinitions(levels = HIT_MATCH_LEVELS) {
   const issues = [];
   for (const level of levels) {
@@ -99,9 +124,6 @@ export function validateHitMatchLevelDefinitions(levels = HIT_MATCH_LEVELS) {
       shieldSet.add(index);
     }
 
-    // Walidacja strukturalna nowej mechaniki: sprawdzamy, czy blok Shieldów da
-    // się "obrać" od zewnątrz. To zapobiega stworzeniu zamkniętej grupy, której
-    // nigdy nie można trafić matchem na sąsiednim polu.
     const remaining = new Set(shieldSet);
     let changed = true;
     while (remaining.size && changed) {
@@ -116,6 +138,25 @@ export function validateHitMatchLevelDefinitions(levels = HIT_MATCH_LEVELS) {
     }
     if (remaining.size) issues.push(`Level ${level.number}: nierozbijalny układ Shield (${[...remaining].join(", ")})`);
 
+    const deliverySeen = new Set();
+    for (const item of level?.deliveries || []) {
+      const index = Number(item?.index);
+      if (!Number.isInteger(index) || index < 0 || index >= 64) issues.push(`Level ${level.number}: nieprawidłowy indeks Drop Mic ${item?.index}`);
+      if (inactive.has(index)) issues.push(`Level ${level.number}: Drop Mic ${index} leży na wyciętym polu`);
+      if (shieldSet.has(index)) issues.push(`Level ${level.number}: Drop Mic ${index} koliduje z Shieldem`);
+      if (deliverySeen.has(index)) issues.push(`Level ${level.number}: zduplikowany Drop Mic ${index}`);
+      deliverySeen.add(index);
+      const col = index % 8;
+      const exit = bottomActiveIndex(col, inactive);
+      if (exit === index) issues.push(`Level ${level.number}: Drop Mic ${index} startuje już na wyjściu`);
+      const hasPath = Array.from({ length: 8 - Math.floor(index / 8) - 1 }, (_, offset) => index + (offset + 1) * 8)
+        .some((candidate) => !inactive.has(candidate));
+      if (!hasPath) issues.push(`Level ${level.number}: Drop Mic ${index} nie ma drogi w dół`);
+    }
+    if ((level?.deliveries || []).length && Number(level.deliveryGoal || 0) !== (level.deliveries || []).length) {
+      issues.push(`Level ${level.number}: deliveryGoal nie zgadza się z liczbą Drop Mic`);
+    }
+
     if (Number(level.endgameMoveBonus || 0) > 1000) issues.push(`Level ${level.number}: bonus ENCORE zbyt wysoki (${level.endgameMoveBonus})`);
     const two = Number(level?.starScoreThresholds?.[2] || 0);
     const three = Number(level?.starScoreThresholds?.[3] || 0);
@@ -129,7 +170,8 @@ export function isHitMatchLevelCompleted(level, stats = {}) {
   const collectOk = Object.entries(level?.goals || {}).every(([type, target]) => Number(collected[type] || 0) >= Number(target || 0));
   const scoreOk = !level?.scoreGoal || Number(stats.score || 0) >= Number(level.scoreGoal || 0);
   const shieldsOk = !(level?.shields || []).length || Number(stats.shieldsRemaining || 0) <= 0;
-  return collectOk && scoreOk && shieldsOk;
+  const deliveryOk = !(level?.deliveries || []).length || Number(stats.delivered || 0) >= Number(level.deliveryGoal || level.deliveries.length);
+  return collectOk && scoreOk && shieldsOk && deliveryOk;
 }
 
 export function starsForHitMatchLevel(level, score, completed) {
