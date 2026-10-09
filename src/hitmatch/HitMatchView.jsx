@@ -57,6 +57,10 @@ const ICONS = {
   wild: vinylImg,
 };
 
+// Tymczasowy tryb QA: wszystkie levele są dostępne z HUB-u niezależnie od
+// progresu. Zapis gwiazdek/wyników działa normalnie. Po testach zmieniamy na false.
+const HIT_MATCH_TEST_UNLOCK_ALL = true;
+
 const TYPE_LABELS = {
   vinyl: "Winyle",
   microphone: "Mikrofony",
@@ -1508,6 +1512,7 @@ function HitMatchHub({ onBack }) {
   }
 
   const isUnlocked = (level, index) => {
+    if (HIT_MATCH_TEST_UNLOCK_ALL) return true;
     if (index === 0) return true;
     if (progress.levels?.[level.id]?.completed) return true;
     const previous = HIT_MATCH_LEVELS[index - 1];
@@ -1536,7 +1541,7 @@ function HitMatchHub({ onBack }) {
         <main className="hm-hub-main">
           <section className="hm-hub-hero">
             <div className="hm-hub-hero-copy">
-              <span className="hm-hub-kicker">{HIT_MATCH_LEVELS.length} POZIOMÓW · {HIT_MATCH_TOTAL_STARS} GWIAZDEK</span>
+              <span className="hm-hub-kicker">{HIT_MATCH_LEVELS.length} POZIOMÓW · {HIT_MATCH_TOTAL_STARS} GWIAZDEK{HIT_MATCH_TEST_UNLOCK_ALL ? " · TRYB TESTOWY" : ""}</span>
               <h2>TRASA <b>GŁÓWNA</b></h2>
               <p>Każde 10 poziomów to nowy rozdział: inny układ, nowa mechanika i wyższy poziom trudności. Zbieraj gwiazdki, wspinaj się w rankingu i odblokowuj kolejne części trasy. Każda nowa gwiazdka to <strong>20 XP + 10 HITCOIN</strong>.</p>
               <button type="button" className="hm-primary hm-hub-continue" onClick={() => setActiveLevelId(nextLevel.id)}>
@@ -1563,7 +1568,7 @@ function HitMatchHub({ onBack }) {
             <div className="hm-stage-groups">
               {HIT_MATCH_STAGES.map((stage) => {
                 const stageLevels = HIT_MATCH_LEVELS.filter((level) => level.number >= stage.from && level.number <= stage.to);
-                const stageUnlocked = stage.number === 1 || !!progress.levels?.[`level_${stage.from - 1}`]?.completed || stageLevels.some((level) => progress.levels?.[level.id]?.completed);
+                const stageUnlocked = HIT_MATCH_TEST_UNLOCK_ALL || stage.number === 1 || !!progress.levels?.[`level_${stage.from - 1}`]?.completed || stageLevels.some((level) => progress.levels?.[level.id]?.completed);
                 const stageStars = stageLevels.reduce((sum, level) => sum + Number(progress.levels?.[level.id]?.stars || 0), 0);
                 return (
                   <div key={stage.id} className={`hm-stage-group stage-${stage.number} ${stageUnlocked ? "open" : "locked"}`}>
