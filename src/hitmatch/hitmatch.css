@@ -2208,3 +2208,263 @@
 @media (prefers-reduced-motion:reduce) {
   .hm-delivery-exit-zone.secondary b { animation:none!important; }
 }
+
+
+/* ===== HIT MATCH — SETLIST + MYSTERY TRACK PASS ===== */
+
+/* SETLIST */
+.hm-setlist-goal { --goal:#a979ff; }
+.hm-setlist-mini {
+  width:28px;
+  height:28px;
+  flex:0 0 auto;
+  display:grid;
+  place-items:center;
+  border-radius:9px;
+  color:#f4eaff;
+  background:linear-gradient(135deg,rgba(117,82,255,.92),rgba(218,83,255,.9));
+  border:1px solid rgba(255,255,255,.34);
+  box-shadow:0 0 16px rgba(157,91,255,.26);
+  font-family:'Bebas Neue',sans-serif;
+  font-size:22px;
+}
+.hm-setlist-tracks {
+  display:grid;
+  gap:6px;
+  margin-top:11px;
+}
+.hm-setlist-tracks>div {
+  min-height:48px;
+  display:grid;
+  grid-template-columns:30px minmax(0,1fr) auto;
+  align-items:center;
+  gap:9px;
+  padding:7px 9px;
+  border-radius:12px;
+  color:#777183;
+  background:rgba(255,255,255,.022);
+  border:1px solid rgba(255,255,255,.045);
+  transition:border-color .18s ease,background .18s ease,opacity .18s ease;
+}
+.hm-setlist-tracks>div>b {
+  width:27px;height:27px;
+  display:grid;place-items:center;
+  border-radius:8px;
+  color:#756e82;
+  background:rgba(255,255,255,.035);
+  font-family:'Space Mono',monospace;
+  font-size:8px;
+}
+.hm-setlist-tracks>div>span {
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+.hm-setlist-tracks>div>span strong {
+  color:#9d96a9;
+  font-family:'Space Mono',monospace;
+  font-size:8px;
+  letter-spacing:.08em;
+}
+.hm-setlist-tracks>div>span small {
+  color:#777080;
+  font-size:9px;
+}
+.hm-setlist-tracks>div>em {
+  color:#d6b1ff;
+  font-family:'Space Mono',monospace;
+  font-size:9px;
+  font-style:normal;
+  font-weight:900;
+}
+.hm-setlist-tracks>div.active {
+  color:#fff;
+  border-color:rgba(169,113,255,.34);
+  background:linear-gradient(120deg,rgba(127,83,255,.11),rgba(229,72,255,.06));
+  box-shadow:inset 0 0 20px rgba(136,89,255,.04),0 0 18px rgba(151,82,255,.05);
+}
+.hm-setlist-tracks>div.active>b {
+  color:#fff;
+  background:linear-gradient(135deg,#7457ff,#cf5cff);
+  box-shadow:0 0 12px rgba(155,84,255,.28);
+}
+.hm-setlist-tracks>div.active>span strong { color:#e8d9ff; }
+.hm-setlist-tracks>div.active>span small { color:#b6adc2; }
+.hm-setlist-tracks>div.done {
+  opacity:.66;
+  border-color:rgba(85,232,170,.12);
+  background:rgba(63,207,146,.035);
+}
+.hm-setlist-tracks>div.done>b {
+  color:#79f4b4;
+  background:rgba(79,226,160,.08);
+}
+.hm-setlist-intro-note {
+  border-color:rgba(161,103,255,.21)!important;
+  background:linear-gradient(120deg,rgba(118,76,255,.09),rgba(229,79,255,.05))!important;
+}
+.hm-setlist-intro-note>span { color:#c795ff!important; }
+.hm-setlist-intro-note strong { color:#d8b8ff!important; }
+.hm-help-setlist {
+  margin-top:8px;
+  border-color:rgba(157,96,255,.17)!important;
+  background:rgba(126,82,255,.045)!important;
+}
+
+/* MYSTERY TRACK */
+.hm-piece.type-mystery {
+  --tile:#8c67ff;
+  cursor:not-allowed;
+  overflow:visible;
+  background:
+    radial-gradient(circle at 50% 42%,rgba(227,205,255,.19),transparent 35%),
+    linear-gradient(155deg,rgba(107,72,211,.78),rgba(40,24,95,.97) 54%,rgba(13,8,31,.99));
+  border-color:rgba(190,151,255,.58);
+  box-shadow:
+    inset 0 0 0 2px rgba(219,193,255,.12),
+    0 5px 17px rgba(0,0,0,.38),
+    0 0 28px rgba(132,84,255,.22);
+}
+.hm-piece.type-mystery img {
+  opacity:.22;
+  transform:scale(.78);
+  filter:grayscale(.65) brightness(1.15) drop-shadow(0 0 10px rgba(191,154,255,.32));
+}
+.hm-piece.type-mystery::before {
+  content:"";
+  position:absolute;
+  inset:4px;
+  border-radius:13px;
+  border:1.5px solid rgba(204,174,255,.58);
+  background:
+    linear-gradient(135deg,rgba(255,255,255,.025),transparent 48%),
+    repeating-linear-gradient(135deg,transparent 0 7px,rgba(177,137,255,.045) 7px 9px);
+  box-shadow:inset 0 0 18px rgba(144,94,255,.08),0 0 12px rgba(140,91,255,.16);
+}
+.hm-piece.type-mystery.is-shield-locked::after { display:none; }
+.hm-mystery-mark {
+  position:absolute;
+  inset:0;
+  z-index:7;
+  display:grid;
+  place-items:center;
+  pointer-events:none;
+}
+.hm-mystery-mark svg {
+  position:absolute;
+  top:8px;
+  right:8px;
+  color:#e9d8ff;
+  filter:drop-shadow(0 0 6px rgba(183,140,255,.72));
+}
+.hm-mystery-mark b {
+  width:38px;
+  height:38px;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  color:#fff;
+  background:radial-gradient(circle,rgba(187,139,255,.28),rgba(92,48,190,.7));
+  border:1px solid rgba(226,205,255,.56);
+  box-shadow:0 0 16px rgba(166,101,255,.36),inset 0 0 12px rgba(255,255,255,.06);
+  font-family:'Bebas Neue',sans-serif;
+  font-size:31px;
+  font-weight:400;
+  text-shadow:0 0 8px rgba(255,255,255,.46);
+  animation:hmMysteryPulse 1.15s ease-in-out infinite alternate;
+}
+.hm-mystery-goal { --goal:#ad7cff; }
+.hm-mystery-mini,
+.hm-mystery-intro-icon {
+  width:28px;
+  height:28px;
+  flex:0 0 auto;
+  display:grid;
+  place-items:center;
+  border-radius:9px;
+  color:#f8edff;
+  background:linear-gradient(135deg,#7652d8,#c864ff);
+  border:1px solid rgba(255,255,255,.44);
+  box-shadow:0 0 15px rgba(166,98,255,.3);
+  font-family:'Bebas Neue',sans-serif;
+  font-size:22px;
+  font-weight:500;
+}
+.hm-mystery-intro-note {
+  border-color:rgba(176,113,255,.22)!important;
+  background:linear-gradient(120deg,rgba(93,58,192,.12),rgba(209,82,255,.055))!important;
+}
+.hm-mystery-intro-note>span {
+  color:#c995ff!important;
+  text-shadow:0 0 14px rgba(167,100,255,.48)!important;
+}
+.hm-mystery-intro-note strong { color:#ddb9ff!important; }
+.hm-help-mystery {
+  margin-top:8px;
+  border-color:rgba(177,108,255,.18)!important;
+  background:rgba(139,82,226,.048)!important;
+}
+.hm-quiz-modal:has(.hm-quiz-feedback) { isolation:isolate; }
+
+/* HUB chapters 4/5 */
+.hm-stage-group.stage-4 {
+  border-color:rgba(158,101,255,.14);
+  background:
+    radial-gradient(circle at 8% 0,rgba(126,84,255,.08),transparent 30%),
+    linear-gradient(145deg,rgba(17,18,36,.96),rgba(10,12,25,.97));
+}
+.hm-stage-group.stage-4 .hm-stage-group-heading>div:first-child>span { color:#b78cff; }
+.hm-stage-group.stage-4 .hm-stage-progress-mini u {
+  background:linear-gradient(90deg,#7d68ff,#b65cff,#ff67d5);
+  box-shadow:0 0 12px rgba(152,91,255,.22);
+}
+.hm-level-card.stage-four { border-color:rgba(159,102,255,.105); }
+.hm-level-card.stage-four.unlocked:hover {
+  border-color:rgba(172,115,255,.34);
+  box-shadow:0 13px 30px rgba(0,0,0,.26),0 0 27px rgba(145,89,255,.08);
+}
+
+.hm-stage-group.stage-5 {
+  border-color:rgba(112,91,255,.16);
+  background:
+    radial-gradient(circle at 8% 0,rgba(103,78,255,.09),transparent 30%),
+    radial-gradient(circle at 92% 8%,rgba(226,69,255,.055),transparent 28%),
+    linear-gradient(145deg,rgba(15,17,37,.97),rgba(9,11,24,.98));
+}
+.hm-stage-group.stage-5 .hm-stage-group-heading>div:first-child>span { color:#c595ff; }
+.hm-stage-group.stage-5 .hm-stage-progress-mini u {
+  background:linear-gradient(90deg,#6c72ff,#ad64ff,#e36eff);
+  box-shadow:0 0 13px rgba(134,101,255,.24);
+}
+.hm-level-card.stage-five {
+  border-color:rgba(142,107,255,.12);
+  background:
+    radial-gradient(circle at 0 0,rgba(137,91,255,.07),transparent 31%),
+    linear-gradient(145deg,rgba(17,21,40,.95),rgba(10,12,25,.97));
+}
+.hm-level-card.stage-five.unlocked:hover {
+  border-color:rgba(171,122,255,.36);
+  box-shadow:0 13px 30px rgba(0,0,0,.27),0 0 28px rgba(133,88,255,.09);
+}
+
+/* Intro goal variants */
+.hm-intro-goals .setlist-goal { color:#bd8fff; }
+.hm-intro-goals .mystery-goal { color:#c69aff; }
+
+@keyframes hmMysteryPulse {
+  from { transform:scale(.94); opacity:.72; }
+  to { transform:scale(1.04); opacity:1; }
+}
+
+@media (max-width:700px) {
+  .hm-mystery-mark b { width:29px;height:29px;font-size:24px; }
+  .hm-mystery-mark svg { top:5px;right:5px;width:10px;height:10px; }
+  .hm-piece.type-mystery::before { inset:2px;border-radius:9px; }
+  .hm-setlist-tracks>div { min-height:43px;padding:6px 7px;grid-template-columns:26px minmax(0,1fr) auto; }
+  .hm-setlist-tracks>div>b { width:24px;height:24px;font-size:7px; }
+  .hm-setlist-tracks>div>span small { font-size:8px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .hm-mystery-mark b { animation:none!important; }
+}
