@@ -1014,7 +1014,16 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     setBestCascade((value) => Math.max(value, cascadeLevel));
     if (cascadeLevel >= 2) showCombo(cascadeLevel);
 
-    const specialCreation = swapMeta ? chooseSpecialCreation(groups, currentBoard, swapMeta.a, swapMeta.b) : null;
+    // Speciale powstają również z kaskad. Wcześniej chooseSpecialCreation
+    // uruchamialiśmy tylko dla bezpośredniego swapa, przez co naturalny
+    // match-4 po opadnięciu kafli znikał jak zwykły match-3 i SETLIST
+    // nie zaliczał Bass Line.
+    const specialCreation = chooseSpecialCreation(
+      groups,
+      currentBoard,
+      swapMeta?.a ?? null,
+      swapMeta?.b ?? null
+    );
     const matchedBase = uniqueMatchedIndices(groups);
     const rawAffected = expandSpecialEffects(currentBoard, matchedBase);
     let affected = filterLockedShieldCells(rawAffected).filter((index) => currentBoard[index]?.type !== "delivery");
