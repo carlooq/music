@@ -286,3 +286,5 @@ export function starsForHitMatchLevel(level, score, completed) {
   if (Number(score || 0) >= Number(level?.starScoreThresholds?.[3] || Infinity)) stars = 3;
   return stars;
 }
+
+// Deploy sync: SETLIST uses match-4/Bass Line objectives only; no bomb objectives.
