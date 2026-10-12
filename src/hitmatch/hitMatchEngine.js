@@ -108,24 +108,29 @@ export function createPlayableBoard(inactiveIndices = [], blockedIndices = []) {
 }
 
 
-export function createLevelBoard(inactiveIndices = [], blockedIndices = [], deliveryIndices = []) {
+export function createLevelBoard(inactiveIndices = [], blockedIndices = [], deliveryIndices = [], mysteryIndices = []) {
   const inactive = inactiveSetOf(inactiveIndices);
-  const blocked = inactiveSetOf(blockedIndices);
+  const shields = inactiveSetOf(blockedIndices);
   const deliveries = [...new Set((deliveryIndices || []).map(Number).filter((index) => Number.isInteger(index) && index >= 0 && index < HIT_MATCH_ROWS * HIT_MATCH_COLS && !inactive.has(index)))];
+  const mysteries = [...new Set((mysteryIndices || []).map(Number).filter((index) => Number.isInteger(index) && index >= 0 && index < HIT_MATCH_ROWS * HIT_MATCH_COLS && !inactive.has(index)))];
+  const blocked = new Set([...shields, ...mysteries]);
 
-  for (let attempt = 0; attempt < 120; attempt += 1) {
-    const board = createPlayableBoard(inactive, blocked);
+  const decorate = (board) => {
     deliveries.forEach((index, order) => {
       board[index] = makeHitMatchTile("delivery", { delivery:true, fresh:false, spawnOrder:0, deliveryOrder:order });
     });
+    mysteries.forEach((index, order) => {
+      board[index] = makeHitMatchTile("mystery", { mystery:true, fresh:false, spawnOrder:0, mysteryOrder:order });
+    });
+    return board;
+  };
+
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const board = decorate(createPlayableBoard(inactive, blocked));
     if (findMatches(board, blocked).length === 0 && hasPossibleMove(board, inactive, blocked)) return board;
   }
 
-  const fallback = createPlayableBoard(inactive, blocked);
-  deliveries.forEach((index, order) => {
-    fallback[index] = makeHitMatchTile("delivery", { delivery:true, fresh:false, spawnOrder:0, deliveryOrder:order });
-  });
-  return fallback;
+  return decorate(createPlayableBoard(inactive, blocked));
 }
 
 export function findMatches(board, blockedIndices = []) {
@@ -140,7 +145,7 @@ export function findMatches(board, blockedIndices = []) {
     while (startCol < HIT_MATCH_COLS) {
       const startIndex = indexOf(row, startCol);
       const type = board[startIndex]?.type;
-      if (!type || type === "wild" || type === "delivery") {
+      if (!type || type === "wild" || type === "delivery" || type === "mystery") {
         startCol += 1;
         continue;
       }
@@ -167,7 +172,7 @@ export function findMatches(board, blockedIndices = []) {
     while (startRow < HIT_MATCH_ROWS) {
       const startIndex = indexOf(startRow, col);
       const type = board[startIndex]?.type;
-      if (!type || type === "wild" || type === "delivery") {
+      if (!type || type === "wild" || type === "delivery" || type === "mystery") {
         startRow += 1;
         continue;
       }
@@ -203,14 +208,14 @@ export function hasPossibleMove(board, inactiveIndices = [], blockedIndices = []
     for (let col = 0; col < HIT_MATCH_COLS; col += 1) {
       const a = indexOf(row, col);
       const tile = board[a];
-      if (!tile || tile.type === "delivery" || inactive.has(a) || blocked.has(a)) continue;
+      if (!tile || (tile.type === "delivery" || tile.type === "mystery") || inactive.has(a) || blocked.has(a)) continue;
       const neighbours = [];
       if (col + 1 < HIT_MATCH_COLS) neighbours.push(indexOf(row, col + 1));
       if (row + 1 < HIT_MATCH_ROWS) neighbours.push(indexOf(row + 1, col));
       for (const b of neighbours) {
         if (inactive.has(b) || blocked.has(b) || !board[b]) continue;
         const other = board[b];
-        if (other?.type === "delivery") continue;
+        if ((other?.type === "delivery" || other?.type === "mystery")) continue;
         // Złoty Winyl zawsze może zostać zamieniony z sąsiadem. Dwa specjale
         // również są legalnym ruchem. Pojedynczy line/bomb musi wejść w match.
         if (tile.special === "color" || other?.special === "color") return true;
@@ -489,7 +494,7 @@ export function countRemovedByType(boardBefore, indices) {
   const counts = {};
   indices.forEach((index) => {
     const type = boardBefore[index]?.type;
-    if (!type || type === "wild" || type === "delivery") return;
+    if (!type || type === "wild" || type === "delivery" || type === "mystery") return;
     counts[type] = (counts[type] || 0) + 1;
   });
   return counts;
