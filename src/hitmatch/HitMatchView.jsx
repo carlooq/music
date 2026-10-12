@@ -39,6 +39,7 @@ import {
   countShieldHp,
   countShieldCells,
   createShieldState,
+  createMysteryState,
   getHitMatchStage,
   isHitMatchLevelCompleted,
   starsForHitMatchLevel,
@@ -54,6 +55,7 @@ const ICONS = {
   speaker: speakerImg,
   note: noteImg,
   delivery: microphoneImg,
+  mystery: noteImg,
   wild: vinylImg,
 };
 
@@ -69,13 +71,14 @@ const TYPE_LABELS = {
   speaker: "Głośniki",
   note: "Nuty",
   delivery: "Drop Mic",
+  mystery: "Mystery Track",
 };
 
 function emptyCollected(level) {
   return Object.keys(level?.goals || {}).reduce((acc, type) => { acc[type] = 0; return acc; }, {});
 }
 
-function levelProgressPercent(level, collected, score, shieldsRemaining = 0, delivered = 0) {
+function levelProgressPercent(level, collected, score, shieldsRemaining = 0, delivered = 0, setlistStep = 0, setlistProgress = 0, mysteryRemaining = 0) {
   const parts = [];
   Object.entries(level?.goals || {}).forEach(([type, target]) => {
     parts.push(Math.min(1, Number(collected?.[type] || 0) / Math.max(1, Number(target || 1))));
@@ -87,6 +90,16 @@ function levelProgressPercent(level, collected, score, shieldsRemaining = 0, del
   }
   if ((level?.deliveries || []).length) {
     parts.push(Math.min(1, Number(delivered || 0) / Math.max(1, Number(level.deliveryGoal || level.deliveries.length))));
+  }
+  if ((level?.setlist || []).length) {
+    const step = Math.max(0, Math.min(level.setlist.length, Number(setlistStep || 0)));
+    const track = level.setlist[step];
+    const trackFraction = track ? Math.min(1, Number(setlistProgress || 0) / Math.max(1, Number(track.target || 1))) : 0;
+    parts.push(Math.min(1, (step + trackFraction) / level.setlist.length));
+  }
+  if ((level?.mysteries || []).length) {
+    const total = Number(level.mysteryGoal || level.mysteries.length);
+    parts.push(total ? Math.max(0, Math.min(1, 1 - Number(mysteryRemaining || 0) / total)) : 1);
   }
   if (!parts.length) return 0;
   return Math.round((parts.reduce((sum, value) => sum + value, 0) / parts.length) * 100);
@@ -101,6 +114,8 @@ function compactGoal(level) {
   if (level?.scoreGoal) bits.push(`${Number(level.scoreGoal).toLocaleString("pl-PL")} pkt`);
   if ((level?.shields || []).length) bits.push(`Neon Shield ${(level.shields || []).length}`);
   if ((level?.deliveries || []).length) bits.push(`Drop Mic ${level.deliveryGoal || level.deliveries.length}`);
+  if ((level?.setlist || []).length) bits.push(`SETLIST ${level.setlist.length} tracki`);
+  if ((level?.mysteries || []).length) bits.push(`Mystery Track ${level.mysteryGoal || level.mysteries.length}`);
   return bits.join(" · ") || "Graj na wynik";
 }
 
@@ -230,6 +245,7 @@ function HitMatchPiece({ tile, index, selected, matched, activated, dragging, lo
         {tile.special === "bomb" ? <span className="hm-special-mark bomb"><Zap size={16} fill="currentColor" /></span> : null}
         {tile.special === "color" ? <span className="hm-special-mark color"><Star size={17} fill="currentColor" /></span> : null}
         {tile.type === "delivery" ? <span className="hm-delivery-mark" aria-hidden="true"><b>↓</b><small>DROP</small></span> : null}
+        {tile.type === "mystery" ? <span className="hm-mystery-mark" aria-hidden="true"><Lock size={13} /><b>?</b></span> : null}
       </button>
     </div>
   );
@@ -353,7 +369,9 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   const initialShieldState = () => createShieldState(LEVEL);
   const initialShieldIndices = (LEVEL?.shields || []).map(({ index }) => Number(index));
   const initialDeliveryIndices = (LEVEL?.deliveries || []).map(({ index }) => Number(index));
-  const [board, setBoard] = useState(() => createLevelBoard(inactiveIndices, initialShieldIndices, initialDeliveryIndices));
+  const initialMysteryState = () => createMysteryState(LEVEL);
+  const initialMysteryIndices = (LEVEL?.mysteries || []).map(({ index }) => Number(index));
+  const [board, setBoard] = useState(() => createLevelBoard(inactiveIndices, initialShieldIndices, initialDeliveryIndices, initialMysteryIndices));
   const [selected, setSelected] = useState(null);
   const [draggingIndex, setDraggingIndex] = useState(null);
   const [matched, setMatched] = useState([]);
@@ -384,6 +402,9 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   const [shields, setShields] = useState(() => initialShieldState());
   const [delivered, setDelivered] = useState(0);
   const [deliveryFx, setDeliveryFx] = useState([]);
+  const [setlistStep, setSetlistStep] = useState(0);
+  const [setlistProgress, setSetlistProgress] = useState(0);
+  const [mysteries, setMysteries] = useState(() => initialMysteryState());
   const [colorSweep, setColorSweep] = useState(null);
   const [resultDisplayScore, setResultDisplayScore] = useState(0);
   const [resultDisplayStars, setResultDisplayStars] = useState(0);
@@ -400,7 +421,10 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   const previousHitMeterRef = useRef(0);
   const quizPoolRef = useRef(null);
   const quizIframeRef = useRef(null);
+  const mysteryQuizResolverRef = useRef(null);
+  const mysteryAttemptedThisMoveRef = useRef(false);
   const shieldsRef = useRef(initialShieldState());
+  const mysteriesRef = useRef(initialMysteryState());
   const statsRef = useRef({
     moves: LEVEL.moves,
     score: 0,
@@ -409,6 +433,9 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     hitMeter: 0,
     shieldsRemaining: countShieldHp(initialShieldState()),
     delivered: 0,
+    setlistStep: 0,
+    setlistProgress: 0,
+    mysteryRemaining: initialMysteryIndices.length,
   });
 
   const syncStats = useCallback(() => {
@@ -419,6 +446,8 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     setCollected({ ...stats.collected });
     setHitMeter(stats.hitMeter);
     setDelivered(Number(stats.delivered || 0));
+    setSetlistStep(Number(stats.setlistStep || 0));
+    setSetlistProgress(Number(stats.setlistProgress || 0));
   }, []);
 
   const getLockedShieldIndices = useCallback(() => Object.entries(shieldsRef.current || {})
@@ -427,10 +456,21 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
 
   const isShieldLocked = useCallback((index) => Number(shieldsRef.current?.[index] || 0) > 0, []);
 
+  const getActiveMysteryIndices = useCallback(() => Object.entries(mysteriesRef.current || {})
+    .filter(([, active]) => !!active)
+    .map(([index]) => Number(index)), []);
+
+  const isMysteryLocked = useCallback((index) => !!mysteriesRef.current?.[index], []);
+
+  const getBlockedIndices = useCallback(() => [...new Set([
+    ...getLockedShieldIndices(),
+    ...getActiveMysteryIndices(),
+  ])], [getLockedShieldIndices, getActiveMysteryIndices]);
+
   const filterLockedShieldCells = useCallback((indices = []) => {
-    const locked = new Set(getLockedShieldIndices());
+    const locked = new Set(getBlockedIndices());
     return [...new Set(indices)].filter((index) => !locked.has(Number(index)));
-  }, [getLockedShieldIndices]);
+  }, [getBlockedIndices]);
 
   const flashBanner = useCallback((title, subtitle = "", tone = "cyan", hold = 850) => {
     const id = `${Date.now()}_${Math.random()}`;
@@ -458,6 +498,10 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     if (comboTimerRef.current) window.clearTimeout(comboTimerRef.current);
     if (comboAudioTimerRef.current) window.clearTimeout(comboAudioTimerRef.current);
     if (meterReadyTimerRef.current) window.clearTimeout(meterReadyTimerRef.current);
+    if (mysteryQuizResolverRef.current) {
+      mysteryQuizResolverRef.current.resolve(false);
+      mysteryQuizResolverRef.current = null;
+    }
     stopHitMatchMusic();
   }, []);
 
@@ -542,7 +586,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
 
   const resetGame = useCallback((autoStart = false) => {
     runTokenRef.current += 1;
-    setBoard(createLevelBoard(inactiveIndices, initialShieldIndices, initialDeliveryIndices));
+    setBoard(createLevelBoard(inactiveIndices, initialShieldIndices, initialDeliveryIndices, initialMysteryIndices));
     setSelected(null);
     setDraggingIndex(null);
     setMatched([]);
@@ -578,6 +622,16 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     setShields(nextShields);
     setDelivered(0);
     setDeliveryFx([]);
+    setSetlistStep(0);
+    setSetlistProgress(0);
+    const nextMysteries = initialMysteryState();
+    mysteriesRef.current = nextMysteries;
+    setMysteries(nextMysteries);
+    mysteryAttemptedThisMoveRef.current = false;
+    if (mysteryQuizResolverRef.current) {
+      mysteryQuizResolverRef.current.resolve(false);
+      mysteryQuizResolverRef.current = null;
+    }
     setColorSweep(null);
     endingRef.current = false;
     statsRef.current = {
@@ -588,6 +642,9 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       hitMeter: 0,
       shieldsRemaining: countShieldHp(nextShields),
       delivered: 0,
+      setlistStep: 0,
+      setlistProgress: 0,
+      mysteryRemaining: initialMysteryIndices.length,
     };
     setStatus(autoStart ? "running" : "intro");
   }, [LEVEL]);
@@ -625,7 +682,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       setBoard(withoutDelivered);
       await wait(190);
       if (runTokenRef.current !== token) return current;
-      current = collapseAndRefill(withoutDelivered, inactiveIndices, getLockedShieldIndices());
+      current = collapseAndRefill(withoutDelivered, inactiveIndices, getBlockedIndices());
       setMotionMode("fall");
       setBoard(current);
       await wait(280);
@@ -715,13 +772,13 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       return;
     }
 
-    const lockedShieldIndices = getLockedShieldIndices();
-    if (!hasPossibleMove(finalBoard, inactiveIndices, lockedShieldIndices)) {
+    const blockedIndices = getBlockedIndices();
+    if (!hasPossibleMove(finalBoard, inactiveIndices, blockedIndices)) {
       flashBanner("BRAK RUCHÓW", "Miksujemy planszę", "violet", 900);
       await wait(260);
       if (runTokenRef.current !== token) return;
       setMotionMode("shuffle");
-      setBoard(shufflePlayable(finalBoard, inactiveIndices, lockedShieldIndices));
+      setBoard(shufflePlayable(finalBoard, inactiveIndices, blockedIndices));
       await wait(260);
     }
     if (runTokenRef.current === token) {
@@ -747,7 +804,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       const contactIndices = specialCreation?.index !== undefined
         ? [...shieldContactIndices, specialCreation.index]
         : shieldContactIndices;
-      const contactSet = new Set((contactIndices || []).map(Number));
+      const contactSet = new Set((contactIndices || []).map(Number).filter((index) => !!boardBefore[index]));
       // Shield blokuje wyłącznie RUCH kafla. Warstwę można zdjąć na dwa sposoby:
       // 1) osłonięty symbol SAM wchodzi w match/efekt,
       // 2) match/efekt trafia jedno z 4 pól ortogonalnie obok.
@@ -771,10 +828,87 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       }
     }
     stats.score += base + specialBonus + shieldHits * 250;
+
+    const track = LEVEL.setlist?.[Number(stats.setlistStep || 0)];
+    if (track) {
+      let increment = 0;
+      if (track.kind === "collect") increment = Number(counts[track.type] || 0);
+      if (track.kind === "special" && specialCreation) {
+        const created = specialCreation.special;
+        const matchesSpecial = track.special === "line"
+          ? created === "row" || created === "col"
+          : created === track.special;
+        if (matchesSpecial) increment = 1;
+      }
+      if (increment > 0) {
+        stats.setlistProgress = Number(stats.setlistProgress || 0) + increment;
+        if (stats.setlistProgress >= Number(track.target || 1)) {
+          stats.setlistStep = Number(stats.setlistStep || 0) + 1;
+          stats.setlistProgress = 0;
+          stats.score += 500;
+          const nextTrack = LEVEL.setlist?.[stats.setlistStep];
+          flashBanner(
+            `${track.label || "TRACK"} COMPLETE!`,
+            nextTrack ? `NEXT · ${nextTrack.label || `TRACK ${stats.setlistStep + 1}`}` : "SETLIST COMPLETE",
+            "gold",
+            1000
+          );
+        }
+      }
+    }
+
     // HIT METER ma być rzadkim bonusem, nie czymś odpalanym co kilka ruchów.
     stats.hitMeter = clamp(stats.hitMeter + actualIndices.length * 2 + Math.max(0, cascadeLevel - 1) * 5, 0, 100);
     syncStats();
-  }, [syncStats]);
+  }, [LEVEL, flashBanner, syncStats]);
+
+  const findMysteryContact = useCallback((boardBefore, rawIndices = []) => {
+    if (!(LEVEL.mysteries || []).length || mysteryAttemptedThisMoveRef.current) return null;
+    const contactSet = new Set((rawIndices || []).map(Number).filter((index) => !!boardBefore[index]));
+    return getActiveMysteryIndices().find((index) => {
+      if (contactSet.has(index)) return true;
+      return orthogonalNeighbours(index).some((neighbour) => contactSet.has(neighbour));
+    }) ?? null;
+  }, [LEVEL, getActiveMysteryIndices]);
+
+  const runMysteryQuiz = useCallback(async (index, token) => {
+    if (!Number.isInteger(index) || mysteryAttemptedThisMoveRef.current) return false;
+    mysteryAttemptedThisMoveRef.current = true;
+    unlockAudio();
+    stopHitMatchMusic();
+    setQuizState({ source:"mystery", mysteryIndex:index, loading:true, answered:false, playToken:0 });
+    try {
+      const pool = quizPoolRef.current || await loadQuizPool();
+      quizPoolRef.current = pool;
+      if (runTokenRef.current !== token) return false;
+      const quiz = buildQuiz(pool);
+      if (!quiz) throw new Error("Za mało utworów do quizu.");
+      setQuizState({ source:"mystery", mysteryIndex:index, loading:false, quiz, answered:false, playToken:1 });
+      return await new Promise((resolve) => {
+        mysteryQuizResolverRef.current = { resolve, token, index };
+      });
+    } catch {
+      setQuizState(null);
+      flashBanner("QUIZ NIEDOSTĘPNY", "Mystery Track zostaje na planszy", "pink", 1200);
+      return false;
+    }
+  }, [flashBanner]);
+
+  const resolveMysteryHit = useCallback(async (boardBefore, rawIndices, token) => {
+    const index = findMysteryContact(boardBefore, rawIndices);
+    if (!Number.isInteger(index)) return null;
+    const correct = await runMysteryQuiz(index, token);
+    if (runTokenRef.current !== token || !correct) return null;
+
+    const nextMysteries = { ...mysteriesRef.current, [index]:false };
+    mysteriesRef.current = nextMysteries;
+    setMysteries(nextMysteries);
+    statsRef.current.mysteryRemaining = Math.max(0, Number(statsRef.current.mysteryRemaining || 0) - 1);
+    statsRef.current.score += 1200;
+    syncStats();
+    flashBanner("MYSTERY TRACK ODBLOKOWANY!", "+1200 pkt", "gold", 950);
+    return index;
+  }, [findMysteryContact, flashBanner, runMysteryQuiz, syncStats]);
 
   const resolveCascades = useCallback(async function resolve(currentBoard, groups, token, cascadeLevel = 1, swapMeta = null) {
     if (runTokenRef.current !== token) return;
@@ -799,13 +933,16 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     await wait(triggeredSpecials.length ? 340 : 280);
     if (runTokenRef.current !== token) return;
 
+    const unlockedMystery = await resolveMysteryHit(currentBoard, rawAffected, token);
+    if (runTokenRef.current !== token) return;
     applyRemovalStats(currentBoard, affected, cascadeLevel, specialCreation, rawAffected);
-    const removed = removeIndices(currentBoard, affected, specialCreation);
+    const removeNow = Number.isInteger(unlockedMystery) ? [...affected, unlockedMystery] : affected;
+    const removed = removeIndices(currentBoard, removeNow, specialCreation);
     setBoard(removed);
     await wait(35);
     if (runTokenRef.current !== token) return;
 
-    let dropped = collapseAndRefill(removed, inactiveIndices, getLockedShieldIndices());
+    let dropped = collapseAndRefill(removed, inactiveIndices, getBlockedIndices());
     setMatched([]);
     setActiveSpecials([]);
     setFxMarks([]);
@@ -821,14 +958,14 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     setMotionMode("idle");
     setBoard(settled);
 
-    const nextGroups = findMatches(settled, getLockedShieldIndices());
+    const nextGroups = findMatches(settled, getBlockedIndices());
     if (nextGroups.length) {
       await wait(75);
       await resolve(settled, nextGroups, token, cascadeLevel + 1, null);
       return;
     }
     await finishOrShuffle(settled, token);
-  }, [applyRemovalStats, finishOrShuffle, showCombo, filterLockedShieldCells, getLockedShieldIndices, settleDeliveryDrops]);
+  }, [applyRemovalStats, finishOrShuffle, showCombo, filterLockedShieldCells, getBlockedIndices, resolveMysteryHit, settleDeliveryDrops]);
 
   const resolveColorMove = useCallback(async (swapped, a, b, token) => {
     const rawAffected = resolveColorSwap(swapped, a, b) || [];
@@ -852,11 +989,14 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     await wait(560);
     if (runTokenRef.current !== token) return;
 
+    const unlockedMystery = await resolveMysteryHit(swapped, rawAffected, token);
+    if (runTokenRef.current !== token) return;
     applyRemovalStats(swapped, affected, 1, { special: "color" }, rawAffected);
-    const removed = removeIndices(swapped, affected, null);
+    const removeNow = Number.isInteger(unlockedMystery) ? [...affected, unlockedMystery] : affected;
+    const removed = removeIndices(swapped, removeNow, null);
     setBoard(removed);
     await wait(35);
-    let dropped = collapseAndRefill(removed, inactiveIndices, getLockedShieldIndices());
+    let dropped = collapseAndRefill(removed, inactiveIndices, getBlockedIndices());
     setMatched([]);
     setActiveSpecials([]);
     setFxMarks([]);
@@ -872,13 +1012,13 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     setMotionMode("idle");
     setBoard(settled);
 
-    const groups = findMatches(settled, getLockedShieldIndices());
+    const groups = findMatches(settled, getBlockedIndices());
     if (groups.length) {
       await resolveCascades(settled, groups, token, 2, null);
       return;
     }
     await finishOrShuffle(settled, token);
-  }, [applyRemovalStats, finishOrShuffle, flashBanner, resolveCascades, filterLockedShieldCells, getLockedShieldIndices, settleDeliveryDrops]);
+  }, [applyRemovalStats, finishOrShuffle, flashBanner, resolveCascades, filterLockedShieldCells, getBlockedIndices, resolveMysteryHit, settleDeliveryDrops]);
 
   const resolveSpecialMove = useCallback(async (swapped, a, b, affected, token) => {
     const rawAffected = [...affected];
@@ -898,13 +1038,16 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     await wait(specials.length > 1 ? 420 : 340);
     if (runTokenRef.current !== token) return;
 
+    const unlockedMystery = await resolveMysteryHit(swapped, rawAffected, token);
+    if (runTokenRef.current !== token) return;
     applyRemovalStats(swapped, affected, 1, null, rawAffected);
     statsRef.current.score += specials.length > 1 ? 1400 : 550;
     syncStats();
-    const removed = removeIndices(swapped, affected, null);
+    const removeNow = Number.isInteger(unlockedMystery) ? [...affected, unlockedMystery] : affected;
+    const removed = removeIndices(swapped, removeNow, null);
     setBoard(removed);
     await wait(35);
-    let dropped = collapseAndRefill(removed, inactiveIndices, getLockedShieldIndices());
+    let dropped = collapseAndRefill(removed, inactiveIndices, getBlockedIndices());
     setMatched([]);
     setActiveSpecials([]);
     setFxMarks([]);
@@ -919,19 +1062,25 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     setMotionMode("idle");
     setBoard(settled);
 
-    const groups = findMatches(settled, getLockedShieldIndices());
+    const groups = findMatches(settled, getBlockedIndices());
     if (groups.length) {
       await resolveCascades(settled, groups, token, 2, null);
       return;
     }
     await finishOrShuffle(settled, token);
-  }, [applyRemovalStats, finishOrShuffle, flashBanner, resolveCascades, syncStats, filterLockedShieldCells, getLockedShieldIndices, settleDeliveryDrops]);
+  }, [applyRemovalStats, finishOrShuffle, flashBanner, resolveCascades, syncStats, filterLockedShieldCells, getBlockedIndices, resolveMysteryHit, settleDeliveryDrops]);
 
   const attemptSwap = useCallback(async (a, b) => {
     if (status !== "running" || busy || quizState || !areAdjacent(a, b) || !board[a] || !board[b]) return;
     if (board[a]?.type === "delivery" || board[b]?.type === "delivery") {
       playWrongSound();
       flashBanner("DROP THE MIC", "Mikrofon spada dzięki usuwaniu kafli pod nim — wystarczy dotrzeć do strefy EXIT", "cyan", 1000);
+      setSelected(null);
+      return;
+    }
+    if (board[a]?.type === "mystery" || board[b]?.type === "mystery") {
+      playWrongSound();
+      flashBanner("MYSTERY TRACK", "Tego kafla nie przesuwasz — aktywuj go matchem obok", "violet", 950);
       setSelected(null);
       return;
     }
@@ -942,6 +1091,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       return;
     }
     unlockAudio();
+    mysteryAttemptedThisMoveRef.current = false;
     setSelected(null);
     setDraggingIndex(null);
     setBusy(true);
@@ -954,7 +1104,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     // w którym pionowy swap reorganizował po drodze inne kafle w liście Reacta.
     const colorClear = resolveColorSwap(swapped, a, b);
     const specialClear = colorClear ? null : resolveSpecialSwap(swapped, a, b);
-    const groups = colorClear || specialClear?.length ? [] : findMatches(swapped, getLockedShieldIndices());
+    const groups = colorClear || specialClear?.length ? [] : findMatches(swapped, getBlockedIndices());
     const validMove = Boolean(colorClear || specialClear?.length || groups.length);
 
     const deltaCol = colOf(b) - colOf(a);
@@ -1023,6 +1173,12 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       setSelected(null);
       return;
     }
+    if (board[index]?.type === "mystery") {
+      playWrongSound();
+      flashBanner("MYSTERY TRACK", "Zrób match na sąsiednim polu, aby uruchomić quiz", "violet", 950);
+      setSelected(null);
+      return;
+    }
     if (isShieldLocked(index)) {
       playWrongSound();
       flashBanner("NEON SHIELD", "Nie możesz nim ruszyć. Ułóż match z tym symbolem lub zrób match obok", "pink", 950);
@@ -1046,7 +1202,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
 
   const handlePointerDown = useCallback((event, index) => {
     if (busy || quizState || status !== "running") return;
-    if (board[index]?.type === "delivery") {
+    if (board[index]?.type === "delivery" || board[index]?.type === "mystery") {
       event.preventDefault();
       pointerStartRef.current = null;
       setDraggingIndex(null);
@@ -1141,13 +1297,13 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     setBusy(true);
     statsRef.current.hitMeter = 0;
     syncStats();
-    setQuizState({ loading: true, answered: false, playToken: 0 });
+    setQuizState({ source:"meter", loading: true, answered: false, playToken: 0 });
     try {
       const pool = quizPoolRef.current || await loadQuizPool();
       quizPoolRef.current = pool;
       const quiz = buildQuiz(pool);
       if (!quiz) throw new Error("Za mało utworów do quizu.");
-      setQuizState({ loading: false, quiz, answered: false, playToken: 1 });
+      setQuizState({ source:"meter", loading: false, quiz, answered: false, playToken: 1 });
     } catch (error) {
       statsRef.current.hitMeter = 100; // awaria źródła nie zabiera paska
       syncStats();
@@ -1168,16 +1324,25 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     if (!quizState?.quiz || quizState.answered) return;
     const correct = !!answer.correct;
     setQuizState((prev) => ({ ...prev, answered: true, answerId: answer.id, correct }));
+    const mysteryMode = quizState.source === "mystery";
     if (correct) {
-      statsRef.current.moves += 3;
-      syncStats();
+      if (!mysteryMode) {
+        statsRef.current.moves += 3;
+        syncStats();
+      }
       playCorrectSound();
     } else {
       playWrongSound();
     }
     window.setTimeout(() => {
       setQuizState(null);
-      setBusy(false);
+      if (mysteryMode) {
+        const pending = mysteryQuizResolverRef.current;
+        mysteryQuizResolverRef.current = null;
+        pending?.resolve(pending.token === runTokenRef.current ? correct : false);
+      } else {
+        setBusy(false);
+      }
     }, correct ? 1350 : 1650);
   }, [quizState, syncStats]);
 
@@ -1196,7 +1361,9 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   const deliveryExitIndices = deliveryTarget
     ? getDeliveryExitIndices(inactiveIndices, 2).filter((index) => deliveryColumns.has(colOf(index)))
     : [];
-  const progressPct = levelProgressPercent(LEVEL, collected, score, shieldsRemainingHp, delivered);
+  const mysteryRemaining = Object.values(mysteries || {}).filter(Boolean).length;
+  const mysteryTotal = (LEVEL.mysteries || []).length;
+  const progressPct = levelProgressPercent(LEVEL, collected, score, shieldsRemainingHp, delivered, setlistStep, setlistProgress, mysteryRemaining);
   const currentStage = getHitMatchStage(LEVEL.number);
 
   return (
@@ -1212,7 +1379,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       <main className="hm-layout">
         <section className="hm-stage-panel">
           <div className="hm-stage-heading">
-            <div><span>{currentStage.title} · POZIOM {LEVEL.number}</span><h2>{LEVEL.title.toUpperCase()}</h2><p>{currentStage.number === 3 ? "Sprowadź Drop Mic na dół planszy i kontroluj przepływ." : currentStage.number === 2 ? "Nowe układy planszy i Neon Shield." : "Łącz muzyczne symbole i buduj kaskady."}</p></div>
+            <div><span>{currentStage.title} · POZIOM {LEVEL.number}</span><h2>{LEVEL.title.toUpperCase()}</h2><p>{currentStage.number === 5 ? "Aktywuj Mystery Track matchem i odblokuj go poprawną odpowiedzią." : currentStage.number === 4 ? "Realizuj kolejne tracki setlisty — cele nie liczą się na zapas." : currentStage.number === 3 ? "Sprowadź Drop Mic na dół planszy i kontroluj przepływ." : currentStage.number === 2 ? "Nowe układy planszy i Neon Shield." : "Łącz muzyczne symbole i buduj kaskady."}</p></div>
             <div className="hm-stage-score-block">
               <Stars count={previousStars} size={20} />
               <small>TWÓJ REKORD GWIAZDEK</small>
