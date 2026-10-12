@@ -2468,3 +2468,178 @@
 @media (prefers-reduced-motion:reduce) {
   .hm-mystery-mark b { animation:none!important; }
 }
+
+
+/* ===== HIT MATCH — SETLIST ACTIVE TARGET ===== */
+.hm-setlist-now {
+  width:min(100%,760px);
+  margin:0 auto 12px;
+  display:grid;
+  grid-template-columns:58px minmax(0,1fr);
+  gap:12px;
+  align-items:center;
+  padding:11px 13px;
+  border-radius:16px;
+  border:1px solid rgba(178,116,255,.34);
+  background:
+    radial-gradient(circle at 12% 50%,rgba(155,95,255,.16),transparent 26%),
+    linear-gradient(110deg,rgba(57,35,101,.92),rgba(26,22,53,.95) 52%,rgba(19,19,37,.97));
+  box-shadow:
+    inset 0 0 24px rgba(147,88,255,.045),
+    0 10px 26px rgba(0,0,0,.18),
+    0 0 22px rgba(145,87,255,.08);
+  position:relative;
+  overflow:hidden;
+}
+.hm-setlist-now::after {
+  content:"";
+  position:absolute;
+  left:0;
+  top:0;
+  bottom:0;
+  width:3px;
+  background:linear-gradient(#8d6cff,#d85dff);
+  box-shadow:0 0 14px rgba(179,94,255,.55);
+}
+.hm-setlist-now-icon {
+  width:50px;
+  height:50px;
+  display:grid;
+  place-items:center;
+  border-radius:14px;
+  background:linear-gradient(145deg,rgba(121,77,242,.9),rgba(201,84,255,.82));
+  border:1px solid rgba(255,255,255,.28);
+  box-shadow:0 0 18px rgba(154,87,255,.24),inset 0 0 12px rgba(255,255,255,.05);
+}
+.hm-setlist-now-icon img {
+  width:36px;
+  height:36px;
+  object-fit:contain;
+  filter:drop-shadow(0 0 8px rgba(255,255,255,.16));
+}
+.hm-setlist-now-icon svg { color:#fff; }
+.hm-setlist-now-icon>span {
+  color:#84f6b7;
+  font-size:27px;
+  font-weight:1000;
+}
+.hm-setlist-now-main {
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.hm-setlist-now-top {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+}
+.hm-setlist-now-top>span {
+  color:#bba9ce;
+  font-family:'Space Mono',monospace;
+  font-size:7px;
+  font-weight:900;
+  letter-spacing:.12em;
+}
+.hm-setlist-now-top>strong {
+  color:#d9c1ff;
+  font-family:'Space Mono',monospace;
+  font-size:8px;
+  font-weight:1000;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.hm-setlist-now h3 {
+  margin:0;
+  color:#fff;
+  font-family:'Bebas Neue',sans-serif;
+  font-size:24px;
+  font-weight:400;
+  letter-spacing:.035em;
+  line-height:1;
+  text-shadow:0 0 12px rgba(206,157,255,.16);
+}
+.hm-setlist-now-progress {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:10px;
+  align-items:center;
+}
+.hm-setlist-now-progress>b {
+  height:7px;
+  overflow:hidden;
+  border-radius:999px;
+  background:rgba(255,255,255,.07);
+  border:1px solid rgba(255,255,255,.055);
+}
+.hm-setlist-now-progress>b>i {
+  display:block;
+  height:100%;
+  border-radius:inherit;
+  background:linear-gradient(90deg,#765cff,#b960ff,#f366d3);
+  box-shadow:0 0 12px rgba(173,91,255,.36);
+  transition:width .22s ease;
+}
+.hm-setlist-now-progress>strong {
+  min-width:38px;
+  text-align:right;
+  color:#ead9ff;
+  font-family:'Space Mono',monospace;
+  font-size:10px;
+}
+.hm-setlist-now-main>small {
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  color:#81788d;
+  font-family:'Space Mono',monospace;
+  font-size:7px;
+  letter-spacing:.04em;
+}
+.hm-setlist-now.done {
+  border-color:rgba(88,232,165,.28);
+  background:linear-gradient(110deg,rgba(27,82,61,.5),rgba(19,37,34,.92),rgba(14,23,25,.96));
+}
+.hm-setlist-now.done::after {
+  background:linear-gradient(#58e9a7,#8af8c2);
+  box-shadow:0 0 14px rgba(88,233,167,.45);
+}
+.hm-setlist-now.done .hm-setlist-now-icon {
+  background:linear-gradient(145deg,rgba(48,162,112,.8),rgba(80,214,150,.72));
+}
+.hm-setlist-now.done h3 { color:#bdf8d8; }
+
+@media (max-width:700px) {
+  .hm-setlist-now {
+    grid-template-columns:46px minmax(0,1fr);
+    gap:9px;
+    margin-bottom:8px;
+    padding:8px 9px;
+    border-radius:13px;
+  }
+  .hm-setlist-now-icon {
+    width:42px;
+    height:42px;
+    border-radius:11px;
+  }
+  .hm-setlist-now-icon img {
+    width:31px;
+    height:31px;
+  }
+  .hm-setlist-now h3 {
+    font-size:20px;
+  }
+  .hm-setlist-now-top>span {
+    font-size:6px;
+  }
+  .hm-setlist-now-top>strong {
+    font-size:7px;
+  }
+  .hm-setlist-now-main>small {
+    font-size:6px;
+  }
+  .hm-setlist-now-progress>b {
+    height:6px;
+  }
+}
