@@ -74,9 +74,9 @@ const route4 = [
     { label:"VERSE", kind:"collect", type:"vinyl", target:7 },
     { label:"DROP", kind:"collect", type:"note", target:7 },
   ], starScoreThresholds:{2:18500,3:23500}, endgameMoveBonus:825 },
-  { id:"level_34", number:34, title:"Bombowy Refren", subtitle:"Pierwsze zadanie specjalne", moves:22, goals:{}, setlist:[
+  { id:"level_34", number:34, title:"Basowy Refren", subtitle:"Pierwsze zadanie specjalne", moves:22, goals:{}, setlist:[
     { label:"INTRO", kind:"collect", type:"microphone", target:7 },
-    { label:"REFREN", kind:"special", special:"bomb", target:1 },
+    { label:"REFREN", kind:"special", special:"line", target:1 },
     { label:"OUTRO", kind:"collect", type:"cassette", target:7 },
   ], starScoreThresholds:{2:20500,3:25500}, endgameMoveBonus:825 },
   { id:"level_35", number:35, title:"Linia Basu", subtitle:"Set + Bass Line", moves:23, goals:{}, setlist:[
@@ -87,7 +87,7 @@ const route4 = [
   { id:"level_36", number:36, title:"Set za Osłoną", subtitle:"Setlist + Neon Shield", moves:24, goals:{}, layout:{ inactive:C.corners }, shields:[{index:18,hp:1},{index:21,hp:1},{index:42,hp:1},{index:45,hp:1}], setlist:[
     { label:"INTRO", kind:"collect", type:"note", target:7 },
     { label:"VERSE", kind:"collect", type:"vinyl", target:7 },
-    { label:"DROP", kind:"special", special:"bomb", target:1 },
+    { label:"DROP", kind:"special", special:"line", target:1 },
   ], starScoreThresholds:{2:22500,3:28000}, endgameMoveBonus:850 },
   { id:"level_37", number:37, title:"Mic w Setliście", subtitle:"Setlist + Drop Mic", moves:24, goals:{}, layout:{ inactive:C.sideNotches }, deliveries:[{index:11}], deliveryGoal:1, setlist:[
     { label:"INTRO", kind:"collect", type:"cassette", target:7 },
@@ -100,15 +100,15 @@ const route4 = [
     { label:"DROP", kind:"collect", type:"note", target:6 },
     { label:"OUTRO", kind:"collect", type:"speaker", target:6 },
   ], starScoreThresholds:{2:23500,3:29500}, endgameMoveBonus:875 },
-  { id:"level_39", number:39, title:"Techniczny Set", subtitle:"Speciale w kolejności", moves:26, goals:{}, setlist:[
+  { id:"level_39", number:39, title:"Techniczny Set", subtitle:"Bass Line + zbieranie", moves:26, goals:{}, setlist:[
     { label:"INTRO", kind:"special", special:"line", target:1 },
     { label:"VERSE", kind:"collect", type:"microphone", target:8 },
-    { label:"DROP", kind:"special", special:"bomb", target:1 },
+    { label:"DROP", kind:"collect", type:"cassette", target:8 },
     { label:"OUTRO", kind:"collect", type:"note", target:8 },
   ], starScoreThresholds:{2:25000,3:31500}, endgameMoveBonus:875 },
   { id:"level_40", number:40, title:"Setlist: Finał", subtitle:"Finał Setlist", moves:29, goals:{}, layout:{ inactive:C.plusCorners }, shields:[{index:26,hp:1},{index:29,hp:1},{index:34,hp:1},{index:37,hp:1}], setlist:[
     { label:"INTRO", kind:"collect", type:"vinyl", target:6 },
-    { label:"VERSE", kind:"special", special:"bomb", target:1 },
+    { label:"VERSE", kind:"collect", type:"headphones", target:6 },
     { label:"DROP", kind:"collect", type:"speaker", target:6 },
     { label:"ENCORE", kind:"special", special:"line", target:1 },
   ], starScoreThresholds:{2:28500,3:35000}, endgameMoveBonus:900, finale:true },
@@ -241,7 +241,7 @@ export function validateHitMatchLevelDefinitions(levels = HIT_MATCH_LEVELS) {
       if (!["collect","special"].includes(track?.kind)) issues.push(`Level ${level.number}: SETLIST track ${trackIndex + 1} ma nieznany typ ${track?.kind}`);
       if (!Number.isFinite(Number(track?.target)) || Number(track?.target) < 1) issues.push(`Level ${level.number}: SETLIST track ${trackIndex + 1} ma błędny target`);
       if (track?.kind === "collect" && !["vinyl","microphone","headphones","cassette","speaker","note"].includes(track?.type)) issues.push(`Level ${level.number}: SETLIST track ${trackIndex + 1} ma błędny symbol`);
-      if (track?.kind === "special" && !["bomb","line","color"].includes(track?.special)) issues.push(`Level ${level.number}: SETLIST track ${trackIndex + 1} ma błędny special`);
+      if (track?.kind === "special" && track?.special !== "line") issues.push(`Level ${level.number}: SETLIST track ${trackIndex + 1} może wymagać tylko match-4 / Bass Line`);
     }
 
     const mysterySeen = new Set();
