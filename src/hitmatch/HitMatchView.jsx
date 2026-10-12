@@ -319,6 +319,47 @@ function SetlistGoalChip({ level, step = 0, progress = 0 }) {
   );
 }
 
+function ActiveSetlistTarget({ level, step = 0, progress = 0 }) {
+  const tracks = level?.setlist || [];
+  if (!tracks.length) return null;
+  const done = step >= tracks.length;
+  const current = tracks[Math.min(step, Math.max(0, tracks.length - 1))];
+  const next = tracks[step + 1];
+  const target = Number(current?.target || 1);
+  const value = Math.min(Number(progress || 0), target);
+
+  const collect = current?.kind === "collect";
+  const title = done
+    ? "SETLIST COMPLETE"
+    : collect
+      ? `ZBIERZ: ${TYPE_LABELS[current.type] || current.type}`
+      : setlistTrackText(current);
+
+  return (
+    <div className={`hm-setlist-now ${done ? "done" : ""}`}>
+      <div className="hm-setlist-now-icon">
+        {done ? <span>✓</span> : collect ? <img src={ICONS[current.type]} alt="" /> : <Zap size={25} fill="currentColor" />}
+      </div>
+      <div className="hm-setlist-now-main">
+        <div className="hm-setlist-now-top">
+          <span>AKTUALNY TRACK · {done ? tracks.length : Math.min(step + 1, tracks.length)}/{tracks.length}</span>
+          {!done ? <strong>{current.label || `TRACK ${step + 1}`}</strong> : <strong>GOTOWE</strong>}
+        </div>
+        <h3>{title}</h3>
+        {!done ? (
+          <>
+            <div className="hm-setlist-now-progress">
+              <b><i style={{ width:`${Math.round((value / Math.max(1, target)) * 100)}%` }} /></b>
+              <strong>{value} / {target}</strong>
+            </div>
+            <small>{next ? `NASTĘPNY: ${next.label || `TRACK ${step + 2}`} · ${setlistTrackText(next)}` : "OSTATNI TRACK SETLISTY"}</small>
+          </>
+        ) : <small>Wszystkie części koncertu wykonane.</small>}
+      </div>
+    </div>
+  );
+}
+
 function SetlistTrackList({ level, step = 0, progress = 0 }) {
   const tracks = level?.setlist || [];
   if (!tracks.length) return null;
@@ -1453,6 +1494,8 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
               {hitMeter >= 100 ? <em>ODPAL QUIZ · +3 RUCHY</em> : null}
             </button>
           </div>
+
+          {(LEVEL.setlist || []).length ? <ActiveSetlistTarget level={LEVEL} step={setlistStep} progress={setlistProgress} /> : null}
 
           <div className="hm-board-wrap">
             <div className={`hm-board-shell ${specialPulse ? `hm-fx-${specialPulse}` : ""}`}>
