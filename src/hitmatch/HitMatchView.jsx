@@ -843,7 +843,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       setMotionMode("idle");
       setBusy(false);
     }
-  }, [flashBanner, saveCompletedLevel, syncStats, getLockedShieldIndices]);
+  }, [flashBanner, saveCompletedLevel, syncStats, getBlockedIndices]);
 
   const applyRemovalStats = useCallback((boardBefore, actualIndices, cascadeLevel, specialCreation, shieldContactIndices = actualIndices) => {
     const counts = countRemovedByType(boardBefore, actualIndices);
@@ -1216,7 +1216,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     statsRef.current.moves -= 1;
     syncStats();
     await resolveCascades(swapped, groups, token, 1, { a, b });
-  }, [board, busy, quizState, resolveCascades, resolveColorMove, resolveSpecialMove, status, syncStats, isShieldLocked, flashBanner, getLockedShieldIndices]);
+  }, [board, busy, quizState, resolveCascades, resolveColorMove, resolveSpecialMove, status, syncStats, isShieldLocked, flashBanner, getBlockedIndices]);
 
   const handlePieceClick = useCallback((index) => {
     if (suppressClickRef.current) {
