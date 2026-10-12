@@ -295,6 +295,62 @@ function DeliveryGoalChip({ value = 0, target = 0 }) {
   );
 }
 
+function setlistTrackText(track) {
+  if (!track) return "";
+  if (track.kind === "collect") return `${TYPE_LABELS[track.type] || track.type} · ${track.target}`;
+  if (track.kind === "special") {
+    const label = track.special === "bomb" ? "Stwórz Bombę 3×3" : track.special === "line" ? "Stwórz Bass Line" : "Stwórz Złoty Winyl";
+    return track.target > 1 ? `${label} ×${track.target}` : label;
+  }
+  return "Cel tracku";
+}
+
+function SetlistGoalChip({ level, step = 0, progress = 0 }) {
+  const tracks = level?.setlist || [];
+  const done = step >= tracks.length;
+  const current = tracks[Math.min(step, Math.max(0, tracks.length - 1))];
+  const target = Number(current?.target || 1);
+  return (
+    <div className={`hm-goal-chip hm-setlist-goal ${done ? "done" : ""}`}>
+      <span className="hm-setlist-mini">♪</span>
+      <span><small>SETLIST</small><strong>{done ? `${tracks.length} / ${tracks.length}` : `${Math.min(step + 1, tracks.length)} / ${tracks.length} · ${Math.min(progress, target)}/${target}`}</strong></span>
+      {done ? <b>✓</b> : null}
+    </div>
+  );
+}
+
+function SetlistTrackList({ level, step = 0, progress = 0 }) {
+  const tracks = level?.setlist || [];
+  if (!tracks.length) return null;
+  return (
+    <div className="hm-setlist-tracks">
+      {tracks.map((track, index) => {
+        const done = index < step;
+        const active = index === step;
+        return (
+          <div key={`${track.label || "track"}-${index}`} className={`${done ? "done" : ""} ${active ? "active" : ""}`.trim()}>
+            <b>{done ? "✓" : String(index + 1).padStart(2, "0")}</b>
+            <span><strong>{track.label || `TRACK ${index + 1}`}</strong><small>{setlistTrackText(track)}</small></span>
+            {active ? <em>{Math.min(progress, Number(track.target || 1))}/{Number(track.target || 1)}</em> : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function MysteryGoalChip({ remaining = 0, total = 0 }) {
+  const unlocked = Math.max(0, Number(total || 0) - Number(remaining || 0));
+  const done = remaining <= 0;
+  return (
+    <div className={`hm-goal-chip hm-mystery-goal ${done ? "done" : ""}`}>
+      <span className="hm-mystery-mini">?</span>
+      <span><small>MYSTERY TRACK</small><strong>{unlocked} / {Math.max(0, total)}</strong></span>
+      {done ? <b>✓</b> : null}
+    </div>
+  );
+}
+
 function Stars({ count = 0, size = 18, className = "" }) {
   return (
     <span className={`hm-stars ${className}`.trim()}>
@@ -306,11 +362,12 @@ function Stars({ count = 0, size = 18, className = "" }) {
 function QuizModal({ state, iframeRef, onAnswer, onReplay, onSkip, onPlayerLoad }) {
   if (!state) return null;
   const quiz = state.quiz;
+  const mysteryMode = state.source === "mystery";
   return (
     <div className="hm-overlay hm-quiz-overlay">
       <div className="hm-modal hm-quiz-modal">
-        <span className="hm-modal-kicker">HIT METER · MUZYCZNY BONUS</span>
-        <h2>ZGADNIJ <b>HIT</b></h2>
+        <span className="hm-modal-kicker">{mysteryMode ? "MYSTERY TRACK · ODBLOKUJ KAFEL" : "HIT METER · MUZYCZNY BONUS"}</span>
+        <h2>{mysteryMode ? <>ODKRYJ <b>TRACK</b></> : <>ZGADNIJ <b>HIT</b></>}</h2>
         {state.loading || !quiz ? (
           <div className="hm-quiz-loading"><Music2 size={32} /><strong>Losuję utwór…</strong></div>
         ) : (
@@ -351,8 +408,8 @@ function QuizModal({ state, iframeRef, onAnswer, onReplay, onSkip, onPlayerLoad 
 
             {state.answered ? (
               <div className={`hm-quiz-feedback ${state.correct ? "correct" : "wrong"}`}>
-                <strong>{state.correct ? "+3 RUCHY!" : "NIE TYM RAZEM"}</strong>
-                <span>{state.correct ? "Muzyczna wiedza się opłaciła." : `Poprawna odpowiedź: ${songLabel(quiz.song)}`}</span>
+                <strong>{state.correct ? (mysteryMode ? "TRACK ODBLOKOWANY!" : "+3 RUCHY!") : "NIE TYM RAZEM"}</strong>
+                <span>{state.correct ? (mysteryMode ? "Kafel znika z planszy." : "Muzyczna wiedza się opłaciła.") : mysteryMode ? `Kafel zostaje. Poprawna odpowiedź: ${songLabel(quiz.song)}` : `Poprawna odpowiedź: ${songLabel(quiz.song)}`}</span>
               </div>
             ) : (
               <button type="button" className="hm-quiz-skip" onClick={onSkip}><SkipForward size={15} /> NIE ODTWARZA SIĘ? INNY UTWÓR</button>
@@ -692,7 +749,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     }
     setDeliveryFx([]);
     return current;
-  }, [flashBanner, getLockedShieldIndices, syncStats]);
+  }, [flashBanner, getBlockedIndices, syncStats]);
 
   const finishOrShuffle = useCallback(async (finalBoard, token) => {
     if (runTokenRef.current !== token) return;
@@ -1426,7 +1483,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
                     matched={matched.includes(index)}
                     activated={activeSpecials.includes(index)}
                     dragging={draggingIndex === index}
-                    locked={isShieldLocked(index)}
+                    locked={isShieldLocked(index) || isMysteryLocked(index)}
                     colorPhase={colorSweep?.targets?.includes(index) ? colorSweep.phase : null}
                     colorOrder={colorSweep?.targets?.indexOf(index) ?? -1}
                     swapOffset={visualSwap?.a === index ? visualSwap.aOffset : visualSwap?.b === index ? visualSwap.bOffset : null}
@@ -1478,6 +1535,8 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
             <div className="hm-goals-mobile">
               {Object.entries(LEVEL.goals).map(([type, target]) => <GoalChip key={type} type={type} value={collected[type] || 0} target={target} />)}
               {LEVEL.scoreGoal ? <ScoreGoalChip value={score} target={LEVEL.scoreGoal} /> : null}
+              {(LEVEL.setlist || []).length ? <SetlistGoalChip level={LEVEL} step={setlistStep} progress={setlistProgress} /> : null}
+              {mysteryTotal ? <MysteryGoalChip remaining={mysteryRemaining} total={mysteryTotal} /> : null}
               {deliveryTarget ? <DeliveryGoalChip value={delivered} target={deliveryTarget} /> : null}
               {shieldsTotal ? <ShieldGoalChip remaining={shieldsRemaining} total={shieldsTotal} /> : null}
             </div>
@@ -1487,13 +1546,16 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
         <aside className="hm-side-panel">
           <section className="hm-panel hm-objectives">
             <div className="hm-panel-title"><Target size={17} /><span>CEL POZIOMU</span></div>
-            <p>{deliveryTarget ? "Usuń kafle pod specjalnymi mikrofonami i sprowadź wszystkie Drop Mic do strefy EXIT — wystarczą dwa najniższe aktywne pola ich kolumny. Pozostałe cele również muszą być wykonane." : shieldsTotal ? "Zrealizuj cele i rozbij wszystkie Neon Shield: matchem z osłoniętym symbolem albo na polu bezpośrednio obok." : LEVEL.scoreGoal && Object.keys(LEVEL.goals).length ? "Zrealizuj cele i osiągnij wymagany wynik przed końcem ruchów." : LEVEL.scoreGoal ? "Zdobądź wymagany wynik przed końcem ruchów." : "Zbierz wszystkie wymagane symbole przed końcem ruchów."}</p>
+            <p>{(LEVEL.setlist || []).length ? "Graj koncert track po tracku. Liczy się tylko aktualny cel — wcześniejsze symbole nie zaliczają kolejnej części na zapas." : mysteryTotal ? "Traf Mystery Track matchem lub efektem na nim albo bezpośrednio obok. Poprawna odpowiedź w quizie usuwa kafel; zła zostawia go na planszy." : deliveryTarget ? "Usuń kafle pod specjalnymi mikrofonami i sprowadź wszystkie Drop Mic do strefy EXIT — wystarczą dwa najniższe aktywne pola ich kolumny. Pozostałe cele również muszą być wykonane." : shieldsTotal ? "Zrealizuj cele i rozbij wszystkie Neon Shield: matchem z osłoniętym symbolem albo na polu bezpośrednio obok." : LEVEL.scoreGoal && Object.keys(LEVEL.goals).length ? "Zrealizuj cele i osiągnij wymagany wynik przed końcem ruchów." : LEVEL.scoreGoal ? "Zdobądź wymagany wynik przed końcem ruchów." : "Zbierz wszystkie wymagane symbole przed końcem ruchów."}</p>
             <div className="hm-goal-list">
               {Object.entries(LEVEL.goals).map(([type, target]) => <GoalChip key={type} type={type} value={collected[type] || 0} target={target} />)}
               {LEVEL.scoreGoal ? <ScoreGoalChip value={score} target={LEVEL.scoreGoal} /> : null}
+              {(LEVEL.setlist || []).length ? <SetlistGoalChip level={LEVEL} step={setlistStep} progress={setlistProgress} /> : null}
+              {mysteryTotal ? <MysteryGoalChip remaining={mysteryRemaining} total={mysteryTotal} /> : null}
               {deliveryTarget ? <DeliveryGoalChip value={delivered} target={deliveryTarget} /> : null}
               {shieldsTotal ? <ShieldGoalChip remaining={shieldsRemaining} total={shieldsTotal} /> : null}
             </div>
+            {(LEVEL.setlist || []).length ? <SetlistTrackList level={LEVEL} step={setlistStep} progress={setlistProgress} /> : null}
           </section>
 
           <section className="hm-panel hm-star-rules">
@@ -1529,11 +1591,15 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
             <div className="hm-intro-goals">
               {Object.entries(LEVEL.goals).map(([type, target]) => <div key={type}><img src={ICONS[type]} alt="" /><strong>{target}</strong><span>{TYPE_LABELS[type]}</span></div>)}
               {LEVEL.scoreGoal ? <div className="score-goal"><Trophy size={26} /><strong>{Number(LEVEL.scoreGoal).toLocaleString("pl-PL")}</strong><span>punktów</span></div> : null}
+              {(LEVEL.setlist || []).length ? <div className="setlist-goal"><Music2 size={26} /><strong>{LEVEL.setlist.length}</strong><span>tracki Setlist</span></div> : null}
+              {mysteryTotal ? <div className="mystery-goal"><Lock size={25} /><strong>{mysteryTotal}</strong><span>Mystery Track</span></div> : null}
               {deliveryTarget ? <div className="delivery-goal"><span className="hm-delivery-intro-icon">↓</span><strong>{deliveryTarget}</strong><span>Drop Mic</span></div> : null}
               {shieldsTotal ? <div className="shield-goal"><span className="hm-shield-intro-icon">◆</span><strong>{shieldsTotal}</strong><span>Neon Shield</span></div> : null}
               <div className="moves"><Move size={26} /><strong>{LEVEL.moves}</strong><span>ruchów</span></div>
             </div>
             <div className="hm-intro-stars"><span><b>★</b> ukończenie</span><span><b>★★</b> {LEVEL.starScoreThresholds[2].toLocaleString("pl-PL")} pkt</span><span><b>★★★</b> {LEVEL.starScoreThresholds[3].toLocaleString("pl-PL")} pkt</span></div>
+            {(LEVEL.setlist || []).length ? <div className="hm-stage2-intro-note hm-setlist-intro-note"><span>♪</span><p><strong>SETLIST</strong><small>Wykonuj cele dokładnie w pokazanej kolejności. Po ukończeniu tracku od razu aktywuje się następny; nic nie nalicza się wcześniej na zapas.</small></p></div> : null}
+            {mysteryTotal ? <div className="hm-stage2-intro-note hm-mystery-intro-note"><span>?</span><p><strong>MYSTERY TRACK</strong><small>Zrób match lub odpal efekt na kaflu albo obok niego. Odpowiedz poprawnie w muzycznym quizie, aby usunąć kafel. Błąd zostawia go na miejscu.</small></p></div> : null}
             {deliveryTarget ? <div className="hm-stage2-intro-note hm-delivery-intro-note"><span>↓</span><p><strong>DROP THE MIC</strong><small>Specjalnego mikrofonu nie można przesuwać ani matchować. Usuwaj kafle pod nim — gdy wejdzie w jedno z dwóch dolnych pól oznaczonych EXIT, zostaje dostarczony.</small></p></div> : null}
             {shieldsTotal ? <div className="hm-stage2-intro-note"><span>◆</span><p><strong>NEON SHIELD</strong><small>Shield blokuje ruch kafla, ale nie jego udział w matchu. Ułóż match-3+ z osłoniętym symbolem albo zrób match bezpośrednio obok, aby zdjąć warstwę.</small></p></div> : null}
             <button type="button" className="hm-primary" onClick={startGame}><Zap size={19} fill="currentColor" /> ZACZYNAMY</button>
@@ -1604,6 +1670,8 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
             <div className="hm-help-power"><Music2 size={22} /><span><strong>HIT METER</strong><small>Przy 100% uruchom krótki quiz. Poprawna odpowiedź daje +3 ruchy.</small></span></div>
             {currentStage.number >= 2 ? <div className="hm-help-power hm-help-shield"><span className="hm-shield-mini">◆</span><span><strong>NEON SHIELD</strong><small>Kafel pod osłoną jest nieruchomy, ale może wejść w match-3+. Match z nim lub na sąsiednim polu góra/dół/lewo/prawo zdejmuje 1 warstwę.</small></span></div> : null}
             {currentStage.number >= 3 ? <div className="hm-help-power hm-help-delivery"><span className="hm-delivery-mini">↓</span><span><strong>DROP THE MIC</strong><small>Mikrofon nie tworzy matchy i nie można nim ruszać. Czyść pola pod nim; dwa dolne aktywne pola kolumny tworzą strefę EXIT.</small></span></div> : null}
+            {(LEVEL.setlist || []).length ? <div className="hm-help-power hm-help-setlist"><span className="hm-setlist-mini">♪</span><span><strong>SETLIST</strong><small>Realizuj aktywny track. Dopiero po jego ukończeniu zaczyna naliczać się kolejny cel.</small></span></div> : null}
+            {mysteryTotal ? <div className="hm-help-power hm-help-mystery"><span className="hm-mystery-mini">?</span><span><strong>MYSTERY TRACK</strong><small>Match/efekt obok aktywuje quiz. Dobra odpowiedź usuwa kafel, zła pozostawia go nieruchomo na planszy. Maksymalnie jeden quiz na ruch.</small></span></div> : null}
             <button type="button" className="hm-primary" onClick={() => setShowHelp(false)}>ROZUMIEM</button>
           </div>
         </div>
@@ -1754,7 +1822,7 @@ function HitMatchHub({ onBack }) {
                           <button
                             type="button"
                             key={level.id}
-                            className={`hm-level-card ${unlocked ? "unlocked" : "locked"} ${completed ? "completed" : ""} ${level.finale ? "finale" : ""} ${stage.number === 2 ? "stage-two" : ""} ${stage.number === 3 ? "stage-three" : ""}`}
+                            className={`hm-level-card ${unlocked ? "unlocked" : "locked"} ${completed ? "completed" : ""} ${level.finale ? "finale" : ""} ${stage.number === 2 ? "stage-two" : ""} ${stage.number === 3 ? "stage-three" : ""} ${stage.number === 4 ? "stage-four" : ""} ${stage.number === 5 ? "stage-five" : ""}`}
                             disabled={!unlocked}
                             onClick={() => unlocked && setActiveLevelId(level.id)}
                           >
