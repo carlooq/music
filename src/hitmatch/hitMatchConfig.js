@@ -245,7 +245,6 @@ export function validateHitMatchLevelDefinitions(levels = HIT_MATCH_LEVELS) {
     }
 
     const mysterySeen = new Set();
-    const mysterySet = new Set((level?.mysteries || []).map((item) => Number(item?.index)));
     for (const mystery of level?.mysteries || []) {
       const index = Number(mystery?.index);
       if (!Number.isInteger(index) || index < 0 || index >= 64) issues.push(`Level ${level.number}: nieprawidłowy indeks Mystery Track ${mystery?.index}`);
@@ -254,7 +253,7 @@ export function validateHitMatchLevelDefinitions(levels = HIT_MATCH_LEVELS) {
       if (deliverySeen.has(index)) issues.push(`Level ${level.number}: Mystery Track ${index} koliduje z Drop Mic`);
       if (mysterySeen.has(index)) issues.push(`Level ${level.number}: zduplikowany Mystery Track ${index}`);
       mysterySeen.add(index);
-      const hasOpenSide = neighbours4(index).some((n) => !inactive.has(n) && !shieldSet.has(n) && !mysterySet.has(n));
+      const hasOpenSide = neighbours4(index).some((n) => !inactive.has(n) && !shieldSet.has(n) && !mysterySeen.has(n));
       if (!hasOpenSide) issues.push(`Level ${level.number}: Mystery Track ${index} nie ma aktywnego sąsiada`);
     }
     if ((level?.mysteries || []).length && Number(level.mysteryGoal || 0) !== (level.mysteries || []).length) {
