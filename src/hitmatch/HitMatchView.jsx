@@ -299,7 +299,7 @@ function setlistTrackText(track) {
   if (!track) return "";
   if (track.kind === "collect") return `${TYPE_LABELS[track.type] || track.type} · ${track.target}`;
   if (track.kind === "special") {
-    const label = track.special === "bomb" ? "Stwórz Bombę 3×3" : track.special === "line" ? "Stwórz Bass Line" : "Stwórz Złoty Winyl";
+    const label = track.special === "line" ? "Zrób match-4 · Bass Line" : "Cel specjalny";
     return track.target > 1 ? `${label} ×${track.target}` : label;
   }
   return "Cel tracku";
