@@ -59,9 +59,9 @@ const ICONS = {
   wild: vinylImg,
 };
 
-// Tymczasowy tryb QA: wszystkie levele są dostępne z HUB-u niezależnie od
-// progresu. Zapis gwiazdek/wyników działa normalnie. Po testach zmieniamy na false.
-const HIT_MATCH_TEST_UNLOCK_ALL = true;
+// Publiczny progres: levele odblokowują się po kolei. Flaga zostaje jako
+// szybki przełącznik QA na przyszłe testy, ale w release jest wyłączona.
+const HIT_MATCH_TEST_UNLOCK_ALL = false;
 
 const TYPE_LABELS = {
   vinyl: "Winyle",
