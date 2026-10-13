@@ -421,10 +421,12 @@ function DesktopGameGuideModal({ onClose }) {
 
   const modes = [
     { icon: glTrening, title: 'Trening', text: 'Ćwicz układanie utworów na osi czasu bez presji rywalizacji.' },
+    { icon: glZgadnijRok, title: 'Zgadnij Rok', text: 'Wszyscy słuchają tego samego utworu i typują rok wydania.' },
     { icon: glHitRush, title: 'Hit Rush', text: 'Szybki tryb solo na czas — poprawne odpowiedzi budują serię i wynik.' },
     { icon: glHitMatch, title: 'Hit Match', text: 'Muzyczne match-3 z kampanią 50 poziomów, specialami, quizami i rankingami.' },
     { icon: glPiosenka, title: 'Piosenka dnia', text: 'Jeden wspólny utwór każdego dnia i trzy szanse na punkty.' },
     { icon: glPlaylista, title: 'Playlista dnia', text: 'Codzienny zestaw utworów z wynikiem porównywanym w rankingach.' },
+    { icon: glTurniej, title: 'Kampania', text: 'Trasa koncertowa przez epoki, etapy i gwiazdki.' },
     { icon: glTurniej, title: 'Turniej', text: 'Rywalizacja o najlepszy wynik, miejsca w rankingu i nagrody.' },
     { icon: glOsoba, title: 'Pokoje', text: 'Stwórz własny pokój, zaproś znajomych i grajcie razem.' },
   ];
