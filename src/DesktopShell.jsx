@@ -39,6 +39,7 @@ import footerStrip from './assets/home/footer-strip.webp';
 import glTrening from './assets/icons/gl-trening.png';
 import glZgadnijRok from './assets/icons/gl-zgadnij-rok.png';
 import glHitRush from './assets/icons/gl-hitrush.png';
+import glHitMatch from './assets/icons/gl-hitmatch.svg';
 import glPiosenka from './assets/icons/gl-piosenka.png';
 import glPlaylista from './assets/icons/gl-playlista.png';
 import glTurniej from './assets/icons/gl-turniej.png';
@@ -421,6 +422,7 @@ function DesktopGameGuideModal({ onClose }) {
   const modes = [
     { icon: glTrening, title: 'Trening', text: 'Ćwicz układanie utworów na osi czasu bez presji rywalizacji.' },
     { icon: glHitRush, title: 'Hit Rush', text: 'Szybki tryb solo na czas — poprawne odpowiedzi budują serię i wynik.' },
+    { icon: glHitMatch, title: 'Hit Match', text: 'Muzyczne match-3 z kampanią 50 poziomów, specialami, quizami i rankingami.' },
     { icon: glPiosenka, title: 'Piosenka dnia', text: 'Jeden wspólny utwór każdego dnia i trzy szanse na punkty.' },
     { icon: glPlaylista, title: 'Playlista dnia', text: 'Codzienny zestaw utworów z wynikiem porównywanym w rankingach.' },
     { icon: glTurniej, title: 'Turniej', text: 'Rywalizacja o najlepszy wynik, miejsca w rankingu i nagrody.' },
@@ -700,7 +702,7 @@ export function DesktopHomeView(props) {
                 <div className="desk-guide-float float-d"><img src={glKoszyk} alt="" /><span>SKLEP</span></div>
                 <div className="desk-guide-wave">{Array.from({ length: 22 }).map((_, index) => <i key={index} style={{ '--bar': `${26 + ((index * 17) % 62)}%` }} />)}</div>
               </div>
-              <div className="desk-guide-mini-footer"><span>6 TRYBÓW</span><span>5 RZADKOŚCI</span><span>RANKINGI</span></div>
+              <div className="desk-guide-mini-footer"><span>8 TRYBÓW</span><span>5 RZADKOŚCI</span><span>RANKINGI</span></div>
             </section>
           )}
         </div>
@@ -712,6 +714,7 @@ export function DesktopHomeView(props) {
               <DesktopModeCard icon={glTrening} title="TRENING" desc="Ćwicz i poznawaj kategorie" accent="cyan" footer={isGuest ? "Dostępny bez konta" : "Ćwicz w swoim tempie"} onClick={onPractice} />
               <DesktopModeCard icon={glZgadnijRok} title="ZGADNIJ ROK" desc="Wszyscy słuchają tego samego utworu i typują rok" accent="pink" footer="15 rund · multiplayer" locked={isGuest} onClick={isGuest ? requestLogin : onYearGuess} />
               <DesktopModeCard icon={glHitRush} title="HIT RUSH" desc="Szybki tryb solo z presją czasu" accent="green" footer="Nowy rekord czeka" locked={isGuest} onClick={isGuest ? requestLogin : onHitRush} />
+              <DesktopModeCard icon={glHitMatch} title="HIT MATCH" desc="Muzyczne match-3 · 50 poziomów" accent="violet" badge="NOWOŚĆ" footer="Gwiazdki · speciale · rankingi" locked={isGuest} onClick={isGuest ? requestLogin : onHitMatch} />
               <DesktopModeCard icon={glPiosenka} title="PIOSENKA DNIA" desc="Jedna piosenka dla wszystkich" accent="pink" footer="Codzienna szansa" locked={isGuest} onClick={isGuest ? requestLogin : onDailySong} />
               <DesktopModeCard icon={glPlaylista} title="PLAYLISTA DNIA" desc="Codzienna nowa playlista" accent="violet" footer="Porównaj się z innymi" locked={isGuest} onClick={isGuest ? requestLogin : onDailyPlaylist} />
               <DesktopModeCard icon={glTurniej} title="KAMPANIA" desc="Trasa koncertowa — epoki, etapy i gwiazdki" accent="pink" badge="NOWOŚĆ" footer="Od korzeni hitów po lata 2020+" locked={isGuest} onClick={isGuest ? requestLogin : onCampaign} />
