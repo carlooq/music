@@ -8950,7 +8950,7 @@ export default function App() {
                       <button onClick={() => user ? setScreen("hitMatch") : setShowAuthForm(true)} className="hs-tile">
                         <img className="hs-icon" src={glHitMatch} alt="" />
                         <div className="hs-t">HIT MATCH</div>
-                        <div className="hs-d">50 poziomów · musicale match-3</div>
+                        <div className="hs-d">50 poziomów · muzyczne match-3</div>
                         <div className="hs-arrow" style={{ color: "#a56bff" }}>›</div>
                       </button>
                     </div>
