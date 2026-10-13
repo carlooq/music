@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, increment, limit, orderBy, query, runTransaction } from "firebase/firestore";
+import { collection, doc, getDocs, increment, limit, orderBy, query, runTransaction } from "firebase/firestore";
 import { db } from "../firebase-config.js";
 
 const HIT_MATCH_RELEASE_VERSION = "public-v1-2026-10-13";
@@ -21,11 +21,13 @@ export async function getHitMatchProgress(uid) {
 
     if (data.hitMatchReleaseVersion !== HIT_MATCH_RELEASE_VERSION) {
       const progress = { ...emptyProgress(), updatedAt: Date.now() };
-      tx.set(statsRef, {
+      const releaseFields = {
         hitMatchProgress: progress,
         hitMatchSummary: { totalStars: 0, completedLevels: 0 },
         hitMatchReleaseVersion: HIT_MATCH_RELEASE_VERSION,
-      }, { merge: true });
+      };
+      if (snap.exists()) tx.update(statsRef, releaseFields);
+      else tx.set(statsRef, releaseFields);
       outcome = progress;
       return;
     }
