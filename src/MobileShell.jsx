@@ -385,7 +385,7 @@ function MobileHomeView(props) {
           <MobileModeCard icon={glTrening} title="TRENING" desc="Ćwicz bez presji i poznawaj muzykę" tone="cyan" onClick={props.onPractice} />
           <MobileModeCard icon={glZgadnijRok} title="ZGADNIJ ROK" desc="Wszyscy słuchają tego samego utworu i typują rok" tone="pink" locked={locked} onClick={requireUser(() => { props.onClearAppError?.(); props.onNavigate?.('yearGuess'); })} />
           <MobileModeCard icon={glHitRush} title="HIT RUSH" desc="Wcześniej czy później? Liczy się tempo" tone="green" locked={locked} onClick={requireUser(props.onHitRush)} />
-          <MobileModeCard icon={glHitMatch} title="HIT MATCH" desc="Muzyczne match-3 · 50 poziomów" tone="violet" locked={locked} badge="NOWOŚĆ" wide onClick={requireUser(props.onHitMatch)} />
+          <MobileModeCard icon={glHitMatch} title="HIT MATCH" desc="Muzyczne match-3 · 50 poziomów" tone="violet" locked={locked} badge="NOWOŚĆ" onClick={requireUser(props.onHitMatch)} />
           <MobileModeCard icon={glPiosenka} title="PIOSENKA DNIA" desc="Jedno wyzwanie dla wszystkich" tone="pink" locked={locked} onClick={requireUser(props.onDailySong)} />
           <MobileModeCard icon={glPlaylista} title="PLAYLISTA DNIA" desc="Codzienna playlista i ranking" tone="violet" locked={locked} onClick={requireUser(props.onDailyPlaylist)} />
           <MobileModeCard icon={glTurniej} title="TURNIEJ" desc={props.activeTournament ? 'Turniej jest aktywny' : 'Rywalizacja o najwyższe miejsca'} tone="gold" locked={locked} badge={props.activeTournament ? 'PREMIUM' : 'WKRÓTCE'} wide onClick={requireUser(props.onTournament)} />
