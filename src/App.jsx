@@ -55,6 +55,7 @@ import homeBg from "./assets/home/bg.jpg";
 import footerStrip from "./assets/home/footer-strip.webp";
 import glTrening from "./assets/icons/gl-trening.png";
 import glHitRush from "./assets/icons/gl-hitrush.png";
+import glHitMatch from "./assets/icons/gl-hitmatch.svg";
 import hitrushFrameRef from "./assets/icons/hitrush-frame-ref.webp";
 import hitrushFrameBlue from "./assets/icons/hitrush-frame-blue.webp";
 import hitrushFramePink from "./assets/icons/hitrush-frame-pink.webp";
@@ -5901,38 +5902,6 @@ export default function App() {
               </div>
             )}
 
-            <section
-              className="w-full rounded-2xl p-4"
-              style={{
-                background: "linear-gradient(135deg, rgba(20,228,255,0.10), rgba(214,52,255,0.10))",
-                border: "1px solid rgba(64,220,255,0.38)",
-                boxShadow: "0 12px 30px rgba(0,0,0,.18)",
-              }}
-            >
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div>
-                  <p style={{ fontSize: 10, letterSpacing: ".16em", fontWeight: 800, color: "#55e9ff", textTransform: "uppercase", marginBottom: 4 }}>STREFA TESTOWA</p>
-                  <h3 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: ".04em", margin: 0 }}>HIT MATCH <span style={{ color: "#f062ff" }}>BETA</span></h3>
-                  <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 3 }}>Tryb ukryty przed graczami. Dostępny tylko z Panelu Admina.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAdminPanel(false);
-                    setScreen("hitMatch");
-                  }}
-                  className="px-4 py-2.5 rounded-xl text-sm font-bold"
-                  style={{
-                    background: "linear-gradient(90deg, #13dff3, #c93cf2)",
-                    color: "#07111c",
-                    boxShadow: "0 8px 22px rgba(92,103,255,.28)",
-                  }}
-                >
-                  URUCHOM TEST →
-                </button>
-              </div>
-            </section>
-
             <button
               onClick={() => {
                 setShowProposals((v) => !v);
@@ -6701,7 +6670,6 @@ export default function App() {
       <HitMatchView
         onBack={() => {
           setScreen("home");
-          if (adminUnlocked) setShowAdminPanel(true);
         }}
       />
     );
@@ -8973,6 +8941,17 @@ export default function App() {
                         <img className="hs-icon" src={glHitRush} alt="" />
                         <div className="hs-t">HIT RUSH</div>
                         <div className="hs-arrow" style={{ color: "#2af598" }}>›</div>
+                      </button>
+                    </div>
+                    <div className="hs-tile-slot violet">
+                      <div className="hs-tile-glow" />
+                      <div className="hs-tile-rim" />
+                      <div className="hs-badge">NOWOŚĆ</div>
+                      <button onClick={() => user ? setScreen("hitMatch") : setShowAuthForm(true)} className="hs-tile">
+                        <img className="hs-icon" src={glHitMatch} alt="" />
+                        <div className="hs-t">HIT MATCH</div>
+                        <div className="hs-d">50 poziomów · musicale match-3</div>
+                        <div className="hs-arrow" style={{ color: "#a56bff" }}>›</div>
                       </button>
                     </div>
                     {user && (
