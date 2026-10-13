@@ -1,16 +1,42 @@
 import { collection, doc, getDoc, getDocs, increment, limit, orderBy, query, runTransaction } from "firebase/firestore";
 import { db } from "../firebase-config.js";
 
+const HIT_MATCH_RELEASE_VERSION = "public-v1-2026-10-13";
+
 function emptyProgress() {
   return { levels: {}, totalStars: 0, completedLevels: 0, updatedAt: 0 };
 }
 
+// Jednorazowa migracja premiery: czyści wyłącznie przedpremierowy progres HIT MATCH.
+// XP i HITCOIN pozostają nietknięte. Po zapisaniu wersji release reset nie wykona
+// się ponownie na kolejnych wejściach.
 export async function getHitMatchProgress(uid) {
   if (!uid) return emptyProgress();
-  const snap = await getDoc(doc(db, "userStats", uid));
-  if (!snap.exists()) return emptyProgress();
-  const stored = snap.data()?.hitMatchProgress;
-  return stored && typeof stored === "object" ? { ...emptyProgress(), ...stored, levels: stored.levels || {} } : emptyProgress();
+  const statsRef = doc(db, "userStats", uid);
+  let outcome = emptyProgress();
+
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(statsRef);
+    const data = snap.exists() ? snap.data() : {};
+
+    if (data.hitMatchReleaseVersion !== HIT_MATCH_RELEASE_VERSION) {
+      const progress = { ...emptyProgress(), updatedAt: Date.now() };
+      tx.set(statsRef, {
+        hitMatchProgress: progress,
+        hitMatchSummary: { totalStars: 0, completedLevels: 0 },
+        hitMatchReleaseVersion: HIT_MATCH_RELEASE_VERSION,
+      }, { merge: true });
+      outcome = progress;
+      return;
+    }
+
+    const stored = data.hitMatchProgress;
+    outcome = stored && typeof stored === "object"
+      ? { ...emptyProgress(), ...stored, levels: stored.levels || {} }
+      : emptyProgress();
+  });
+
+  return outcome;
 }
 
 export async function submitHitMatchLevelResult(uid, level, { score = 0, stars = 0 } = {}) {
@@ -54,6 +80,7 @@ export async function submitHitMatchLevelResult(uid, level, { score = 0, stars =
     tx.set(statsRef, {
       hitMatchProgress: progress,
       hitMatchSummary: { totalStars, completedLevels },
+      hitMatchReleaseVersion: HIT_MATCH_RELEASE_VERSION,
       ...(xp ? { xp: increment(xp) } : {}),
       ...(hitcoin ? { hitcoin: increment(hitcoin) } : {}),
     }, { merge: true });
