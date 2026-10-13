@@ -1297,10 +1297,12 @@ function MobileProposeView(props) {
 function MobileGuideView({ onNavigate }) {
   const modes = [
     ['TRENING', 'Ćwicz układanie utworów na osi czasu bez presji.'],
+    ['ZGADNIJ ROK', 'Wszyscy słuchają tego samego utworu i typują rok wydania.'],
     ['HIT RUSH', 'Szybko decyduj, czy utwór jest wcześniejszy czy późniejszy.'],
     ['HIT MATCH', 'Muzyczne match-3: 50 poziomów, speciale, quizy, gwiazdki i rankingi.'],
     ['PIOSENKA DNIA', 'Jedno codzienne wyzwanie wspólne dla wszystkich graczy.'],
     ['PLAYLISTA DNIA', 'Codzienna seria utworów i rankingi wyników.'],
+    ['KAMPANIA', 'Trasa koncertowa przez epoki, etapy i gwiazdki.'],
     ['TURNIEJ', 'Rywalizacja o wysokie miejsca i specjalne nagrody.'],
   ];
   return (
