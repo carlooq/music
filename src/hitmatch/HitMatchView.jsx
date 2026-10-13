@@ -400,6 +400,52 @@ function Stars({ count = 0, size = 18, className = "" }) {
   );
 }
 
+function ResultLevelLeaderboard({ rows, error = "", currentUid = "", levelNumber }) {
+  const list = Array.isArray(rows) ? rows : null;
+  const top = list ? list.slice(0, 5) : [];
+  const meIndex = list && currentUid ? list.findIndex((row) => row.uid === currentUid) : -1;
+  const meOutsideTop = meIndex >= 5 ? { row:list[meIndex], rank:meIndex + 1 } : null;
+
+  const renderRow = (row, rank, extraClass = "") => {
+    const isMe = !!currentUid && row.uid === currentUid;
+    return (
+      <div key={`${row.uid}-${rank}-${extraClass}`} className={`hm-result-rank-row ${isMe ? "me" : ""} ${extraClass}`.trim()}>
+        <div className="hm-result-rank-place">{rank === 1 ? <Crown size={15} fill="currentColor" /> : rank}</div>
+        <div className="hm-result-rank-player"><strong>{row.name}</strong>{isMe ? <small>TY</small> : null}</div>
+        <Stars count={Number(row.stars || 0)} size={13} className="hm-result-rank-stars" />
+        <strong className="hm-result-rank-score">{Number(row.score || 0).toLocaleString("pl-PL")}</strong>
+      </div>
+    );
+  };
+
+  return (
+    <section className="hm-result-level-ranking">
+      <div className="hm-result-rank-head">
+        <div><Trophy size={17} /><span><strong>RANKING LEVELU {levelNumber}</strong><small>najlepsze wyniki</small></span></div>
+        <b>TOP 5</b>
+      </div>
+
+      {list === null && !error ? (
+        <div className="hm-result-rank-status">Ładuję ranking…</div>
+      ) : error ? (
+        <div className="hm-result-rank-status error">Nie udało się pobrać rankingu.</div>
+      ) : !top.length ? (
+        <div className="hm-result-rank-status">Jeszcze brak wyników dla tego levelu.</div>
+      ) : (
+        <div className="hm-result-rank-list">
+          {top.map((row, index) => renderRow(row, index + 1))}
+          {meOutsideTop ? (
+            <>
+              <div className="hm-result-rank-separator"><span>•••</span></div>
+              {renderRow(meOutsideTop.row, meOutsideTop.rank, "outside-top")}
+            </>
+          ) : null}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function QuizModal({ state, iframeRef, onAnswer, onReplay, onSkip, onPlayerLoad }) {
   if (!state) return null;
   const quiz = state.quiz;
@@ -497,6 +543,8 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   const [resultStars, setResultStars] = useState(0);
   const [previousStars, setPreviousStars] = useState(() => Number(progressEntry?.stars || 0));
   const [rewardState, setRewardState] = useState(null);
+  const [resultLeaderboard, setResultLeaderboard] = useState(null);
+  const [resultLeaderboardError, setResultLeaderboardError] = useState("");
   const [shields, setShields] = useState(() => initialShieldState());
   const [delivered, setDelivered] = useState(0);
   const [deliveryFx, setDeliveryFx] = useState([]);
@@ -711,6 +759,8 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     setQuizState(null);
     setResultStars(0);
     setRewardState(null);
+    setResultLeaderboard(null);
+    setResultLeaderboardError("");
     setResultDisplayScore(0);
     setResultDisplayStars(0);
     setResultRewardsVisible(false);
@@ -747,10 +797,25 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     setStatus(autoStart ? "running" : "intro");
   }, [LEVEL]);
 
+  const loadResultLeaderboard = useCallback(async (token) => {
+    setResultLeaderboard(null);
+    setResultLeaderboardError("");
+    try {
+      const rows = await fetchHitMatchLevelLeaderboard(LEVEL.id, 20);
+      if (runTokenRef.current !== token) return;
+      setResultLeaderboard(rows);
+    } catch (error) {
+      if (runTokenRef.current !== token) return;
+      setResultLeaderboard([]);
+      setResultLeaderboardError(error?.message || "Nie udało się pobrać rankingu.");
+    }
+  }, [LEVEL.id]);
+
   const saveCompletedLevel = useCallback(async (finalScore, stars, token) => {
     const user = auth.currentUser;
     if (!user?.uid || user.isAnonymous) {
       setRewardState({ saved: false, guest: true, gainedStars: 0, xp: 0, hitcoin: 0 });
+      await loadResultLeaderboard(token);
       return;
     }
     setRewardState({ saving: true });
@@ -760,11 +825,13 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       setPreviousStars(result.stars);
       onProgressUpdate?.(result.progress);
       setRewardState({ saved: true, ...result });
+      await loadResultLeaderboard(token);
     } catch (error) {
       if (runTokenRef.current !== token) return;
       setRewardState({ saved: false, error: error?.message || "Nie udało się zapisać nagrody." });
+      await loadResultLeaderboard(token);
     }
-  }, [LEVEL, onProgressUpdate]);
+  }, [LEVEL, loadResultLeaderboard, onProgressUpdate]);
 
   const settleDeliveryDrops = useCallback(async (boardAfterDrop, token) => {
     let current = boardAfterDrop;
@@ -1694,6 +1761,14 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
                 {resultRewardsVisible && rewardState?.guest ? <span>Zaloguj się, aby zapisywać gwiazdki i nagrody.</span> : null}
                 {resultRewardsVisible && rewardState?.error ? <span className="error">{rewardState.error}</span> : null}
               </div>
+            ) : null}
+            {status === "won" ? (
+              <ResultLevelLeaderboard
+                rows={resultLeaderboard}
+                error={resultLeaderboardError}
+                currentUid={auth.currentUser?.uid || ""}
+                levelNumber={LEVEL.number}
+              />
             ) : null}
             <div className={`hm-result-actions ${status === "lost" || resultActionsVisible ? "show" : ""}`}>
               {status === "won" && nextLevel && onNextLevel ? (
