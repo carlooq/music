@@ -24,6 +24,28 @@ const C = {
   hourglass:[0,7,8,15,16,23,40,47,48,55,56,63],
 };
 
+const rectIndices = (rowStart, rowEnd, colStart, colEnd) => {
+  const values = [];
+  for (let row = rowStart; row <= rowEnd; row += 1) {
+    for (let col = colStart; col <= colEnd; col += 1) values.push(row * 8 + col);
+  }
+  return values;
+};
+const allIndices = Array.from({ length:64 }, (_, index) => index);
+const REMIX_CENTER = rectIndices(2,5,2,5);
+const REMIX_A = rectIndices(0,3,0,3);
+const REMIX_B = rectIndices(4,7,4,7);
+const REMIX_DUAL_ACTIVE = new Set([...REMIX_A, ...REMIX_B]);
+const REMIX_DUAL_INACTIVE = allIndices.filter((index) => !REMIX_DUAL_ACTIVE.has(index));
+const REMIX_PAIR_MAP = Object.freeze({
+  vinyl:"microphone",
+  microphone:"vinyl",
+  headphones:"note",
+  note:"headphones",
+  cassette:"speaker",
+  speaker:"cassette",
+});
+
 // Poziomy 11–20: Shield blokuje RUCH kafla, ale nie jego udział w matchu.
 // Warstwę można zdjąć matchem zawierającym osłonięty symbol albo matchem
 // bezpośrednio obok (góra/dół/lewo/prawo).
@@ -130,7 +152,25 @@ const route5 = [
   { id:"level_50", number:50, title:"Mystery Show: Finał", subtitle:"Finał Mystery Track", moves:23, goals:{ vinyl:3, microphone:3, headphones:3, cassette:3, speaker:3, note:3 }, scoreGoal:22000, layout:{ inactive:C.plusCorners }, mysteries:[{index:18},{index:21},{index:27},{index:36},{index:45}], mysteryGoal:5, shields:[{index:26,hp:1},{index:29,hp:1},{index:34,hp:1},{index:37,hp:1}], starScoreThresholds:{2:31500,3:38500}, endgameMoveBonus:900, finale:true },
 ];
 
+// LAB 51–60 — REMIX DECKS. Poziomy wyłącznie do panelu admina.
+// Nie są częścią publicznego progresu, rankingu ani systemu nagród.
+const routeLabRemix = [
+  { id:"lab_level_51", number:51, title:"Remix 101", subtitle:"Pierwszy FLIP", moves:18, goals:{ vinyl:8, microphone:8 }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[{ id:"A", label:"DECK A", indices:REMIX_CENTER, every:1 }] }, starScoreThresholds:{2:15000,3:21000}, endgameMoveBonus:0, testOnly:true, noRewards:true },
+  { id:"lab_level_52", number:52, title:"Środek w Ruchu", subtitle:"Deck 4×4 zmienia ikonki", moves:18, goals:{ headphones:8, note:8 }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[{ id:"A", label:"DECK A", indices:REMIX_CENTER, every:1 }] }, shields:[{index:18,hp:1},{index:21,hp:1},{index:42,hp:1},{index:45,hp:1}], starScoreThresholds:{2:16500,3:22000}, endgameMoveBonus:0, testOnly:true, noRewards:true },
+  { id:"lab_level_53", number:53, title:"Dwa Decki", subtitle:"Dwie osobne plansze 4×4", moves:20, goals:{ cassette:8, speaker:8 }, layout:{ inactive:REMIX_DUAL_INACTIVE }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[{ id:"A", label:"DECK A", indices:REMIX_A, every:1 },{ id:"B", label:"DECK B", indices:REMIX_B, every:1 }] }, starScoreThresholds:{2:17000,3:22500}, endgameMoveBonus:0, testOnly:true, noRewards:true },
+  { id:"lab_level_54", number:54, title:"Polirytm", subtitle:"A co ruch · B co drugi", moves:20, goals:{ vinyl:7, headphones:7, cassette:7 }, layout:{ inactive:REMIX_DUAL_INACTIVE }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[{ id:"A", label:"DECK A", indices:REMIX_A, every:1 },{ id:"B", label:"DECK B", indices:REMIX_B, every:2 }] }, starScoreThresholds:{2:18000,3:23500}, endgameMoveBonus:0, testOnly:true, noRewards:true },
+  { id:"lab_level_55", number:55, title:"Offset", subtitle:"Decki mijają się w rytmie", moves:21, goals:{ microphone:7, note:7, speaker:7 }, layout:{ inactive:REMIX_DUAL_INACTIVE }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[{ id:"A", label:"DECK A", indices:REMIX_A, every:2, offset:0 },{ id:"B", label:"DECK B", indices:REMIX_B, every:2, offset:1 }] }, starScoreThresholds:{2:18500,3:24500}, endgameMoveBonus:0, testOnly:true, noRewards:true },
+  { id:"lab_level_56", number:56, title:"Remix pod Osłoną", subtitle:"FLIP + Neon Shield", moves:22, goals:{ vinyl:8, speaker:8 }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[{ id:"A", label:"DECK A", indices:REMIX_CENTER, every:1 }] }, shields:[{index:27,hp:2},{index:28,hp:1},{index:35,hp:1},{index:36,hp:2}], starScoreThresholds:{2:19500,3:25500}, endgameMoveBonus:0, testOnly:true, noRewards:true },
+  { id:"lab_level_57", number:57, title:"Remix Set", subtitle:"FLIP + Setlist", moves:23, goals:{}, remix:{ pairMap:REMIX_PAIR_MAP, zones:[{ id:"A", label:"DECK A", indices:REMIX_CENTER, every:1 }] }, setlist:[{label:"INTRO",kind:"collect",type:"vinyl",target:7},{label:"DROP",kind:"collect",type:"headphones",target:7},{label:"OUTRO",kind:"special",special:"line",target:1}], starScoreThresholds:{2:20500,3:27000}, endgameMoveBonus:0, testOnly:true, noRewards:true },
+  { id:"lab_level_58", number:58, title:"Mystery Remix", subtitle:"FLIP + Mystery Track", moves:21, goals:{ note:7 }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[{ id:"A", label:"DECK A", indices:REMIX_CENTER, every:1 }] }, mysteries:[{index:18},{index:45}], mysteryGoal:2, starScoreThresholds:{2:20500,3:27000}, endgameMoveBonus:0, testOnly:true, noRewards:true },
+  { id:"lab_level_59", number:59, title:"Trzy na Dwa", subtitle:"Różne cykle obu decków", moves:23, goals:{ vinyl:6, microphone:6, headphones:6, note:6 }, layout:{ inactive:REMIX_DUAL_INACTIVE }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[{ id:"A", label:"DECK A", indices:REMIX_A, every:2 },{ id:"B", label:"DECK B", indices:REMIX_B, every:3 }] }, starScoreThresholds:{2:22000,3:28500}, endgameMoveBonus:0, testOnly:true, noRewards:true },
+  { id:"lab_level_60", number:60, title:"Crossfader: Finał", subtitle:"Aktywny deck zmienia się co ruch", moves:25, goals:{ vinyl:5, microphone:5, headphones:5, cassette:5, speaker:5, note:5 }, layout:{ inactive:REMIX_DUAL_INACTIVE }, remix:{ pairMap:REMIX_PAIR_MAP, crossfade:true, zones:[{ id:"A", label:"DECK A", indices:REMIX_A, every:1 },{ id:"B", label:"DECK B", indices:REMIX_B, every:1 }] }, shields:[{index:18,hp:1},{index:21,hp:1},{index:42,hp:1},{index:45,hp:1}], starScoreThresholds:{2:24500,3:31500}, endgameMoveBonus:0, testOnly:true, noRewards:true, finale:true },
+];
+
 export const HIT_MATCH_LEVELS = Object.freeze([...route1, ...route2, ...route3, ...route4, ...route5].map((level) => ({ ...level, rewardPerStar:HIT_MATCH_REWARD_PER_STAR })));
+
+export const HIT_MATCH_LAB_LEVELS = Object.freeze(routeLabRemix.map((level) => ({ ...level, rewardPerStar:{ xp:0, hitcoin:0 } })));
+export const HIT_MATCH_LAB_STAGE = Object.freeze({ id:"lab_route_6", number:6, title:"REMIX DECKS · LAB", subtitle:"Testy 51–60", from:51, to:60, mechanic:"Flipujące decki + Crossfader", testOnly:true });
 
 export const HIT_MATCH_STAGES = Object.freeze([
   { id:"route_1", number:1, title:"NEONOWA SCENA", subtitle:"Poziomy 1–10", from:1, to:10, mechanic:"Klasyczna plansza" },
