@@ -513,7 +513,7 @@ function QuizModal({ state, iframeRef, onAnswer, onReplay, onSkip, onPlayerLoad 
   );
 }
 
-function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEntry, onProgressUpdate }) {
+function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEntry, onProgressUpdate, labMode = false }) {
   const inactiveIndices = LEVEL?.layout?.inactive || [];
   const initialShieldState = () => createShieldState(LEVEL);
   const initialShieldIndices = (LEVEL?.shields || []).map(({ index }) => Number(index));
@@ -555,6 +555,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   const [deliveryFx, setDeliveryFx] = useState([]);
   const [setlistStep, setSetlistStep] = useState(0);
   const [setlistProgress, setSetlistProgress] = useState(0);
+  const [remixTurn, setRemixTurn] = useState(0);
   const [mysteries, setMysteries] = useState(() => initialMysteryState());
   const [colorSweep, setColorSweep] = useState(null);
   const [resultDisplayScore, setResultDisplayScore] = useState(0);
@@ -574,6 +575,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   const quizIframeRef = useRef(null);
   const mysteryQuizResolverRef = useRef(null);
   const mysteryAttemptedThisMoveRef = useRef(false);
+  const remixFlippedThisMoveRef = useRef(false);
   const shieldsRef = useRef(initialShieldState());
   const mysteriesRef = useRef(initialMysteryState());
   const statsRef = useRef({
@@ -586,6 +588,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     delivered: 0,
     setlistStep: 0,
     setlistProgress: 0,
+    remixTurn: 0,
     mysteryRemaining: initialMysteryIndices.length,
   });
 
@@ -599,6 +602,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     setDelivered(Number(stats.delivered || 0));
     setSetlistStep(Number(stats.setlistStep || 0));
     setSetlistProgress(Number(stats.setlistProgress || 0));
+    setRemixTurn(Number(stats.remixTurn || 0));
   }, []);
 
   const getLockedShieldIndices = useCallback(() => Object.entries(shieldsRef.current || {})
@@ -777,6 +781,8 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     setDeliveryFx([]);
     setSetlistStep(0);
     setSetlistProgress(0);
+    setRemixTurn(0);
+    remixFlippedThisMoveRef.current = false;
     const nextMysteries = initialMysteryState();
     mysteriesRef.current = nextMysteries;
     setMysteries(nextMysteries);
@@ -797,6 +803,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       delivered: 0,
       setlistStep: 0,
       setlistProgress: 0,
+      remixTurn: 0,
       mysteryRemaining: initialMysteryIndices.length,
     };
     setStatus(autoStart ? "running" : "intro");
@@ -817,6 +824,10 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   }, [LEVEL.id]);
 
   const saveCompletedLevel = useCallback(async (finalScore, stars, token) => {
+    if (labMode || LEVEL.noRewards || LEVEL.testOnly) {
+      setRewardState({ lab:true, saved:false, gainedStars:0, xp:0, hitcoin:0 });
+      return;
+    }
     const user = auth.currentUser;
     if (!user?.uid || user.isAnonymous) {
       setRewardState({ saved: false, guest: true, gainedStars: 0, xp: 0, hitcoin: 0 });
@@ -836,7 +847,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       setRewardState({ saved: false, error: error?.message || "Nie udało się zapisać nagrody." });
       await loadResultLeaderboard(token);
     }
-  }, [LEVEL, loadResultLeaderboard, onProgressUpdate]);
+  }, [LEVEL, labMode, loadResultLeaderboard, onProgressUpdate]);
 
   const settleDeliveryDrops = useCallback(async (boardAfterDrop, token) => {
     let current = boardAfterDrop;
