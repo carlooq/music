@@ -54,15 +54,32 @@ export function swapBoardCells(board, a, b) {
   return next;
 }
 
+export function resolveRemixZone(zone, turn = 1) {
+  const safeTurn = Math.max(1, Number(turn || 1));
+  const frames = Array.isArray(zone?.frames) && zone.frames.length
+    ? zone.frames
+    : [zone?.indices || []];
+  const frameOffset = Math.max(0, Number(zone?.frameOffset || 0));
+  const frameIndex = (safeTurn - 1 + frameOffset) % frames.length;
+  return {
+    ...zone,
+    indices:(frames[frameIndex] || []).map(Number),
+    frameIndex,
+    frameCount:frames.length,
+  };
+}
+
 export function getRemixZonesForTurn(remix, turn = 0) {
   if (!remix?.zones?.length) return [];
   const safeTurn = Math.max(0, Number(turn || 0));
-  return remix.zones.filter((zone) => {
-    const every = Math.max(1, Number(zone?.every || 1));
-    const offset = Math.max(0, Number(zone?.offset || 0));
-    if (safeTurn <= 0) return false;
-    return ((safeTurn - offset) % every) === 0;
-  });
+  return remix.zones
+    .filter((zone) => {
+      const every = Math.max(1, Number(zone?.every || 1));
+      const offset = Math.max(0, Number(zone?.offset || 0));
+      if (safeTurn <= 0) return false;
+      return ((safeTurn - offset) % every) === 0;
+    })
+    .map((zone) => resolveRemixZone(zone, safeTurn));
 }
 
 export function applyRemixFlip(board, remix, turn = 0) {
@@ -97,8 +114,9 @@ export function applyRemixFlip(board, remix, turn = 0) {
 
 export function getCrossfadeZone(remix, completedTurns = 0) {
   if (!remix?.crossfade || !remix?.zones?.length) return null;
-  const index = Math.max(0, Number(completedTurns || 0)) % remix.zones.length;
-  return remix.zones[index] || null;
+  const done = Math.max(0, Number(completedTurns || 0));
+  const index = done % remix.zones.length;
+  return resolveRemixZone(remix.zones[index] || null, done + 1);
 }
 
 function createsImmediateTriple(board, index, type, blockedIndices = []) {
