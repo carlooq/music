@@ -5902,6 +5902,38 @@ export default function App() {
               </div>
             )}
 
+            <section
+              className="w-full rounded-2xl p-4"
+              style={{
+                background: "linear-gradient(135deg, rgba(101,76,255,0.12), rgba(224,74,255,0.10))",
+                border: "1px solid rgba(155,113,255,0.42)",
+                boxShadow: "0 12px 30px rgba(0,0,0,.20), 0 0 24px rgba(135,88,255,.08)",
+              }}
+            >
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <p style={{ fontSize: 10, letterSpacing: ".16em", fontWeight: 800, color: "#b991ff", textTransform: "uppercase", marginBottom: 4 }}>HIT MATCH · ADMIN LAB</p>
+                  <h3 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: ".04em", margin: 0 }}>REMIX DECKS <span style={{ color: "#f062ff" }}>51–60</span></h3>
+                  <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 3 }}>Test build: wszystkie levele otwarte · 0 gwiazdek · 0 XP · 0 HITCOIN · bez rankingu.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAdminPanel(false);
+                    setScreen("hitMatchLab");
+                  }}
+                  className="px-4 py-2.5 rounded-xl text-sm font-bold"
+                  style={{
+                    background: "linear-gradient(90deg, #755cff, #d24cf1)",
+                    color: "#fff",
+                    boxShadow: "0 8px 22px rgba(126,83,255,.28)",
+                  }}
+                >
+                  URUCHOM LAB →
+                </button>
+              </div>
+            </section>
+
             <button
               onClick={() => {
                 setShowProposals((v) => !v);
@@ -6670,6 +6702,19 @@ export default function App() {
       <HitMatchView
         onBack={() => {
           setScreen("home");
+        }}
+      />
+    );
+  }
+
+  // ----- HIT MATCH LAB: dostęp wyłącznie z Panelu Admina -----
+  if (screen === "hitMatchLab") {
+    return renderSessionUx(
+      <HitMatchView
+        labMode
+        onBack={() => {
+          setScreen("home");
+          if (adminUnlocked) setShowAdminPanel(true);
         }}
       />
     );
