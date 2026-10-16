@@ -875,6 +875,31 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     return current;
   }, [flashBanner, getBlockedIndices, syncStats]);
 
+  const applyRemixBeat = useCallback(async (boardAfterResolve, token) => {
+    if (!LEVEL.remix || remixFlippedThisMoveRef.current) return { board:boardAfterResolve, groups:[] };
+    remixFlippedThisMoveRef.current = true;
+
+    const turn = Number(statsRef.current.remixTurn || 0);
+    const scheduled = getRemixZonesForTurn(LEVEL.remix, turn);
+    if (!scheduled.length) return { board:boardAfterResolve, groups:[] };
+
+    const result = applyRemixFlip(boardAfterResolve, LEVEL.remix, turn);
+    if (!result.flippedIndices.length) return { board:boardAfterResolve, groups:[] };
+
+    const labels = result.zones.map((zone) => zone.label || zone.id || "DECK").join(" + ");
+    setMotionMode("remix");
+    setBoard(result.board);
+    flashBanner("REMIX FLIP!", `${labels} zmienia symbole`, "violet", 850);
+    await wait(340);
+    if (runTokenRef.current !== token) return { board:boardAfterResolve, groups:[] };
+
+    const settled = settleBoardVisuals(result.board);
+    setMotionMode("idle");
+    setBoard(settled);
+    const groups = findMatches(settled, getBlockedIndices());
+    return { board:settled, groups };
+  }, [LEVEL, flashBanner, getBlockedIndices]);
+
   const finishOrShuffle = useCallback(async (finalBoard, token) => {
     if (runTokenRef.current !== token) return;
     const stats = statsRef.current;
@@ -1154,8 +1179,16 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       await resolve(settled, nextGroups, token, cascadeLevel + 1, null);
       return;
     }
-    await finishOrShuffle(settled, token);
-  }, [applyRemovalStats, finishOrShuffle, showCombo, filterLockedShieldCells, getBlockedIndices, resolveMysteryHit, settleDeliveryDrops]);
+
+    const remixed = await applyRemixBeat(settled, token);
+    if (runTokenRef.current !== token) return;
+    if (remixed.groups.length) {
+      await wait(90);
+      await resolve(remixed.board, remixed.groups, token, cascadeLevel + 1, null);
+      return;
+    }
+    await finishOrShuffle(remixed.board, token);
+  }, [applyRemovalStats, applyRemixBeat, finishOrShuffle, showCombo, filterLockedShieldCells, getBlockedIndices, resolveMysteryHit, settleDeliveryDrops]);
 
   const resolveColorMove = useCallback(async (swapped, a, b, token) => {
     const rawAffected = resolveColorSwap(swapped, a, b) || [];
@@ -1207,8 +1240,14 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       await resolveCascades(settled, groups, token, 2, null);
       return;
     }
-    await finishOrShuffle(settled, token);
-  }, [applyRemovalStats, finishOrShuffle, flashBanner, resolveCascades, filterLockedShieldCells, getBlockedIndices, resolveMysteryHit, settleDeliveryDrops]);
+    const remixed = await applyRemixBeat(settled, token);
+    if (runTokenRef.current !== token) return;
+    if (remixed.groups.length) {
+      await resolveCascades(remixed.board, remixed.groups, token, 2, null);
+      return;
+    }
+    await finishOrShuffle(remixed.board, token);
+  }, [applyRemovalStats, applyRemixBeat, finishOrShuffle, flashBanner, resolveCascades, filterLockedShieldCells, getBlockedIndices, resolveMysteryHit, settleDeliveryDrops]);
 
   const resolveSpecialMove = useCallback(async (swapped, a, b, affected, token) => {
     const rawAffected = [...affected];
@@ -1257,8 +1296,14 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       await resolveCascades(settled, groups, token, 2, null);
       return;
     }
-    await finishOrShuffle(settled, token);
-  }, [applyRemovalStats, finishOrShuffle, flashBanner, resolveCascades, syncStats, filterLockedShieldCells, getBlockedIndices, resolveMysteryHit, settleDeliveryDrops]);
+    const remixed = await applyRemixBeat(settled, token);
+    if (runTokenRef.current !== token) return;
+    if (remixed.groups.length) {
+      await resolveCascades(remixed.board, remixed.groups, token, 2, null);
+      return;
+    }
+    await finishOrShuffle(remixed.board, token);
+  }, [applyRemovalStats, applyRemixBeat, finishOrShuffle, flashBanner, resolveCascades, syncStats, filterLockedShieldCells, getBlockedIndices, resolveMysteryHit, settleDeliveryDrops]);
 
   const attemptSwap = useCallback(async (a, b) => {
     if (status !== "running" || busy || quizState || !areAdjacent(a, b) || !board[a] || !board[b]) return;
