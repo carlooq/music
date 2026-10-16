@@ -203,7 +203,7 @@ function buildSpecialFx(board, indices = []) {
   return fx;
 }
 
-function HitMatchPiece({ tile, index, selected, matched, activated, dragging, locked = false, colorPhase, colorOrder = -1, swapOffset = null, onPointerDown, onPointerMove, onPointerUp, onClick }) {
+function HitMatchPiece({ tile, index, selected, matched, activated, dragging, locked = false, remixZoneIds = [], colorPhase, colorOrder = -1, swapOffset = null, onPointerDown, onPointerMove, onPointerUp, onClick }) {
   const row = rowOf(index);
   const col = colOf(index);
   const image = ICONS[tile.type] || ICONS.vinyl;
@@ -219,6 +219,8 @@ function HitMatchPiece({ tile, index, selected, matched, activated, dragging, lo
     tile.fresh ? "is-fresh" : "",
     tile.freshSpecial ? "is-special-born" : "",
     tile.remixFlipped ? "is-remix-flipped" : "",
+    remixZoneIds.length ? "is-remix-zone" : "",
+    ...remixZoneIds.map((id) => `remix-zone-${String(id).toLowerCase()}`),
     colorPhase === "charge" ? "is-color-charged" : "",
     colorPhase === "vanish" ? "is-color-vanishing" : "",
   ].filter(Boolean).join(" ");
@@ -514,7 +516,7 @@ function QuizModal({ state, iframeRef, onAnswer, onReplay, onSkip, onPlayerLoad 
   );
 }
 
-function remixZoneBounds(zone) {
+function remixZoneMetrics(zone) {
   const indices = (zone?.indices || []).map(Number).filter(Number.isInteger);
   if (!indices.length) return null;
   const rows = indices.map(rowOf);
@@ -523,44 +525,44 @@ function remixZoneBounds(zone) {
   const maxRow = Math.max(...rows);
   const minCol = Math.min(...cols);
   const maxCol = Math.max(...cols);
+  const widthCells = maxCol - minCol + 1;
+  const heightCells = maxRow - minRow + 1;
   return {
-    left:`${minCol * 12.5}%`,
-    top:`${minRow * 12.5}%`,
-    width:`${(maxCol - minCol + 1) * 12.5}%`,
-    height:`${(maxRow - minRow + 1) * 12.5}%`,
+    style:{
+      left:`${minCol * 12.5}%`,
+      top:`${minRow * 12.5}%`,
+      width:`${widthCells * 12.5}%`,
+      height:`${heightCells * 12.5}%`,
+    },
+    widthCells,
+    heightCells,
+    shape:`${widthCells}×${heightCells}`,
   };
 }
 
-function remixFlipCountdown(zone, completedTurns = 0) {
-  const every = Math.max(1, Number(zone?.every || 1));
-  const offset = Math.max(0, Number(zone?.offset || 0));
-  const firstCandidate = Number(completedTurns || 0) + 1;
-  for (let add = 0; add <= every + 1; add += 1) {
-    const turn = firstCandidate + add;
-    if (((turn - offset) % every) === 0) return add + 1;
-  }
-  return every;
-}
-
-function RemixStatus({ level, turn = 0, lastFlip = null }) {
+function RemixStatus({ level, lastFlip = null }) {
   const remix = level?.remix;
   if (!remix?.zones?.length) return null;
-  const activeCrossfade = getCrossfadeZone(remix, turn);
+  const completedFlips = Number(lastFlip?.moveId || 0);
+  const nextTurn = completedFlips + 1;
+  const displayZones = getRemixZonesForTurn(remix, nextTurn);
+  const activeCrossfade = getCrossfadeZone(remix, completedFlips);
   return (
     <div className="hm-remix-status">
       <div className="hm-remix-status-head">
-        <span><b>↻</b><strong>REMIX DECKS</strong><small>Po zaakceptowanym ruchu wybrane decki zmieniają symbole.</small></span>
-        <em>BEAT {Number(turn || 0) + 1}</em>
+        <span><b>↻</b><strong>REMIX DECKS</strong><small>Kolorowa strefa na planszy pokazuje dokładnie, które kafle zmienią się po ruchu.</small></span>
+        <em>BEAT {nextTurn}</em>
       </div>
       <div className="hm-remix-decks">
-        {remix.zones.map((zone) => {
-          const countdown = remixFlipCountdown(zone, turn);
+        {displayZones.map((zone) => {
           const active = !remix.crossfade || activeCrossfade?.id === zone.id;
+          const metrics = remixZoneMetrics(zone);
           return (
             <div key={zone.id} className={`hm-remix-deck-chip ${active ? "active" : "muted"}`}>
               <strong>{zone.label || zone.id}</strong>
-              <span>{countdown === 1 ? "FLIP PO TYM RUCHU" : `FLIP ZA ${countdown} RUCHY`}</span>
-              {remix.crossfade ? <small>{active ? "AKTYWNY · TU WYKONAJ RUCH" : "CZEKA NA CROSSFADER"}</small> : null}
+              <span>FLIP PO TYM RUCHU · {metrics?.shape || "STREFA"}</span>
+              <small>{zone.frameCount > 1 ? `POZYCJA ${zone.frameIndex + 1}/${zone.frameCount} · PO FLIPIE DECK SIĘ PRZESUNIE` : "STAŁA STREFA"}</small>
+              {remix.crossfade ? <small>{active ? "CROSSFADER · TEN DECK JEST AKTYWNY" : "CZEKA NA SWOJĄ KOLEJ"}</small> : null}
             </div>
           );
         })}
@@ -1701,7 +1703,18 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   const mysteryTotal = (LEVEL.mysteries || []).length;
   const progressPct = levelProgressPercent(LEVEL, collected, score, shieldsRemainingHp, delivered, setlistStep, setlistProgress, mysteryRemaining);
   const currentStage = labMode ? HIT_MATCH_LAB_STAGE : getHitMatchStage(LEVEL.number);
-  const activeCrossfadeDeck = LEVEL.remix?.crossfade ? getCrossfadeZone(LEVEL.remix, remixTurn) : null;
+  const completedRemixFlips = Number(lastRemixInfo?.moveId || 0);
+  const nextRemixTurn = completedRemixFlips + 1;
+  const displayRemixZones = LEVEL.remix ? getRemixZonesForTurn(LEVEL.remix, nextRemixTurn) : [];
+  const activeCrossfadeDeck = LEVEL.remix?.crossfade ? getCrossfadeZone(LEVEL.remix, completedRemixFlips) : null;
+  const remixZoneIdsByIndex = new Map();
+  displayRemixZones.forEach((zone) => {
+    (zone.indices || []).forEach((index) => {
+      const key = Number(index);
+      const ids = remixZoneIdsByIndex.get(key) || [];
+      remixZoneIdsByIndex.set(key, [...ids, zone.id]);
+    });
+  });
 
   return (
     <div className={`hm-page hm-v4 hm-stage-${currentStage.number} hm-motion-${motionMode} ${invalidFlash ? "hm-invalid" : ""}`}>
@@ -1734,7 +1747,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
           </div>
 
           {(LEVEL.setlist || []).length ? <ActiveSetlistTarget level={LEVEL} step={setlistStep} progress={setlistProgress} /> : null}
-          {LEVEL.remix ? <RemixStatus level={LEVEL} turn={remixTurn} lastFlip={lastRemixInfo} /> : null}
+          {LEVEL.remix ? <RemixStatus level={LEVEL} lastFlip={lastRemixInfo} /> : null}
 
           <div className="hm-board-wrap">
             <div className={`hm-board-shell ${specialPulse ? `hm-fx-${specialPulse}` : ""}`}>
@@ -1742,11 +1755,11 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
                 {inactiveIndices.map((index) => (
                   <span key={`void-${index}`} className="hm-board-void" style={{ left: `${colOf(index) * 12.5}%`, top: `${rowOf(index) * 12.5}%`, transform: "none" }} aria-hidden="true" />
                 ))}
-                {(LEVEL.remix?.zones || []).map((zone) => {
-                  const bounds = remixZoneBounds(zone);
-                  if (!bounds) return null;
+                {displayRemixZones.map((zone) => {
+                  const metrics = remixZoneMetrics(zone);
+                  if (!metrics) return null;
                   const active = !LEVEL.remix?.crossfade || activeCrossfadeDeck?.id === zone.id;
-                  return <span key={`remix-zone-${zone.id}`} className={`hm-remix-zone zone-${String(zone.id).toLowerCase()} ${active ? "active" : "muted"}`} style={bounds} aria-hidden="true"><b>{zone.label || zone.id}</b></span>;
+                  return <span key={`remix-zone-${zone.id}`} className={`hm-remix-zone zone-${String(zone.id).toLowerCase()} ${active ? "active" : "muted"}`} style={metrics.style} aria-hidden="true"><b>{zone.label || zone.id}<small>{metrics.shape}</small></b></span>;
                 })}
                 {deliveryExitIndices.map((index) => {
                   const sameCol = deliveryExitIndices.filter((value) => colOf(value) === colOf(index));
@@ -1772,6 +1785,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
                     activated={activeSpecials.includes(index)}
                     dragging={draggingIndex === index}
                     locked={isShieldLocked(index) || isMysteryLocked(index)}
+                    remixZoneIds={remixZoneIdsByIndex.get(index) || []}
                     colorPhase={colorSweep?.targets?.includes(index) ? colorSweep.phase : null}
                     colorOrder={colorSweep?.targets?.indexOf(index) ?? -1}
                     swapOffset={visualSwap?.a === index ? visualSwap.aOffset : visualSwap?.b === index ? visualSwap.bOffset : null}
