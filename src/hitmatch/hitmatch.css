@@ -2908,6 +2908,54 @@
   border-color:rgba(94,221,255,.32);
   box-shadow:inset 0 0 14px rgba(76,220,255,.035),0 0 14px rgba(123,93,255,.05);
 }
+
+/* Remix Decks: krótka legenda zamiany symboli, bez informacji o deckach i kolejności. */
+.hm-remix-pair-strip {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:12px;
+  min-height:38px;
+  margin:0 0 9px;
+  padding:6px 10px;
+  border-radius:12px;
+  border:1px solid rgba(149,101,255,.25);
+  background:linear-gradient(110deg,rgba(25,21,55,.78),rgba(11,14,29,.90));
+}
+.hm-remix-pair-strip>strong {
+  flex-shrink:0;
+  color:#d6bbff;
+  font-family:'Space Mono',monospace;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.07em;
+  white-space:nowrap;
+}
+.hm-remix-pair-strip .hm-remix-pairs {
+  min-width:0;
+  margin:0;
+  gap:clamp(8px,2.5vw,20px);
+  justify-content:center;
+  flex-wrap:nowrap;
+}
+.hm-remix-pair-strip .hm-remix-pairs>span {
+  flex-shrink:0;
+  gap:3px;
+  color:#bca7de;
+  font-size:12px;
+  font-weight:800;
+}
+.hm-remix-pair-strip .hm-remix-pairs img {
+  width:clamp(16px,3.4vw,22px);
+  height:clamp(16px,3.4vw,22px);
+}
+@media (max-width:420px) {
+  .hm-remix-pair-strip { gap:6px; padding:5px 6px; }
+  .hm-remix-pair-strip>strong { font-size:7px; }
+  .hm-remix-pair-strip .hm-remix-pairs { gap:7px; }
+  .hm-remix-pair-strip .hm-remix-pairs>span { gap:2px; font-size:10px; }
+}
+
 .hm-remix-pairs {
   display:flex;
   align-items:center;

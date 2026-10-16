@@ -1685,6 +1685,17 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
 
           {(LEVEL.setlist || []).length ? <ActiveSetlistTarget level={LEVEL} step={setlistStep} progress={setlistProgress} /> : null}
 
+          {LEVEL.remix ? (
+            <div className="hm-remix-pair-strip" aria-label="Pary symboli zmieniane przez Remix Decks">
+              <strong>REMIX ↔</strong>
+              <div className="hm-remix-pairs">
+                <span><img src={vinylImg} alt="Winyl" />↔<img src={microphoneImg} alt="Mikrofon" /></span>
+                <span><img src={headphonesImg} alt="Słuchawki" />↔<img src={noteImg} alt="Nuty" /></span>
+                <span><img src={cassetteImg} alt="Kaseta" />↔<img src={speakerImg} alt="Głośnik" /></span>
+              </div>
+            </div>
+          ) : null}
+
           <div className="hm-board-wrap">
             <div className={`hm-board-shell ${specialPulse ? `hm-fx-${specialPulse}` : ""}`}>
               <div className="hm-board" role="grid" aria-label="Plansza Hit Match">
