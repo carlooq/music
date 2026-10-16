@@ -1957,6 +1957,86 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   );
 }
 
+
+function HitMatchLabHub({ onBack }) {
+  const [activeLevelId, setActiveLevelId] = useState(null);
+  const levelIndex = activeLevelId ? HIT_MATCH_LAB_LEVELS.findIndex((level) => level.id === activeLevelId) : -1;
+  const activeLevel = levelIndex >= 0 ? HIT_MATCH_LAB_LEVELS[levelIndex] : null;
+
+  if (activeLevel) {
+    const nextLevel = HIT_MATCH_LAB_LEVELS[levelIndex + 1] || null;
+    return (
+      <HitMatchGame
+        key={activeLevel.id}
+        labMode
+        level={activeLevel}
+        progressEntry={null}
+        nextLevel={nextLevel}
+        onNextLevel={nextLevel ? () => setActiveLevelId(nextLevel.id) : null}
+        onProgressUpdate={undefined}
+        onBack={() => setActiveLevelId(null)}
+      />
+    );
+  }
+
+  return (
+    <div className="hm-page hm-hub-page hm-lab-hub">
+      <div className="hm-bg" aria-hidden="true"><i /><i /><i /></div>
+      <header className="hm-topbar hm-hub-topbar">
+        <button type="button" className="hm-back" onClick={onBack}><ArrowLeft size={19} /> <span>ADMIN</span></button>
+        <div className="hm-title-lockup"><span className="hm-eyebrow">HITSTERIADA · ADMIN LAB</span><h1>HIT <b>MATCH</b></h1></div>
+        <span className="hm-lab-badge">LAB</span>
+      </header>
+
+      <main className="hm-hub-main">
+        <section className="hm-hub-hero hm-lab-hero">
+          <div className="hm-hub-hero-copy">
+            <span className="hm-hub-kicker">REMIX DECKS · PROTOTYP 51–60</span>
+            <h2>TESTUJ <b>NOWĄ MECHANIKĘ</b></h2>
+            <p>Po każdym zaakceptowanym ruchu decki mogą zmienić symbole. Flip jest deterministyczny i może sam utworzyć match. Wszystkie poziomy są dostępne od razu.</p>
+            <div className="hm-lab-warning"><Zap size={17} /><span><strong>NAGRODY WYŁĄCZONE</strong><small>Brak zapisu gwiazdek, XP, HITCOIN i rankingów.</small></span></div>
+          </div>
+          <div className="hm-lab-legend">
+            <span><img src={vinylImg} alt="" />↔<img src={microphoneImg} alt="" /></span>
+            <span><img src={headphonesImg} alt="" />↔<img src={noteImg} alt="" /></span>
+            <span><img src={cassetteImg} alt="" />↔<img src={speakerImg} alt="" /></span>
+          </div>
+        </section>
+
+        <section className="hm-levels-section">
+          <div className="hm-levels-heading">
+            <div><span>ADMIN LAB</span><h3>{HIT_MATCH_LAB_STAGE.title}</h3></div>
+            <div className="hm-levels-legend"><span><i className="open" /> wszystkie dostępne</span></div>
+          </div>
+          <div className="hm-stage-group stage-6 open">
+            <div className="hm-stage-group-heading">
+              <div><span>POZIOMY 51–60</span><h4>REMIX DECKS</h4><small>Flipujące symbole · dwa decki · Crossfader</small></div>
+              <div className="hm-stage-group-meta"><b>TEST BUILD</b><span>Bez wpływu na publiczny HIT MATCH</span></div>
+            </div>
+            <div className="hm-level-grid">
+              {HIT_MATCH_LAB_LEVELS.map((level) => (
+                <button type="button" key={level.id} className={"hm-level-card unlocked stage-six " + (level.finale ? "finale" : "")} onClick={() => setActiveLevelId(level.id)}>
+                  <div className="hm-level-number">{String(level.number).padStart(2, "0")}</div>
+                  <div className="hm-level-card-body">
+                    <span className="hm-level-subtitle">{level.subtitle}</span>
+                    <strong>{level.title}</strong>
+                    <small>{compactGoal(level)}</small>
+                  </div>
+                  <div className="hm-level-card-side">
+                    <span className="hm-lab-card-tag">LAB</span>
+                    <small>{level.moves} ruchów</small>
+                    <ChevronRight size={19} />
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+}
+
 function HitMatchHub({ onBack }) {
   const [progress, setProgress] = useState({ levels: {}, totalStars: 0, completedLevels: 0, updatedAt: 0 });
   const [loadingProgress, setLoadingProgress] = useState(true);
@@ -2178,6 +2258,6 @@ function HitMatchHub({ onBack }) {
   );
 }
 
-export default function HitMatchView({ onBack }) {
-  return <HitMatchHub onBack={onBack} />;
+export default function HitMatchView({ onBack, labMode = false }) {
+  return labMode ? <HitMatchLabHub onBack={onBack} /> : <HitMatchHub onBack={onBack} />;
 }
