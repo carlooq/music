@@ -1672,7 +1672,8 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   const mysteryRemaining = Object.values(mysteries || {}).filter(Boolean).length;
   const mysteryTotal = (LEVEL.mysteries || []).length;
   const progressPct = levelProgressPercent(LEVEL, collected, score, shieldsRemainingHp, delivered, setlistStep, setlistProgress, mysteryRemaining);
-  const currentStage = getHitMatchStage(LEVEL.number);
+  const currentStage = labMode ? HIT_MATCH_LAB_STAGE : getHitMatchStage(LEVEL.number);
+  const activeCrossfadeDeck = LEVEL.remix?.crossfade ? getCrossfadeZone(LEVEL.remix, remixTurn) : null;
 
   return (
     <div className={`hm-page hm-v4 hm-stage-${currentStage.number} hm-motion-${motionMode} ${invalidFlash ? "hm-invalid" : ""}`}>
@@ -1680,17 +1681,16 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
 
       <header className="hm-topbar">
         <button type="button" className="hm-back" onClick={onBack}><ArrowLeft size={19} /> <span>WRÓĆ</span></button>
-        <div className="hm-title-lockup"><span className="hm-eyebrow">HITSTERIADA ARCADE</span><h1>HIT <b>MATCH</b></h1></div>
+        <div className="hm-title-lockup"><span className="hm-eyebrow">{labMode ? "HITSTERIADA · ADMIN LAB" : "HITSTERIADA ARCADE"}</span><h1>HIT <b>MATCH</b></h1></div>
         <button type="button" className="hm-help" onClick={() => setShowHelp(true)} aria-label="Jak grać"><span className="hm-help-q">?</span><em>JAK GRAĆ</em></button>
       </header>
 
       <main className="hm-layout">
         <section className="hm-stage-panel">
           <div className="hm-stage-heading">
-            <div><span>{currentStage.title} · POZIOM {LEVEL.number}</span><h2>{LEVEL.title.toUpperCase()}</h2><p>{currentStage.number === 5 ? "Aktywuj Mystery Track matchem i odblokuj go poprawną odpowiedzią." : currentStage.number === 4 ? "Realizuj kolejne tracki setlisty — cele nie liczą się na zapas." : currentStage.number === 3 ? "Sprowadź Drop Mic na dół planszy i kontroluj przepływ." : currentStage.number === 2 ? "Nowe układy planszy i Neon Shield." : "Łącz muzyczne symbole i buduj kaskady."}</p></div>
+            <div><span>{currentStage.title} · POZIOM {LEVEL.number}</span><h2>{LEVEL.title.toUpperCase()}</h2><p>{labMode ? "Test REMIX DECKS: po ruchu deck może zmienić symbole i sam uruchomić kolejną kaskadę." : currentStage.number === 5 ? "Aktywuj Mystery Track matchem i odblokuj go poprawną odpowiedzią." : currentStage.number === 4 ? "Realizuj kolejne tracki setlisty — cele nie liczą się na zapas." : currentStage.number === 3 ? "Sprowadź Drop Mic na dół planszy i kontroluj przepływ." : currentStage.number === 2 ? "Nowe układy planszy i Neon Shield." : "Łącz muzyczne symbole i buduj kaskady."}</p></div>
             <div className="hm-stage-score-block">
-              <Stars count={previousStars} size={20} />
-              <small>TWÓJ REKORD GWIAZDEK</small>
+              {labMode ? <><span className="hm-lab-badge">LAB</span><small>NAGRODY I ZAPIS WYŁĄCZONE</small></> : <><Stars count={previousStars} size={20} /><small>TWÓJ REKORD GWIAZDEK</small></>}
               <div className="hm-stage-progress"><strong>{progressPct}%</strong><span><i style={{ width: `${progressPct}%` }} /></span></div>
             </div>
           </div>
@@ -1706,6 +1706,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
           </div>
 
           {(LEVEL.setlist || []).length ? <ActiveSetlistTarget level={LEVEL} step={setlistStep} progress={setlistProgress} /> : null}
+          {LEVEL.remix ? <RemixStatus level={LEVEL} turn={remixTurn} /> : null}
 
           <div className="hm-board-wrap">
             <div className={`hm-board-shell ${specialPulse ? `hm-fx-${specialPulse}` : ""}`}>
@@ -1713,6 +1714,12 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
                 {inactiveIndices.map((index) => (
                   <span key={`void-${index}`} className="hm-board-void" style={{ left: `${colOf(index) * 12.5}%`, top: `${rowOf(index) * 12.5}%`, transform: "none" }} aria-hidden="true" />
                 ))}
+                {(LEVEL.remix?.zones || []).map((zone) => {
+                  const bounds = remixZoneBounds(zone);
+                  if (!bounds) return null;
+                  const active = !LEVEL.remix?.crossfade || activeCrossfadeDeck?.id === zone.id;
+                  return <span key={`remix-zone-${zone.id}`} className={`hm-remix-zone zone-${String(zone.id).toLowerCase()} ${active ? "active" : "muted"}`} style={bounds} aria-hidden="true"><b>{zone.label || zone.id}</b></span>;
+                })}
                 {deliveryExitIndices.map((index) => {
                   const sameCol = deliveryExitIndices.filter((value) => colOf(value) === colOf(index));
                   const primary = sameCol[0] === index;
@@ -1811,13 +1818,19 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
             {(LEVEL.setlist || []).length ? <SetlistTrackList level={LEVEL} step={setlistStep} progress={setlistProgress} /> : null}
           </section>
 
-          <section className="hm-panel hm-star-rules">
+          {labMode ? (
+            <section className="hm-panel hm-star-rules hm-lab-rules">
+              <div className="hm-panel-title"><Zap size={17} /><span>TRYB TESTOWY</span></div>
+              <div className="hm-star-rule"><span className="hm-lab-mini">LAB</span><span><strong>Bez zapisu progresu</strong><small>0 gwiazdek · 0 XP · 0 HITCOIN · brak rankingu</small></span></div>
+              <div className="hm-star-rule"><span className="encore-mark">↻</span><span><strong>Testuj mechanikę</strong><small>Liczy się feeling, czytelność i balans ruchów.</small></span></div>
+            </section>
+          ) :           <section className="hm-panel hm-star-rules">
             <div className="hm-panel-title"><Star size={17} /><span>GWIAZDKI I NAGRODY</span></div>
             <div className="hm-star-rule"><Star size={18} fill="currentColor" /><span><strong>Ukończ poziom</strong><small>+20 XP · +10 HITCOIN</small></span></div>
             <div className="hm-star-rule"><span className="two-stars">★★</span><span><strong>{LEVEL.starScoreThresholds[2].toLocaleString("pl-PL")} pkt</strong><small>kolejna gwiazdka i nagroda</small></span></div>
             <div className="hm-star-rule"><span className="three-stars">★★★</span><span><strong>{LEVEL.starScoreThresholds[3].toLocaleString("pl-PL")} pkt</strong><small>pełny komplet</small></span></div>
             <div className="hm-star-rule hm-encore-rule"><span className="encore-mark">↯</span><span><strong>ENCORE +{Number(LEVEL.endgameMoveBonus || 0).toLocaleString("pl-PL")}</strong><small>za każdy niewykorzystany ruch</small></span></div>
-          </section>
+          </section>}
 
           <section className="hm-panel hm-specials">
             <div className="hm-panel-title"><Zap size={17} /><span>SPECJALNE COMBO</span></div>
@@ -1838,7 +1851,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       {status === "intro" ? (
         <div className="hm-overlay">
           <div className="hm-modal hm-intro-modal">
-            <span className="hm-modal-kicker">HITSTERIADA ARCADE · POZIOM {LEVEL.number}</span>
+            <span className="hm-modal-kicker">{labMode ? "HITSTERIADA · ADMIN LAB" : "HITSTERIADA ARCADE"} · POZIOM {LEVEL.number}</span>
             <h2>HIT <b>MATCH</b></h2>
             <p>Łącz muzyczne symbole, buduj kaskady i zrealizuj cele przed końcem ruchów.</p>
             <div className="hm-intro-goals">
@@ -1850,7 +1863,8 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
               {shieldsTotal ? <div className="shield-goal"><span className="hm-shield-intro-icon">◆</span><strong>{shieldsTotal}</strong><span>Neon Shield</span></div> : null}
               <div className="moves"><Move size={26} /><strong>{LEVEL.moves}</strong><span>ruchów</span></div>
             </div>
-            <div className="hm-intro-stars"><span><b>★</b> ukończenie</span><span><b>★★</b> {LEVEL.starScoreThresholds[2].toLocaleString("pl-PL")} pkt</span><span><b>★★★</b> {LEVEL.starScoreThresholds[3].toLocaleString("pl-PL")} pkt</span></div>
+            {labMode ? <div className="hm-lab-intro-warning"><b>LAB</b><span>Ten level nie zapisuje gwiazdek, XP, HITCOIN ani rankingu.</span></div> : <div className="hm-intro-stars"><span><b>★</b> ukończenie</span><span><b>★★</b> {LEVEL.starScoreThresholds[2].toLocaleString("pl-PL")} pkt</span><span><b>★★★</b> {LEVEL.starScoreThresholds[3].toLocaleString("pl-PL")} pkt</span></div>}
+            {LEVEL.remix ? <div className="hm-stage2-intro-note hm-remix-intro-note"><span>↻</span><p><strong>REMIX DECKS</strong><small>Po zaakceptowanym ruchu aktywny deck FLIPUJE symbole: winyl↔mikrofon, słuchawki↔nuty, kaseta↔głośnik. Flip może sam stworzyć match i kaskadę.{LEVEL.remix.crossfade ? " W finale CROSSFADER pozwala ruszać tylko na aktualnie aktywnym decku." : ""}</small></p></div> : null}
             {(LEVEL.setlist || []).length ? <div className="hm-stage2-intro-note hm-setlist-intro-note"><span>♪</span><p><strong>SETLIST</strong><small>Wykonuj cele dokładnie w pokazanej kolejności. Po ukończeniu tracku od razu aktywuje się następny; nic nie nalicza się wcześniej na zapas.</small></p></div> : null}
             {mysteryTotal ? <div className="hm-stage2-intro-note hm-mystery-intro-note"><span>?</span><p><strong>MYSTERY TRACK</strong><small>Zrób match lub odpal efekt na kaflu albo obok niego. Odpowiedz poprawnie w muzycznym quizie, aby usunąć kafel. Błąd zostawia go na miejscu.</small></p></div> : null}
             {deliveryTarget ? <div className="hm-stage2-intro-note hm-delivery-intro-note"><span>↓</span><p><strong>DROP THE MIC</strong><small>Specjalnego mikrofonu nie można przesuwać ani matchować. Usuwaj kafle pod nim — gdy wejdzie w jedno z dwóch dolnych pól oznaczonych EXIT, zostaje dostarczony.</small></p></div> : null}
