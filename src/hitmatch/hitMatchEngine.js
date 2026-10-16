@@ -54,6 +54,52 @@ export function swapBoardCells(board, a, b) {
   return next;
 }
 
+export function getRemixZonesForTurn(remix, turn = 0) {
+  if (!remix?.zones?.length) return [];
+  const safeTurn = Math.max(0, Number(turn || 0));
+  return remix.zones.filter((zone) => {
+    const every = Math.max(1, Number(zone?.every || 1));
+    const offset = Math.max(0, Number(zone?.offset || 0));
+    if (safeTurn <= 0) return false;
+    return ((safeTurn - offset) % every) === 0;
+  });
+}
+
+export function applyRemixFlip(board, remix, turn = 0) {
+  const zones = getRemixZonesForTurn(remix, turn);
+  if (!zones.length) return { board:board.slice(), flippedIndices:[], zones:[] };
+
+  const pairMap = remix?.pairMap || {};
+  const flipSet = new Set();
+  zones.forEach((zone) => (zone?.indices || []).forEach((index) => flipSet.add(Number(index))));
+
+  const next = board.map((tile, index) => {
+    if (!tile || !flipSet.has(index)) return tile;
+    if (tile.type === "delivery" || tile.type === "mystery" || tile.type === "wild" || tile.special === "color") return tile;
+    const nextType = pairMap[tile.type];
+    if (!nextType || nextType === tile.type) return tile;
+    return {
+      ...tile,
+      type:nextType,
+      fresh:false,
+      spawnOrder:0,
+      remixFlipped:true,
+    };
+  });
+
+  return {
+    board:next,
+    flippedIndices:[...flipSet].filter((index) => next[index] && next[index] !== board[index]),
+    zones,
+  };
+}
+
+export function getCrossfadeZone(remix, completedTurns = 0) {
+  if (!remix?.crossfade || !remix?.zones?.length) return null;
+  const index = Math.max(0, Number(completedTurns || 0)) % remix.zones.length;
+  return remix.zones[index] || null;
+}
+
 function createsImmediateTriple(board, index, type, blockedIndices = []) {
   // blockedIndices oznacza teraz wyłącznie pola NIERUCHOME (Shield): nie można
   // nimi swapować i zatrzymują grawitację, ale ich symbol nadal normalnie
