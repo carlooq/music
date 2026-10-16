@@ -1076,6 +1076,19 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     }
   }, [flashBanner, saveCompletedLevel, syncStats, getBlockedIndices]);
 
+  const finalizeResolvedMove = useCallback(async (stableBoard, token, cascadeLevel, resolveFn) => {
+    if (runTokenRef.current !== token) return;
+    const remixed = await applyRemixBeat(stableBoard, token);
+    if (runTokenRef.current !== token) return;
+
+    if (remixed.groups.length) {
+      await resolveFn(remixed.board, remixed.groups, token, Math.max(2, Number(cascadeLevel || 1) + 1), null);
+      return;
+    }
+
+    await finishOrShuffle(remixed.board, token);
+  }, [applyRemixBeat, finishOrShuffle]);
+
   const applyRemovalStats = useCallback((boardBefore, actualIndices, cascadeLevel, specialCreation, shieldContactIndices = actualIndices) => {
     const counts = countRemovedByType(boardBefore, actualIndices);
     const stats = statsRef.current;
@@ -1262,15 +1275,8 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       return;
     }
 
-    const remixed = await applyRemixBeat(settled, token);
-    if (runTokenRef.current !== token) return;
-    if (remixed.groups.length) {
-      await wait(90);
-      await resolve(remixed.board, remixed.groups, token, cascadeLevel + 1, null);
-      return;
-    }
-    await finishOrShuffle(remixed.board, token);
-  }, [applyRemovalStats, applyRemixBeat, finishOrShuffle, showCombo, filterLockedShieldCells, getBlockedIndices, resolveMysteryHit, settleDeliveryDrops]);
+    await finalizeResolvedMove(settled, token, cascadeLevel, resolve);
+  }, [applyRemovalStats, finalizeResolvedMove, showCombo, filterLockedShieldCells, getBlockedIndices, resolveMysteryHit, settleDeliveryDrops]);
 
   const resolveColorMove = useCallback(async (swapped, a, b, token) => {
     const rawAffected = resolveColorSwap(swapped, a, b) || [];
@@ -1322,14 +1328,8 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       await resolveCascades(settled, groups, token, 2, null);
       return;
     }
-    const remixed = await applyRemixBeat(settled, token);
-    if (runTokenRef.current !== token) return;
-    if (remixed.groups.length) {
-      await resolveCascades(remixed.board, remixed.groups, token, 2, null);
-      return;
-    }
-    await finishOrShuffle(remixed.board, token);
-  }, [applyRemovalStats, applyRemixBeat, finishOrShuffle, flashBanner, resolveCascades, filterLockedShieldCells, getBlockedIndices, resolveMysteryHit, settleDeliveryDrops]);
+    await finalizeResolvedMove(settled, token, 1, resolveCascades);
+  }, [applyRemovalStats, finalizeResolvedMove, flashBanner, resolveCascades, filterLockedShieldCells, getBlockedIndices, resolveMysteryHit, settleDeliveryDrops]);
 
   const resolveSpecialMove = useCallback(async (swapped, a, b, affected, token) => {
     const rawAffected = [...affected];
@@ -1378,14 +1378,8 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       await resolveCascades(settled, groups, token, 2, null);
       return;
     }
-    const remixed = await applyRemixBeat(settled, token);
-    if (runTokenRef.current !== token) return;
-    if (remixed.groups.length) {
-      await resolveCascades(remixed.board, remixed.groups, token, 2, null);
-      return;
-    }
-    await finishOrShuffle(remixed.board, token);
-  }, [applyRemovalStats, applyRemixBeat, finishOrShuffle, flashBanner, resolveCascades, syncStats, filterLockedShieldCells, getBlockedIndices, resolveMysteryHit, settleDeliveryDrops]);
+    await finalizeResolvedMove(settled, token, 1, resolveCascades);
+  }, [applyRemovalStats, finalizeResolvedMove, flashBanner, resolveCascades, syncStats, filterLockedShieldCells, getBlockedIndices, resolveMysteryHit, settleDeliveryDrops]);
 
   const attemptSwap = useCallback(async (a, b) => {
     if (status !== "running" || busy || quizState || !areAdjacent(a, b) || !board[a] || !board[b]) return;
