@@ -513,6 +513,66 @@ function QuizModal({ state, iframeRef, onAnswer, onReplay, onSkip, onPlayerLoad 
   );
 }
 
+function remixZoneBounds(zone) {
+  const indices = (zone?.indices || []).map(Number).filter(Number.isInteger);
+  if (!indices.length) return null;
+  const rows = indices.map(rowOf);
+  const cols = indices.map(colOf);
+  const minRow = Math.min(...rows);
+  const maxRow = Math.max(...rows);
+  const minCol = Math.min(...cols);
+  const maxCol = Math.max(...cols);
+  return {
+    left:`${minCol * 12.5}%`,
+    top:`${minRow * 12.5}%`,
+    width:`${(maxCol - minCol + 1) * 12.5}%`,
+    height:`${(maxRow - minRow + 1) * 12.5}%`,
+  };
+}
+
+function remixFlipCountdown(zone, completedTurns = 0) {
+  const every = Math.max(1, Number(zone?.every || 1));
+  const offset = Math.max(0, Number(zone?.offset || 0));
+  const firstCandidate = Number(completedTurns || 0) + 1;
+  for (let add = 0; add <= every + 1; add += 1) {
+    const turn = firstCandidate + add;
+    if (((turn - offset) % every) === 0) return add + 1;
+  }
+  return every;
+}
+
+function RemixStatus({ level, turn = 0 }) {
+  const remix = level?.remix;
+  if (!remix?.zones?.length) return null;
+  const activeCrossfade = getCrossfadeZone(remix, turn);
+  return (
+    <div className="hm-remix-status">
+      <div className="hm-remix-status-head">
+        <span><b>↻</b><strong>REMIX DECKS</strong><small>Po zaakceptowanym ruchu wybrane decki zmieniają symbole.</small></span>
+        <em>BEAT {Number(turn || 0) + 1}</em>
+      </div>
+      <div className="hm-remix-decks">
+        {remix.zones.map((zone) => {
+          const countdown = remixFlipCountdown(zone, turn);
+          const active = !remix.crossfade || activeCrossfade?.id === zone.id;
+          return (
+            <div key={zone.id} className={`hm-remix-deck-chip ${active ? "active" : "muted"}`}>
+              <strong>{zone.label || zone.id}</strong>
+              <span>{countdown === 1 ? "FLIP PO TYM RUCHU" : `FLIP ZA ${countdown} RUCHY`}</span>
+              {remix.crossfade ? <small>{active ? "AKTYWNY · TU WYKONAJ RUCH" : "CZEKA NA CROSSFADER"}</small> : null}
+            </div>
+          );
+        })}
+      </div>
+      <div className="hm-remix-pairs">
+        <span><img src={vinylImg} alt="" />↔<img src={microphoneImg} alt="" /></span>
+        <span><img src={headphonesImg} alt="" />↔<img src={noteImg} alt="" /></span>
+        <span><img src={cassetteImg} alt="" />↔<img src={speakerImg} alt="" /></span>
+      </div>
+    </div>
+  );
+}
+
 function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEntry, onProgressUpdate, labMode = false }) {
   const inactiveIndices = LEVEL?.layout?.inactive || [];
   const initialShieldState = () => createShieldState(LEVEL);
