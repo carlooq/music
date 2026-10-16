@@ -1883,11 +1883,11 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
             <div className="hm-result-icon">{status === "won" ? <Trophy size={38} /> : <Music2 size={36} />}</div>
             <span className="hm-modal-kicker">POZIOM {LEVEL.number}</span>
             <h2>{status === "won" ? "KONCERT ZALICZONY!" : "JESZCZE RAZ!"}</h2>
-            {status === "won" ? (
+            {status === "won" && !labMode ? (
               <div className="hm-result-stars hm-result-stars-sequenced">
                 {[1, 2, 3].map((n) => <Star key={n} size={42} fill={n <= resultDisplayStars ? "currentColor" : "none"} className={n <= resultDisplayStars ? "earned reveal" : ""} />)}
               </div>
-            ) : null}
+            ) : status === "won" && labMode ? <div className="hm-lab-result-badge">LAB · WYNIK TESTOWY</div> : null}
             <p>{status === "won" ? "Cele wykonane. Niewykorzystane ruchy dały stały bonus ENCORE." : "Skończyły się ruchy. Zmiksuj planszę i spróbuj ponownie."}</p>
             <div className="hm-result-stats">
               <div className="hm-score-counter"><span>WYNIK</span><strong>{(status === "won" ? resultDisplayScore : score).toLocaleString("pl-PL")}</strong></div>
@@ -1898,6 +1898,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
             {status === "won" ? (
               <div className={`hm-reward-result ${resultRewardsVisible ? "show" : "waiting"}`}>
                 {!resultRewardsVisible ? <span>Podsumowuję koncert…</span> : null}
+                {resultRewardsVisible && rewardState?.lab ? <span>TRYB LAB · wynik nie zapisuje gwiazdek, XP, HITCOIN ani rankingu.</span> : null}
                 {resultRewardsVisible && rewardState?.saving ? <span>Zapisuję wynik i nagrodę…</span> : null}
                 {resultRewardsVisible && rewardState?.saved && rewardState.gainedStars > 0 ? (
                   <>
@@ -1910,7 +1911,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
                 {resultRewardsVisible && rewardState?.error ? <span className="error">{rewardState.error}</span> : null}
               </div>
             ) : null}
-            {status === "won" ? (
+            {status === "won" && !labMode ? (
               <ResultLevelLeaderboard
                 rows={resultLeaderboard}
                 error={resultLeaderboardError}
@@ -1947,6 +1948,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
             {deliveryTarget ? <div className="hm-help-power hm-help-delivery"><span className="hm-delivery-mini">↓</span><span><strong>DROP THE MIC</strong><small>Mikrofon nie tworzy matchy i nie można nim ruszać. Czyść pola pod nim; dwa dolne aktywne pola kolumny tworzą strefę EXIT.</small></span></div> : null}
             {(LEVEL.setlist || []).length ? <div className="hm-help-power hm-help-setlist"><span className="hm-setlist-mini">♪</span><span><strong>SETLIST</strong><small>Realizuj aktywny track. Dopiero po jego ukończeniu zaczyna naliczać się kolejny cel.</small></span></div> : null}
             {mysteryTotal ? <div className="hm-help-power hm-help-mystery"><span className="hm-mystery-mini">?</span><span><strong>MYSTERY TRACK</strong><small>Match/efekt obok aktywuje quiz. Dobra odpowiedź usuwa kafel, zła pozostawia go nieruchomo na planszy. Maksymalnie jeden quiz na ruch.</small></span></div> : null}
+            {LEVEL.remix ? <div className="hm-help-power hm-help-remix"><span className="hm-remix-mini">↻</span><span><strong>REMIX DECKS</strong><small>Po ruchu aktywne decki zamieniają pary symboli. Powstały w ten sposób match odpala się automatycznie. Przy CROSSFADERZE ruch wykonujesz tylko na aktywnym decku.</small></span></div> : null}
             <button type="button" className="hm-primary" onClick={() => setShowHelp(false)}>ROZUMIEM</button>
           </div>
         </div>
