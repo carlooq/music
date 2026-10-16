@@ -1385,6 +1385,16 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       setSelected(null);
       return;
     }
+    if (LEVEL.remix?.crossfade) {
+      const activeDeck = getCrossfadeZone(LEVEL.remix, Number(statsRef.current.remixTurn || 0));
+      const activeSet = new Set((activeDeck?.indices || []).map(Number));
+      if (!activeSet.has(a) || !activeSet.has(b)) {
+        playWrongSound();
+        flashBanner("CROSSFADER", `Teraz gra ${activeDeck?.label || "aktywny deck"}`, "violet", 900);
+        setSelected(null);
+        return;
+      }
+    }
     unlockAudio();
     mysteryAttemptedThisMoveRef.current = false;
     setSelected(null);
@@ -1428,6 +1438,9 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       return;
     }
 
+    remixFlippedThisMoveRef.current = false;
+    if (LEVEL.remix) statsRef.current.remixTurn = Number(statsRef.current.remixTurn || 0) + 1;
+
     // Commit bez transition: kafel jest już wizualnie w punkcie docelowym, więc
     // podmiana danych nie może wywołać dodatkowego ruchu sąsiednich elementów.
     setMotionMode("commit");
@@ -1454,7 +1467,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     statsRef.current.moves -= 1;
     syncStats();
     await resolveCascades(swapped, groups, token, 1, { a, b });
-  }, [board, busy, quizState, resolveCascades, resolveColorMove, resolveSpecialMove, status, syncStats, isShieldLocked, flashBanner, getBlockedIndices]);
+  }, [LEVEL, board, busy, quizState, resolveCascades, resolveColorMove, resolveSpecialMove, status, syncStats, isShieldLocked, flashBanner, getBlockedIndices]);
 
   const handlePieceClick = useCallback((index) => {
     if (suppressClickRef.current) {
