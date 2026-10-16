@@ -635,7 +635,8 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   const quizIframeRef = useRef(null);
   const mysteryQuizResolverRef = useRef(null);
   const mysteryAttemptedThisMoveRef = useRef(false);
-  const remixFlippedThisMoveRef = useRef(false);
+  const remixMoveIdRef = useRef(0);
+  const remixAppliedMoveIdRef = useRef(0);
   const shieldsRef = useRef(initialShieldState());
   const mysteriesRef = useRef(initialMysteryState());
   const statsRef = useRef({
@@ -842,7 +843,8 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     setSetlistStep(0);
     setSetlistProgress(0);
     setRemixTurn(0);
-    remixFlippedThisMoveRef.current = false;
+    remixMoveIdRef.current = 0;
+    remixAppliedMoveIdRef.current = 0;
     const nextMysteries = initialMysteryState();
     mysteriesRef.current = nextMysteries;
     setMysteries(nextMysteries);
@@ -936,29 +938,49 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   }, [flashBanner, getBlockedIndices, syncStats]);
 
   const applyRemixBeat = useCallback(async (boardAfterResolve, token) => {
-    if (!LEVEL.remix || remixFlippedThisMoveRef.current) return { board:boardAfterResolve, groups:[] };
-    remixFlippedThisMoveRef.current = true;
+    if (!LEVEL.remix) return { board:boardAfterResolve, groups:[], applied:false };
 
-    const turn = Number(statsRef.current.remixTurn || 0);
-    const scheduled = getRemixZonesForTurn(LEVEL.remix, turn);
-    if (!scheduled.length) return { board:boardAfterResolve, groups:[] };
+    const moveId = Number(remixMoveIdRef.current || 0);
+    if (!moveId || remixAppliedMoveIdRef.current === moveId) {
+      return { board:boardAfterResolve, groups:[], applied:false };
+    }
 
-    const result = applyRemixFlip(boardAfterResolve, LEVEL.remix, turn);
-    if (!result.flippedIndices.length) return { board:boardAfterResolve, groups:[] };
+    // LAB ma twardą zasadę: KAŻDY zaakceptowany ruch flipuje wszystkie decki
+    // dokładnie raz, niezależnie od liczby kaskad/combo.
+    const remixConfig = labMode
+      ? { ...LEVEL.remix, zones:(LEVEL.remix.zones || []).map((zone) => ({ ...zone, every:1, offset:0 })) }
+      : LEVEL.remix;
+    const scheduled = getRemixZonesForTurn(remixConfig, moveId);
+    const result = applyRemixFlip(boardAfterResolve, remixConfig, moveId);
 
-    const labels = result.zones.map((zone) => zone.label || zone.id || "DECK").join(" + ");
+    // Konsumujemy ID ruchu nawet przy awaryjnym braku zmienionych kafli,
+    // dzięki czemu jedna kaskada nigdy nie wywoła dwóch FLIP-ów.
+    remixAppliedMoveIdRef.current = moveId;
+
+    const labels = (scheduled.length ? scheduled : remixConfig.zones || [])
+      .map((zone) => zone.label || zone.id || "DECK")
+      .join(" + ");
+    if (!result.flippedIndices.length) {
+      flashBanner(`REMIX FLIP #${moveId}`, "0 kafli do zmiany · zgłoś ten ruch", "pink", 1200);
+      return { board:boardAfterResolve, groups:[], applied:true };
+    }
+
     setMotionMode("remix");
     setBoard(result.board);
-    flashBanner("REMIX FLIP!", `${labels} zmienia symbole`, "violet", 850);
-    await wait(340);
-    if (runTokenRef.current !== token) return { board:boardAfterResolve, groups:[] };
+    flashBanner(`REMIX FLIP #${moveId}`, `${labels} · zmieniono ${result.flippedIndices.length} kafli`, "violet", 1200);
+    await wait(620);
+    if (runTokenRef.current !== token) return { board:boardAfterResolve, groups:[], applied:true };
 
     const settled = settleBoardVisuals(result.board);
     setMotionMode("idle");
     setBoard(settled);
     const groups = findMatches(settled, getBlockedIndices());
-    return { board:settled, groups };
-  }, [LEVEL, flashBanner, getBlockedIndices]);
+    if (groups.length) {
+      flashBanner("REMIX MATCH!", `FLIP #${moveId} utworzył połączenie`, "cyan", 850);
+      await wait(260);
+    }
+    return { board:settled, groups, applied:true };
+  }, [LEVEL, labMode, flashBanner, getBlockedIndices]);
 
   const finishOrShuffle = useCallback(async (finalBoard, token) => {
     if (runTokenRef.current !== token) return;
@@ -1438,8 +1460,10 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       return;
     }
 
-    remixFlippedThisMoveRef.current = false;
-    if (LEVEL.remix) statsRef.current.remixTurn = Number(statsRef.current.remixTurn || 0) + 1;
+    if (LEVEL.remix) {
+      remixMoveIdRef.current += 1;
+      statsRef.current.remixTurn = remixMoveIdRef.current;
+    }
 
     // Commit bez transition: kafel jest już wizualnie w punkcie docelowym, więc
     // podmiana danych nie może wywołać dodatkowego ruchu sąsiednich elementów.
