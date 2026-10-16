@@ -125,7 +125,7 @@ function compactGoal(level) {
 }
 
 const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
-const settleBoardVisuals = (board) => (board || []).map((tile) => tile ? ({ ...tile, fresh: false, freshSpecial: false, spawnOrder: 0 }) : tile);
+const settleBoardVisuals = (board) => (board || []).map((tile) => tile ? ({ ...tile, fresh:false, freshSpecial:false, spawnOrder:0, remixFlipped:false }) : tile);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const shuffle = (arr) => {
   const next = arr.slice();
@@ -218,6 +218,7 @@ function HitMatchPiece({ tile, index, selected, matched, activated, dragging, lo
     locked ? "is-shield-locked" : "",
     tile.fresh ? "is-fresh" : "",
     tile.freshSpecial ? "is-special-born" : "",
+    tile.remixFlipped ? "is-remix-flipped" : "",
     colorPhase === "charge" ? "is-color-charged" : "",
     colorPhase === "vanish" ? "is-color-vanishing" : "",
   ].filter(Boolean).join(" ");
@@ -541,7 +542,7 @@ function remixFlipCountdown(zone, completedTurns = 0) {
   return every;
 }
 
-function RemixStatus({ level, turn = 0 }) {
+function RemixStatus({ level, turn = 0, lastFlip = null }) {
   const remix = level?.remix;
   if (!remix?.zones?.length) return null;
   const activeCrossfade = getCrossfadeZone(remix, turn);
@@ -568,6 +569,11 @@ function RemixStatus({ level, turn = 0 }) {
         <span><img src={vinylImg} alt="" />↔<img src={microphoneImg} alt="" /></span>
         <span><img src={headphonesImg} alt="" />↔<img src={noteImg} alt="" /></span>
         <span><img src={cassetteImg} alt="" />↔<img src={speakerImg} alt="" /></span>
+      </div>
+      <div className="hm-remix-debug">
+        <small>OSTATNI FLIP</small>
+        <strong>{lastFlip ? `#${lastFlip.moveId} · ${lastFlip.changed} KAFLE` : "—"}</strong>
+        <span>{lastFlip ? lastFlip.labels : "Wykonaj pierwszy poprawny ruch"}</span>
       </div>
     </div>
   );
@@ -616,6 +622,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   const [setlistStep, setSetlistStep] = useState(0);
   const [setlistProgress, setSetlistProgress] = useState(0);
   const [remixTurn, setRemixTurn] = useState(0);
+  const [lastRemixInfo, setLastRemixInfo] = useState(null);
   const [mysteries, setMysteries] = useState(() => initialMysteryState());
   const [colorSweep, setColorSweep] = useState(null);
   const [resultDisplayScore, setResultDisplayScore] = useState(0);
@@ -843,6 +850,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     setSetlistStep(0);
     setSetlistProgress(0);
     setRemixTurn(0);
+    setLastRemixInfo(null);
     remixMoveIdRef.current = 0;
     remixAppliedMoveIdRef.current = 0;
     const nextMysteries = initialMysteryState();
@@ -961,14 +969,16 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       .map((zone) => zone.label || zone.id || "DECK")
       .join(" + ");
     if (!result.flippedIndices.length) {
-      flashBanner(`REMIX FLIP #${moveId}`, "0 kafli do zmiany · zgłoś ten ruch", "pink", 1200);
+      setLastRemixInfo({ moveId, changed:0, labels:labels || "BRAK ZMIANY" });
+      flashBanner(`REMIX FLIP #${moveId}`, "0 kafli do zmiany · zgłoś ten ruch", "pink", 1500);
       return { board:boardAfterResolve, groups:[], applied:true };
     }
 
+    setLastRemixInfo({ moveId, changed:result.flippedIndices.length, labels });
     setMotionMode("remix");
     setBoard(result.board);
-    flashBanner(`REMIX FLIP #${moveId}`, `${labels} · zmieniono ${result.flippedIndices.length} kafli`, "violet", 1200);
-    await wait(620);
+    flashBanner(`REMIX FLIP #${moveId}`, `${labels} · zmieniono ${result.flippedIndices.length} kafli`, "violet", 1500);
+    await wait(950);
     if (runTokenRef.current !== token) return { board:boardAfterResolve, groups:[], applied:true };
 
     const settled = settleBoardVisuals(result.board);
@@ -1724,7 +1734,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
           </div>
 
           {(LEVEL.setlist || []).length ? <ActiveSetlistTarget level={LEVEL} step={setlistStep} progress={setlistProgress} /> : null}
-          {LEVEL.remix ? <RemixStatus level={LEVEL} turn={remixTurn} /> : null}
+          {LEVEL.remix ? <RemixStatus level={LEVEL} turn={remixTurn} lastFlip={lastRemixInfo} /> : null}
 
           <div className="hm-board-wrap">
             <div className={`hm-board-shell ${specialPulse ? `hm-fx-${specialPulse}` : ""}`}>
@@ -1754,7 +1764,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
                 })}
                 {board.map((tile, index) => tile ? (
                   <HitMatchPiece
-                    key={tile.id}
+                    key={`${tile.id}-${tile.remixFlipId || 0}`}
                     tile={tile}
                     index={index}
                     selected={selected === index}
