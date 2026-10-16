@@ -84,6 +84,7 @@ export function applyRemixFlip(board, remix, turn = 0) {
       fresh:false,
       spawnOrder:0,
       remixFlipped:true,
+      remixFlipId:Number(turn || 0),
     };
   });
 
