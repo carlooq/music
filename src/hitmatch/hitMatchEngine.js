@@ -112,7 +112,7 @@ export function applyDeckSwap(board, deckSwap, lockedIndices = [], moveId = 0) {
   const reserved = new Set();
   const changed = new Set();
   const next = board.slice();
-  const immovable = (tile) => !tile || ["delivery","mystery","wild"].includes(tile.type) || tile.special === "color";
+  const immovable = (tile) => !tile || ["delivery","mystery","wild","wall"].includes(tile.type) || tile.special === "color";
   for (const [aId,bId] of deckSwap?.pairs || []) {
     const a=zones.get(aId) || [], b=zones.get(bId) || [];
     if (!a.length || a.length!==b.length) continue;
@@ -183,14 +183,16 @@ export function createPlayableBoard(inactiveIndices = [], blockedIndices = []) {
 }
 
 
-export function createLevelBoard(inactiveIndices = [], blockedIndices = [], deliveryIndices = [], mysteryIndices = []) {
+export function createLevelBoard(inactiveIndices = [], blockedIndices = [], deliveryIndices = [], mysteryIndices = [], wallIndices = [], frozenIndices = []) {
   const inactive = inactiveSetOf(inactiveIndices);
   const shields = inactiveSetOf(blockedIndices);
   const deliveries = [...new Set((deliveryIndices || []).map(Number).filter((index) => Number.isInteger(index) && index >= 0 && index < HIT_MATCH_ROWS * HIT_MATCH_COLS && !inactive.has(index)))];
   const mysteries = [...new Set((mysteryIndices || []).map(Number).filter((index) => Number.isInteger(index) && index >= 0 && index < HIT_MATCH_ROWS * HIT_MATCH_COLS && !inactive.has(index)))];
-  const blocked = new Set([...shields, ...mysteries]);
+  const walls=inactiveSetOf(wallIndices);
+  const blocked = new Set([...shields, ...mysteries, ...walls, ...inactiveSetOf(frozenIndices)]);
 
   const decorate = (board) => {
+    walls.forEach((index)=>{if (!inactive.has(index)) board[index]=makeHitMatchTile("wall",{fresh:false,spawnOrder:0});});
     deliveries.forEach((index, order) => {
       board[index] = makeHitMatchTile("delivery", { delivery:true, fresh:false, spawnOrder:0, deliveryOrder:order });
     });
@@ -220,7 +222,7 @@ export function findMatches(board, blockedIndices = []) {
     while (startCol < HIT_MATCH_COLS) {
       const startIndex = indexOf(row, startCol);
       const type = board[startIndex]?.type;
-      if (!type || type === "wild" || type === "delivery" || type === "mystery") {
+      if (!type || type === "wild" || type === "delivery" || type === "mystery" || type === "wall") {
         startCol += 1;
         continue;
       }
@@ -247,7 +249,7 @@ export function findMatches(board, blockedIndices = []) {
     while (startRow < HIT_MATCH_ROWS) {
       const startIndex = indexOf(startRow, col);
       const type = board[startIndex]?.type;
-      if (!type || type === "wild" || type === "delivery" || type === "mystery") {
+      if (!type || type === "wild" || type === "delivery" || type === "mystery" || type === "wall") {
         startRow += 1;
         continue;
       }
@@ -283,14 +285,14 @@ export function hasPossibleMove(board, inactiveIndices = [], blockedIndices = []
     for (let col = 0; col < HIT_MATCH_COLS; col += 1) {
       const a = indexOf(row, col);
       const tile = board[a];
-      if (!tile || (tile.type === "delivery" || tile.type === "mystery") || inactive.has(a) || blocked.has(a)) continue;
+      if (!tile || (tile.type === "delivery" || tile.type === "mystery" || tile.type === "wall") || inactive.has(a) || blocked.has(a)) continue;
       const neighbours = [];
       if (col + 1 < HIT_MATCH_COLS) neighbours.push(indexOf(row, col + 1));
       if (row + 1 < HIT_MATCH_ROWS) neighbours.push(indexOf(row + 1, col));
       for (const b of neighbours) {
         if (inactive.has(b) || blocked.has(b) || !board[b]) continue;
         const other = board[b];
-        if ((other?.type === "delivery" || other?.type === "mystery")) continue;
+        if ((other?.type === "delivery" || other?.type === "mystery" || other?.type === "wall")) continue;
         // Złoty Winyl zawsze może zostać zamieniony z sąsiadem. Dwa specjale
         // również są legalnym ruchem. Pojedynczy line/bomb musi wejść w match.
         if (tile.special === "color" || other?.special === "color") return true;
@@ -569,7 +571,7 @@ export function countRemovedByType(boardBefore, indices) {
   const counts = {};
   indices.forEach((index) => {
     const type = boardBefore[index]?.type;
-    if (!type || type === "wild" || type === "delivery" || type === "mystery") return;
+    if (!type || type === "wild" || type === "delivery" || type === "mystery" || type === "wall") return;
     counts[type] = (counts[type] || 0) + 1;
   });
   return counts;

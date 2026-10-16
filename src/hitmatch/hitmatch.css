@@ -3356,3 +3356,90 @@
 .hm-neon-shield.is-road-case.reinforced::before {border-color:#ffd68a;box-shadow:0 0 10px rgba(255,178,77,.64),inset 0 0 0 2px rgba(121,73,24,.66);}
 .hm-neon-shield.is-road-case.reinforced b {background:linear-gradient(135deg,#ffe9b1,#f5a455);color:#482308;box-shadow:0 0 12px rgba(255,178,77,.6);}
 @media(max-width:700px){.hm-neon-shield.is-road-case::before {border-width:2px;}.hm-neon-shield.is-road-case::after {font-size:5.5px;}.hm-swap-pairs>span{font-size:11px;}.hm-swap-pairs b{min-width:21px;height:21px;}}
+
+/* HIT MATCH LAB 61–70 · nowa mechanika: pełne, niszczalne przeszkody. */
+.hm-solid-block {
+  position:absolute;
+  z-index:17;
+  width:12.5%;
+  height:12.5%;
+  padding:2px;
+  display:grid;
+  place-items:center;
+  pointer-events:none;
+}
+.hm-solid-block::before {
+  content:"";
+  position:absolute;
+  inset:3px;
+  border:2px solid #fac17a;
+  border-radius:8px;
+  background:linear-gradient(146deg,#634e44 0%,#292a38 42%,#171d2f 74%,#514030 100%);
+  box-shadow:inset 0 0 0 2px rgba(255,235,200,.13),inset 0 0 14px rgba(2,5,18,.8),0 0 8px rgba(254,168,79,.25);
+}
+.hm-solid-block i {
+  position:absolute;
+  inset:9px;
+  border:1px dashed rgba(255,201,131,.45);
+  border-radius:5px;
+  background:linear-gradient(42deg,transparent 44%,rgba(244,183,109,.25) 46%,rgba(244,183,109,.25) 51%,transparent 53%),
+             linear-gradient(-42deg,transparent 44%,rgba(244,183,109,.25) 46%,rgba(244,183,109,.25) 51%,transparent 53%);
+}
+.hm-solid-block b {
+  position:relative;
+  z-index:2;
+  min-width:22px;
+  height:22px;
+  padding:0 3px;
+  display:grid;
+  place-items:center;
+  border-radius:5px;
+  color:#24190d;
+  font:bold 13px 'Space Mono',monospace;
+  background:linear-gradient(135deg,#ffe8a7,#d9984e);
+  border:1px solid rgba(255,255,255,.45);
+  box-shadow:0 2px 7px rgba(0,0,0,.5);
+}
+.hm-solid-block.is-gate { padding:0; }
+.hm-solid-block.is-gate::before {
+  inset:0;
+  border-width:2px 1px;
+  border-radius:0;
+  border-color:#88edfa;
+  background:repeating-linear-gradient(120deg,#143b58 0 8px,#204e65 8px 12px,#0a283f 12px 22px);
+  box-shadow:inset 0 0 0 2px rgba(111,229,252,.14),inset 0 0 13px #061829;
+}
+.hm-solid-block.is-gate i {inset:7px 1px;border-radius:0;border:0;border-top:2px solid rgba(166,248,255,.47);border-bottom:2px solid rgba(166,248,255,.25);background:none;}
+.hm-solid-block.is-gate b {display:none;}
+.hm-gate-banner {
+  position:absolute;left:50%;z-index:23;transform:translate(-50%,-10%);
+  width:fit-content;max-width:95%;min-height:20px;
+  padding:3px 12px;border-radius:999px;
+  color:#c9f8ff;background:#061b2e;border:1px solid #74dff2;
+  box-shadow:0 0 12px rgba(77,211,240,.3);
+  font:800 10px 'Space Mono',monospace;letter-spacing:.08em;
+  white-space:nowrap;pointer-events:none;
+}
+.hm-gate-veil {
+  position:absolute;left:0;width:100%;z-index:12;pointer-events:none;
+  background:repeating-linear-gradient(135deg,rgba(3,6,19,.62) 0 15px,rgba(7,17,36,.65) 15px 30px);
+  border-top:2px solid rgba(97,200,226,.36);
+  display:flex;align-items:center;justify-content:center;
+}
+.hm-gate-veil b {
+  transform:rotate(-8deg);text-align:center;
+  color:rgba(177,224,234,.82);font:800 9px 'Space Mono',monospace;
+  letter-spacing:.07em;text-shadow:0 2px 6px #020918;
+}
+.hm-wall-goal{border-color:rgba(241,166,84,.28)!important;background:rgba(219,140,62,.07)!important;}
+.hm-wall-mini{display:grid;place-items:center;font-size:23px;color:#ffd192;}
+@media(max-width:700px) {
+  .hm-solid-block::before{inset:1px;border-width:1.5px;border-radius:5px;}
+  .hm-solid-block i{inset:5px;}
+  .hm-solid-block b{min-width:15px;height:15px;font-size:9px;}
+  .hm-gate-banner{min-height:16px;padding:2px 7px;font-size:7px;}
+  .hm-gate-veil b{font-size:7px;}
+}
+@media(prefers-reduced-motion:reduce) {
+  .hm-solid-block,.hm-gate-banner,.hm-gate-veil{animation:none!important;transition:none!important;}
+}

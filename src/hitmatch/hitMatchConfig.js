@@ -210,28 +210,30 @@ const fourDecks = () => ({
 });
 const roadCase = (index,hp=1) => ({index,hp,kind:"case"});
 const stageSwapLevel = (number,title,subtitle,moves,goals,deckSwap,shields,extra={}) => ({
-  id:`lab_level_${number}`,number,title,subtitle,moves,goals,deckSwap,shields,
+  id:`lab_level_${number}`,number,title,subtitle,moves,goals,deckSwap,
+  walls:shields.filter(x=>x.kind==="case").map(({index,hp})=>({index,hp})),
+  shields:shields.filter(x=>x.kind!=="case"),
   starScoreThresholds:{2:19500+(number-61)*1300,3:25500+(number-61)*1600},
   endgameMoveBonus:0,testOnly:true,noRewards:true,...extra,
 });
 const routeLabDeckSwap = [
   stageSwapLevel(61,"Pierwsza Zamiana","Dwa decki 2×2 + Road Case",15,{vinyl:12,microphone:12},pairDecks(SWAP_LAYOUTS.miniA,SWAP_LAYOUTS.miniB),[roadCase(27),roadCase(36)]),
-  stageSwapLevel(62,"Side to Side","Dwie kolumny 1×4",16,{headphones:14,note:14},pairDecks(SWAP_LAYOUTS.colsA,SWAP_LAYOUTS.colsB),[roadCase(18),roadCase(45)]),
-  stageSwapLevel(63,"Heavy Rotation","Dwa decki 4×2 + Case HP2",17,{cassette:15,speaker:15},pairDecks(SWAP_LAYOUTS.bandsA,SWAP_LAYOUTS.bandsB),[roadCase(10,2),roadCase(44,2),roadCase(28)]),
-  stageSwapLevel(64,"Split Stage","Rozdzielone boki i blokady",18,{vinyl:13,note:13},pairDecks(SWAP_LAYOUTS.sidesA,SWAP_LAYOUTS.sidesB),[roadCase(18),roadCase(45,2),roadCase(28)],{layout:{inactive:C.corners}}),
-  stageSwapLevel(65,"Cross Cargo","Ukośne pasy + Case HP2",19,{microphone:17,speaker:17},pairDecks(SWAP_LAYOUTS.diagonalA,SWAP_LAYOUTS.diagonalB),[roadCase(9,2),roadCase(54,2),roadCase(27)]),
-  stageSwapLevel(66,"Column Shift","Dwa pionowe decki 1×8",19,{headphones:18,cassette:18},pairDecks(SWAP_LAYOUTS.tallA,SWAP_LAYOUTS.tallB),[roadCase(18),roadCase(21,2),roadCase(42),roadCase(45,2)],{layout:{inactive:C.corners}}),
-  stageSwapLevel(67,"Double Trouble","Road Case + Neon Shield",20,{vinyl:15,headphones:15,speaker:15},pairDecks(SWAP_LAYOUTS.innerA,SWAP_LAYOUTS.innerB),[roadCase(18,2),roadCase(45,2),{index:27,hp:1},{index:36,hp:1}]),
-  stageSwapLevel(68,"Four Stations","Cztery decki 2×2 parami",20,{vinyl:14,microphone:14,note:14},fourDecks(),[roadCase(18),roadCase(21),roadCase(42,2),roadCase(45,2)]),
-  stageSwapLevel(69,"Set Swap","Deck Swap + Setlist + Road Case",24,{},pairDecks(SWAP_LAYOUTS.innerA,SWAP_LAYOUTS.innerB),[roadCase(11),roadCase(52,2)],{setlist:[{label:"INTRO",kind:"collect",type:"vinyl",target:12},{label:"DROP",kind:"collect",type:"headphones",target:12},{label:"OUTRO",kind:"special",special:"line",target:1}]}),
-  stageSwapLevel(70,"Deck Swap: Finał","Dwa duże decki + Case HP2",25,{vinyl:8,microphone:8,headphones:8,cassette:8,speaker:8,note:8},pairDecks(SWAP_LAYOUTS.bandsA,SWAP_LAYOUTS.bandsB),[roadCase(18,2),roadCase(19),roadCase(44,2),roadCase(45),{index:27,hp:1},{index:36,hp:1}],{finale:true}),
+  stageSwapLevel(62,"Side to Side","Dwie kolumny i obcięte narożniki",16,{headphones:14,note:14},pairDecks(SWAP_LAYOUTS.colsA,SWAP_LAYOUTS.colsB),[roadCase(18),roadCase(45)],{layout:{inactive:C.deepCorners}}),
+  stageSwapLevel(63,"Sound Gate","Pełna brama pośrodku planszy",22,{cassette:14,speaker:14},pairDecks(SWAP_LAYOUTS.quadA,SWAP_LAYOUTS.quadB),[roadCase(10,2),roadCase(44,2)],{layout:{inactive:C.corners},gate:{indices:rectIndices(3,3,0,7),hp:2}}),
+  stageSwapLevel(64,"Hourglass","Plansza klepsydra z pustymi bokami",19,{vinyl:13,note:13},pairDecks(SWAP_LAYOUTS.innerA,SWAP_LAYOUTS.innerB),[roadCase(18),roadCase(45,2),roadCase(28)],{layout:{inactive:C.hourglass}}),
+  stageSwapLevel(65,"Cross Cargo","Ukośne pasy + Case HP2",19,{microphone:17,speaker:17},pairDecks(SWAP_LAYOUTS.diagonalA,SWAP_LAYOUTS.diagonalB),[roadCase(9,2),roadCase(54,2),roadCase(27)],{layout:{inactive:C.sideNotches}}),
+  stageSwapLevel(66,"Column Shift","Dwa pionowe decki i brama",23,{headphones:18,cassette:18},pairDecks(SWAP_LAYOUTS.tallA,SWAP_LAYOUTS.tallB),[roadCase(18),roadCase(21,2),roadCase(42),roadCase(45,2)],{layout:{inactive:C.corners},gate:{indices:rectIndices(4,4,0,7),hp:2}}),
+  stageSwapLevel(67,"Double Trouble","Klepsydra, solidne skrzynie i Shield",22,{vinyl:15,headphones:15,speaker:15},pairDecks(SWAP_LAYOUTS.innerA,SWAP_LAYOUTS.innerB),[roadCase(18,2),roadCase(45,2),{index:27,hp:1},{index:36,hp:1}],{layout:{inactive:C.hourglass}}),
+  stageSwapLevel(68,"Four Stations","Cztery wyspy decków",21,{vinyl:14,microphone:14,note:14},fourDecks(),[roadCase(18),roadCase(21),roadCase(42,2),roadCase(45,2)],{layout:{inactive:C.hourglass}}),
+  stageSwapLevel(69,"Set Swap","Wcięta plansza + Setlist + blokady",26,{},pairDecks(SWAP_LAYOUTS.innerA,SWAP_LAYOUTS.innerB),[roadCase(11),roadCase(52,2)],{layout:{inactive:C.sideNotches},setlist:[{label:"INTRO",kind:"collect",type:"vinyl",target:12},{label:"DROP",kind:"collect",type:"headphones",target:12},{label:"OUTRO",kind:"special",special:"line",target:1}]}),
+  stageSwapLevel(70,"Deck Swap: Finał","Klepsydra i pełna ściana",29,{vinyl:8,microphone:8,headphones:8,cassette:8,speaker:8,note:8},pairDecks(SWAP_LAYOUTS.bandsA,SWAP_LAYOUTS.bandsB),[roadCase(18,2),roadCase(19),roadCase(44,2),roadCase(45)],{layout:{inactive:C.hourglass},gate:{indices:rectIndices(3,3,0,7),hp:3},finale:true}),
 ];
 
 export const HIT_MATCH_LEVELS = Object.freeze([...route1, ...route2, ...route3, ...route4, ...route5].map((level) => ({ ...level, rewardPerStar:HIT_MATCH_REWARD_PER_STAR })));
 
 export const HIT_MATCH_LAB_LEVELS = Object.freeze([...routeLabRemix,...routeLabDeckSwap].map((level) => ({ ...level, rewardPerStar:{ xp:0, hitcoin:0 } })));
 export const HIT_MATCH_LAB_STAGE = Object.freeze({ id:"lab_route_6", number:6, title:"REMIX DECKS · LAB", subtitle:"Testy 51–60", from:51, to:60, mechanic:"Stałe decki · jednoczesny flip symboli", testOnly:true });
-export const HIT_MATCH_SWAP_LAB_STAGE = Object.freeze({ id:"lab_route_7", number:7, title:"DECK SWAP · LAB", subtitle:"Testy 61–70", from:61, to:70, mechanic:"Zamiana zawartości decków + Road Case", testOnly:true });
+export const HIT_MATCH_SWAP_LAB_STAGE = Object.freeze({ id:"lab_route_7", number:7, title:"DECK SWAP · LAB", subtitle:"Testy 61–70", from:61, to:70, mechanic:"Zamiana zawartości + Sound Gate i solidne bloki", testOnly:true });
 
 export const HIT_MATCH_STAGES = Object.freeze([
   { id:"route_1", number:1, title:"NEONOWA SCENA", subtitle:"Poziomy 1–10", from:1, to:10, mechanic:"Klasyczna plansza" },
@@ -262,6 +264,13 @@ export function countShieldHp(shields = {}) {
 
 export function countShieldCells(shields = {}) {
   return Object.values(shields || {}).filter((hp) => Number(hp || 0) > 0).length;
+}
+
+export function createWallState(level) {
+  return Object.fromEntries([...(level?.walls||[]),...(level?.gate?.indices||[]).map((index)=>({index,hp:level.gate.hp||1}))].map(({index,hp=1})=>[Number(index),Math.max(1,Number(hp))]));
+}
+export function countWallCells(walls={}) {
+  return Object.values(walls||{}).filter((hp)=>Number(hp)>0).length;
 }
 
 export function createMysteryState(level) {
@@ -361,6 +370,14 @@ export function validateHitMatchLevelDefinitions(levels = HIT_MATCH_LEVELS) {
       issues.push(`Level ${level.number}: mysteryGoal nie zgadza się z liczbą Mystery Tracków`);
     }
 
+    const solidSeen=new Set();
+    for (const solid of [...(level.walls||[]),...(level.gate?.indices||[]).map((index)=>({index,hp:level.gate.hp}))]) {
+      const idx=Number(solid.index);
+      if (!Number.isInteger(idx)||idx<0||idx>=64||inactive.has(idx)) issues.push(`Level ${level.number}: ściana na nieaktywnym polu ${idx}`);
+      if (solidSeen.has(idx)||shieldSet.has(idx)) issues.push(`Level ${level.number}: nachodzące blokady w ${idx}`);
+      if (!(Number(solid.hp)>0)) issues.push(`Level ${level.number}: błędne HP ściany ${idx}`);
+      solidSeen.add(idx);
+    }
     if (level.deckSwap) {
       const decks = new Map((level.deckSwap.zones || []).map((zone) => [zone.id,zone.indices || []]));
       const occupied = new Set();
@@ -388,10 +405,11 @@ export function isHitMatchLevelCompleted(level, stats = {}) {
   const collectOk = Object.entries(level?.goals || {}).every(([type, target]) => Number(collected[type] || 0) >= Number(target || 0));
   const scoreOk = !level?.scoreGoal || Number(stats.score || 0) >= Number(level.scoreGoal || 0);
   const shieldsOk = !(level?.shields || []).length || Number(stats.shieldsRemaining || 0) <= 0;
+  const wallsOk = (!(level?.walls || []).length && !level?.gate) || Number(stats.wallsRemaining || 0) <= 0;
   const deliveryOk = !(level?.deliveries || []).length || Number(stats.delivered || 0) >= Number(level.deliveryGoal || level.deliveries.length);
   const setlistOk = !(level?.setlist || []).length || Number(stats.setlistStep || 0) >= Number(level.setlist.length);
   const mysteryOk = !(level?.mysteries || []).length || Number(stats.mysteryRemaining || 0) <= 0;
-  return collectOk && scoreOk && shieldsOk && deliveryOk && setlistOk && mysteryOk;
+  return collectOk && scoreOk && shieldsOk && wallsOk && deliveryOk && setlistOk && mysteryOk;
 }
 
 export function starsForHitMatchLevel(level, score, completed) {
