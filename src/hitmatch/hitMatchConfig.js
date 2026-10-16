@@ -40,36 +40,33 @@ const REMIX_PAIR_MAP = Object.freeze({
   speaker:"cassette",
 });
 
-const remixZone = (id, label, frames, extra = {}) => ({
+// REMIX DECKS: geometria jest stała w obrębie levelu, zmieniają się WYŁĄCZNIE symbole.
+const remixZone = (id, label, indices, extra = {}) => ({
   id,
   label,
   every:1,
-  frames,
-  indices:frames[0],
+  indices,
   ...extra,
 });
 
-const REMIX_FRAMES = Object.freeze({
-  block4: [
-    rectIndices(0,3,0,3),
-    rectIndices(0,3,4,7),
-    rectIndices(4,7,4,7),
-    rectIndices(4,7,0,3),
-  ],
-  row1: [0,2,4,6].map((row) => rectIndices(row,row,0,7)),
-  col1: [0,2,4,6].map((col) => rectIndices(0,7,col,col)),
-  bandH2: [rectIndices(0,1,0,7),rectIndices(3,4,0,7),rectIndices(6,7,0,7)],
-  bandV2: [rectIndices(0,7,0,1),rectIndices(0,7,3,4),rectIndices(0,7,6,7)],
-  block4x2A: [rectIndices(0,1,0,3),rectIndices(2,3,4,7),rectIndices(6,7,4,7),rectIndices(4,5,0,3)],
-  block4x2B: [rectIndices(6,7,4,7),rectIndices(4,5,0,3),rectIndices(0,1,0,3),rectIndices(2,3,4,7)],
-  block2x4A: [rectIndices(0,3,1,2),rectIndices(4,7,3,4),rectIndices(0,3,5,6),rectIndices(4,7,1,2)],
-  block2x4B: [rectIndices(4,7,5,6),rectIndices(0,3,3,4),rectIndices(4,7,1,2),rectIndices(0,3,5,6)],
-  padTL: [rectIndices(0,1,0,1),rectIndices(0,1,3,4),rectIndices(3,4,3,4),rectIndices(3,4,0,1)],
-  padTR: [rectIndices(0,1,6,7),rectIndices(3,4,6,7),rectIndices(3,4,3,4),rectIndices(0,1,3,4)],
-  padBR: [rectIndices(6,7,6,7),rectIndices(6,7,3,4),rectIndices(3,4,3,4),rectIndices(3,4,6,7)],
-  padBL: [rectIndices(6,7,0,1),rectIndices(3,4,0,1),rectIndices(3,4,3,4),rectIndices(6,7,3,4)],
-  crossRow: [1,3,5,6].map((row) => rectIndices(row,row,0,7)),
-  crossCol: [6,4,2,1].map((col) => rectIndices(0,7,col,col)),
+const REMIX_LAYOUTS = Object.freeze({
+  center4:rectIndices(2,5,2,5),
+  row1:rectIndices(3,3,0,7),
+  col1:rectIndices(0,7,4,4),
+  bandH2:rectIndices(3,4,0,7),
+  bandV2:rectIndices(0,7,3,4),
+  diagonalA:rectIndices(1,2,0,3),
+  diagonalB:rectIndices(5,6,4,7),
+  sideA:rectIndices(2,5,0,1),
+  sideB:rectIndices(2,5,6,7),
+  padTL:rectIndices(0,1,0,1),
+  padTR:rectIndices(0,1,6,7),
+  padBR:rectIndices(6,7,6,7),
+  padBL:rectIndices(6,7,0,1),
+  crossRow:rectIndices(3,3,0,7),
+  crossCol:rectIndices(0,7,4,4),
+  finaleTop:rectIndices(0,1,0,7),
+  finaleBottom:rectIndices(6,7,0,7),
 });
 
 // Poziomy 11–20: Shield blokuje RUCH kafla, ale nie jego udział w matchu.
@@ -181,22 +178,22 @@ const route5 = [
 // LAB 51–60 — REMIX DECKS. Poziomy wyłącznie do panelu admina.
 // Nie są częścią publicznego progresu, rankingu ani systemu nagród.
 const routeLabRemix = [
-  { id:"lab_level_51", number:51, title:"Remix 101", subtitle:"Ruchomy deck 4×4", moves:10, goals:{ vinyl:10, microphone:10 }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[remixZone("A","DECK A",REMIX_FRAMES.block4)] }, starScoreThresholds:{2:17000,3:23000}, endgameMoveBonus:0, testOnly:true, noRewards:true },
-  { id:"lab_level_52", number:52, title:"Wave Rider", subtitle:"Pas 8×1 przesuwa się w dół", moves:11, goals:{ headphones:11, note:11 }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[remixZone("A","DECK A · 8×1",REMIX_FRAMES.row1)] }, shields:[{index:18,hp:1},{index:21,hp:1},{index:42,hp:1},{index:45,hp:1}], starScoreThresholds:{2:19500,3:25500}, endgameMoveBonus:0, testOnly:true, noRewards:true },
-  { id:"lab_level_53", number:53, title:"Vertical Mix", subtitle:"Kolumna 1×8 przesuwa się w bok", moves:12, goals:{ cassette:11, speaker:11 }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[remixZone("A","DECK A · 1×8",REMIX_FRAMES.col1)] }, starScoreThresholds:{2:20000,3:26500}, endgameMoveBonus:0, testOnly:true, noRewards:true },
-  { id:"lab_level_54", number:54, title:"Wide Band", subtitle:"Ruchomy pas 8×2", moves:12, goals:{ vinyl:9, headphones:9, cassette:9 }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[remixZone("A","DECK A · 8×2",REMIX_FRAMES.bandH2)] }, starScoreThresholds:{2:21500,3:28000}, endgameMoveBonus:0, testOnly:true, noRewards:true },
-  { id:"lab_level_55", number:55, title:"Sidechain", subtitle:"Ruchomy pas 2×8 + Shield", moves:12, goals:{ microphone:9, note:9, speaker:9 }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[remixZone("A","DECK A · 2×8",REMIX_FRAMES.bandV2)] }, shields:[{index:9,hp:1},{index:18,hp:1},{index:45,hp:1},{index:54,hp:1}], starScoreThresholds:{2:22500,3:29000}, endgameMoveBonus:0, testOnly:true, noRewards:true },
-  { id:"lab_level_56", number:56, title:"Dual Slide", subtitle:"Dwa ruchome decki 4×2", moves:13, goals:{ vinyl:11, speaker:11 }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[remixZone("A","DECK A · 4×2",REMIX_FRAMES.block4x2A),remixZone("B","DECK B · 4×2",REMIX_FRAMES.block4x2B)] }, shields:[{index:27,hp:2},{index:28,hp:2},{index:35,hp:2},{index:36,hp:2}], starScoreThresholds:{2:23500,3:30500}, endgameMoveBonus:0, testOnly:true, noRewards:true },
-  { id:"lab_level_57", number:57, title:"Split Set", subtitle:"Dwa decki 2×4 + Setlist", moves:13, goals:{}, remix:{ pairMap:REMIX_PAIR_MAP, zones:[remixZone("A","DECK A · 2×4",REMIX_FRAMES.block2x4A),remixZone("B","DECK B · 2×4",REMIX_FRAMES.block2x4B)] }, setlist:[{label:"INTRO",kind:"collect",type:"vinyl",target:9},{label:"DROP",kind:"collect",type:"headphones",target:9},{label:"OUTRO",kind:"special",special:"line",target:1}], starScoreThresholds:{2:24500,3:31500}, endgameMoveBonus:0, testOnly:true, noRewards:true },
-  { id:"lab_level_58", number:58, title:"Four Pads", subtitle:"Cztery ruchome pola 2×2", moves:13, goals:{ note:10 }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[remixZone("A","PAD A",REMIX_FRAMES.padTL),remixZone("B","PAD B",REMIX_FRAMES.padTR),remixZone("C","PAD C",REMIX_FRAMES.padBR),remixZone("D","PAD D",REMIX_FRAMES.padBL)] }, mysteries:[{index:18},{index:45},{index:53}], mysteryGoal:3, starScoreThresholds:{2:25000,3:32000}, endgameMoveBonus:0, testOnly:true, noRewards:true },
-  { id:"lab_level_59", number:59, title:"Cross Mix", subtitle:"Ruchomy krzyż 8×1 + 1×8", moves:14, goals:{ vinyl:8, microphone:8, headphones:8, note:8 }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[remixZone("A","HORIZONTAL · 8×1",REMIX_FRAMES.crossRow),remixZone("B","VERTICAL · 1×8",REMIX_FRAMES.crossCol)] }, starScoreThresholds:{2:26500,3:34000}, endgameMoveBonus:0, testOnly:true, noRewards:true },
-  { id:"lab_level_60", number:60, title:"Crossfader: Finał", subtitle:"Ruchome pasy A ↔ B", moves:15, goals:{ vinyl:5, microphone:5, headphones:5, cassette:5, speaker:5, note:5 }, remix:{ pairMap:REMIX_PAIR_MAP, crossfade:true, zones:[remixZone("A","DECK A · 8×2",REMIX_FRAMES.bandH2),remixZone("B","DECK B · 2×8",REMIX_FRAMES.bandV2)] }, shields:[{index:18,hp:1},{index:26,hp:1},{index:45,hp:1},{index:53,hp:1}], starScoreThresholds:{2:28500,3:36000}, endgameMoveBonus:0, testOnly:true, noRewards:true, finale:true },
+  { id:"lab_level_51", number:51, title:"Remix 101", subtitle:"Centralny deck 4×4", moves:10, goals:{ vinyl:10, microphone:10 }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[remixZone("A","DECK A · 4×4",REMIX_LAYOUTS.center4)] }, starScoreThresholds:{2:17000,3:23000}, endgameMoveBonus:0, testOnly:true, noRewards:true },
+  { id:"lab_level_52", number:52, title:"Wave Rider", subtitle:"Stały poziomy pas 8×1", moves:11, goals:{ headphones:11, note:11 }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[remixZone("A","DECK A · 8×1",REMIX_LAYOUTS.row1)] }, shields:[{index:18,hp:1},{index:21,hp:1},{index:42,hp:1},{index:45,hp:1}], starScoreThresholds:{2:19500,3:25500}, endgameMoveBonus:0, testOnly:true, noRewards:true },
+  { id:"lab_level_53", number:53, title:"Vertical Mix", subtitle:"Stała pionowa kolumna 1×8", moves:12, goals:{ cassette:11, speaker:11 }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[remixZone("A","DECK A · 1×8",REMIX_LAYOUTS.col1)] }, starScoreThresholds:{2:20000,3:26500}, endgameMoveBonus:0, testOnly:true, noRewards:true },
+  { id:"lab_level_54", number:54, title:"Wide Band", subtitle:"Środkowy poziomy pas 8×2", moves:12, goals:{ vinyl:9, headphones:9, cassette:9 }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[remixZone("A","DECK A · 8×2",REMIX_LAYOUTS.bandH2)] }, starScoreThresholds:{2:21500,3:28000}, endgameMoveBonus:0, testOnly:true, noRewards:true },
+  { id:"lab_level_55", number:55, title:"Sidechain", subtitle:"Środkowy pionowy pas 2×8 + Shield", moves:12, goals:{ microphone:9, note:9, speaker:9 }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[remixZone("A","DECK A · 2×8",REMIX_LAYOUTS.bandV2)] }, shields:[{index:9,hp:1},{index:18,hp:1},{index:45,hp:1},{index:54,hp:1}], starScoreThresholds:{2:22500,3:29000}, endgameMoveBonus:0, testOnly:true, noRewards:true },
+  { id:"lab_level_56", number:56, title:"Dual Slide", subtitle:"Dwa stałe decki 4×2 po przekątnej", moves:13, goals:{ vinyl:11, speaker:11 }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[remixZone("A","DECK A · 4×2",REMIX_LAYOUTS.diagonalA),remixZone("B","DECK B · 4×2",REMIX_LAYOUTS.diagonalB)] }, shields:[{index:27,hp:2},{index:28,hp:2},{index:35,hp:2},{index:36,hp:2}], starScoreThresholds:{2:23500,3:30500}, endgameMoveBonus:0, testOnly:true, noRewards:true },
+  { id:"lab_level_57", number:57, title:"Split Set", subtitle:"Dwa stałe decki 2×4 po bokach + Setlist", moves:13, goals:{}, remix:{ pairMap:REMIX_PAIR_MAP, zones:[remixZone("A","DECK A · 2×4",REMIX_LAYOUTS.sideA),remixZone("B","DECK B · 2×4",REMIX_LAYOUTS.sideB)] }, setlist:[{label:"INTRO",kind:"collect",type:"vinyl",target:9},{label:"DROP",kind:"collect",type:"headphones",target:9},{label:"OUTRO",kind:"special",special:"line",target:1}], starScoreThresholds:{2:24500,3:31500}, endgameMoveBonus:0, testOnly:true, noRewards:true },
+  { id:"lab_level_58", number:58, title:"Four Pads", subtitle:"Cztery stałe narożne pola 2×2", moves:13, goals:{ note:10 }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[remixZone("A","PAD A · 2×2",REMIX_LAYOUTS.padTL),remixZone("B","PAD B · 2×2",REMIX_LAYOUTS.padTR),remixZone("C","PAD C · 2×2",REMIX_LAYOUTS.padBR),remixZone("D","PAD D · 2×2",REMIX_LAYOUTS.padBL)] }, mysteries:[{index:18},{index:45},{index:53}], mysteryGoal:3, starScoreThresholds:{2:25000,3:32000}, endgameMoveBonus:0, testOnly:true, noRewards:true },
+  { id:"lab_level_59", number:59, title:"Cross Mix", subtitle:"Stały krzyż 8×1 + 1×8", moves:14, goals:{ vinyl:8, microphone:8, headphones:8, note:8 }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[remixZone("A","HORIZONTAL · 8×1",REMIX_LAYOUTS.crossRow),remixZone("B","VERTICAL · 1×8",REMIX_LAYOUTS.crossCol)] }, starScoreThresholds:{2:26500,3:34000}, endgameMoveBonus:0, testOnly:true, noRewards:true },
+  { id:"lab_level_60", number:60, title:"Crossfader: Finał", subtitle:"Stałe pasy u góry i na dole · flip A ↔ B", moves:15, goals:{ vinyl:5, microphone:5, headphones:5, cassette:5, speaker:5, note:5 }, remix:{ pairMap:REMIX_PAIR_MAP, crossfade:true, zones:[remixZone("A","DECK A · GÓRA 8×2",REMIX_LAYOUTS.finaleTop),remixZone("B","DECK B · DÓŁ 8×2",REMIX_LAYOUTS.finaleBottom)] }, shields:[{index:18,hp:1},{index:26,hp:1},{index:45,hp:1},{index:53,hp:1}], starScoreThresholds:{2:28500,3:36000}, endgameMoveBonus:0, testOnly:true, noRewards:true, finale:true },
 ]
 
 export const HIT_MATCH_LEVELS = Object.freeze([...route1, ...route2, ...route3, ...route4, ...route5].map((level) => ({ ...level, rewardPerStar:HIT_MATCH_REWARD_PER_STAR })));
 
 export const HIT_MATCH_LAB_LEVELS = Object.freeze(routeLabRemix.map((level) => ({ ...level, rewardPerStar:{ xp:0, hitcoin:0 } })));
-export const HIT_MATCH_LAB_STAGE = Object.freeze({ id:"lab_route_6", number:6, title:"REMIX DECKS · LAB", subtitle:"Testy 51–60", from:51, to:60, mechanic:"Flipujące decki + Crossfader", testOnly:true });
+export const HIT_MATCH_LAB_STAGE = Object.freeze({ id:"lab_route_6", number:6, title:"REMIX DECKS · LAB", subtitle:"Testy 51–60", from:51, to:60, mechanic:"Stałe decki · flip symboli + Crossfader", testOnly:true });
 
 export const HIT_MATCH_STAGES = Object.freeze([
   { id:"route_1", number:1, title:"NEONOWA SCENA", subtitle:"Poziomy 1–10", from:1, to:10, mechanic:"Klasyczna plansza" },

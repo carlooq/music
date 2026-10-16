@@ -2955,10 +2955,10 @@
   box-shadow:0 0 10px rgba(0,0,0,.28);
 }
 .hm-remix-zone.zone-b>b { color:#b9f3ff;border-color:rgba(91,226,255,.17); }
-.hm-remix-zone.muted { opacity:.28; filter:saturate(.55); }
+.hm-remix-zone.muted { opacity:.62; filter:saturate(.8); }
 .hm-remix-zone.active {
   opacity:.9;
-  animation:hmRemixZonePulse 1.15s ease-in-out infinite alternate;
+  /* Stałe strefy: bez animowania obwódki decku. */
 }
 @keyframes hmRemixZonePulse {
   from { box-shadow:inset 0 0 17px rgba(124,83,255,.025),0 0 8px rgba(133,90,255,.05); }
@@ -3188,7 +3188,7 @@
 }
 
 
-/* ===== REMIX DECKS — MOVING ZONES ===== */
+/* ===== REMIX DECKS — STATIC ZONES ===== */
 .hm-remix-zone {
   z-index:6;
   border-width:2.5px;
@@ -3198,12 +3198,8 @@
     inset 0 0 0 1px rgba(255,255,255,.055),
     inset 0 0 30px rgba(132,82,255,.11),
     0 0 18px rgba(132,82,255,.20);
-  transition:
-    left .38s cubic-bezier(.2,.82,.2,1),
-    top .38s cubic-bezier(.2,.82,.2,1),
-    width .38s cubic-bezier(.2,.82,.2,1),
-    height .38s cubic-bezier(.2,.82,.2,1),
-    opacity .18s ease;
+  /* Pozycja i rozmiar strefy są niezmienne w trakcie rozgrywki. */
+  transition:none;
 }
 .hm-remix-zone.zone-a {
   border-color:rgba(170,111,255,.88);

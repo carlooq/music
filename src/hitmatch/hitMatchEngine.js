@@ -54,19 +54,9 @@ export function swapBoardCells(board, a, b) {
   return next;
 }
 
-export function resolveRemixZone(zone, turn = 1) {
-  const safeTurn = Math.max(1, Number(turn || 1));
-  const frames = Array.isArray(zone?.frames) && zone.frames.length
-    ? zone.frames
-    : [zone?.indices || []];
-  const frameOffset = Math.max(0, Number(zone?.frameOffset || 0));
-  const frameIndex = (safeTurn - 1 + frameOffset) % frames.length;
-  return {
-    ...zone,
-    indices:(frames[frameIndex] || []).map(Number),
-    frameIndex,
-    frameCount:frames.length,
-  };
+export function resolveRemixZone(zone) {
+  // Pozycje decków są zakotwiczone na planszy; numer ruchu nie zmienia geometrii.
+  return { ...zone, indices:(zone?.indices || []).map(Number) };
 }
 
 export function getRemixZonesForTurn(remix, turn = 0) {
@@ -83,7 +73,11 @@ export function getRemixZonesForTurn(remix, turn = 0) {
 }
 
 export function applyRemixFlip(board, remix, turn = 0) {
-  const zones = getRemixZonesForTurn(remix, turn);
+  const scheduledZones = getRemixZonesForTurn(remix, turn);
+  // Crossfader zmienia po ruchu tylko jeden naprzemiennie aktywny deck.
+  // W pozostałych levelach wszystkie oznaczone decki flipują jednocześnie.
+  const activeCrossfade = remix?.crossfade ? getCrossfadeZone(remix, Math.max(0, Number(turn || 0) - 1)) : null;
+  const zones = activeCrossfade ? scheduledZones.filter((zone) => zone.id === activeCrossfade.id) : scheduledZones;
   if (!zones.length) return { board:board.slice(), flippedIndices:[], zones:[] };
 
   const pairMap = remix?.pairMap || {};

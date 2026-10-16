@@ -560,8 +560,8 @@ function RemixStatus({ level, lastFlip = null }) {
           return (
             <div key={zone.id} className={`hm-remix-deck-chip ${active ? "active" : "muted"}`}>
               <strong>{zone.label || zone.id}</strong>
-              <span>FLIP PO TYM RUCHU · {metrics?.shape || "STREFA"}</span>
-              <small>{zone.frameCount > 1 ? `POZYCJA ${zone.frameIndex + 1}/${zone.frameCount} · PO FLIPIE DECK SIĘ PRZESUNIE` : "STAŁA STREFA"}</small>
+              <span>{active ? "FLIP PO TYM RUCHU" : "OCZEKUJE NA SWÓJ RUCH"} · {metrics?.shape || "STREFA"}</span>
+              <small>STAŁA POZYCJA NA PLANSZY</small>
               {remix.crossfade ? <small>{active ? "CROSSFADER · TEN DECK JEST AKTYWNY" : "CZEKA NA SWOJĄ KOLEJ"}</small> : null}
             </div>
           );
@@ -960,14 +960,13 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     const remixConfig = labMode
       ? { ...LEVEL.remix, zones:(LEVEL.remix.zones || []).map((zone) => ({ ...zone, every:1, offset:0 })) }
       : LEVEL.remix;
-    const scheduled = getRemixZonesForTurn(remixConfig, moveId);
     const result = applyRemixFlip(boardAfterResolve, remixConfig, moveId);
 
     // Konsumujemy ID ruchu nawet przy awaryjnym braku zmienionych kafli,
     // dzięki czemu jedna kaskada nigdy nie wywoła dwóch FLIP-ów.
     remixAppliedMoveIdRef.current = moveId;
 
-    const labels = (scheduled.length ? scheduled : remixConfig.zones || [])
+    const labels = (result.zones.length ? result.zones : remixConfig.zones || [])
       .map((zone) => zone.label || zone.id || "DECK")
       .join(" + ");
     if (!result.flippedIndices.length) {
@@ -1413,16 +1412,6 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       setSelected(null);
       return;
     }
-    if (LEVEL.remix?.crossfade) {
-      const activeDeck = getCrossfadeZone(LEVEL.remix, Number(statsRef.current.remixTurn || 0));
-      const activeSet = new Set((activeDeck?.indices || []).map(Number));
-      if (!activeSet.has(a) || !activeSet.has(b)) {
-        playWrongSound();
-        flashBanner("CROSSFADER", `Teraz gra ${activeDeck?.label || "aktywny deck"}`, "violet", 900);
-        setSelected(null);
-        return;
-      }
-    }
     unlockAudio();
     mysteryAttemptedThisMoveRef.current = false;
     setSelected(null);
@@ -1729,7 +1718,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       <main className="hm-layout">
         <section className="hm-stage-panel">
           <div className="hm-stage-heading">
-            <div><span>{currentStage.title} · POZIOM {LEVEL.number}</span><h2>{LEVEL.title.toUpperCase()}</h2><p>{labMode ? "Test REMIX DECKS: po ruchu deck może zmienić symbole i sam uruchomić kolejną kaskadę." : currentStage.number === 5 ? "Aktywuj Mystery Track matchem i odblokuj go poprawną odpowiedzią." : currentStage.number === 4 ? "Realizuj kolejne tracki setlisty — cele nie liczą się na zapas." : currentStage.number === 3 ? "Sprowadź Drop Mic na dół planszy i kontroluj przepływ." : currentStage.number === 2 ? "Nowe układy planszy i Neon Shield." : "Łącz muzyczne symbole i buduj kaskady."}</p></div>
+            <div><span>{currentStage.title} · POZIOM {LEVEL.number}</span><h2>{LEVEL.title.toUpperCase()}</h2><p>{labMode ? "Test REMIX DECKS: nieruchome strefy zamieniają symbole po ruchu i mogą uruchomić kolejną kaskadę." : currentStage.number === 5 ? "Aktywuj Mystery Track matchem i odblokuj go poprawną odpowiedzią." : currentStage.number === 4 ? "Realizuj kolejne tracki setlisty — cele nie liczą się na zapas." : currentStage.number === 3 ? "Sprowadź Drop Mic na dół planszy i kontroluj przepływ." : currentStage.number === 2 ? "Nowe układy planszy i Neon Shield." : "Łącz muzyczne symbole i buduj kaskady."}</p></div>
             <div className="hm-stage-score-block">
               {labMode ? <><span className="hm-lab-badge">LAB</span><small>NAGRODY I ZAPIS WYŁĄCZONE</small></> : <><Stars count={previousStars} size={20} /><small>TWÓJ REKORD GWIAZDEK</small></>}
               <div className="hm-stage-progress"><strong>{progressPct}%</strong><span><i style={{ width: `${progressPct}%` }} /></span></div>
@@ -1906,7 +1895,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
               <div className="moves"><Move size={26} /><strong>{LEVEL.moves}</strong><span>ruchów</span></div>
             </div>
             {labMode ? <div className="hm-lab-intro-warning"><b>LAB</b><span>Ten level nie zapisuje gwiazdek, XP, HITCOIN ani rankingu.</span></div> : <div className="hm-intro-stars"><span><b>★</b> ukończenie</span><span><b>★★</b> {LEVEL.starScoreThresholds[2].toLocaleString("pl-PL")} pkt</span><span><b>★★★</b> {LEVEL.starScoreThresholds[3].toLocaleString("pl-PL")} pkt</span></div>}
-            {LEVEL.remix ? <div className="hm-stage2-intro-note hm-remix-intro-note"><span>↻</span><p><strong>REMIX DECKS</strong><small>Po zaakceptowanym ruchu aktywny deck FLIPUJE symbole: winyl↔mikrofon, słuchawki↔nuty, kaseta↔głośnik. Flip może sam stworzyć match i kaskadę.{LEVEL.remix.crossfade ? " W finale CROSSFADER pozwala ruszać tylko na aktualnie aktywnym decku." : ""}</small></p></div> : null}
+            {LEVEL.remix ? <div className="hm-stage2-intro-note hm-remix-intro-note"><span>↻</span><p><strong>REMIX DECKS</strong><small>Po zaakceptowanym ruchu aktywny deck FLIPUJE symbole: winyl↔mikrofon, słuchawki↔nuty, kaseta↔głośnik. Flip może sam stworzyć match i kaskadę. Pozycje decków nigdy się nie zmieniają.{LEVEL.remix.crossfade ? " W finale CROSSFADER naprzemiennie flipuje górny i dolny deck; ruchy wykonujesz na całej planszy." : ""}</small></p></div> : null}
             {(LEVEL.setlist || []).length ? <div className="hm-stage2-intro-note hm-setlist-intro-note"><span>♪</span><p><strong>SETLIST</strong><small>Wykonuj cele dokładnie w pokazanej kolejności. Po ukończeniu tracku od razu aktywuje się następny; nic nie nalicza się wcześniej na zapas.</small></p></div> : null}
             {mysteryTotal ? <div className="hm-stage2-intro-note hm-mystery-intro-note"><span>?</span><p><strong>MYSTERY TRACK</strong><small>Zrób match lub odpal efekt na kaflu albo obok niego. Odpowiedz poprawnie w muzycznym quizie, aby usunąć kafel. Błąd zostawia go na miejscu.</small></p></div> : null}
             {deliveryTarget ? <div className="hm-stage2-intro-note hm-delivery-intro-note"><span>↓</span><p><strong>DROP THE MIC</strong><small>Specjalnego mikrofonu nie można przesuwać ani matchować. Usuwaj kafle pod nim — gdy wejdzie w jedno z dwóch dolnych pól oznaczonych EXIT, zostaje dostarczony.</small></p></div> : null}
@@ -1990,7 +1979,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
             {deliveryTarget ? <div className="hm-help-power hm-help-delivery"><span className="hm-delivery-mini">↓</span><span><strong>DROP THE MIC</strong><small>Mikrofon nie tworzy matchy i nie można nim ruszać. Czyść pola pod nim; dwa dolne aktywne pola kolumny tworzą strefę EXIT.</small></span></div> : null}
             {(LEVEL.setlist || []).length ? <div className="hm-help-power hm-help-setlist"><span className="hm-setlist-mini">♪</span><span><strong>SETLIST</strong><small>Realizuj aktywny track. Dopiero po jego ukończeniu zaczyna naliczać się kolejny cel.</small></span></div> : null}
             {mysteryTotal ? <div className="hm-help-power hm-help-mystery"><span className="hm-mystery-mini">?</span><span><strong>MYSTERY TRACK</strong><small>Match/efekt obok aktywuje quiz. Dobra odpowiedź usuwa kafel, zła pozostawia go nieruchomo na planszy. Maksymalnie jeden quiz na ruch.</small></span></div> : null}
-            {LEVEL.remix ? <div className="hm-help-power hm-help-remix"><span className="hm-remix-mini">↻</span><span><strong>REMIX DECKS</strong><small>Po ruchu aktywne decki zamieniają pary symboli. Powstały w ten sposób match odpala się automatycznie. Przy CROSSFADERZE ruch wykonujesz tylko na aktywnym decku.</small></span></div> : null}
+            {LEVEL.remix ? <div className="hm-help-power hm-help-remix"><span className="hm-remix-mini">↻</span><span><strong>REMIX DECKS</strong><small>Po ruchu decki zamieniają pary symboli bez przesuwania stref. Powstały match odpala się automatycznie. Przy CROSSFADERZE naprzemiennie flipuje górny i dolny deck; ruchy są możliwe na całej planszy.</small></span></div> : null}
             <button type="button" className="hm-primary" onClick={() => setShowHelp(false)}>ROZUMIEM</button>
           </div>
         </div>
@@ -2035,7 +2024,7 @@ function HitMatchLabHub({ onBack }) {
           <div className="hm-hub-hero-copy">
             <span className="hm-hub-kicker">REMIX DECKS · PROTOTYP 51–60</span>
             <h2>TESTUJ <b>NOWĄ MECHANIKĘ</b></h2>
-            <p>Po każdym zaakceptowanym ruchu decki mogą zmienić symbole. Flip jest deterministyczny i może sam utworzyć match. Wszystkie poziomy są dostępne od razu.</p>
+            <p>W każdym levelu decki mają inny, stały układ. Po zaakceptowanym ruchu zmieniają się symbole, a nie położenie stref. Flip może utworzyć match. Poziomy 51–60 są dostępne od razu.</p>
             <div className="hm-lab-warning"><Zap size={17} /><span><strong>NAGRODY WYŁĄCZONE</strong><small>Brak zapisu gwiazdek, XP, HITCOIN i rankingów.</small></span></div>
           </div>
           <div className="hm-lab-legend">
@@ -2052,7 +2041,7 @@ function HitMatchLabHub({ onBack }) {
           </div>
           <div className="hm-stage-group stage-6 open">
             <div className="hm-stage-group-heading">
-              <div><span>POZIOMY 51–60</span><h4>REMIX DECKS</h4><small>Flipujące symbole · dwa decki · Crossfader</small></div>
+              <div><span>POZIOMY 51–60</span><h4>REMIX DECKS</h4><small>Stałe strefy · flip symboli · Crossfader</small></div>
               <div className="hm-stage-group-meta"><b>TEST BUILD</b><span>Bez wpływu na publiczny HIT MATCH</span></div>
             </div>
             <div className="hm-level-grid">
