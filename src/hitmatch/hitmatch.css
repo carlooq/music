@@ -2964,7 +2964,7 @@
   from { box-shadow:inset 0 0 17px rgba(124,83,255,.025),0 0 8px rgba(133,90,255,.05); }
   to { box-shadow:inset 0 0 24px rgba(124,83,255,.06),0 0 20px rgba(133,90,255,.14); }
 }
-.hm-motion-remix .hm-piece img {
+.hm-motion-remix .hm-piece.is-remix-flipped img {
   animation:hmRemixFlip .34s cubic-bezier(.2,.75,.2,1);
 }
 @keyframes hmRemixFlip {
@@ -3113,7 +3113,7 @@
 }
 @media (prefers-reduced-motion:reduce) {
   .hm-remix-zone.active,
-  .hm-motion-remix .hm-piece img { animation:none!important; }
+  .hm-motion-remix .hm-piece.is-remix-flipped img { animation:none!important; }
 }
 
 

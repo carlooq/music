@@ -23,8 +23,6 @@ import {
   expandSpecialEffects,
   findMatches,
   getDeliveryExitIndices,
-  getCrossfadeZone,
-  getRemixZonesForTurn,
   hasPossibleMove,
   removeIndices,
   resolveColorSwap,
@@ -540,47 +538,6 @@ function remixZoneMetrics(zone) {
   };
 }
 
-function RemixStatus({ level, lastFlip = null }) {
-  const remix = level?.remix;
-  if (!remix?.zones?.length) return null;
-  const completedFlips = Number(lastFlip?.moveId || 0);
-  const nextTurn = completedFlips + 1;
-  const displayZones = getRemixZonesForTurn(remix, nextTurn);
-  const activeCrossfade = getCrossfadeZone(remix, completedFlips);
-  return (
-    <div className="hm-remix-status">
-      <div className="hm-remix-status-head">
-        <span><b>↻</b><strong>REMIX DECKS</strong><small>Kolorowa strefa na planszy pokazuje dokładnie, które kafle zmienią się po ruchu.</small></span>
-        <em>BEAT {nextTurn}</em>
-      </div>
-      <div className="hm-remix-decks">
-        {displayZones.map((zone) => {
-          const active = !remix.crossfade || activeCrossfade?.id === zone.id;
-          const metrics = remixZoneMetrics(zone);
-          return (
-            <div key={zone.id} className={`hm-remix-deck-chip ${active ? "active" : "muted"}`}>
-              <strong>{zone.label || zone.id}</strong>
-              <span>{active ? "FLIP PO TYM RUCHU" : "OCZEKUJE NA SWÓJ RUCH"} · {metrics?.shape || "STREFA"}</span>
-              <small>STAŁA POZYCJA NA PLANSZY</small>
-              {remix.crossfade ? <small>{active ? "CROSSFADER · TEN DECK JEST AKTYWNY" : "CZEKA NA SWOJĄ KOLEJ"}</small> : null}
-            </div>
-          );
-        })}
-      </div>
-      <div className="hm-remix-pairs">
-        <span><img src={vinylImg} alt="" />↔<img src={microphoneImg} alt="" /></span>
-        <span><img src={headphonesImg} alt="" />↔<img src={noteImg} alt="" /></span>
-        <span><img src={cassetteImg} alt="" />↔<img src={speakerImg} alt="" /></span>
-      </div>
-      <div className="hm-remix-debug">
-        <small>OSTATNI FLIP</small>
-        <strong>{lastFlip ? `#${lastFlip.moveId} · ${lastFlip.changed} KAFLE` : "—"}</strong>
-        <span>{lastFlip ? lastFlip.labels : "Wykonaj pierwszy poprawny ruch"}</span>
-      </div>
-    </div>
-  );
-}
-
 function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEntry, onProgressUpdate, labMode = false }) {
   const inactiveIndices = LEVEL?.layout?.inactive || [];
   const initialShieldState = () => createShieldState(LEVEL);
@@ -624,7 +581,6 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   const [setlistStep, setSetlistStep] = useState(0);
   const [setlistProgress, setSetlistProgress] = useState(0);
   const [remixTurn, setRemixTurn] = useState(0);
-  const [lastRemixInfo, setLastRemixInfo] = useState(null);
   const [mysteries, setMysteries] = useState(() => initialMysteryState());
   const [colorSweep, setColorSweep] = useState(null);
   const [resultDisplayScore, setResultDisplayScore] = useState(0);
@@ -852,7 +808,6 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     setSetlistStep(0);
     setSetlistProgress(0);
     setRemixTurn(0);
-    setLastRemixInfo(null);
     remixMoveIdRef.current = 0;
     remixAppliedMoveIdRef.current = 0;
     const nextMysteries = initialMysteryState();
@@ -966,19 +921,14 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     // dzięki czemu jedna kaskada nigdy nie wywoła dwóch FLIP-ów.
     remixAppliedMoveIdRef.current = moveId;
 
-    const labels = (result.zones.length ? result.zones : remixConfig.zones || [])
-      .map((zone) => zone.label || zone.id || "DECK")
-      .join(" + ");
     if (!result.flippedIndices.length) {
-      setLastRemixInfo({ moveId, changed:0, labels:labels || "BRAK ZMIANY" });
-      flashBanner(`REMIX FLIP #${moveId}`, "0 kafli do zmiany · zgłoś ten ruch", "pink", 1500);
+      flashBanner("REMIX", "Brak kafli do zmiany", "pink", 1000);
       return { board:boardAfterResolve, groups:[], applied:true };
     }
 
-    setLastRemixInfo({ moveId, changed:result.flippedIndices.length, labels });
     setMotionMode("remix");
     setBoard(result.board);
-    flashBanner(`REMIX FLIP #${moveId}`, `${labels} · zmieniono ${result.flippedIndices.length} kafli`, "violet", 1500);
+    flashBanner("REMIX!", `Zmieniono ${result.flippedIndices.length} kafli`, "violet", 1000);
     await wait(950);
     if (runTokenRef.current !== token) return { board:boardAfterResolve, groups:[], applied:true };
 
@@ -1692,10 +1642,8 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   const mysteryTotal = (LEVEL.mysteries || []).length;
   const progressPct = levelProgressPercent(LEVEL, collected, score, shieldsRemainingHp, delivered, setlistStep, setlistProgress, mysteryRemaining);
   const currentStage = labMode ? HIT_MATCH_LAB_STAGE : getHitMatchStage(LEVEL.number);
-  const completedRemixFlips = Number(lastRemixInfo?.moveId || 0);
-  const nextRemixTurn = completedRemixFlips + 1;
-  const displayRemixZones = LEVEL.remix ? getRemixZonesForTurn(LEVEL.remix, nextRemixTurn) : [];
-  const activeCrossfadeDeck = LEVEL.remix?.crossfade ? getCrossfadeZone(LEVEL.remix, completedRemixFlips) : null;
+  // Stałe położenia stref są widoczne przez cały poziom, bez stanów "aktywna/oczekująca".
+  const displayRemixZones = LEVEL.remix?.zones || [];
   const remixZoneIdsByIndex = new Map();
   displayRemixZones.forEach((zone) => {
     (zone.indices || []).forEach((index) => {
@@ -1736,7 +1684,6 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
           </div>
 
           {(LEVEL.setlist || []).length ? <ActiveSetlistTarget level={LEVEL} step={setlistStep} progress={setlistProgress} /> : null}
-          {LEVEL.remix ? <RemixStatus level={LEVEL} lastFlip={lastRemixInfo} /> : null}
 
           <div className="hm-board-wrap">
             <div className={`hm-board-shell ${specialPulse ? `hm-fx-${specialPulse}` : ""}`}>
@@ -1747,8 +1694,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
                 {displayRemixZones.map((zone) => {
                   const metrics = remixZoneMetrics(zone);
                   if (!metrics) return null;
-                  const active = !LEVEL.remix?.crossfade || activeCrossfadeDeck?.id === zone.id;
-                  return <span key={`remix-zone-${zone.id}`} className={`hm-remix-zone zone-${String(zone.id).toLowerCase()} ${active ? "active" : "muted"}`} style={metrics.style} aria-hidden="true"><b>{zone.label || zone.id}<small>{metrics.shape}</small></b></span>;
+                  return <span key={`remix-zone-${zone.id}`} className={`hm-remix-zone zone-${String(zone.id).toLowerCase()} active`} style={metrics.style} aria-hidden="true" />;
                 })}
                 {deliveryExitIndices.map((index) => {
                   const sameCol = deliveryExitIndices.filter((value) => colOf(value) === colOf(index));
@@ -1895,7 +1841,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
               <div className="moves"><Move size={26} /><strong>{LEVEL.moves}</strong><span>ruchów</span></div>
             </div>
             {labMode ? <div className="hm-lab-intro-warning"><b>LAB</b><span>Ten level nie zapisuje gwiazdek, XP, HITCOIN ani rankingu.</span></div> : <div className="hm-intro-stars"><span><b>★</b> ukończenie</span><span><b>★★</b> {LEVEL.starScoreThresholds[2].toLocaleString("pl-PL")} pkt</span><span><b>★★★</b> {LEVEL.starScoreThresholds[3].toLocaleString("pl-PL")} pkt</span></div>}
-            {LEVEL.remix ? <div className="hm-stage2-intro-note hm-remix-intro-note"><span>↻</span><p><strong>REMIX DECKS</strong><small>Po zaakceptowanym ruchu aktywny deck FLIPUJE symbole: winyl↔mikrofon, słuchawki↔nuty, kaseta↔głośnik. Flip może sam stworzyć match i kaskadę. Pozycje decków nigdy się nie zmieniają.{LEVEL.remix.crossfade ? " W finale CROSSFADER naprzemiennie flipuje górny i dolny deck; ruchy wykonujesz na całej planszy." : ""}</small></p></div> : null}
+            {LEVEL.remix ? <div className="hm-stage2-intro-note hm-remix-intro-note"><span>↻</span><p><strong>REMIX DECKS</strong><small>Po każdym poprawnym ruchu wszystkie decki JEDNOCZEŚNIE zmieniają symbole: winyl↔mikrofon, słuchawki↔nuty, kaseta↔głośnik. Decki nie przesuwają się. Flip może wywołać match i kaskadę.</small></p></div> : null}
             {(LEVEL.setlist || []).length ? <div className="hm-stage2-intro-note hm-setlist-intro-note"><span>♪</span><p><strong>SETLIST</strong><small>Wykonuj cele dokładnie w pokazanej kolejności. Po ukończeniu tracku od razu aktywuje się następny; nic nie nalicza się wcześniej na zapas.</small></p></div> : null}
             {mysteryTotal ? <div className="hm-stage2-intro-note hm-mystery-intro-note"><span>?</span><p><strong>MYSTERY TRACK</strong><small>Zrób match lub odpal efekt na kaflu albo obok niego. Odpowiedz poprawnie w muzycznym quizie, aby usunąć kafel. Błąd zostawia go na miejscu.</small></p></div> : null}
             {deliveryTarget ? <div className="hm-stage2-intro-note hm-delivery-intro-note"><span>↓</span><p><strong>DROP THE MIC</strong><small>Specjalnego mikrofonu nie można przesuwać ani matchować. Usuwaj kafle pod nim — gdy wejdzie w jedno z dwóch dolnych pól oznaczonych EXIT, zostaje dostarczony.</small></p></div> : null}
@@ -1979,7 +1925,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
             {deliveryTarget ? <div className="hm-help-power hm-help-delivery"><span className="hm-delivery-mini">↓</span><span><strong>DROP THE MIC</strong><small>Mikrofon nie tworzy matchy i nie można nim ruszać. Czyść pola pod nim; dwa dolne aktywne pola kolumny tworzą strefę EXIT.</small></span></div> : null}
             {(LEVEL.setlist || []).length ? <div className="hm-help-power hm-help-setlist"><span className="hm-setlist-mini">♪</span><span><strong>SETLIST</strong><small>Realizuj aktywny track. Dopiero po jego ukończeniu zaczyna naliczać się kolejny cel.</small></span></div> : null}
             {mysteryTotal ? <div className="hm-help-power hm-help-mystery"><span className="hm-mystery-mini">?</span><span><strong>MYSTERY TRACK</strong><small>Match/efekt obok aktywuje quiz. Dobra odpowiedź usuwa kafel, zła pozostawia go nieruchomo na planszy. Maksymalnie jeden quiz na ruch.</small></span></div> : null}
-            {LEVEL.remix ? <div className="hm-help-power hm-help-remix"><span className="hm-remix-mini">↻</span><span><strong>REMIX DECKS</strong><small>Po ruchu decki zamieniają pary symboli bez przesuwania stref. Powstały match odpala się automatycznie. Przy CROSSFADERZE naprzemiennie flipuje górny i dolny deck; ruchy są możliwe na całej planszy.</small></span></div> : null}
+            {LEVEL.remix ? <div className="hm-help-power hm-help-remix"><span className="hm-remix-mini">↻</span><span><strong>REMIX DECKS</strong><small>Po każdym poprawnym ruchu wszystkie decki jednocześnie zamieniają pary symboli. Strefy pozostają w miejscu, a powstałe matche uruchamiają się automatycznie.</small></span></div> : null}
             <button type="button" className="hm-primary" onClick={() => setShowHelp(false)}>ROZUMIEM</button>
           </div>
         </div>
@@ -2024,7 +1970,7 @@ function HitMatchLabHub({ onBack }) {
           <div className="hm-hub-hero-copy">
             <span className="hm-hub-kicker">REMIX DECKS · PROTOTYP 51–60</span>
             <h2>TESTUJ <b>NOWĄ MECHANIKĘ</b></h2>
-            <p>W każdym levelu decki mają inny, stały układ. Po zaakceptowanym ruchu zmieniają się symbole, a nie położenie stref. Flip może utworzyć match. Poziomy 51–60 są dostępne od razu.</p>
+            <p>W każdym levelu decki mają stały układ. Po każdym poprawnym ruchu wszystkie decki zmieniają symbole jednocześnie, bez przesuwania stref. Poziomy 51–60 są dostępne od razu.</p>
             <div className="hm-lab-warning"><Zap size={17} /><span><strong>NAGRODY WYŁĄCZONE</strong><small>Brak zapisu gwiazdek, XP, HITCOIN i rankingów.</small></span></div>
           </div>
           <div className="hm-lab-legend">
@@ -2041,7 +1987,7 @@ function HitMatchLabHub({ onBack }) {
           </div>
           <div className="hm-stage-group stage-6 open">
             <div className="hm-stage-group-heading">
-              <div><span>POZIOMY 51–60</span><h4>REMIX DECKS</h4><small>Stałe strefy · flip symboli · Crossfader</small></div>
+              <div><span>POZIOMY 51–60</span><h4>REMIX DECKS</h4><small>Stałe strefy · jednoczesny flip</small></div>
               <div className="hm-stage-group-meta"><b>TEST BUILD</b><span>Bez wpływu na publiczny HIT MATCH</span></div>
             </div>
             <div className="hm-level-grid">

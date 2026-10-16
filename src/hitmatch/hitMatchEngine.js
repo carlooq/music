@@ -73,11 +73,8 @@ export function getRemixZonesForTurn(remix, turn = 0) {
 }
 
 export function applyRemixFlip(board, remix, turn = 0) {
-  const scheduledZones = getRemixZonesForTurn(remix, turn);
-  // Crossfader zmienia po ruchu tylko jeden naprzemiennie aktywny deck.
-  // W pozostałych levelach wszystkie oznaczone decki flipują jednocześnie.
-  const activeCrossfade = remix?.crossfade ? getCrossfadeZone(remix, Math.max(0, Number(turn || 0) - 1)) : null;
-  const zones = activeCrossfade ? scheduledZones.filter((zone) => zone.id === activeCrossfade.id) : scheduledZones;
+  // Wszystkie decki zmieniają symbole w tej samej aktualizacji planszy.
+  const zones = getRemixZonesForTurn(remix, turn);
   if (!zones.length) return { board:board.slice(), flippedIndices:[], zones:[] };
 
   const pairMap = remix?.pairMap || {};
@@ -104,13 +101,6 @@ export function applyRemixFlip(board, remix, turn = 0) {
     flippedIndices:[...flipSet].filter((index) => next[index] && next[index] !== board[index]),
     zones,
   };
-}
-
-export function getCrossfadeZone(remix, completedTurns = 0) {
-  if (!remix?.crossfade || !remix?.zones?.length) return null;
-  const done = Math.max(0, Number(completedTurns || 0));
-  const index = done % remix.zones.length;
-  return resolveRemixZone(remix.zones[index] || null, done + 1);
 }
 
 function createsImmediateTriple(board, index, type, blockedIndices = []) {
