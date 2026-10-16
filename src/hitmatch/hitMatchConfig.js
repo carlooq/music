@@ -190,10 +190,48 @@ const routeLabRemix = [
   { id:"lab_level_60", number:60, title:"Remix: Finał", subtitle:"Dwa pasy u góry i na dole · jednoczesny flip", moves:17, goals:{ vinyl:10, microphone:10, headphones:10, cassette:10, speaker:10, note:10 }, remix:{ pairMap:REMIX_PAIR_MAP, zones:[remixZone("A","DECK A · GÓRA 8×2",REMIX_LAYOUTS.finaleTop),remixZone("B","DECK B · DÓŁ 8×2",REMIX_LAYOUTS.finaleBottom)] }, shields:[{index:18,hp:1},{index:26,hp:1},{index:45,hp:1},{index:53,hp:1}], starScoreThresholds:{2:28500,3:36000}, endgameMoveBonus:0, testOnly:true, noRewards:true, finale:true },
 ]
 
+
+const SWAP_LAYOUTS = Object.freeze({
+  miniA:rectIndices(1,2,1,2),miniB:rectIndices(5,6,5,6),
+  colsA:rectIndices(2,5,1,1),colsB:rectIndices(2,5,6,6),
+  bandsA:rectIndices(1,2,1,4),bandsB:rectIndices(5,6,3,6),
+  sidesA:rectIndices(2,5,0,1),sidesB:rectIndices(2,5,6,7),
+  diagonalA:rectIndices(1,2,0,3),diagonalB:rectIndices(5,6,4,7),
+  tallA:rectIndices(0,7,2,2),tallB:rectIndices(0,7,5,5),
+  innerA:rectIndices(2,5,1,2),innerB:rectIndices(2,5,5,6),
+  quadA:rectIndices(1,2,1,2),quadB:rectIndices(1,2,5,6),
+  quadC:rectIndices(5,6,1,2),quadD:rectIndices(5,6,5,6),
+});
+const swapZone = (id,indices) => ({id,label:`DECK ${id}`,indices});
+const pairDecks = (a,b) => ({zones:[swapZone("A",a),swapZone("B",b)],pairs:[["A","B"]]});
+const fourDecks = () => ({
+  zones:[swapZone("A",SWAP_LAYOUTS.quadA),swapZone("B",SWAP_LAYOUTS.quadB),swapZone("C",SWAP_LAYOUTS.quadC),swapZone("D",SWAP_LAYOUTS.quadD)],
+  pairs:[["A","B"],["C","D"]],
+});
+const roadCase = (index,hp=1) => ({index,hp,kind:"case"});
+const stageSwapLevel = (number,title,subtitle,moves,goals,deckSwap,shields,extra={}) => ({
+  id:`lab_level_${number}`,number,title,subtitle,moves,goals,deckSwap,shields,
+  starScoreThresholds:{2:19500+(number-61)*1300,3:25500+(number-61)*1600},
+  endgameMoveBonus:0,testOnly:true,noRewards:true,...extra,
+});
+const routeLabDeckSwap = [
+  stageSwapLevel(61,"Pierwsza Zamiana","Dwa decki 2×2 + Road Case",15,{vinyl:12,microphone:12},pairDecks(SWAP_LAYOUTS.miniA,SWAP_LAYOUTS.miniB),[roadCase(27),roadCase(36)]),
+  stageSwapLevel(62,"Side to Side","Dwie kolumny 1×4",16,{headphones:14,note:14},pairDecks(SWAP_LAYOUTS.colsA,SWAP_LAYOUTS.colsB),[roadCase(18),roadCase(45)]),
+  stageSwapLevel(63,"Heavy Rotation","Dwa decki 4×2 + Case HP2",17,{cassette:15,speaker:15},pairDecks(SWAP_LAYOUTS.bandsA,SWAP_LAYOUTS.bandsB),[roadCase(10,2),roadCase(44,2),roadCase(28)]),
+  stageSwapLevel(64,"Split Stage","Rozdzielone boki i blokady",18,{vinyl:13,note:13},pairDecks(SWAP_LAYOUTS.sidesA,SWAP_LAYOUTS.sidesB),[roadCase(18),roadCase(45,2),roadCase(28)],{layout:{inactive:C.corners}}),
+  stageSwapLevel(65,"Cross Cargo","Ukośne pasy + Case HP2",19,{microphone:17,speaker:17},pairDecks(SWAP_LAYOUTS.diagonalA,SWAP_LAYOUTS.diagonalB),[roadCase(9,2),roadCase(54,2),roadCase(27)]),
+  stageSwapLevel(66,"Column Shift","Dwa pionowe decki 1×8",19,{headphones:18,cassette:18},pairDecks(SWAP_LAYOUTS.tallA,SWAP_LAYOUTS.tallB),[roadCase(18),roadCase(21,2),roadCase(42),roadCase(45,2)],{layout:{inactive:C.corners}}),
+  stageSwapLevel(67,"Double Trouble","Road Case + Neon Shield",20,{vinyl:15,headphones:15,speaker:15},pairDecks(SWAP_LAYOUTS.innerA,SWAP_LAYOUTS.innerB),[roadCase(18,2),roadCase(45,2),{index:27,hp:1},{index:36,hp:1}]),
+  stageSwapLevel(68,"Four Stations","Cztery decki 2×2 parami",20,{vinyl:14,microphone:14,note:14},fourDecks(),[roadCase(18),roadCase(21),roadCase(42,2),roadCase(45,2)]),
+  stageSwapLevel(69,"Set Swap","Deck Swap + Setlist + Road Case",24,{},pairDecks(SWAP_LAYOUTS.innerA,SWAP_LAYOUTS.innerB),[roadCase(11),roadCase(52,2)],{setlist:[{label:"INTRO",kind:"collect",type:"vinyl",target:12},{label:"DROP",kind:"collect",type:"headphones",target:12},{label:"OUTRO",kind:"special",special:"line",target:1}]}),
+  stageSwapLevel(70,"Deck Swap: Finał","Dwa duże decki + Case HP2",25,{vinyl:8,microphone:8,headphones:8,cassette:8,speaker:8,note:8},pairDecks(SWAP_LAYOUTS.bandsA,SWAP_LAYOUTS.bandsB),[roadCase(18,2),roadCase(19),roadCase(44,2),roadCase(45),{index:27,hp:1},{index:36,hp:1}],{finale:true}),
+];
+
 export const HIT_MATCH_LEVELS = Object.freeze([...route1, ...route2, ...route3, ...route4, ...route5].map((level) => ({ ...level, rewardPerStar:HIT_MATCH_REWARD_PER_STAR })));
 
-export const HIT_MATCH_LAB_LEVELS = Object.freeze(routeLabRemix.map((level) => ({ ...level, rewardPerStar:{ xp:0, hitcoin:0 } })));
+export const HIT_MATCH_LAB_LEVELS = Object.freeze([...routeLabRemix,...routeLabDeckSwap].map((level) => ({ ...level, rewardPerStar:{ xp:0, hitcoin:0 } })));
 export const HIT_MATCH_LAB_STAGE = Object.freeze({ id:"lab_route_6", number:6, title:"REMIX DECKS · LAB", subtitle:"Testy 51–60", from:51, to:60, mechanic:"Stałe decki · jednoczesny flip symboli", testOnly:true });
+export const HIT_MATCH_SWAP_LAB_STAGE = Object.freeze({ id:"lab_route_7", number:7, title:"DECK SWAP · LAB", subtitle:"Testy 61–70", from:61, to:70, mechanic:"Zamiana zawartości decków + Road Case", testOnly:true });
 
 export const HIT_MATCH_STAGES = Object.freeze([
   { id:"route_1", number:1, title:"NEONOWA SCENA", subtitle:"Poziomy 1–10", from:1, to:10, mechanic:"Klasyczna plansza" },
@@ -323,6 +361,20 @@ export function validateHitMatchLevelDefinitions(levels = HIT_MATCH_LEVELS) {
       issues.push(`Level ${level.number}: mysteryGoal nie zgadza się z liczbą Mystery Tracków`);
     }
 
+    if (level.deckSwap) {
+      const decks = new Map((level.deckSwap.zones || []).map((zone) => [zone.id,zone.indices || []]));
+      const occupied = new Set();
+      (level.deckSwap.zones || []).forEach((zone) => (zone.indices || []).forEach((raw) => {
+        const idx=Number(raw);
+        if (!Number.isInteger(idx) || idx<0 || idx>=64 || inactive.has(idx)) issues.push(`Level ${level.number}: błędne pole decku ${zone.id} (${raw})`);
+        if (occupied.has(idx)) issues.push(`Level ${level.number}: nakładające się decki na ${idx}`);
+        occupied.add(idx);
+      }));
+      (level.deckSwap.pairs || []).forEach(([a,b]) => {
+        if (!decks.has(a) || !decks.has(b)) issues.push(`Level ${level.number}: nieznane decki ${a}/${b}`);
+        else if (decks.get(a).length!==decks.get(b).length) issues.push(`Level ${level.number}: różny rozmiar decków ${a}/${b}`);
+      });
+    }
     if (Number(level.endgameMoveBonus || 0) > 1000) issues.push(`Level ${level.number}: bonus ENCORE zbyt wysoki (${level.endgameMoveBonus})`);
     const two = Number(level?.starScoreThresholds?.[2] || 0);
     const three = Number(level?.starScoreThresholds?.[3] || 0);

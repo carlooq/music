@@ -15,6 +15,7 @@ import {
   HIT_MATCH_ROWS,
   areAdjacent,
   applyRemixFlip,
+  applyDeckSwap,
   colOf,
   collapseAndRefill,
   collectDeliveredTiles,
@@ -39,6 +40,7 @@ import {
   HIT_MATCH_TOTAL_STARS,
   HIT_MATCH_LAB_LEVELS,
   HIT_MATCH_LAB_STAGE,
+  HIT_MATCH_SWAP_LAB_STAGE,
   countShieldHp,
   countShieldCells,
   createShieldState,
@@ -115,7 +117,12 @@ function compactGoal(level) {
     ? [`Po ${entries[0][1]} każdego symbolu`]
     : entries.map(([type, target]) => `${TYPE_LABELS[type] || type} ${target}`);
   if (level?.scoreGoal) bits.push(`${Number(level.scoreGoal).toLocaleString("pl-PL")} pkt`);
-  if ((level?.shields || []).length) bits.push(`Neon Shield ${(level.shields || []).length}`);
+  if ((level?.shields || []).length) {
+    const roadCases=(level.shields || []).filter((item) => item.kind==="case").length;
+    const neon=(level.shields || []).length-roadCases;
+    if (neon) bits.push(`Neon Shield ${neon}`);
+    if (roadCases) bits.push(`Road Case ${roadCases}`);
+  }
   if ((level?.deliveries || []).length) bits.push(`Drop Mic ${level.deliveryGoal || level.deliveries.length}`);
   if ((level?.setlist || []).length) bits.push(`SETLIST ${level.setlist.length} tracki`);
   if ((level?.mysteries || []).length) bits.push(`Mystery Track ${level.mysteryGoal || level.mysteries.length}`);
@@ -279,12 +286,12 @@ function ScoreGoalChip({ value, target }) {
   );
 }
 
-function ShieldGoalChip({ remaining = 0, total = 0 }) {
+function ShieldGoalChip({ remaining = 0, total = 0, label = "NEON SHIELD" }) {
   const done = remaining <= 0;
   return (
     <div className={`hm-goal-chip hm-shield-goal ${done ? "done" : ""}`}>
       <span className="hm-shield-mini">◆</span>
-      <span><small>NEON SHIELD</small><strong>{Math.max(0, remaining)} / {Math.max(0, total)}</strong></span>
+      <span><small>{label}</small><strong>{Math.max(0, remaining)} / {Math.max(0, total)}</strong></span>
       {done ? <b>✓</b> : null}
     </div>
   );
@@ -903,7 +910,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   }, [flashBanner, getBlockedIndices, syncStats]);
 
   const applyRemixBeat = useCallback(async (boardAfterResolve, token) => {
-    if (!LEVEL.remix) return { board:boardAfterResolve, groups:[], applied:false };
+    if (!LEVEL.remix && !LEVEL.deckSwap) return { board:boardAfterResolve, groups:[], applied:false };
 
     const moveId = Number(remixMoveIdRef.current || 0);
     if (!moveId || remixAppliedMoveIdRef.current === moveId) {
@@ -912,23 +919,28 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
 
     // LAB ma twardą zasadę: KAŻDY zaakceptowany ruch flipuje wszystkie decki
     // dokładnie raz, niezależnie od liczby kaskad/combo.
-    const remixConfig = labMode
-      ? { ...LEVEL.remix, zones:(LEVEL.remix.zones || []).map((zone) => ({ ...zone, every:1, offset:0 })) }
-      : LEVEL.remix;
-    const result = applyRemixFlip(boardAfterResolve, remixConfig, moveId);
+    const remixConfig = LEVEL.remix
+      ? (labMode
+        ? { ...LEVEL.remix, zones:(LEVEL.remix.zones || []).map((zone) => ({ ...zone, every:1, offset:0 })) }
+        : LEVEL.remix)
+      : null;
+    const result = LEVEL.deckSwap
+      ? applyDeckSwap(boardAfterResolve, LEVEL.deckSwap, getBlockedIndices(), moveId)
+      : applyRemixFlip(boardAfterResolve, remixConfig, moveId);
+    const isDeckSwap = !!LEVEL.deckSwap;
 
     // Konsumujemy ID ruchu nawet przy awaryjnym braku zmienionych kafli,
     // dzięki czemu jedna kaskada nigdy nie wywoła dwóch FLIP-ów.
     remixAppliedMoveIdRef.current = moveId;
 
     if (!result.flippedIndices.length) {
-      flashBanner("REMIX", "Brak kafli do zmiany", "pink", 1000);
+      if (!isDeckSwap) flashBanner("REMIX", "Brak kafli do zmiany", "pink", 1000);
       return { board:boardAfterResolve, groups:[], applied:true };
     }
 
     setMotionMode("remix");
     setBoard(result.board);
-    flashBanner("REMIX!", `Zmieniono ${result.flippedIndices.length} kafli`, "violet", 1000);
+    flashBanner(isDeckSwap ? "DECK SWAP!" : "REMIX!", `${result.flippedIndices.length} kafli`, "violet", 1000);
     await wait(950);
     if (runTokenRef.current !== token) return { board:boardAfterResolve, groups:[], applied:true };
 
@@ -937,7 +949,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     setBoard(settled);
     const groups = findMatches(settled, getBlockedIndices());
     if (groups.length) {
-      flashBanner("REMIX MATCH!", `FLIP #${moveId} utworzył połączenie`, "cyan", 850);
+      flashBanner(isDeckSwap ? "SWAP MATCH!" : "REMIX MATCH!", "Powstało nowe połączenie", "cyan", 850);
       await wait(260);
     }
     return { board:settled, groups, applied:true };
@@ -1358,7 +1370,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     }
     if (isShieldLocked(a) || isShieldLocked(b)) {
       playWrongSound();
-      flashBanner("NEON SHIELD", "Kafel jest nieruchomy, ale może wejść w match — albo rozbij Shield matchem obok", "pink", 950);
+      flashBanner("BLOKADA", "Kafel jest nieruchomy. Traf go matchem lub ułóż match obok", "pink", 950);
       setSelected(null);
       return;
     }
@@ -1405,7 +1417,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       return;
     }
 
-    if (LEVEL.remix) {
+    if (LEVEL.remix || LEVEL.deckSwap) {
       remixMoveIdRef.current += 1;
       statsRef.current.remixTurn = remixMoveIdRef.current;
     }
@@ -1458,7 +1470,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     }
     if (isShieldLocked(index)) {
       playWrongSound();
-      flashBanner("NEON SHIELD", "Nie możesz nim ruszyć. Ułóż match z tym symbolem lub zrób match obok", "pink", 950);
+      flashBanner("BLOKADA", "Nie możesz nim ruszyć. Ułóż match z tym symbolem lub obok", "pink", 950);
       setSelected(null);
       return;
     }
@@ -1633,6 +1645,9 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   const shieldsTotalHp = countShieldHp(createShieldState(LEVEL));
   const shieldsRemaining = countShieldCells(shields);
   const shieldsTotal = (LEVEL.shields || []).length;
+  const roadCasesTotal = (LEVEL.shields || []).filter((item) => item.kind === "case").length;
+  const neonShieldsTotal = shieldsTotal - roadCasesTotal;
+  const blockersLabel = roadCasesTotal ? (neonShieldsTotal ? "BLOKADY" : "ROAD CASE") : "NEON SHIELD";
   const deliveryTarget = Number(LEVEL.deliveryGoal || (LEVEL.deliveries || []).length || 0);
   const deliveryColumns = new Set((LEVEL.deliveries || []).map(({ index }) => colOf(Number(index))));
   const deliveryExitIndices = deliveryTarget
@@ -1641,9 +1656,9 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   const mysteryRemaining = Object.values(mysteries || {}).filter(Boolean).length;
   const mysteryTotal = (LEVEL.mysteries || []).length;
   const progressPct = levelProgressPercent(LEVEL, collected, score, shieldsRemainingHp, delivered, setlistStep, setlistProgress, mysteryRemaining);
-  const currentStage = labMode ? HIT_MATCH_LAB_STAGE : getHitMatchStage(LEVEL.number);
+  const currentStage = labMode ? (LEVEL.deckSwap ? HIT_MATCH_SWAP_LAB_STAGE : HIT_MATCH_LAB_STAGE) : getHitMatchStage(LEVEL.number);
   // Stałe położenia stref są widoczne przez cały poziom, bez stanów "aktywna/oczekująca".
-  const displayRemixZones = LEVEL.remix?.zones || [];
+  const displayRemixZones = LEVEL.remix?.zones || LEVEL.deckSwap?.zones || [];
   const remixZoneIdsByIndex = new Map();
   displayRemixZones.forEach((zone) => {
     (zone.indices || []).forEach((index) => {
@@ -1666,7 +1681,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       <main className="hm-layout">
         <section className="hm-stage-panel">
           <div className="hm-stage-heading">
-            <div><span>{currentStage.title} · POZIOM {LEVEL.number}</span><h2>{LEVEL.title.toUpperCase()}</h2><p>{labMode ? "Test REMIX DECKS: nieruchome strefy zamieniają symbole po ruchu i mogą uruchomić kolejną kaskadę." : currentStage.number === 5 ? "Aktywuj Mystery Track matchem i odblokuj go poprawną odpowiedzią." : currentStage.number === 4 ? "Realizuj kolejne tracki setlisty — cele nie liczą się na zapas." : currentStage.number === 3 ? "Sprowadź Drop Mic na dół planszy i kontroluj przepływ." : currentStage.number === 2 ? "Nowe układy planszy i Neon Shield." : "Łącz muzyczne symbole i buduj kaskady."}</p></div>
+            <div><span>{currentStage.title} · POZIOM {LEVEL.number}</span><h2>{LEVEL.title.toUpperCase()}</h2><p>{labMode ? (LEVEL.deckSwap ? "Test DECK SWAP: zawartość decków zamienia się po ruchu, blokady pozostają na swoich polach." : "Test REMIX DECKS: nieruchome strefy zamieniają symbole po ruchu i mogą uruchomić kolejną kaskadę.") : currentStage.number === 5 ? "Aktywuj Mystery Track matchem i odblokuj go poprawną odpowiedzią." : currentStage.number === 4 ? "Realizuj kolejne tracki setlisty — cele nie liczą się na zapas." : currentStage.number === 3 ? "Sprowadź Drop Mic na dół planszy i kontroluj przepływ." : currentStage.number === 2 ? "Nowe układy planszy i Neon Shield." : "Łącz muzyczne symbole i buduj kaskady."}</p></div>
             <div className="hm-stage-score-block">
               {labMode ? <><span className="hm-lab-badge">LAB</span><small>NAGRODY I ZAPIS WYŁĄCZONE</small></> : <><Stars count={previousStars} size={20} /><small>TWÓJ REKORD GWIAZDEK</small></>}
               <div className="hm-stage-progress"><strong>{progressPct}%</strong><span><i style={{ width: `${progressPct}%` }} /></span></div>
@@ -1685,6 +1700,12 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
 
           {(LEVEL.setlist || []).length ? <ActiveSetlistTarget level={LEVEL} step={setlistStep} progress={setlistProgress} /> : null}
 
+          {LEVEL.deckSwap ? (
+            <div className="hm-remix-pair-strip hm-deck-swap-strip" aria-label="Zamiana zawartości decków">
+              <strong>DECK SWAP</strong>
+              <div className="hm-swap-pairs">{(LEVEL.deckSwap.pairs || []).map(([a,b]) => <span key={a+b}><b>{a}</b> ↔ <b>{b}</b></span>)}</div>
+            </div>
+          ) : null}
           {LEVEL.remix ? (
             <div className="hm-remix-pair-strip" aria-label="Pary symboli zmieniane przez Remix Decks">
               <strong>REMIX ↔</strong>
@@ -1705,7 +1726,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
                 {displayRemixZones.map((zone) => {
                   const metrics = remixZoneMetrics(zone);
                   if (!metrics) return null;
-                  return <span key={`remix-zone-${zone.id}`} className={`hm-remix-zone zone-${String(zone.id).toLowerCase()} active`} style={metrics.style} aria-hidden="true" />;
+                  return <span key={`remix-zone-${zone.id}`} className={`hm-remix-zone zone-${String(zone.id).toLowerCase()} active ${LEVEL.deckSwap ? "hm-swap-zone" : ""}`} style={metrics.style} aria-hidden="true" />;
                 })}
                 {deliveryExitIndices.map((index) => {
                   const sameCol = deliveryExitIndices.filter((value) => colOf(value) === colOf(index));
@@ -1744,8 +1765,9 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
                 {deliveryFx.map((index) => <span key={`drop-fx-${index}`} className="hm-delivery-exit-fx" style={{ left:`${colOf(index) * 12.5}%`, top:`${rowOf(index) * 12.5}%` }} aria-hidden="true">↓</span>)}
                 {Object.entries(shields).filter(([, hp]) => Number(hp) > 0).map(([rawIndex, hp]) => {
                   const index = Number(rawIndex);
-                  const maxHp = Number(LEVEL.shields?.find((item) => Number(item.index) === index)?.hp || 1);
-                  return <span key={`shield-${index}-${hp}`} className={`hm-neon-shield hp-${hp} ${maxHp > 1 ? "reinforced" : ""}`} style={{ left:`${colOf(index) * 12.5}%`, top:`${rowOf(index) * 12.5}%`, transform:"none" }} aria-hidden="true"><i /><b>{maxHp > 1 ? hp : ""}</b></span>;
+                  const blocker = LEVEL.shields?.find((item) => Number(item.index) === index);
+                  const maxHp = Number(blocker?.hp || 1);
+                  return <span key={`shield-${index}-${hp}`} className={`hm-neon-shield hp-${hp} ${maxHp > 1 ? "reinforced" : ""} ${blocker?.kind === "case" ? "is-road-case" : ""}`} style={{ left:`${colOf(index) * 12.5}%`, top:`${rowOf(index) * 12.5}%`, transform:"none" }} aria-hidden="true"><i /><b>{maxHp > 1 ? hp : ""}</b></span>;
                 })}
                 <span className="hm-board-shine" aria-hidden="true" />
               </div>
@@ -1786,7 +1808,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
               {(LEVEL.setlist || []).length ? <SetlistGoalChip level={LEVEL} step={setlistStep} progress={setlistProgress} /> : null}
               {mysteryTotal ? <MysteryGoalChip remaining={mysteryRemaining} total={mysteryTotal} /> : null}
               {deliveryTarget ? <DeliveryGoalChip value={delivered} target={deliveryTarget} /> : null}
-              {shieldsTotal ? <ShieldGoalChip remaining={shieldsRemaining} total={shieldsTotal} /> : null}
+              {shieldsTotal ? <ShieldGoalChip remaining={shieldsRemaining} total={shieldsTotal} label={blockersLabel} /> : null}
             </div>
           </div>
         </section>
@@ -1794,14 +1816,14 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
         <aside className="hm-side-panel">
           <section className="hm-panel hm-objectives">
             <div className="hm-panel-title"><Target size={17} /><span>CEL POZIOMU</span></div>
-            <p>{(LEVEL.setlist || []).length ? "Graj koncert track po tracku. Liczy się tylko aktualny cel — wcześniejsze symbole nie zaliczają kolejnej części na zapas." : mysteryTotal ? "Traf Mystery Track matchem lub efektem na nim albo bezpośrednio obok. Poprawna odpowiedź w quizie usuwa kafel; zła zostawia go na planszy." : deliveryTarget ? "Usuń kafle pod specjalnymi mikrofonami i sprowadź wszystkie Drop Mic do strefy EXIT — wystarczą dwa najniższe aktywne pola ich kolumny. Pozostałe cele również muszą być wykonane." : shieldsTotal ? "Zrealizuj cele i rozbij wszystkie Neon Shield: matchem z osłoniętym symbolem albo na polu bezpośrednio obok." : LEVEL.scoreGoal && Object.keys(LEVEL.goals).length ? "Zrealizuj cele i osiągnij wymagany wynik przed końcem ruchów." : LEVEL.scoreGoal ? "Zdobądź wymagany wynik przed końcem ruchów." : "Zbierz wszystkie wymagane symbole przed końcem ruchów."}</p>
+            <p>{(LEVEL.setlist || []).length ? "Graj koncert track po tracku. Liczy się tylko aktualny cel — wcześniejsze symbole nie zaliczają kolejnej części na zapas." : mysteryTotal ? "Traf Mystery Track matchem lub efektem na nim albo bezpośrednio obok. Poprawna odpowiedź w quizie usuwa kafel; zła zostawia go na planszy." : deliveryTarget ? "Usuń kafle pod specjalnymi mikrofonami i sprowadź wszystkie Drop Mic do strefy EXIT — wystarczą dwa najniższe aktywne pola ich kolumny. Pozostałe cele również muszą być wykonane." : shieldsTotal ? "Zrealizuj cele i zdejmij wszystkie blokady, wykonując matche na zablokowanych symbolach albo bezpośrednio obok." : LEVEL.scoreGoal && Object.keys(LEVEL.goals).length ? "Zrealizuj cele i osiągnij wymagany wynik przed końcem ruchów." : LEVEL.scoreGoal ? "Zdobądź wymagany wynik przed końcem ruchów." : "Zbierz wszystkie wymagane symbole przed końcem ruchów."}</p>
             <div className="hm-goal-list">
               {Object.entries(LEVEL.goals).map(([type, target]) => <GoalChip key={type} type={type} value={collected[type] || 0} target={target} />)}
               {LEVEL.scoreGoal ? <ScoreGoalChip value={score} target={LEVEL.scoreGoal} /> : null}
               {(LEVEL.setlist || []).length ? <SetlistGoalChip level={LEVEL} step={setlistStep} progress={setlistProgress} /> : null}
               {mysteryTotal ? <MysteryGoalChip remaining={mysteryRemaining} total={mysteryTotal} /> : null}
               {deliveryTarget ? <DeliveryGoalChip value={delivered} target={deliveryTarget} /> : null}
-              {shieldsTotal ? <ShieldGoalChip remaining={shieldsRemaining} total={shieldsTotal} /> : null}
+              {shieldsTotal ? <ShieldGoalChip remaining={shieldsRemaining} total={shieldsTotal} label={blockersLabel} /> : null}
             </div>
             {(LEVEL.setlist || []).length ? <SetlistTrackList level={LEVEL} step={setlistStep} progress={setlistProgress} /> : null}
           </section>
@@ -1848,15 +1870,17 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
               {(LEVEL.setlist || []).length ? <div className="setlist-goal"><Music2 size={26} /><strong>{LEVEL.setlist.length}</strong><span>tracki Setlist</span></div> : null}
               {mysteryTotal ? <div className="mystery-goal"><Lock size={25} /><strong>{mysteryTotal}</strong><span>Mystery Track</span></div> : null}
               {deliveryTarget ? <div className="delivery-goal"><span className="hm-delivery-intro-icon">↓</span><strong>{deliveryTarget}</strong><span>Drop Mic</span></div> : null}
-              {shieldsTotal ? <div className="shield-goal"><span className="hm-shield-intro-icon">◆</span><strong>{shieldsTotal}</strong><span>Neon Shield</span></div> : null}
+              {shieldsTotal ? <div className="shield-goal"><span className="hm-shield-intro-icon">◆</span><strong>{shieldsTotal}</strong><span>{blockersLabel}</span></div> : null}
               <div className="moves"><Move size={26} /><strong>{LEVEL.moves}</strong><span>ruchów</span></div>
             </div>
             {labMode ? <div className="hm-lab-intro-warning"><b>LAB</b><span>Ten level nie zapisuje gwiazdek, XP, HITCOIN ani rankingu.</span></div> : <div className="hm-intro-stars"><span><b>★</b> ukończenie</span><span><b>★★</b> {LEVEL.starScoreThresholds[2].toLocaleString("pl-PL")} pkt</span><span><b>★★★</b> {LEVEL.starScoreThresholds[3].toLocaleString("pl-PL")} pkt</span></div>}
+            {LEVEL.deckSwap ? <div className="hm-stage2-intro-note hm-remix-intro-note"><span>⇄</span><p><strong>DECK SWAP</strong><small>Po poprawnym ruchu decki wymieniają zawartość pole za pole, jednocześnie. Strefy i blokady pozostają nieruchome. Zablokowana para pól nie zamienia się. Powstałe matche wywołują kaskady.</small></p></div> : null}
             {LEVEL.remix ? <div className="hm-stage2-intro-note hm-remix-intro-note"><span>↻</span><p><strong>REMIX DECKS</strong><small>Po każdym poprawnym ruchu wszystkie decki JEDNOCZEŚNIE zmieniają symbole: winyl↔mikrofon, słuchawki↔nuty, kaseta↔głośnik. Decki nie przesuwają się. Flip może wywołać match i kaskadę.</small></p></div> : null}
             {(LEVEL.setlist || []).length ? <div className="hm-stage2-intro-note hm-setlist-intro-note"><span>♪</span><p><strong>SETLIST</strong><small>Wykonuj cele dokładnie w pokazanej kolejności. Po ukończeniu tracku od razu aktywuje się następny; nic nie nalicza się wcześniej na zapas.</small></p></div> : null}
             {mysteryTotal ? <div className="hm-stage2-intro-note hm-mystery-intro-note"><span>?</span><p><strong>MYSTERY TRACK</strong><small>Zrób match lub odpal efekt na kaflu albo obok niego. Odpowiedz poprawnie w muzycznym quizie, aby usunąć kafel. Błąd zostawia go na miejscu.</small></p></div> : null}
             {deliveryTarget ? <div className="hm-stage2-intro-note hm-delivery-intro-note"><span>↓</span><p><strong>DROP THE MIC</strong><small>Specjalnego mikrofonu nie można przesuwać ani matchować. Usuwaj kafle pod nim — gdy wejdzie w jedno z dwóch dolnych pól oznaczonych EXIT, zostaje dostarczony.</small></p></div> : null}
-            {shieldsTotal ? <div className="hm-stage2-intro-note"><span>◆</span><p><strong>NEON SHIELD</strong><small>Shield blokuje ruch kafla, ale nie jego udział w matchu. Ułóż match-3+ z osłoniętym symbolem albo zrób match bezpośrednio obok, aby zdjąć warstwę.</small></p></div> : null}
+            {roadCasesTotal ? <div className="hm-stage2-intro-note"><span>▣</span><p><strong>ROAD CASE</strong><small>Nowa metalowa blokada HP1/HP2: nie można nią ruszać, zatrzymuje spadanie kafli i nie zamienia się między deckami. Zdejmuj warstwy matchem z osłoniętym symbolem albo bezpośrednio obok.</small></p></div> : null}
+            {neonShieldsTotal ? <div className="hm-stage2-intro-note"><span>◆</span><p><strong>NEON SHIELD</strong><small>Shield blokuje ruch kafla, ale nie jego udział w matchu. Ułóż match-3+ z osłoniętym symbolem albo zrób match bezpośrednio obok, aby zdjąć warstwę.</small></p></div> : null}
             <button type="button" className="hm-primary" onClick={startGame}><Zap size={19} fill="currentColor" /> ZACZYNAMY</button>
             <small>Przeciągnij kafel w dowolnym kierunku albo kliknij dwa sąsiadujące pola.</small>
           </div>
@@ -1932,10 +1956,12 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
               <div className="hm-how-card"><span className="hm-demo-special gold"><img src={vinylImg} alt="" /></span><strong>5 = ZŁOTY WINYL</strong><small>Zamień go z symbolem, aby usunąć wszystkie takie kafle.</small></div>
             </div>
             <div className="hm-help-power"><Music2 size={22} /><span><strong>HIT METER</strong><small>Przy 100% uruchom krótki quiz. Poprawna odpowiedź daje +3 ruchy.</small></span></div>
-            {shieldsTotal ? <div className="hm-help-power hm-help-shield"><span className="hm-shield-mini">◆</span><span><strong>NEON SHIELD</strong><small>Kafel pod osłoną jest nieruchomy, ale może wejść w match-3+. Match z nim lub na sąsiednim polu góra/dół/lewo/prawo zdejmuje 1 warstwę.</small></span></div> : null}
+            {roadCasesTotal ? <div className="hm-help-power hm-help-shield"><span className="hm-shield-mini">▣</span><span><strong>ROAD CASE</strong><small>Metalowa blokada HP1/HP2. Rozbij ją matchem z osłoniętym symbolem lub na sąsiednim polu; blokada nie przeskakuje między deckami.</small></span></div> : null}
+            {neonShieldsTotal ? <div className="hm-help-power hm-help-shield"><span className="hm-shield-mini">◆</span><span><strong>NEON SHIELD</strong><small>Kafel pod osłoną jest nieruchomy, ale może wejść w match-3+. Match z nim lub na sąsiednim polu góra/dół/lewo/prawo zdejmuje 1 warstwę.</small></span></div> : null}
             {deliveryTarget ? <div className="hm-help-power hm-help-delivery"><span className="hm-delivery-mini">↓</span><span><strong>DROP THE MIC</strong><small>Mikrofon nie tworzy matchy i nie można nim ruszać. Czyść pola pod nim; dwa dolne aktywne pola kolumny tworzą strefę EXIT.</small></span></div> : null}
             {(LEVEL.setlist || []).length ? <div className="hm-help-power hm-help-setlist"><span className="hm-setlist-mini">♪</span><span><strong>SETLIST</strong><small>Realizuj aktywny track. Dopiero po jego ukończeniu zaczyna naliczać się kolejny cel.</small></span></div> : null}
             {mysteryTotal ? <div className="hm-help-power hm-help-mystery"><span className="hm-mystery-mini">?</span><span><strong>MYSTERY TRACK</strong><small>Match/efekt obok aktywuje quiz. Dobra odpowiedź usuwa kafel, zła pozostawia go nieruchomo na planszy. Maksymalnie jeden quiz na ruch.</small></span></div> : null}
+            {LEVEL.deckSwap ? <div className="hm-help-power hm-help-remix"><span className="hm-remix-mini">⇄</span><span><strong>DECK SWAP</strong><small>Każdy poprawny ruch zamienia zawartość par decków jednocześnie. Zablokowane pary pól są pomijane, nowe matche uruchamiają się automatycznie.</small></span></div> : null}
             {LEVEL.remix ? <div className="hm-help-power hm-help-remix"><span className="hm-remix-mini">↻</span><span><strong>REMIX DECKS</strong><small>Po każdym poprawnym ruchu wszystkie decki jednocześnie zamieniają pary symboli. Strefy pozostają w miejscu, a powstałe matche uruchamiają się automatycznie.</small></span></div> : null}
             <button type="button" className="hm-primary" onClick={() => setShowHelp(false)}>ROZUMIEM</button>
           </div>
@@ -1979,9 +2005,9 @@ function HitMatchLabHub({ onBack }) {
       <main className="hm-hub-main">
         <section className="hm-hub-hero hm-lab-hero">
           <div className="hm-hub-hero-copy">
-            <span className="hm-hub-kicker">REMIX DECKS · PROTOTYP 51–60</span>
+            <span className="hm-hub-kicker">REMIX DECKS + DECK SWAP · LAB 51–70</span>
             <h2>TESTUJ <b>NOWĄ MECHANIKĘ</b></h2>
-            <p>W każdym levelu decki mają stały układ. Po każdym poprawnym ruchu wszystkie decki zmieniają symbole jednocześnie, bez przesuwania stref. Poziomy 51–60 są dostępne od razu.</p>
+            <p>Remix Decks 51–60 zmienia symbole, a Deck Swap 61–70 wymienia całą zawartość nieruchomych stref. Road Case blokują wybrane kafle. Wszystkie levele są od razu dostępne.</p>
             <div className="hm-lab-warning"><Zap size={17} /><span><strong>NAGRODY WYŁĄCZONE</strong><small>Brak zapisu gwiazdek, XP, HITCOIN i rankingów.</small></span></div>
           </div>
           <div className="hm-lab-legend">
@@ -2002,7 +2028,31 @@ function HitMatchLabHub({ onBack }) {
               <div className="hm-stage-group-meta"><b>TEST BUILD</b><span>Bez wpływu na publiczny HIT MATCH</span></div>
             </div>
             <div className="hm-level-grid">
-              {HIT_MATCH_LAB_LEVELS.map((level) => (
+              {HIT_MATCH_LAB_LEVELS.filter((level) => level.number <= 60).map((level) => (
+                <button type="button" key={level.id} className={"hm-level-card unlocked stage-six " + (level.finale ? "finale" : "")} onClick={() => setActiveLevelId(level.id)}>
+                  <div className="hm-level-number">{String(level.number).padStart(2, "0")}</div>
+                  <div className="hm-level-card-body">
+                    <span className="hm-level-subtitle">{level.subtitle}</span>
+                    <strong>{level.title}</strong>
+                    <small>{compactGoal(level)}</small>
+                  </div>
+                  <div className="hm-level-card-side">
+                    <span className="hm-lab-card-tag">LAB</span>
+                    <small>{level.moves} ruchów</small>
+                    <ChevronRight size={19} />
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="hm-stage-group stage-6 open hm-swap-lab-group">
+            <div className="hm-stage-group-heading">
+              <div><span>POZIOMY 61–70</span><h4>DECK SWAP + ROAD CASE</h4><small>Zamiana zawartości decków · blokady HP1/HP2</small></div>
+              <div className="hm-stage-group-meta"><b>TEST BUILD</b><span>Bez wpływu na publiczny HIT MATCH</span></div>
+            </div>
+            <div className="hm-level-grid">
+              {HIT_MATCH_LAB_LEVELS.filter((level) => level.number >= 61).map((level) => (
                 <button type="button" key={level.id} className={"hm-level-card unlocked stage-six " + (level.finale ? "finale" : "")} onClick={() => setActiveLevelId(level.id)}>
                   <div className="hm-level-number">{String(level.number).padStart(2, "0")}</div>
                   <div className="hm-level-card-body">

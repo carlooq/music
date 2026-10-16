@@ -3337,3 +3337,22 @@
 @media (prefers-reduced-motion:reduce) {
   .hm-remix-zone { transition:none!important; }
 }
+
+/* Deck Swap LAB 61–70: czytelne obwódki stref i krótka legenda. */
+.hm-swap-zone {border-color:rgba(255,207,91,.7);box-shadow:inset 0 0 0 1px rgba(255,199,73,.1),0 0 12px rgba(255,207,91,.12);}
+.hm-swap-zone.zone-b {border-color:rgba(71,222,255,.76);}
+.hm-swap-zone.zone-c {border-color:rgba(252,114,197,.75);}
+.hm-swap-zone.zone-d {border-color:rgba(125,246,161,.75);}
+.hm-deck-swap-strip>strong {color:#ffe0a1;}
+.hm-swap-pairs {display:flex;gap:10px;align-items:center;justify-content:center;}
+.hm-swap-pairs>span {display:flex;align-items:center;gap:5px;color:#bdb1d2;font:800 12px 'Space Mono',monospace;}
+.hm-swap-pairs b {display:grid;place-items:center;min-width:24px;height:24px;border:1px solid rgba(255,201,77,.5);border-radius:7px;color:#ffe0a1;background:rgba(255,177,70,.12);}
+.hm-swap-pairs b:last-child {border-color:rgba(62,209,245,.5);color:#a5edff;background:rgba(50,181,245,.10);}
+.hm-swap-lab-group {margin-top:18px;}
+/* Metalowa Road Case: rama i mały napis, środek ikony czytelny. */
+.hm-neon-shield.is-road-case::before {animation:none;border:3px solid #e3a14e;border-radius:7px;background:transparent!important;box-shadow:0 0 8px rgba(237,151,52,.45),inset 0 0 0 2px rgba(102,57,20,.54),inset 0 0 12px rgba(234,145,46,.12);}
+.hm-neon-shield.is-road-case::after {content:"CASE";left:50%;bottom:4px;border-radius:4px;background:rgba(74,42,20,.9);border:1px solid rgba(255,191,89,.65);color:#ffe1a0;font-size:7px;text-shadow:0 0 5px rgba(255,182,56,.8);}
+.hm-neon-shield.is-road-case i {background:linear-gradient(#f5d09e,#f5d09e) left top/12px 3px no-repeat,linear-gradient(#f5d09e,#f5d09e) right top/12px 3px no-repeat,linear-gradient(#f5d09e,#f5d09e) left bottom/12px 3px no-repeat,linear-gradient(#f5d09e,#f5d09e) right bottom/12px 3px no-repeat;opacity:1;}
+.hm-neon-shield.is-road-case.reinforced::before {border-color:#ffd68a;box-shadow:0 0 10px rgba(255,178,77,.64),inset 0 0 0 2px rgba(121,73,24,.66);}
+.hm-neon-shield.is-road-case.reinforced b {background:linear-gradient(135deg,#ffe9b1,#f5a455);color:#482308;box-shadow:0 0 12px rgba(255,178,77,.6);}
+@media(max-width:700px){.hm-neon-shield.is-road-case::before {border-width:2px;}.hm-neon-shield.is-road-case::after {font-size:5.5px;}.hm-swap-pairs>span{font-size:11px;}.hm-swap-pairs b{min-width:21px;height:21px;}}

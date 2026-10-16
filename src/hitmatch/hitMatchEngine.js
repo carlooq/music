@@ -103,6 +103,32 @@ export function applyRemixFlip(board, remix, turn = 0) {
   };
 }
 
+
+/* Deck Swap: swap jednocześnie ze snapshotu planszy. Zablokowana para pól
+   pozostaje nietknięta; nie poruszamy Mystery, Drop Mic ani złotego winyla. */
+export function applyDeckSwap(board, deckSwap, lockedIndices = [], moveId = 0) {
+  const zones = new Map((deckSwap?.zones || []).map((zone) => [zone.id,zone.indices || []]));
+  const locked = new Set((lockedIndices || []).map(Number));
+  const reserved = new Set();
+  const changed = new Set();
+  const next = board.slice();
+  const immovable = (tile) => !tile || ["delivery","mystery","wild"].includes(tile.type) || tile.special === "color";
+  for (const [aId,bId] of deckSwap?.pairs || []) {
+    const a=zones.get(aId) || [], b=zones.get(bId) || [];
+    if (!a.length || a.length!==b.length) continue;
+    for (let i=0;i<a.length;i+=1) {
+      const x=Number(a[i]),y=Number(b[i]);
+      if (!Number.isInteger(x) || !Number.isInteger(y) || x===y || x<0 || y<0 || x>=board.length || y>=board.length) continue;
+      if (locked.has(x) || locked.has(y) || reserved.has(x) || reserved.has(y) || immovable(board[x]) || immovable(board[y])) continue;
+      reserved.add(x);reserved.add(y);
+      next[x]={...board[y],fresh:false,freshSpecial:false,spawnOrder:0,remixFlipped:true,remixFlipId:moveId};
+      next[y]={...board[x],fresh:false,freshSpecial:false,spawnOrder:0,remixFlipped:true,remixFlipId:moveId};
+      changed.add(x);changed.add(y);
+    }
+  }
+  return {board:next,flippedIndices:[...changed]};
+}
+
 function createsImmediateTriple(board, index, type, blockedIndices = []) {
   // blockedIndices oznacza teraz wyłącznie pola NIERUCHOME (Shield): nie można
   // nimi swapować i zatrzymują grawitację, ale ich symbol nadal normalnie
