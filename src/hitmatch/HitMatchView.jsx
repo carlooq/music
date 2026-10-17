@@ -671,15 +671,22 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   }, [LEVEL]);
   const isGateClosed = useCallback(() => !!getActiveGate(), [getActiveGate]);
   const getFrozenIndices = useCallback(() => {
-    const gate = getActiveGate();
-    if (!gate?.indices?.length) return [];
-    const row = Math.floor(Number(gate.indices[0])/8);
-    return Array.from({length:Math.max(0,64-(row+1)*8)},(_,i)=>(row+1)*8+i);
-  }, [getActiveGate]);
-  const isBelowGateLocked = useCallback((index) => {
-    const gate = getActiveGate();
-    return !!gate?.indices?.length && Math.floor(index/8)>Math.floor(Number(gate.indices[0])/8);
-  }, [getActiveGate]);
+    const gates = LEVEL.gates?.length ? LEVEL.gates : LEVEL.gate ? [LEVEL.gate] : [];
+    if (!gates.length) return [];
+    const frozen = [];
+    // KAŻDA KOLUMNA ma własną drogę. Rozbity fragment bramy wpuszcza
+    // kafelki TYLKO w swojej kolumnie; pozostałe pola nadal są zamknięte.
+    for (let col=0;col<8;col+=1) {
+      const firstClosed = gates.flatMap((gate)=>gate.indices||[])
+        .filter((idx)=>idx%8===col && Number(wallsRef.current?.[idx]||0)>0)
+        .sort((a,b)=>a-b)[0];
+      if (firstClosed===undefined) continue;
+      const firstRow = Math.floor(firstClosed/8);
+      for (let row=firstRow+1;row<8;row+=1) frozen.push(row*8+col);
+    }
+    return frozen;
+  }, [LEVEL]);
+  const isBelowGateLocked = useCallback((index) => getFrozenIndices().includes(index), [getFrozenIndices]);
   const getLockedWallIndices = useCallback(() => Object.entries(wallsRef.current||{}).filter(([,hp])=>Number(hp)>0).map(([idx])=>Number(idx)),[]);
 
   const getActiveMysteryIndices = useCallback(() => Object.entries(mysteriesRef.current || {})
@@ -948,7 +955,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       setBoard(withoutDelivered);
       await wait(190);
       if (runTokenRef.current !== token) return current;
-      current = collapseAndRefill(withoutDelivered, getGravityInactive(), getBlockedIndices());
+      current = collapseAndRefill(withoutDelivered, getGravityInactive(), getBlockedIndices(), {spawnFromTopOnly:!!(LEVEL.gate || LEVEL.gates?.length)});
       setMotionMode("fall");
       setBoard(current);
       await wait(280);
@@ -1153,38 +1160,35 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       }
     }
 
-    // Road Case jest pełną przeszkodą. Sound Gate ma wspólne HP całej linii.
+    // Każdy blok Road Case / Sound Gate jest osobnym polem z własnym HP.
+    // Jedna fala matcha uszkadza maksymalnie o 1 HP każdy sąsiadujący blok.
+    // Booster może dodatkowo trafić blok bezpośrednio na swojej linii/obszarze.
     const clearedWalls=[];
     if (Object.keys(wallsRef.current||{}).length) {
       const nextWalls={...wallsRef.current};
-      const hits=new Set((shieldContactIndices||[]).map(Number).filter((idx)=>!!boardBefore[idx]));
-      if (specialCreation?.index!==undefined) hits.add(Number(specialCreation.index));
-      const gateGroups=LEVEL.gates?.length ? LEVEL.gates : LEVEL.gate ? [LEVEL.gate] : [];
-      const activeGate=gateGroups.find((group)=>(group.indices||[]).some((idx)=>Number(nextWalls[idx]||0)>0));
-      const gate=new Set((activeGate?.indices||[]).map(Number));
-      const otherGates=new Set(gateGroups.flatMap((group)=>group.indices||[]));
-      const touches=(idx)=>orthogonalNeighbours(idx).some((near)=>hits.has(near));
+      const contact = new Set((shieldContactIndices||[]).map(Number)
+        .filter((idx)=>boardBefore[idx] && boardBefore[idx].type!=="wall"));
+      if (specialCreation?.index!==undefined) contact.add(Number(specialCreation.index));
+      const directSpecialHits = new Set((shieldContactIndices||[]).map(Number)
+        .filter((idx)=>boardBefore[idx]?.type==="wall" && !actualIndices.includes(idx)));
+      let damaged=0;
       for (const [raw,hpRaw] of Object.entries(nextWalls)) {
         const idx=Number(raw), hp=Number(hpRaw||0);
-        if (hp<=0 || otherGates.has(idx) || !touches(idx)) continue;
-        nextWalls[idx]=hp-1;
+        if (hp<=0) continue;
+        const touched = orthogonalNeighbours(idx).some((near)=>contact.has(near));
+        if (!touched && !directSpecialHits.has(idx)) continue;
+        nextWalls[idx]=Math.max(0,hp-1);
+        damaged += 1;
         if (nextWalls[idx]===0) clearedWalls.push(idx);
       }
-      const gateIndices=[...gate];
-      if (gateIndices.length && gateIndices.some((idx)=>Number(nextWalls[idx]||0)>0 && touches(idx))) {
-        gateIndices.forEach((idx)=>{
-          if (Number(nextWalls[idx]||0)<=0)return;
-          nextWalls[idx]=Math.max(0,Number(nextWalls[idx])-1);
-          if (nextWalls[idx]===0) clearedWalls.push(idx);
-        });
-      }
-      if (Object.keys(nextWalls).some((idx)=>nextWalls[idx]!==wallsRef.current[idx])) {
+      if (damaged) {
         wallsRef.current=nextWalls;
         setWalls(nextWalls);
         stats.wallsRemaining=countWallCells(nextWalls);
         if (clearedWalls.length) flashBanner(
-          clearedWalls.some((idx)=>gate.has(idx)) ? "SOUND GATE OTWARTA!" : "ROAD CASE ROZBITA!",
-          "Odblokowano nowe pola","gold",1250
+          "PRZEBITY BLOK!",
+          `Otwarto ${clearedWalls.length} ${clearedWalls.length===1?"pole":"pola"} · pozostałe ściany stoją`,
+          "gold",1050
         );
       }
     }
@@ -1313,7 +1317,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     await wait(35);
     if (runTokenRef.current !== token) return;
 
-    let dropped = collapseAndRefill(removed, getGravityInactive(), getBlockedIndices());
+    let dropped = collapseAndRefill(removed, getGravityInactive(), getBlockedIndices(), {spawnFromTopOnly:!!(LEVEL.gate || LEVEL.gates?.length)});
     setMatched([]);
     setActiveSpecials([]);
     setFxMarks([]);
@@ -1368,7 +1372,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     const removed = removeIndices(swapped, removeNow, null);
     setBoard(removed);
     await wait(35);
-    let dropped = collapseAndRefill(removed, getGravityInactive(), getBlockedIndices());
+    let dropped = collapseAndRefill(removed, getGravityInactive(), getBlockedIndices(), {spawnFromTopOnly:!!(LEVEL.gate || LEVEL.gates?.length)});
     setMatched([]);
     setActiveSpecials([]);
     setFxMarks([]);
@@ -1419,7 +1423,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     const removed = removeIndices(swapped, removeNow, null);
     setBoard(removed);
     await wait(35);
-    let dropped = collapseAndRefill(removed, getGravityInactive(), getBlockedIndices());
+    let dropped = collapseAndRefill(removed, getGravityInactive(), getBlockedIndices(), {spawnFromTopOnly:!!(LEVEL.gate || LEVEL.gates?.length)});
     setMatched([]);
     setActiveSpecials([]);
     setFxMarks([]);
@@ -1749,6 +1753,8 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   const currentStage = labMode ? (LEVEL.number>=71 ? HIT_MATCH_LAYERS_LAB_STAGE : LEVEL.deckSwap ? HIT_MATCH_SWAP_LAB_STAGE : HIT_MATCH_LAB_STAGE) : getHitMatchStage(LEVEL.number);
   const activeGate = getActiveGate();
   const allGateIndices = new Set([...(LEVEL.gate?.indices||[]),...(LEVEL.gates||[]).flatMap((gate)=>gate.indices||[])]);
+  const blockedGateCells = getFrozenIndices().filter((idx)=>!allGateIndices.has(idx) && !inactiveIndices.includes(idx));
+  const activeGateRemaining = (activeGate?.indices||[]).filter((idx)=>Number(walls[idx]||0)>0).length;
   // Stałe położenia stref są widoczne przez cały poziom, bez stanów "aktywna/oczekująca".
   const displayRemixZones = LEVEL.remix?.zones || LEVEL.deckSwap?.zones || [];
   const remixZoneIdsByIndex = new Map();
@@ -1834,16 +1840,17 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
                     </span>
                   );
                 })}
+                {blockedGateCells.map((idx)=>(
+                  <span key={`closed-${idx}`} className="hm-layer-closed-cell" style={{left:`${colOf(idx)*12.5}%`,top:`${rowOf(idx)*12.5}%`}} aria-hidden="true" />
+                ))}
                 {activeGate ? (
-                  <span className="hm-gate-veil" style={{
-                    top:`${(Math.floor(activeGate.indices[0]/8)+1)*12.5}%`,
-                    height:`${(7-Math.floor(activeGate.indices[0]/8))*12.5}%`
-                  }} aria-hidden="true"><b>{LEVEL.gates?.length ? "KOLEJNE PIĘTRA CZEKAJĄ NA OTWARCIE" : "SEKCJA ZABLOKOWANA"}</b></span>
+                  <span className="hm-gate-banner" style={{top:`${Math.floor(activeGate.indices[0]/8)*12.5}%`}} aria-hidden="true">
+                    {LEVEL.gates?.length ? `RZĄD ${Math.floor(activeGate.indices[0]/8)+1}` : "SOUND GATE"} · POZOSTAŁO {activeGateRemaining}/{activeGate.indices.length} BLOKÓW
+                  </span>
                 ) : null}
-                {activeGate ? <span className="hm-gate-banner" style={{top:`${Math.floor(activeGate.indices[0]/8)*12.5}%`}} aria-hidden="true">{LEVEL.gates?.length ? `SOUND GATE · RZĄD ${Math.floor(activeGate.indices[0]/8)+1}` : "SOUND GATE"} · {Number(walls[activeGate.indices[0]]||0)} HP</span> : null}
                 {board.map((tile, index) => tile?.type === "wall" ? (
                   <span key={`solid-${index}`} className={`hm-solid-block ${allGateIndices.has(index) ? "is-gate" : "is-case"} ${LEVEL.gates?.length ? "is-layered" : ""}`} role="gridcell" aria-label={allGateIndices.has(index) ? "Sound Gate" : "Road Case"} style={{left:`${colOf(index)*12.5}%`,top:`${rowOf(index)*12.5}%`}}>
-                    <i/><b>{allGateIndices.has(index) ? "" : Number(walls[index]||0)>1 ? walls[index] : "▣"}</b>
+                    <i/><b>{allGateIndices.has(index) ? (Number(walls[index]||0)>1 ? walls[index] : "▤") : Number(walls[index]||0)>1 ? walls[index] : "▣"}</b>
                   </span>
                 ) : tile ? (
                   <HitMatchPiece
@@ -1986,8 +1993,8 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
             {mysteryTotal ? <div className="hm-stage2-intro-note hm-mystery-intro-note"><span>?</span><p><strong>MYSTERY TRACK</strong><small>Zrób match lub odpal efekt na kaflu albo obok niego. Odpowiedz poprawnie w muzycznym quizie, aby usunąć kafel. Błąd zostawia go na miejscu.</small></p></div> : null}
             {deliveryTarget ? <div className="hm-stage2-intro-note hm-delivery-intro-note"><span>↓</span><p><strong>DROP THE MIC</strong><small>Specjalnego mikrofonu nie można przesuwać ani matchować. Usuwaj kafle pod nim — gdy wejdzie w jedno z dwóch dolnych pól oznaczonych EXIT, zostaje dostarczony.</small></p></div> : null}
             {roadCasesTotal ? <div className="hm-stage2-intro-note"><span>▣</span><p><strong>ROAD CASE</strong><small>Solidna skrzynia ZAJMUJE CAŁE POLE, nie ma pod nią ikony i przecina matche. Rozbijaj ją dopasowaniami obok; po usunięciu wraca normalne pole planszy.</small></p></div> : null}
-            {LEVEL.gates?.length ? <div className="hm-stage2-intro-note"><span>▤</span><p><strong>PIĘTRA / SOUND GATE</strong><small>Na początku na dole nie ma żadnych ikonek. Rozbij górną linię matchami bezpośrednio obok, aby nowe pola wypełniły się spadającymi kaflami. Przy kilku bramach następne rzędy otwierają się po kolei.</small></p></div> : null}
-            {LEVEL.gate ? <div className="hm-stage2-intro-note"><span>▤</span><p><strong>SOUND GATE</strong><small>Mur odcina dolną sekcję. Wykonaj {LEVEL.gate.hp} matche bezpośrednio obok muru, aby otworzyć wszystkie segmenty jednocześnie i odblokować dół.</small></p></div> : null}
+            {LEVEL.gates?.length ? <div className="hm-stage2-intro-note"><span>▤</span><p><strong>PIĘTRA / SOUND GATE</strong><small>Każdy segment ściany ma własne HP. Match obok uszkadza TYLKO sąsiadujące bloki. Otwory od razu przepuszczają ikonki z góry w swoich kolumnach. Pozostałe bloki nadal zatrzymują opadanie.</small></p></div> : null}
+            {LEVEL.gate ? <div className="hm-stage2-intro-note"><span>▤</span><p><strong>SOUND GATE</strong><small>Każdy blok ma {LEVEL.gate.hp} HP. Rozbijaj je po kolei matchami obok, żeby pojedyncze otwory przepuszczały spadające kafelki.</small></p></div> : null}
             {neonShieldsTotal ? <div className="hm-stage2-intro-note"><span>◆</span><p><strong>NEON SHIELD</strong><small>Shield blokuje ruch kafla, ale nie jego udział w matchu. Ułóż match-3+ z osłoniętym symbolem albo zrób match bezpośrednio obok, aby zdjąć warstwę.</small></p></div> : null}
             <button type="button" className="hm-primary" onClick={startGame}><Zap size={19} fill="currentColor" /> ZACZYNAMY</button>
             <small>Przeciągnij kafel w dowolnym kierunku albo kliknij dwa sąsiadujące pola.</small>
@@ -2065,8 +2072,8 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
             </div>
             <div className="hm-help-power"><Music2 size={22} /><span><strong>HIT METER</strong><small>Przy 100% uruchom krótki quiz. Poprawna odpowiedź daje +3 ruchy.</small></span></div>
             {roadCasesTotal ? <div className="hm-help-power hm-help-shield"><span className="hm-shield-mini">▣</span><span><strong>ROAD CASE</strong><small>Pełna skrzynia zamiast ikony. Nie tworzy matchy, rozbijesz ją dopasowaniami obok.</small></span></div> : null}
-            {LEVEL.gates?.length ? <div className="hm-help-power hm-help-shield"><span className="hm-shield-mini">▤</span><span><strong>OTWIERANE PIĘTRA</strong><small>Nie ma ukrytych kafli pod ścianą: zamknięte pola są puste. Match bezpośrednio przy widocznej linii zdejmuje 1 HP. Po jej rozbiciu kafle opadają do nowej sekcji; dopiero wtedy możesz rozbijać kolejną linię.</small></span></div> : null}
-            {LEVEL.gate ? <div className="hm-help-power hm-help-shield"><span className="hm-shield-mini">▤</span><span><strong>SOUND GATE</strong><small>Wspólny licznik HP dla całej linii. Match obok dowolnego segmentu zdejmuje jedną warstwę. Dolna sekcja odblokowuje się dopiero po rozbiciu muru.</small></span></div> : null}
+            {LEVEL.gates?.length ? <div className="hm-help-power hm-help-shield"><span className="hm-shield-mini">▤</span><span><strong>OTWIERANE PIĘTRA</strong><small>Każdy blok ma oddzielny licznik. Dopasowanie obok odbiera mu 1 HP. Przez powstałe dziury kafelki spadają od razu, tylko w otwartych kolumnach; niższe ściany rozbijasz stopniowo.</small></span></div> : null}
+            {LEVEL.gate ? <div className="hm-help-power hm-help-shield"><span className="hm-shield-mini">▤</span><span><strong>SOUND GATE</strong><small>Ściana składa się z osobnych bloków. Match obok uszkadza tylko sąsiednie segmenty, a otwarte przejście od razu wpuszcza kafelki z góry.</small></span></div> : null}
             {neonShieldsTotal ? <div className="hm-help-power hm-help-shield"><span className="hm-shield-mini">◆</span><span><strong>NEON SHIELD</strong><small>Kafel pod osłoną jest nieruchomy, ale może wejść w match-3+. Match z nim lub na sąsiednim polu góra/dół/lewo/prawo zdejmuje 1 warstwę.</small></span></div> : null}
             {deliveryTarget ? <div className="hm-help-power hm-help-delivery"><span className="hm-delivery-mini">↓</span><span><strong>DROP THE MIC</strong><small>Mikrofon nie tworzy matchy i nie można nim ruszać. Czyść pola pod nim; dwa dolne aktywne pola kolumny tworzą strefę EXIT.</small></span></div> : null}
             {(LEVEL.setlist || []).length ? <div className="hm-help-power hm-help-setlist"><span className="hm-setlist-mini">♪</span><span><strong>SETLIST</strong><small>Realizuj aktywny track. Dopiero po jego ukończeniu zaczyna naliczać się kolejny cel.</small></span></div> : null}

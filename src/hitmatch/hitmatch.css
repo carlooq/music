@@ -3443,3 +3443,30 @@
 @media(prefers-reduced-motion:reduce) {
   .hm-solid-block,.hm-gate-banner,.hm-gate-veil{animation:none!important;transition:none!important;}
 }
+
+/* Osobne segmenty Sound Gate: każdy ma własne HP i znika niezależnie. */
+.hm-solid-block.is-gate b {
+  display:grid;
+  min-width:clamp(14px,3vw,22px);
+  height:clamp(14px,3vw,22px);
+  padding:0 3px;
+  font-size:clamp(8px,1.5vw,12px);
+  color:#072336;
+  background:linear-gradient(145deg,#d6fbff,#5cbfe3);
+  border:1px solid rgba(255,255,255,.55);
+  border-radius:5px;
+  box-shadow:0 0 9px rgba(83,224,250,.32);
+}
+.hm-solid-block.is-gate.is-layered b {background:linear-gradient(145deg,#f5f9ff,#87d4ff);}
+.hm-layer-closed-cell {
+  position:absolute;
+  width:12.5%;
+  height:12.5%;
+  z-index:4;
+  pointer-events:none;
+  background:repeating-linear-gradient(135deg,rgba(15,26,44,.50) 0 7px,rgba(5,12,28,.68) 7px 14px);
+  box-shadow:inset 0 0 0 1px rgba(110,163,193,.12);
+}
+@media(max-width:480px) {
+  .hm-solid-block.is-gate b {min-width:15px;height:15px;font-size:8px;border-radius:3px;}
+}

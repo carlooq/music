@@ -518,7 +518,7 @@ export function removeIndices(board, indices, specialCreation = null) {
   return next;
 }
 
-export function collapseAndRefill(board, inactiveIndices = [], blockedIndices = []) {
+export function collapseAndRefill(board, inactiveIndices = [], blockedIndices = [], options = {}) {
   const inactive = inactiveSetOf(inactiveIndices);
   const blocked = inactiveSetOf(blockedIndices);
   const next = Array(HIT_MATCH_ROWS * HIT_MATCH_COLS).fill(null);
@@ -532,7 +532,7 @@ export function collapseAndRefill(board, inactiveIndices = [], blockedIndices = 
     if (tile) next[index] = { ...tile, fresh:false, spawnOrder:0, freshSpecial:false };
   });
 
-  const processSegment = (col, rows) => {
+  const processSegment = (col, rows, canRefill = true) => {
     if (!rows.length) return;
     const existing = [];
     for (let i = rows.length - 1; i >= 0; i -= 1) {
@@ -546,7 +546,7 @@ export function collapseAndRefill(board, inactiveIndices = [], blockedIndices = 
       if (cursor < existing.length) {
         next[index] = existing[cursor];
         cursor += 1;
-      } else {
+      } else if (canRefill) {
         next[index] = makeHitMatchTile(randomType(), { fresh:true, spawnOrder });
         spawnOrder += 1;
       }
@@ -555,16 +555,21 @@ export function collapseAndRefill(board, inactiveIndices = [], blockedIndices = 
 
   for (let col = 0; col < HIT_MATCH_COLS; col += 1) {
     let segment = [];
+    let topSourceOpen = true;
     for (let row = 0; row < HIT_MATCH_ROWS; row += 1) {
       const index = indexOf(row, col);
       if (inactive.has(index) || blocked.has(index)) {
-        processSegment(col, segment);
+        processSegment(col, segment, !options.spawnFromTopOnly || topSourceOpen);
         segment = [];
+        // Dziury w geometrii planszy nie muszą kończyć źródła zasilania.
+        // NIERUCHOMA przeszkoda (mur / Road Case / Shield) dzieli kolumnę:
+        // za nią nigdy nie powstają kafle z powietrza.
+        if (blocked.has(index)) topSourceOpen = false;
       } else {
         segment.push(row);
       }
     }
-    processSegment(col, segment);
+    processSegment(col, segment, !options.spawnFromTopOnly || topSourceOpen);
   }
   return next;
 }
