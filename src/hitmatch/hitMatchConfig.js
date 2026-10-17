@@ -243,56 +243,56 @@ const stageLayersLevel = (number,title,subtitle,moves,goals,mechanics={}) => ({
   endgameMoveBonus:0,testOnly:true,noRewards:true,...mechanics,
 });
 const routeLabLayers = [
-  stageLayersLevel(71,"Pusty Parkiet","Mur w środku · na dole początkowo pusto",28,{cassette:14,speaker:14},{
+  stageLayersLevel(71,"Pusty Parkiet","Mur w środku · na dole początkowo pusto",19,{cassette:14,speaker:14},{
     gates:[gateRow(3,2,[3,4])],
     remix:{pairMap:REMIX_PAIR_MAP,zones:[remixZone("A","GÓRNY REMIX",rectIndices(1,2,2,5))]},
   }),
-  stageLayersLevel(72,"Trzy Piętra","Trzy dolne rzędy otwierane pojedynczo",34,{vinyl:16,note:16},{
+  stageLayersLevel(72,"Trzy Piętra","Trzy dolne rzędy otwierane pojedynczo",23,{vinyl:16,note:16},{
     layout:{inactive:[0,7,8,15]},
     gates:[gateRow(5,1),gateRow(6,1),gateRow(7,1)],
     deckSwap:pairDecks(SWAP_LAYOUTS.quadA,SWAP_LAYOUTS.quadB),
   }),
-  stageLayersLevel(73,"Przebij Ciszę","Brama wysoko · tylko dwie aktywne linie",30,{microphone:14,headphones:14},{
+  stageLayersLevel(73,"Przebij Ciszę","Brama wysoko · tylko dwie aktywne linie",20,{microphone:14,headphones:14},{
     gates:[gateRow(2,2,[2,5])],
     shields:[{index:10,hp:1},{index:13,hp:1}],
     remix:{pairMap:REMIX_PAIR_MAP,zones:[remixZone("A","PÓŁNOC",rectIndices(0,1,2,5))]},
   }),
-  stageLayersLevel(74,"Podwójna Kurtyna","Dwa zamki: środek, potem sam dół",35,{vinyl:14,microphone:14},{
+  stageLayersLevel(74,"Podwójna Kurtyna","Dwa zamki: środek, potem sam dół",23,{vinyl:14,microphone:14},{
     layout:{inactive:[0,7]},
     gates:[gateRow(3,2,[1,6]),gateRow(6,1)],
     deckSwap:pairDecks(SWAP_LAYOUTS.quadA,SWAP_LAYOUTS.quadB),
     walls:[{index:18,hp:1},{index:21,hp:1}],
   }),
-  stageLayersLevel(75,"Dolny Sejf","Odblokuj kolejno rzędy 6, 7 i 8",40,{cassette:15,note:15},{
+  stageLayersLevel(75,"Dolny Sejf","Odblokuj kolejno rzędy 6, 7 i 8",27,{cassette:15,note:15},{
     layout:{inactive:[0,1,6,7,8,15]},
     gates:[gateRow(5,1),gateRow(6,2,[3,4]),gateRow(7,1)],
     shields:[{index:18,hp:1},{index:21,hp:1}],
   }),
-  stageLayersLevel(76,"Stalowa Scena","Połam mur i skrzynie na górnym pokładzie",34,{vinyl:13,speaker:13},{
+  stageLayersLevel(76,"Stalowa Scena","Połam mur i skrzynie na górnym pokładzie",22,{vinyl:13,speaker:13},{
     layout:{inactive:[0,7,8,15]},
     gates:[gateRow(4,2,[3,4])],
     deckSwap:pairDecks(SWAP_LAYOUTS.quadA,SWAP_LAYOUTS.quadB),
     walls:[{index:26,hp:2},{index:29,hp:2}],
   }),
-  stageLayersLevel(77,"Cztery Wyspy","Klepsydra z pustym środkiem i Road Case",26,{headphones:14,note:14},{
+  stageLayersLevel(77,"Cztery Wyspy","Klepsydra z pustym środkiem i Road Case",17,{headphones:14,note:14},{
     layout:{inactive:[...C.hourglass,27,28,35,36]},
     deckSwap:pairDecks(SWAP_LAYOUTS.innerA,SWAP_LAYOUTS.innerB),
     walls:[{index:11,hp:1},{index:52,hp:2}],
     shields:[{index:18,hp:1},{index:45,hp:1}],
   }),
-  stageLayersLevel(78,"Setlist Pod Murem","Najpierw mur, potem muzyczna lista",38,{},{
+  stageLayersLevel(78,"Setlist Pod Murem","Najpierw mur, potem muzyczna lista",25,{},{
     gates:[gateRow(3,2,[2,5])],
     layout:{inactive:[0,7]},
     remix:{pairMap:REMIX_PAIR_MAP,zones:[remixZone("A","GÓRNY REMIX",rectIndices(1,2,2,5))]},
     setlist:[{label:"INTRO",kind:"collect",type:"vinyl",target:12},{label:"DROP",kind:"collect",type:"note",target:12},{label:"OUTRO",kind:"special",special:"line",target:1}],
   }),
-  stageLayersLevel(79,"Sekretne Piętra","Dwie bramy + Mystery Track",38,{vinyl:11,cassette:11},{
+  stageLayersLevel(79,"Sekretne Piętra","Dwie bramy + Mystery Track",25,{vinyl:11,cassette:11},{
     layout:{inactive:[0,7,24,31]},
     gates:[gateRow(4,1),gateRow(6,2,[3,4])],
     deckSwap:pairDecks(SWAP_LAYOUTS.quadA,SWAP_LAYOUTS.quadB),
     mysteries:[{index:26},{index:29}],mysteryGoal:2,
   }),
-  stageLayersLevel(80,"Layer Drop: Finał","Trzy piętra, cztery decki, finalny drop",51,{vinyl:7,microphone:7,headphones:7,cassette:7,speaker:7,note:7},{
+  stageLayersLevel(80,"Layer Drop: Finał","Trzy piętra, cztery decki, finalny drop",34,{vinyl:7,microphone:7,headphones:7,cassette:7,speaker:7,note:7},{
     gates:[gateRow(3,2,[1,6]),gateRow(5,2,[3,4]),gateRow(7,1)],
     deckSwap:fourDecks(),walls:[{index:18,hp:1},{index:21,hp:1}],finale:true,
   }),
