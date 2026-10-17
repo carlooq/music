@@ -41,6 +41,7 @@ import {
   HIT_MATCH_LAB_LEVELS,
   HIT_MATCH_LAB_STAGE,
   HIT_MATCH_SWAP_LAB_STAGE,
+  HIT_MATCH_LAYERS_LAB_STAGE,
   countShieldHp,
   countShieldCells,
   createWallState,
@@ -123,6 +124,7 @@ function compactGoal(level) {
   if ((level?.shields || []).length) bits.push(`Neon Shield ${level.shields.length}`);
   if ((level?.walls || []).length) bits.push(`Road Case ${level.walls.length}`);
   if (level?.gate) bits.push("SOUND GATE");
+  if (level?.gates?.length) bits.push(`BRAMY ${level.gates.length}`);
   if ((level?.deliveries || []).length) bits.push(`Drop Mic ${level.deliveryGoal || level.deliveries.length}`);
   if ((level?.setlist || []).length) bits.push(`SETLIST ${level.setlist.length} tracki`);
   if ((level?.mysteries || []).length) bits.push(`Mystery Track ${level.mysteryGoal || level.mysteries.length}`);
@@ -558,8 +560,11 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   const initialShieldState = () => createShieldState(LEVEL);
   const initialWallState = () => createWallState(LEVEL);
   const initialWallIndices = Object.keys(initialWallState()).map(Number);
-  const initialFrozenIndices = LEVEL.gate?.indices?.length
-    ? Array.from({length:64-(Math.floor(Number(LEVEL.gate.indices[0])/8)+1)*8},(_,i)=>(Math.floor(Number(LEVEL.gate.indices[0])/8)+1)*8+i)
+  // Na starcie tylko obszar NAD pierwszą bramą ma kafle.
+  // Poniżej bramy są prawdziwe puste sloty aż do otwarcia danego piętra.
+  const initialTopGate = (LEVEL.gates?.[0] || LEVEL.gate);
+  const initialFrozenIndices = initialTopGate?.indices?.length
+    ? Array.from({length:64-(Math.floor(Number(initialTopGate.indices[0])/8)+1)*8},(_,i)=>(Math.floor(Number(initialTopGate.indices[0])/8)+1)*8+i)
     : [];
   const initialShieldIndices = (LEVEL?.shields || []).map(({ index }) => Number(index));
   const initialDeliveryIndices = (LEVEL?.deliveries || []).map(({ index }) => Number(index));
@@ -660,11 +665,21 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
 
   const isShieldLocked = useCallback((index) => Number(shieldsRef.current?.[index] || 0) > 0, []);
   const isWallLocked = useCallback((index) => Number(wallsRef.current?.[index] || 0) > 0, []);
-  const isGateClosed = useCallback(() => (LEVEL.gate?.indices||[]).some((idx)=>Number(wallsRef.current?.[idx] || 0)>0),[LEVEL]);
+  const getActiveGate = useCallback(() => {
+    const gates = LEVEL.gates?.length ? LEVEL.gates : LEVEL.gate ? [LEVEL.gate] : [];
+    return gates.find((gate) => (gate.indices||[]).some((idx)=>Number(wallsRef.current?.[idx]||0)>0)) || null;
+  }, [LEVEL]);
+  const isGateClosed = useCallback(() => !!getActiveGate(), [getActiveGate]);
+  const getFrozenIndices = useCallback(() => {
+    const gate = getActiveGate();
+    if (!gate?.indices?.length) return [];
+    const row = Math.floor(Number(gate.indices[0])/8);
+    return Array.from({length:Math.max(0,64-(row+1)*8)},(_,i)=>(row+1)*8+i);
+  }, [getActiveGate]);
   const isBelowGateLocked = useCallback((index) => {
-    const row=LEVEL.gate?.indices?.length ? Math.floor(Number(LEVEL.gate.indices[0])/8) : -1;
-    return row>=0 && Math.floor(index/8)>row && isGateClosed();
-  },[LEVEL,isGateClosed]);
+    const gate = getActiveGate();
+    return !!gate?.indices?.length && Math.floor(index/8)>Math.floor(Number(gate.indices[0])/8);
+  }, [getActiveGate]);
   const getLockedWallIndices = useCallback(() => Object.entries(wallsRef.current||{}).filter(([,hp])=>Number(hp)>0).map(([idx])=>Number(idx)),[]);
 
   const getActiveMysteryIndices = useCallback(() => Object.entries(mysteriesRef.current || {})
@@ -677,8 +692,15 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     ...getLockedShieldIndices(),
     ...getLockedWallIndices(),
     ...getActiveMysteryIndices(),
-    ...(isGateClosed() ? Array.from({length:64-(Math.floor(Number(LEVEL.gate.indices[0])/8)+1)*8},(_,i)=>(Math.floor(Number(LEVEL.gate.indices[0])/8)+1)*8+i) : []),
-  ])], [getLockedShieldIndices, getLockedWallIndices, getActiveMysteryIndices, isGateClosed, LEVEL]);
+    ...getFrozenIndices(),
+  ])], [getLockedShieldIndices, getLockedWallIndices, getActiveMysteryIndices, getFrozenIndices]);
+
+  // Zamknięte piętra są NIEAKTYWNE dla grawitacji (nie wolno ich wypełniać),
+  // ale kolejne zamknięte linie murów muszą zachować swoje kafle "wall".
+  const getGravityInactive = useCallback(() => {
+    const wallIndices = new Set(getLockedWallIndices());
+    return [...inactiveIndices, ...getFrozenIndices().filter((idx)=>!wallIndices.has(idx))];
+  }, [inactiveIndices, getFrozenIndices, getLockedWallIndices]);
 
   const filterLockedShieldCells = useCallback((indices = []) => {
     const locked = new Set(getBlockedIndices());
@@ -926,7 +948,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       setBoard(withoutDelivered);
       await wait(190);
       if (runTokenRef.current !== token) return current;
-      current = collapseAndRefill(withoutDelivered, inactiveIndices, getBlockedIndices());
+      current = collapseAndRefill(withoutDelivered, getGravityInactive(), getBlockedIndices());
       setMotionMode("fall");
       setBoard(current);
       await wait(280);
@@ -936,7 +958,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     }
     setDeliveryFx([]);
     return current;
-  }, [flashBanner, getBlockedIndices, syncStats]);
+  }, [flashBanner, getBlockedIndices, getGravityInactive, syncStats]);
 
   const applyRemixBeat = useCallback(async (boardAfterResolve, token) => {
     if (!LEVEL.remix && !LEVEL.deckSwap) return { board:boardAfterResolve, groups:[], applied:false };
@@ -1068,7 +1090,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       await wait(260);
       if (runTokenRef.current !== token) return;
       setMotionMode("shuffle");
-      setBoard(shufflePlayable(finalBoard, inactiveIndices, blockedIndices));
+      setBoard(shufflePlayable(finalBoard, getGravityInactive(), blockedIndices));
       await wait(260);
     }
     if (runTokenRef.current === token) {
@@ -1076,7 +1098,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       setMotionMode("idle");
       setBusy(false);
     }
-  }, [flashBanner, saveCompletedLevel, syncStats, getBlockedIndices]);
+  }, [flashBanner, saveCompletedLevel, syncStats, getBlockedIndices, getGravityInactive]);
 
   const finalizeResolvedMove = useCallback(async (stableBoard, token, cascadeLevel, resolveFn) => {
     if (runTokenRef.current !== token) return;
@@ -1137,11 +1159,14 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       const nextWalls={...wallsRef.current};
       const hits=new Set((shieldContactIndices||[]).map(Number).filter((idx)=>!!boardBefore[idx]));
       if (specialCreation?.index!==undefined) hits.add(Number(specialCreation.index));
-      const gate=new Set((LEVEL.gate?.indices||[]).map(Number));
+      const gateGroups=LEVEL.gates?.length ? LEVEL.gates : LEVEL.gate ? [LEVEL.gate] : [];
+      const activeGate=gateGroups.find((group)=>(group.indices||[]).some((idx)=>Number(nextWalls[idx]||0)>0));
+      const gate=new Set((activeGate?.indices||[]).map(Number));
+      const otherGates=new Set(gateGroups.flatMap((group)=>group.indices||[]));
       const touches=(idx)=>orthogonalNeighbours(idx).some((near)=>hits.has(near));
       for (const [raw,hpRaw] of Object.entries(nextWalls)) {
         const idx=Number(raw), hp=Number(hpRaw||0);
-        if (hp<=0 || gate.has(idx) || !touches(idx)) continue;
+        if (hp<=0 || otherGates.has(idx) || !touches(idx)) continue;
         nextWalls[idx]=hp-1;
         if (nextWalls[idx]===0) clearedWalls.push(idx);
       }
@@ -1288,7 +1313,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     await wait(35);
     if (runTokenRef.current !== token) return;
 
-    let dropped = collapseAndRefill(removed, inactiveIndices, getBlockedIndices());
+    let dropped = collapseAndRefill(removed, getGravityInactive(), getBlockedIndices());
     setMatched([]);
     setActiveSpecials([]);
     setFxMarks([]);
@@ -1312,7 +1337,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     }
 
     await finalizeResolvedMove(settled, token, cascadeLevel, resolve);
-  }, [applyRemovalStats, finalizeResolvedMove, showCombo, filterLockedShieldCells, getBlockedIndices, resolveMysteryHit, settleDeliveryDrops]);
+  }, [applyRemovalStats, finalizeResolvedMove, showCombo, filterLockedShieldCells, getBlockedIndices, getGravityInactive, resolveMysteryHit, settleDeliveryDrops]);
 
   const resolveColorMove = useCallback(async (swapped, a, b, token) => {
     const rawAffected = resolveColorSwap(swapped, a, b) || [];
@@ -1343,7 +1368,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     const removed = removeIndices(swapped, removeNow, null);
     setBoard(removed);
     await wait(35);
-    let dropped = collapseAndRefill(removed, inactiveIndices, getBlockedIndices());
+    let dropped = collapseAndRefill(removed, getGravityInactive(), getBlockedIndices());
     setMatched([]);
     setActiveSpecials([]);
     setFxMarks([]);
@@ -1365,7 +1390,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       return;
     }
     await finalizeResolvedMove(settled, token, 1, resolveCascades);
-  }, [applyRemovalStats, finalizeResolvedMove, flashBanner, resolveCascades, filterLockedShieldCells, getBlockedIndices, resolveMysteryHit, settleDeliveryDrops]);
+  }, [applyRemovalStats, finalizeResolvedMove, flashBanner, resolveCascades, filterLockedShieldCells, getBlockedIndices, getGravityInactive, resolveMysteryHit, settleDeliveryDrops]);
 
   const resolveSpecialMove = useCallback(async (swapped, a, b, affected, token) => {
     const rawAffected = [...affected];
@@ -1394,7 +1419,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
     const removed = removeIndices(swapped, removeNow, null);
     setBoard(removed);
     await wait(35);
-    let dropped = collapseAndRefill(removed, inactiveIndices, getBlockedIndices());
+    let dropped = collapseAndRefill(removed, getGravityInactive(), getBlockedIndices());
     setMatched([]);
     setActiveSpecials([]);
     setFxMarks([]);
@@ -1415,7 +1440,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       return;
     }
     await finalizeResolvedMove(settled, token, 1, resolveCascades);
-  }, [applyRemovalStats, finalizeResolvedMove, flashBanner, resolveCascades, syncStats, filterLockedShieldCells, getBlockedIndices, resolveMysteryHit, settleDeliveryDrops]);
+  }, [applyRemovalStats, finalizeResolvedMove, flashBanner, resolveCascades, syncStats, filterLockedShieldCells, getBlockedIndices, getGravityInactive, resolveMysteryHit, settleDeliveryDrops]);
 
   const attemptSwap = useCallback(async (a, b) => {
     if (status !== "running" || busy || quizState || !areAdjacent(a, b) || !board[a] || !board[b]) return;
@@ -1721,7 +1746,9 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   const mysteryRemaining = Object.values(mysteries || {}).filter(Boolean).length;
   const mysteryTotal = (LEVEL.mysteries || []).length;
   const progressPct = levelProgressPercent(LEVEL, collected, score, shieldsRemainingHp, delivered, setlistStep, setlistProgress, mysteryRemaining, wallsRemaining, wallsTotal);
-  const currentStage = labMode ? (LEVEL.deckSwap ? HIT_MATCH_SWAP_LAB_STAGE : HIT_MATCH_LAB_STAGE) : getHitMatchStage(LEVEL.number);
+  const currentStage = labMode ? (LEVEL.number>=71 ? HIT_MATCH_LAYERS_LAB_STAGE : LEVEL.deckSwap ? HIT_MATCH_SWAP_LAB_STAGE : HIT_MATCH_LAB_STAGE) : getHitMatchStage(LEVEL.number);
+  const activeGate = getActiveGate();
+  const allGateIndices = new Set([...(LEVEL.gate?.indices||[]),...(LEVEL.gates||[]).flatMap((gate)=>gate.indices||[])]);
   // Stałe położenia stref są widoczne przez cały poziom, bez stanów "aktywna/oczekująca".
   const displayRemixZones = LEVEL.remix?.zones || LEVEL.deckSwap?.zones || [];
   const remixZoneIdsByIndex = new Map();
@@ -1746,7 +1773,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
       <main className="hm-layout">
         <section className="hm-stage-panel">
           <div className="hm-stage-heading">
-            <div><span>{currentStage.title} · POZIOM {LEVEL.number}</span><h2>{LEVEL.title.toUpperCase()}</h2><p>{labMode ? (LEVEL.deckSwap ? "Test DECK SWAP: rozbij twarde przeszkody i Sound Gate, aby otworzyć nowe sekcje planszy." : "Test REMIX DECKS: nieruchome strefy zamieniają symbole po ruchu i mogą uruchomić kolejną kaskadę.") : currentStage.number === 5 ? "Aktywuj Mystery Track matchem i odblokuj go poprawną odpowiedzią." : currentStage.number === 4 ? "Realizuj kolejne tracki setlisty — cele nie liczą się na zapas." : currentStage.number === 3 ? "Sprowadź Drop Mic na dół planszy i kontroluj przepływ." : currentStage.number === 2 ? "Nowe układy planszy i Neon Shield." : "Łącz muzyczne symbole i buduj kaskady."}</p></div>
+            <div><span>{currentStage.title} · POZIOM {LEVEL.number}</span><h2>{LEVEL.title.toUpperCase()}</h2><p>{labMode ? (LEVEL.number >= 71 ? "Test LAYER DROP: rozbijaj bramy po kolei i odblokowuj puste sekcje planszy." : LEVEL.deckSwap ? "Test DECK SWAP: rozbij twarde przeszkody i Sound Gate, aby otworzyć nowe sekcje planszy." : "Test REMIX DECKS: nieruchome strefy zamieniają symbole po ruchu i mogą uruchomić kolejną kaskadę.") : currentStage.number === 5 ? "Aktywuj Mystery Track matchem i odblokuj go poprawną odpowiedzią." : currentStage.number === 4 ? "Realizuj kolejne tracki setlisty — cele nie liczą się na zapas." : currentStage.number === 3 ? "Sprowadź Drop Mic na dół planszy i kontroluj przepływ." : currentStage.number === 2 ? "Nowe układy planszy i Neon Shield." : "Łącz muzyczne symbole i buduj kaskady."}</p></div>
             <div className="hm-stage-score-block">
               {labMode ? <><span className="hm-lab-badge">LAB</span><small>NAGRODY I ZAPIS WYŁĄCZONE</small></> : <><Stars count={previousStars} size={20} /><small>TWÓJ REKORD GWIAZDEK</small></>}
               <div className="hm-stage-progress"><strong>{progressPct}%</strong><span><i style={{ width: `${progressPct}%` }} /></span></div>
@@ -1807,16 +1834,16 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
                     </span>
                   );
                 })}
-                {LEVEL.gate && isGateClosed() ? (
+                {activeGate ? (
                   <span className="hm-gate-veil" style={{
-                    top:`${(Math.floor(LEVEL.gate.indices[0]/8)+1)*12.5}%`,
-                    height:`${(7-Math.floor(LEVEL.gate.indices[0]/8))*12.5}%`
-                  }} aria-hidden="true"><b>SEKCJA ZABLOKOWANA</b></span>
+                    top:`${(Math.floor(activeGate.indices[0]/8)+1)*12.5}%`,
+                    height:`${(7-Math.floor(activeGate.indices[0]/8))*12.5}%`
+                  }} aria-hidden="true"><b>{LEVEL.gates?.length ? "KOLEJNE PIĘTRA CZEKAJĄ NA OTWARCIE" : "SEKCJA ZABLOKOWANA"}</b></span>
                 ) : null}
-                {LEVEL.gate && isGateClosed() ? <span className="hm-gate-banner" style={{top:`${Math.floor(LEVEL.gate.indices[0]/8)*12.5}%`}} aria-hidden="true">SOUND GATE · {Number(walls[LEVEL.gate.indices[0]]||0)} HP</span> : null}
+                {activeGate ? <span className="hm-gate-banner" style={{top:`${Math.floor(activeGate.indices[0]/8)*12.5}%`}} aria-hidden="true">{LEVEL.gates?.length ? `SOUND GATE · RZĄD ${Math.floor(activeGate.indices[0]/8)+1}` : "SOUND GATE"} · {Number(walls[activeGate.indices[0]]||0)} HP</span> : null}
                 {board.map((tile, index) => tile?.type === "wall" ? (
-                  <span key={`solid-${index}`} className={`hm-solid-block ${LEVEL.gate?.indices?.includes(index) ? "is-gate" : "is-case"}`} role="gridcell" aria-label={LEVEL.gate?.indices?.includes(index) ? "Sound Gate" : "Road Case"} style={{left:`${colOf(index)*12.5}%`,top:`${rowOf(index)*12.5}%`}}>
-                    <i/><b>{LEVEL.gate?.indices?.includes(index) ? "" : Number(walls[index]||0)>1 ? walls[index] : "▣"}</b>
+                  <span key={`solid-${index}`} className={`hm-solid-block ${allGateIndices.has(index) ? "is-gate" : "is-case"} ${LEVEL.gates?.length ? "is-layered" : ""}`} role="gridcell" aria-label={allGateIndices.has(index) ? "Sound Gate" : "Road Case"} style={{left:`${colOf(index)*12.5}%`,top:`${rowOf(index)*12.5}%`}}>
+                    <i/><b>{allGateIndices.has(index) ? "" : Number(walls[index]||0)>1 ? walls[index] : "▣"}</b>
                   </span>
                 ) : tile ? (
                   <HitMatchPiece
@@ -1885,7 +1912,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
               {mysteryTotal ? <MysteryGoalChip remaining={mysteryRemaining} total={mysteryTotal} /> : null}
               {deliveryTarget ? <DeliveryGoalChip value={delivered} target={deliveryTarget} /> : null}
               {shieldsTotal ? <ShieldGoalChip remaining={shieldsRemaining} total={shieldsTotal} label={blockersLabel} /> : null}
-              {wallsTotal ? <WallGoalChip remaining={wallsRemaining} total={wallsTotal} hasGate={!!LEVEL.gate} /> : null}
+              {wallsTotal ? <WallGoalChip remaining={wallsRemaining} total={wallsTotal} hasGate={!!(LEVEL.gate || LEVEL.gates?.length)} /> : null}
             </div>
           </div>
         </section>
@@ -1901,7 +1928,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
               {mysteryTotal ? <MysteryGoalChip remaining={mysteryRemaining} total={mysteryTotal} /> : null}
               {deliveryTarget ? <DeliveryGoalChip value={delivered} target={deliveryTarget} /> : null}
               {shieldsTotal ? <ShieldGoalChip remaining={shieldsRemaining} total={shieldsTotal} label={blockersLabel} /> : null}
-              {wallsTotal ? <WallGoalChip remaining={wallsRemaining} total={wallsTotal} hasGate={!!LEVEL.gate} /> : null}
+              {wallsTotal ? <WallGoalChip remaining={wallsRemaining} total={wallsTotal} hasGate={!!(LEVEL.gate || LEVEL.gates?.length)} /> : null}
             </div>
             {(LEVEL.setlist || []).length ? <SetlistTrackList level={LEVEL} step={setlistStep} progress={setlistProgress} /> : null}
           </section>
@@ -1949,7 +1976,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
               {mysteryTotal ? <div className="mystery-goal"><Lock size={25} /><strong>{mysteryTotal}</strong><span>Mystery Track</span></div> : null}
               {deliveryTarget ? <div className="delivery-goal"><span className="hm-delivery-intro-icon">↓</span><strong>{deliveryTarget}</strong><span>Drop Mic</span></div> : null}
               {shieldsTotal ? <div className="shield-goal"><span className="hm-shield-intro-icon">◆</span><strong>{shieldsTotal}</strong><span>{blockersLabel}</span></div> : null}
-              {wallsTotal ? <div className="shield-goal"><span className="hm-shield-intro-icon">▦</span><strong>{wallsTotal}</strong><span>{LEVEL.gate ? "SOUND GATE + CASE" : "ROAD CASE"}</span></div> : null}
+              {wallsTotal ? <div className="shield-goal"><span className="hm-shield-intro-icon">▦</span><strong>{wallsTotal}</strong><span>{LEVEL.gate || LEVEL.gates?.length ? "SOUND GATE + CASE" : "ROAD CASE"}</span></div> : null}
               <div className="moves"><Move size={26} /><strong>{LEVEL.moves}</strong><span>ruchów</span></div>
             </div>
             {labMode ? <div className="hm-lab-intro-warning"><b>LAB</b><span>Ten level nie zapisuje gwiazdek, XP, HITCOIN ani rankingu.</span></div> : <div className="hm-intro-stars"><span><b>★</b> ukończenie</span><span><b>★★</b> {LEVEL.starScoreThresholds[2].toLocaleString("pl-PL")} pkt</span><span><b>★★★</b> {LEVEL.starScoreThresholds[3].toLocaleString("pl-PL")} pkt</span></div>}
@@ -1959,6 +1986,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
             {mysteryTotal ? <div className="hm-stage2-intro-note hm-mystery-intro-note"><span>?</span><p><strong>MYSTERY TRACK</strong><small>Zrób match lub odpal efekt na kaflu albo obok niego. Odpowiedz poprawnie w muzycznym quizie, aby usunąć kafel. Błąd zostawia go na miejscu.</small></p></div> : null}
             {deliveryTarget ? <div className="hm-stage2-intro-note hm-delivery-intro-note"><span>↓</span><p><strong>DROP THE MIC</strong><small>Specjalnego mikrofonu nie można przesuwać ani matchować. Usuwaj kafle pod nim — gdy wejdzie w jedno z dwóch dolnych pól oznaczonych EXIT, zostaje dostarczony.</small></p></div> : null}
             {roadCasesTotal ? <div className="hm-stage2-intro-note"><span>▣</span><p><strong>ROAD CASE</strong><small>Solidna skrzynia ZAJMUJE CAŁE POLE, nie ma pod nią ikony i przecina matche. Rozbijaj ją dopasowaniami obok; po usunięciu wraca normalne pole planszy.</small></p></div> : null}
+            {LEVEL.gates?.length ? <div className="hm-stage2-intro-note"><span>▤</span><p><strong>PIĘTRA / SOUND GATE</strong><small>Na początku na dole nie ma żadnych ikonek. Rozbij górną linię matchami bezpośrednio obok, aby nowe pola wypełniły się spadającymi kaflami. Przy kilku bramach następne rzędy otwierają się po kolei.</small></p></div> : null}
             {LEVEL.gate ? <div className="hm-stage2-intro-note"><span>▤</span><p><strong>SOUND GATE</strong><small>Mur odcina dolną sekcję. Wykonaj {LEVEL.gate.hp} matche bezpośrednio obok muru, aby otworzyć wszystkie segmenty jednocześnie i odblokować dół.</small></p></div> : null}
             {neonShieldsTotal ? <div className="hm-stage2-intro-note"><span>◆</span><p><strong>NEON SHIELD</strong><small>Shield blokuje ruch kafla, ale nie jego udział w matchu. Ułóż match-3+ z osłoniętym symbolem albo zrób match bezpośrednio obok, aby zdjąć warstwę.</small></p></div> : null}
             <button type="button" className="hm-primary" onClick={startGame}><Zap size={19} fill="currentColor" /> ZACZYNAMY</button>
@@ -2037,6 +2065,7 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
             </div>
             <div className="hm-help-power"><Music2 size={22} /><span><strong>HIT METER</strong><small>Przy 100% uruchom krótki quiz. Poprawna odpowiedź daje +3 ruchy.</small></span></div>
             {roadCasesTotal ? <div className="hm-help-power hm-help-shield"><span className="hm-shield-mini">▣</span><span><strong>ROAD CASE</strong><small>Pełna skrzynia zamiast ikony. Nie tworzy matchy, rozbijesz ją dopasowaniami obok.</small></span></div> : null}
+            {LEVEL.gates?.length ? <div className="hm-help-power hm-help-shield"><span className="hm-shield-mini">▤</span><span><strong>OTWIERANE PIĘTRA</strong><small>Nie ma ukrytych kafli pod ścianą: zamknięte pola są puste. Match bezpośrednio przy widocznej linii zdejmuje 1 HP. Po jej rozbiciu kafle opadają do nowej sekcji; dopiero wtedy możesz rozbijać kolejną linię.</small></span></div> : null}
             {LEVEL.gate ? <div className="hm-help-power hm-help-shield"><span className="hm-shield-mini">▤</span><span><strong>SOUND GATE</strong><small>Wspólny licznik HP dla całej linii. Match obok dowolnego segmentu zdejmuje jedną warstwę. Dolna sekcja odblokowuje się dopiero po rozbiciu muru.</small></span></div> : null}
             {neonShieldsTotal ? <div className="hm-help-power hm-help-shield"><span className="hm-shield-mini">◆</span><span><strong>NEON SHIELD</strong><small>Kafel pod osłoną jest nieruchomy, ale może wejść w match-3+. Match z nim lub na sąsiednim polu góra/dół/lewo/prawo zdejmuje 1 warstwę.</small></span></div> : null}
             {deliveryTarget ? <div className="hm-help-power hm-help-delivery"><span className="hm-delivery-mini">↓</span><span><strong>DROP THE MIC</strong><small>Mikrofon nie tworzy matchy i nie można nim ruszać. Czyść pola pod nim; dwa dolne aktywne pola kolumny tworzą strefę EXIT.</small></span></div> : null}
@@ -2086,9 +2115,9 @@ function HitMatchLabHub({ onBack }) {
       <main className="hm-hub-main">
         <section className="hm-hub-hero hm-lab-hero">
           <div className="hm-hub-hero-copy">
-            <span className="hm-hub-kicker">REMIX DECKS + DECK SWAP · LAB 51–70</span>
+            <span className="hm-hub-kicker">HIT MATCH · ADMIN LAB 51–80</span>
             <h2>TESTUJ <b>NOWĄ MECHANIKĘ</b></h2>
-            <p>Remix Decks 51–60 zmienia symbole, a Deck Swap 61–70 wymienia całą zawartość nieruchomych stref. Road Case zajmują całe pola, a Sound Gate przegradza planszę na pół. Wszystkie levele są od razu dostępne.</p>
+            <p>Trzy paczki testowe: Remix Decks 51–60, Deck Swap 61–70 oraz Layer Drop 71–80. Najnowsze plansze mają puste zamknięte sekcje i bramy otwierane jedna po drugiej. Każdy poziom możesz uruchomić od razu.</p>
             <div className="hm-lab-warning"><Zap size={17} /><span><strong>NAGRODY WYŁĄCZONE</strong><small>Brak zapisu gwiazdek, XP, HITCOIN i rankingów.</small></span></div>
           </div>
           <div className="hm-lab-legend">
@@ -2133,7 +2162,31 @@ function HitMatchLabHub({ onBack }) {
               <div className="hm-stage-group-meta"><b>TEST BUILD</b><span>Bez wpływu na publiczny HIT MATCH</span></div>
             </div>
             <div className="hm-level-grid">
-              {HIT_MATCH_LAB_LEVELS.filter((level) => level.number >= 61).map((level) => (
+              {HIT_MATCH_LAB_LEVELS.filter((level) => level.number >= 61 && level.number <= 70).map((level) => (
+                <button type="button" key={level.id} className={"hm-level-card unlocked stage-six " + (level.finale ? "finale" : "")} onClick={() => setActiveLevelId(level.id)}>
+                  <div className="hm-level-number">{String(level.number).padStart(2, "0")}</div>
+                  <div className="hm-level-card-body">
+                    <span className="hm-level-subtitle">{level.subtitle}</span>
+                    <strong>{level.title}</strong>
+                    <small>{compactGoal(level)}</small>
+                  </div>
+                  <div className="hm-level-card-side">
+                    <span className="hm-lab-card-tag">LAB</span>
+                    <small>{level.moves} ruchów</small>
+                    <ChevronRight size={19} />
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="hm-stage-group stage-6 open hm-swap-lab-group hm-layer-lab-group">
+            <div className="hm-stage-group-heading">
+              <div><span>POZIOMY 71–80</span><h4>LAYER DROP</h4><small>Rozbijaj bramy · odblokowuj puste rzędy · łącz znane mechaniki</small></div>
+              <div className="hm-stage-group-meta"><b>TEST BUILD</b><span>Bez wpływu na publiczny HIT MATCH</span></div>
+            </div>
+            <div className="hm-level-grid">
+              {HIT_MATCH_LAB_LEVELS.filter((level) => level.number >= 71 && level.number <= 80).map((level) => (
                 <button type="button" key={level.id} className={"hm-level-card unlocked stage-six " + (level.finale ? "finale" : "")} onClick={() => setActiveLevelId(level.id)}>
                   <div className="hm-level-number">{String(level.number).padStart(2, "0")}</div>
                   <div className="hm-level-card-body">

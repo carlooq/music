@@ -189,7 +189,9 @@ export function createLevelBoard(inactiveIndices = [], blockedIndices = [], deli
   const deliveries = [...new Set((deliveryIndices || []).map(Number).filter((index) => Number.isInteger(index) && index >= 0 && index < HIT_MATCH_ROWS * HIT_MATCH_COLS && !inactive.has(index)))];
   const mysteries = [...new Set((mysteryIndices || []).map(Number).filter((index) => Number.isInteger(index) && index >= 0 && index < HIT_MATCH_ROWS * HIT_MATCH_COLS && !inactive.has(index)))];
   const walls=inactiveSetOf(wallIndices);
-  const blocked = new Set([...shields, ...mysteries, ...walls, ...inactiveSetOf(frozenIndices)]);
+  const frozen = inactiveSetOf(frozenIndices);
+  const spawnInactive = new Set([...inactive, ...[...frozen].filter((index) => !walls.has(index))]);
+  const blocked = new Set([...shields, ...mysteries, ...walls, ...frozen]);
 
   const decorate = (board) => {
     walls.forEach((index)=>{if (!inactive.has(index)) board[index]=makeHitMatchTile("wall",{fresh:false,spawnOrder:0});});
@@ -203,11 +205,11 @@ export function createLevelBoard(inactiveIndices = [], blockedIndices = [], deli
   };
 
   for (let attempt = 0; attempt < 120; attempt += 1) {
-    const board = decorate(createPlayableBoard(inactive, blocked));
-    if (findMatches(board, blocked).length === 0 && hasPossibleMove(board, inactive, blocked)) return board;
+    const board = decorate(createPlayableBoard(spawnInactive, blocked));
+    if (findMatches(board, blocked).length === 0 && hasPossibleMove(board, spawnInactive, blocked)) return board;
   }
 
-  return decorate(createPlayableBoard(inactive, blocked));
+  return decorate(createPlayableBoard(spawnInactive, blocked));
 }
 
 export function findMatches(board, blockedIndices = []) {

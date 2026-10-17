@@ -229,11 +229,78 @@ const routeLabDeckSwap = [
   stageSwapLevel(70,"Deck Swap: Finał","Klepsydra i pełna ściana",29,{vinyl:8,microphone:8,headphones:8,cassette:8,speaker:8,note:8},pairDecks(SWAP_LAYOUTS.bandsA,SWAP_LAYOUTS.bandsB),[roadCase(18,2),roadCase(19),roadCase(44,2),roadCase(45)],{layout:{inactive:C.hourglass},gate:{indices:rectIndices(3,3,0,7),hp:3},finale:true}),
 ];
 
+
+/* LAB 71–80: istniejące mechaniki, nowe geometrie i kaskadowo otwierane piętra.
+   Gates zawsze zajmują PEŁNY rząd; sekcja poniżej najwyższej zamkniętej
+   bramy jest pusta aż do jej rozbicia. Każda brama ma własny licznik HP. */
+const gateRow = (row,hp=1) => ({id:`gate-${row}`,label:`BRAMA ${row+1}`,indices:rectIndices(row,row,0,7),hp});
+const stageLayersLevel = (number,title,subtitle,moves,goals,mechanics={}) => ({
+  id:`lab_level_${number}`,number,title,subtitle,moves,goals,
+  starScoreThresholds:{2:24500+(number-71)*1500,3:31500+(number-71)*1900},
+  endgameMoveBonus:0,testOnly:true,noRewards:true,...mechanics,
+});
+const routeLabLayers = [
+  stageLayersLevel(71,"Pusty Parkiet","Mur w środku · na dole początkowo pusto",23,{cassette:14,speaker:14},{
+    gates:[gateRow(3,2)],
+    remix:{pairMap:REMIX_PAIR_MAP,zones:[remixZone("A","GÓRNY REMIX",rectIndices(1,2,2,5))]},
+  }),
+  stageLayersLevel(72,"Trzy Piętra","Trzy dolne rzędy otwierane pojedynczo",27,{vinyl:16,note:16},{
+    layout:{inactive:[0,7,8,15]},
+    gates:[gateRow(5,1),gateRow(6,1),gateRow(7,1)],
+    deckSwap:pairDecks(SWAP_LAYOUTS.quadA,SWAP_LAYOUTS.quadB),
+  }),
+  stageLayersLevel(73,"Przebij Ciszę","Brama wysoko · tylko dwie aktywne linie",26,{microphone:14,headphones:14},{
+    gates:[gateRow(2,2)],
+    shields:[{index:10,hp:1},{index:13,hp:1}],
+    remix:{pairMap:REMIX_PAIR_MAP,zones:[remixZone("A","PÓŁNOC",rectIndices(0,1,2,5))]},
+  }),
+  stageLayersLevel(74,"Podwójna Kurtyna","Dwa zamki: środek, potem sam dół",29,{vinyl:14,microphone:14},{
+    layout:{inactive:[0,7]},
+    gates:[gateRow(3,2),gateRow(6,1)],
+    deckSwap:pairDecks(SWAP_LAYOUTS.quadA,SWAP_LAYOUTS.quadB),
+    walls:[{index:18,hp:1},{index:21,hp:1}],
+  }),
+  stageLayersLevel(75,"Dolny Sejf","Odblokuj kolejno rzędy 6, 7 i 8",28,{cassette:15,note:15},{
+    layout:{inactive:[0,1,6,7,8,15]},
+    gates:[gateRow(5,1),gateRow(6,2),gateRow(7,1)],
+    shields:[{index:18,hp:1},{index:21,hp:1}],
+  }),
+  stageLayersLevel(76,"Stalowa Scena","Połam mur i skrzynie na górnym pokładzie",29,{vinyl:13,speaker:13},{
+    layout:{inactive:[0,7,8,15]},
+    gates:[gateRow(4,2)],
+    deckSwap:pairDecks(SWAP_LAYOUTS.quadA,SWAP_LAYOUTS.quadB),
+    walls:[{index:26,hp:2},{index:29,hp:2}],
+  }),
+  stageLayersLevel(77,"Cztery Wyspy","Klepsydra z pustym środkiem i Road Case",26,{headphones:14,note:14},{
+    layout:{inactive:[...C.hourglass,27,28,35,36]},
+    deckSwap:pairDecks(SWAP_LAYOUTS.innerA,SWAP_LAYOUTS.innerB),
+    walls:[{index:11,hp:1},{index:52,hp:2}],
+    shields:[{index:18,hp:1},{index:45,hp:1}],
+  }),
+  stageLayersLevel(78,"Setlist Pod Murem","Najpierw mur, potem muzyczna lista",32,{},{
+    gates:[gateRow(3,2)],
+    layout:{inactive:[0,7]},
+    remix:{pairMap:REMIX_PAIR_MAP,zones:[remixZone("A","GÓRNY REMIX",rectIndices(1,2,2,5))]},
+    setlist:[{label:"INTRO",kind:"collect",type:"vinyl",target:12},{label:"DROP",kind:"collect",type:"note",target:12},{label:"OUTRO",kind:"special",special:"line",target:1}],
+  }),
+  stageLayersLevel(79,"Sekretne Piętra","Dwie bramy + Mystery Track",31,{vinyl:11,cassette:11},{
+    layout:{inactive:[0,7,24,31]},
+    gates:[gateRow(4,1),gateRow(6,2)],
+    deckSwap:pairDecks(SWAP_LAYOUTS.quadA,SWAP_LAYOUTS.quadB),
+    mysteries:[{index:26},{index:29}],mysteryGoal:2,
+  }),
+  stageLayersLevel(80,"Layer Drop: Finał","Trzy piętra, cztery decki, finalny drop",40,{vinyl:7,microphone:7,headphones:7,cassette:7,speaker:7,note:7},{
+    gates:[gateRow(3,2),gateRow(5,2),gateRow(7,1)],
+    deckSwap:fourDecks(),walls:[{index:18,hp:1},{index:21,hp:1}],finale:true,
+  }),
+];
+
 export const HIT_MATCH_LEVELS = Object.freeze([...route1, ...route2, ...route3, ...route4, ...route5].map((level) => ({ ...level, rewardPerStar:HIT_MATCH_REWARD_PER_STAR })));
 
-export const HIT_MATCH_LAB_LEVELS = Object.freeze([...routeLabRemix,...routeLabDeckSwap].map((level) => ({ ...level, rewardPerStar:{ xp:0, hitcoin:0 } })));
+export const HIT_MATCH_LAB_LEVELS = Object.freeze([...routeLabRemix,...routeLabDeckSwap,...routeLabLayers].map((level) => ({ ...level, rewardPerStar:{ xp:0, hitcoin:0 } })));
 export const HIT_MATCH_LAB_STAGE = Object.freeze({ id:"lab_route_6", number:6, title:"REMIX DECKS · LAB", subtitle:"Testy 51–60", from:51, to:60, mechanic:"Stałe decki · jednoczesny flip symboli", testOnly:true });
 export const HIT_MATCH_SWAP_LAB_STAGE = Object.freeze({ id:"lab_route_7", number:7, title:"DECK SWAP · LAB", subtitle:"Testy 61–70", from:61, to:70, mechanic:"Zamiana zawartości + Sound Gate i solidne bloki", testOnly:true });
+export const HIT_MATCH_LAYERS_LAB_STAGE = Object.freeze({ id:"lab_route_8", number:8, title:"LAYER DROP · LAB", subtitle:"Testy 71–80", from:71, to:80, mechanic:"Sekwencyjne otwieranie pięter + puste sekcje", testOnly:true });
 
 export const HIT_MATCH_STAGES = Object.freeze([
   { id:"route_1", number:1, title:"NEONOWA SCENA", subtitle:"Poziomy 1–10", from:1, to:10, mechanic:"Klasyczna plansza" },
@@ -267,7 +334,11 @@ export function countShieldCells(shields = {}) {
 }
 
 export function createWallState(level) {
-  return Object.fromEntries([...(level?.walls||[]),...(level?.gate?.indices||[]).map((index)=>({index,hp:level.gate.hp||1}))].map(({index,hp=1})=>[Number(index),Math.max(1,Number(hp))]));
+  return Object.fromEntries([
+    ...(level?.walls||[]),
+    ...(level?.gate?.indices||[]).map((index)=>({index,hp:level.gate.hp||1})),
+    ...(level?.gates||[]).flatMap((gate)=>(gate.indices||[]).map((index)=>({index,hp:gate.hp||1}))),
+  ].map(({index,hp=1})=>[Number(index),Math.max(1,Number(hp))]));
 }
 export function countWallCells(walls={}) {
   return Object.values(walls||{}).filter((hp)=>Number(hp)>0).length;
@@ -371,12 +442,21 @@ export function validateHitMatchLevelDefinitions(levels = HIT_MATCH_LEVELS) {
     }
 
     const solidSeen=new Set();
-    for (const solid of [...(level.walls||[]),...(level.gate?.indices||[]).map((index)=>({index,hp:level.gate.hp}))]) {
+    for (const solid of [...(level.walls||[]),...(level.gate?.indices||[]).map((index)=>({index,hp:level.gate.hp})),...(level.gates||[]).flatMap((gate)=>(gate.indices||[]).map((index)=>({index,hp:gate.hp})))]) {
       const idx=Number(solid.index);
       if (!Number.isInteger(idx)||idx<0||idx>=64||inactive.has(idx)) issues.push(`Level ${level.number}: ściana na nieaktywnym polu ${idx}`);
       if (solidSeen.has(idx)||shieldSet.has(idx)) issues.push(`Level ${level.number}: nachodzące blokady w ${idx}`);
       if (!(Number(solid.hp)>0)) issues.push(`Level ${level.number}: błędne HP ściany ${idx}`);
       solidSeen.add(idx);
+    }
+    if ((level.gates||[]).length) {
+      let previousRow=-1;
+      for (const gate of level.gates) {
+        const cells=gate.indices || [];
+        const gateRow=Math.floor(Number(cells[0])/8);
+        if (gateRow<=previousRow || cells.length!==8 || cells.some((index)=>Math.floor(index/8)!==gateRow)) issues.push(`Level ${level.number}: bramy muszą zajmować pełne rzędy od góry do dołu`);
+        previousRow=gateRow;
+      }
     }
     if (level.deckSwap) {
       const decks = new Map((level.deckSwap.zones || []).map((zone) => [zone.id,zone.indices || []]));
@@ -405,7 +485,7 @@ export function isHitMatchLevelCompleted(level, stats = {}) {
   const collectOk = Object.entries(level?.goals || {}).every(([type, target]) => Number(collected[type] || 0) >= Number(target || 0));
   const scoreOk = !level?.scoreGoal || Number(stats.score || 0) >= Number(level.scoreGoal || 0);
   const shieldsOk = !(level?.shields || []).length || Number(stats.shieldsRemaining || 0) <= 0;
-  const wallsOk = (!(level?.walls || []).length && !level?.gate) || Number(stats.wallsRemaining || 0) <= 0;
+  const wallsOk = (!(level?.walls || []).length && !level?.gate && !(level?.gates || []).length) || Number(stats.wallsRemaining || 0) <= 0;
   const deliveryOk = !(level?.deliveries || []).length || Number(stats.delivered || 0) >= Number(level.deliveryGoal || level.deliveries.length);
   const setlistOk = !(level?.setlist || []).length || Number(stats.setlistStep || 0) >= Number(level.setlist.length);
   const mysteryOk = !(level?.mysteries || []).length || Number(stats.mysteryRemaining || 0) <= 0;
