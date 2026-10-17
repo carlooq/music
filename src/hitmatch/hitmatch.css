@@ -3470,3 +3470,27 @@
 @media(max-width:480px) {
   .hm-solid-block.is-gate b {min-width:15px;height:15px;font-size:8px;border-radius:3px;}
 }
+
+/* Public HIT MATCH · rozdziały 7–8: wizualnie odrębne od Remix Decks. */
+.hm-stage-group.stage-7 {
+  border-color:rgba(89,205,244,.18);
+  background:radial-gradient(circle at 9% 0,rgba(53,167,220,.07),transparent 32%),linear-gradient(145deg,rgba(14,24,38,.97),rgba(9,12,24,.98));
+}
+.hm-stage-group.stage-7 .hm-stage-group-heading>div:first-child>span {color:#8ee7ff;}
+.hm-stage-group.stage-7 .hm-stage-progress-mini u {background:linear-gradient(90deg,#54b8fa,#66f3f0);}
+.hm-level-card.stage-seven {
+  border-color:rgba(84,205,249,.14);
+  background:radial-gradient(circle at 0 0,rgba(59,172,237,.07),transparent 32%),linear-gradient(145deg,rgba(12,24,35,.95),rgba(9,13,24,.97));
+}
+.hm-level-card.stage-seven.unlocked:hover {border-color:rgba(110,226,255,.34);box-shadow:0 13px 30px rgba(0,0,0,.27),0 0 28px rgba(67,189,235,.08);}
+.hm-stage-group.stage-8 {
+  border-color:rgba(245,176,96,.19);
+  background:radial-gradient(circle at 9% 0,rgba(220,144,58,.085),transparent 32%),linear-gradient(145deg,rgba(33,26,28,.97),rgba(12,13,24,.98));
+}
+.hm-stage-group.stage-8 .hm-stage-group-heading>div:first-child>span {color:#ffd294;}
+.hm-stage-group.stage-8 .hm-stage-progress-mini u {background:linear-gradient(90deg,#f9b567,#ffda90);}
+.hm-level-card.stage-eight {
+  border-color:rgba(244,173,94,.14);
+  background:radial-gradient(circle at 0 0,rgba(227,153,77,.065),transparent 32%),linear-gradient(145deg,rgba(31,26,34,.95),rgba(12,13,25,.97));
+}
+.hm-level-card.stage-eight.unlocked:hover {border-color:rgba(255,206,132,.35);box-shadow:0 13px 30px rgba(0,0,0,.27),0 0 28px rgba(243,174,81,.08);}

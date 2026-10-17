@@ -298,7 +298,20 @@ const routeLabLayers = [
   }),
 ];
 
-export const HIT_MATCH_LEVELS = Object.freeze([...route1, ...route2, ...route3, ...route4, ...route5].map((level) => ({ ...level, rewardPerStar:HIT_MATCH_REWARD_PER_STAR })));
+// Publikujemy mechaniki opracowane w Admin Lab jako pełnoprawną, ciągłą trasę.
+ // Publiczne levele mają osobne trwałe ID (level_51…level_80), więc testowe
+ // wyniki lab_level_* nie wchodzą do rankingu ani nie dają nagród retroaktywnie.
+const promoteLabLevel = ({ id, testOnly, noRewards, rewardPerStar, ...level }) => ({
+  ...level,
+  id:`level_${level.number}`,
+  rewardPerStar:HIT_MATCH_REWARD_PER_STAR,
+});
+export const HIT_MATCH_LEVELS = Object.freeze([
+  ...route1, ...route2, ...route3, ...route4, ...route5,
+  ...routeLabRemix.map(promoteLabLevel),
+  ...routeLabDeckSwap.map(promoteLabLevel),
+  ...routeLabLayers.map(promoteLabLevel),
+].map((level) => ({ ...level, rewardPerStar:HIT_MATCH_REWARD_PER_STAR })));
 
 export const HIT_MATCH_LAB_LEVELS = Object.freeze([...routeLabRemix,...routeLabDeckSwap,...routeLabLayers].map((level) => ({ ...level, rewardPerStar:{ xp:0, hitcoin:0 } })));
 export const HIT_MATCH_LAB_STAGE = Object.freeze({ id:"lab_route_6", number:6, title:"REMIX DECKS · LAB", subtitle:"Testy 51–60", from:51, to:60, mechanic:"Stałe decki · jednoczesny flip symboli", testOnly:true });
@@ -311,6 +324,9 @@ export const HIT_MATCH_STAGES = Object.freeze([
   { id:"route_3", number:3, title:"DROP ZONE", subtitle:"Poziomy 21–30", from:21, to:30, mechanic:"Drop the Mic + przeszkody" },
   { id:"route_4", number:4, title:"SETLIST", subtitle:"Poziomy 31–40", from:31, to:40, mechanic:"Cele wykonywane po kolei" },
   { id:"route_5", number:5, title:"MYSTERY TRACK", subtitle:"Poziomy 41–50", from:41, to:50, mechanic:"Match aktywuje muzyczny quiz" },
+  { id:"route_6", number:6, title:"REMIX DECKS", subtitle:"Poziomy 51–60", from:51, to:60, mechanic:"Wszystkie decki zmieniają symbole po ruchu" },
+  { id:"route_7", number:7, title:"DECK SWAP", subtitle:"Poziomy 61–70", from:61, to:70, mechanic:"Zamiana decków + Road Case + Sound Gate" },
+  { id:"route_8", number:8, title:"LAYER DROP", subtitle:"Poziomy 71–80", from:71, to:80, mechanic:"Rozbijaj bloki i stopniowo otwieraj piętra" },
 ]);
 
 export const HIT_MATCH_TOTAL_STARS = HIT_MATCH_LEVELS.length * 3;

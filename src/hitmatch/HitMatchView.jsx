@@ -2358,7 +2358,7 @@ function HitMatchHub({ onBack }) {
                           <button
                             type="button"
                             key={level.id}
-                            className={`hm-level-card ${unlocked ? "unlocked" : "locked"} ${completed ? "completed" : ""} ${level.finale ? "finale" : ""} ${stage.number === 2 ? "stage-two" : ""} ${stage.number === 3 ? "stage-three" : ""} ${stage.number === 4 ? "stage-four" : ""} ${stage.number === 5 ? "stage-five" : ""}`}
+                            className={`hm-level-card ${unlocked ? "unlocked" : "locked"} ${completed ? "completed" : ""} ${level.finale ? "finale" : ""} ${stage.number === 2 ? "stage-two" : ""} ${stage.number === 3 ? "stage-three" : ""} ${stage.number === 4 ? "stage-four" : ""} ${stage.number === 5 ? "stage-five" : ""} ${stage.number === 6 ? "stage-six" : ""} ${stage.number === 7 ? "stage-seven" : ""} ${stage.number === 8 ? "stage-eight" : ""}`}
                             disabled={!unlocked}
                             onClick={() => unlocked && setActiveLevelId(level.id)}
                           >
