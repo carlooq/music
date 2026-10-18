@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { formatPlayDuration } from './playTime.js';
 import {
   Home,
   DoorOpen,
@@ -734,6 +735,7 @@ function MobileStatsView(props) {
         <div className="mob-panel-title"><BarChart3 size={17} /> PODSUMOWANIE STATYSTYK</div>
         <div className="mob-metric-grid full">
           <div className="mob-metric"><Gamepad2 size={18} /><strong>{compact(props.stats?.gamesPlayed)}</strong><span>Rozegrane gry</span></div>
+          <div className="mob-metric cyan"><Gamepad2 size={18} /><strong>{formatPlayDuration(props.stats?.activePlaySeconds)}</strong><span>Czas gry · rozgrywki</span></div>
           <div className="mob-metric gold"><Trophy size={18} /><strong>{compact(props.stats?.gamesWon)}</strong><span>Wygrane</span></div>
           <div className="mob-metric pink"><BarChart3 size={18} /><strong>{winRate}</strong><span>% wygranych</span></div>
           <div className="mob-metric green"><Disc3 size={18} /><strong>{cardAccuracy}</strong><span>Trafność kart</span></div>
@@ -1421,6 +1423,7 @@ function MobileProfileSheet({ profile, onClose, levelFromXp }) {
           <div><span>HIT RUSH</span><strong>{compact(data.hitRushBestScore || 0)} pkt</strong></div>
           <div><span>WYGRANE TURNIEJE</span><strong>{compact(data.tournamentsWon || 0)} 🏆</strong></div>
           <div><span>DODANE DO BAZY</span><strong>{compact(data.songsAdded || 0)}</strong></div>
+          <div><span>CZAS GRY · ROZGRYWKI</span><strong>{formatPlayDuration(data.activePlaySeconds)}</strong></div>
         </div>
 
         <div className="mob-profile-collection">

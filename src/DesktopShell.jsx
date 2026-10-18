@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { formatPlayDuration } from './playTime.js';
 import {
   Gamepad2,
   DoorOpen,
@@ -378,6 +379,7 @@ export function DesktopPlayerProfileModal({ profile, onClose, levelFromXp }) {
           <div><span>PLAYLISTA DNIA</span><strong>{formatCompact(playerStats.playlistTotalScore || 0)} pkt</strong></div>
           <div><span>HIT RUSH</span><strong>{formatCompact(playerStats.hitRushBestScore || 0)} pkt</strong></div>
           <div><span>WYGRANE TURNIEJE</span><strong>{formatCompact(playerStats.tournamentsWon || 0)} 🏆</strong></div>
+          <div><span>CZAS GRY · ROZGRYWKI</span><strong>{formatPlayDuration(playerStats.activePlaySeconds)}</strong></div>
         </div>
 
         <section className="desk-profile-collection">
@@ -1040,6 +1042,7 @@ export function DesktopStatsView(props) {
             <div className="desk-section-label solo">PODSUMOWANIE STATYSTYK</div>
             <div className="desk-metric-grid">
               <StatMetric icon={<Gamepad2 size={22} />} value={formatCompact(stats?.gamesPlayed || 0)} label="ROZEGRANE GRY" accent="cyan" />
+              <StatMetric icon={<Gamepad2 size={22} />} value={formatPlayDuration(stats?.activePlaySeconds)} label="CZAS GRY · ROZGRYWKI" accent="cyan" />
               <StatMetric icon={<Trophy size={22} />} value={formatCompact(stats?.gamesWon || 0)} label="WYGRANE" accent="gold" />
               <StatMetric icon={<Coins size={22} />} value={`${pct(stats?.gamesWon || 0, stats?.gamesPlayed || 0)}%`} label="% WYGRANYCH" accent="violet" />
               <StatMetric icon={<Search size={22} />} value={`${pct(stats?.cardsCorrect || 0, stats?.cardsTotal || 0)}%`} label="TRAFNOŚĆ KART" accent="cyan" />

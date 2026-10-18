@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, memo } from "react";
+import { isActiveGameplay, usePlayTimeTracking } from "./playTime.js";
 import {
   doc,
   setDoc,
@@ -1158,6 +1159,7 @@ async function withAuthRetry(fn) {
 
 export default function App() {
   const [screen, setScreen] = useState("home"); // home | lobby | playing | roundResult | gameover
+  const [hitMatchPlaying, setHitMatchPlaying] = useState(false);
   const [name, setName] = useState(localStorage.getItem("hitster-player-name") || "");
   const [joinCode, setJoinCode] = useState("");
   const [roomId, setRoomId] = useState(null);
@@ -6661,6 +6663,22 @@ export default function App() {
 
   ) : null;
 
+  // Zliczamy wyłącznie aktywną rozgrywkę na zalogowanym koncie.
+  // HUB HIT MATCH, lobby, menu, kolekcja, ranking i Admin Lab nie naliczają czasu.
+  const gameplayActive = isActiveGameplay(screen, {
+    hitMatchPlaying,
+    hitRushRunning: !!hitRush?.running && !hitRushResult,
+    showDailySong,
+    dailySong: !!dailySong,
+    dailyResult: !!dailyResult,
+  });
+  const onPlaytimeSaved = useCallback((seconds) => {
+    setStats((current) => current
+      ? { ...current, activePlaySeconds:Math.max(0,Number(current.activePlaySeconds||0))+seconds }
+      : current);
+  }, []);
+  usePlayTimeTracking(user?.uid || null, gameplayActive, onPlaytimeSaved);
+
   const useDesktopSessionViews = viewportWidth >= 1280;
   const useMobileSessionViews = viewportWidth < 1280;
   const useDesktopRedesign = viewportWidth >= 1280 && screen === "home";
@@ -6700,7 +6718,9 @@ export default function App() {
   if (screen === "hitMatch") {
     return renderSessionUx(
       <HitMatchView
+        onPlayingChange={setHitMatchPlaying}
         onBack={() => {
+          setHitMatchPlaying(false);
           setScreen("home");
         }}
       />

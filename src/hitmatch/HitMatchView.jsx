@@ -555,7 +555,7 @@ function remixZoneMetrics(zone) {
   };
 }
 
-function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEntry, onProgressUpdate, labMode = false }) {
+function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEntry, onProgressUpdate, onPlayingChange, labMode = false }) {
   const inactiveIndices = LEVEL?.layout?.inactive || [];
   const initialShieldState = () => createShieldState(LEVEL);
   const initialWallState = () => createWallState(LEVEL);
@@ -579,6 +579,11 @@ function HitMatchGame({ onBack, onNextLevel, nextLevel, level: LEVEL, progressEn
   const [collected, setCollected] = useState(() => emptyCollected(LEVEL));
   const [hitMeter, setHitMeter] = useState(0);
   const [status, setStatus] = useState("intro");
+  useEffect(() => {
+    // Nie liczymy czasu w menu/intro/wynikach — tylko właściwą rozgrywkę.
+    if (!labMode) onPlayingChange?.(status === "running");
+    return () => { if (!labMode) onPlayingChange?.(false); };
+  }, [status, labMode, onPlayingChange]);
   const [busy, setBusy] = useState(false);
   const [banner, setBanner] = useState(null);
   const [invalidFlash, setInvalidFlash] = useState(false);
@@ -2216,7 +2221,7 @@ function HitMatchLabHub({ onBack }) {
   );
 }
 
-function HitMatchHub({ onBack }) {
+function HitMatchHub({ onBack, onPlayingChange }) {
   const [progress, setProgress] = useState({ levels: {}, totalStars: 0, completedLevels: 0, updatedAt: 0 });
   const [loadingProgress, setLoadingProgress] = useState(true);
   const [activeLevelId, setActiveLevelId] = useState(null);
@@ -2277,6 +2282,7 @@ function HitMatchHub({ onBack }) {
         nextLevel={levelIndex >= 0 ? HIT_MATCH_LEVELS[levelIndex + 1] || null : null}
         onNextLevel={levelIndex >= 0 && HIT_MATCH_LEVELS[levelIndex + 1] ? () => setActiveLevelId(HIT_MATCH_LEVELS[levelIndex + 1].id) : null}
         onProgressUpdate={(nextProgress) => setProgress(nextProgress)}
+        onPlayingChange={onPlayingChange}
         onBack={() => setActiveLevelId(null)}
       />
     );
@@ -2437,6 +2443,6 @@ function HitMatchHub({ onBack }) {
   );
 }
 
-export default function HitMatchView({ onBack, labMode = false }) {
-  return labMode ? <HitMatchLabHub onBack={onBack} /> : <HitMatchHub onBack={onBack} />;
+export default function HitMatchView({ onBack, labMode = false, onPlayingChange }) {
+  return labMode ? <HitMatchLabHub onBack={onBack} /> : <HitMatchHub onBack={onBack} onPlayingChange={onPlayingChange} />;
 }
