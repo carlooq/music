@@ -57,7 +57,8 @@ function createTabLease(uid) {
 /**
  * Jedno miejsce zapisu dla wszystkich trybów. Rejestruje tylko widoczną,
  * aktywną grę, z limitem 2 min bez interakcji (mysz, dotyk, klawiatura).
- * Firestore dostaje paczki co ok. 15 s; delta jest atomowa i nie nadpisuje XP.
+ * Firestore dostaje paczki po 5 minutach aktywnego grania albo przy
+ * zakończeniu rozgrywki / ukryciu karty; delta jest atomowa i nie nadpisuje XP.
  */
 export function usePlayTimeTracking(uid, gameplayActive, onSaved) {
   const onSavedRef = useRef(onSaved);
@@ -92,7 +93,7 @@ export function usePlayTimeTracking(uid, gameplayActive, onSaved) {
         return;
       }
       if (lease.claim()) pending += dt / 1000;
-      if (pending >= 15) flush();
+      if (pending >= 5 * 60) flush();
     };
 
     const visibility = () => {
