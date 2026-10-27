@@ -201,6 +201,10 @@ const CATEGORIES = [
   { slug: "religijne", label: "Religijne" },
 ];
 
+const ADMIN_ONLY_CATEGORIES = [
+  { slug: "swiateczne", label: "Świąteczne" },
+];
+
 // Kategorie utworu są wpisywane ręcznie (panel admina, import CSV) więc mogą
 // mieć niespójną wielkość liter/spacje (np. "Tymek" zamiast "tymek") — bez
 // tej normalizacji taki utwór milcząco nie pasowałby do żadnego filtra.
@@ -1426,7 +1430,9 @@ export default function App() {
         // udanego pobrania w tej sesji, nie wbudowana lista zapasowa)
       }
     }
-    return pool;
+    // Seasonal songs stay in the library for admin management, but never enter
+    // any player-facing mode, playlist, or random draw until the season is enabled.
+    return pool.filter((song) => !normCategories(song.categories).includes("swiateczne"));
   }
 
   async function getDailyFeaturesPool() {
@@ -6513,9 +6519,10 @@ export default function App() {
                   <option value="__none__">Bez kategorii</option>
                   {Array.from(new Set([
                     ...CATEGORIES.map((c) => c.slug),
+                    ...ADMIN_ONLY_CATEGORIES.map((c) => c.slug),
                     ...(librarySongs || []).flatMap((song) => normCategories(song.categories).filter(Boolean)),
                   ])).sort((a, b) => a.localeCompare(b, "pl")).map((slug) => {
-                    const known = CATEGORIES.find((c) => c.slug === slug);
+                    const known = [...CATEGORIES, ...ADMIN_ONLY_CATEGORIES].find((c) => c.slug === slug);
                     return <option key={slug} value={slug}>{known?.label || slug}</option>;
                   })}
                 </select>
