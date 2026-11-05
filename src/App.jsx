@@ -15,7 +15,7 @@ import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage
 import { getOrCreatePlayerId, generateRoomCode } from "./identity.js";
 import { shuffle, randomStartSeconds, requiredApprovals, getYouTubeId, fuzzyMatch } from "./utils.js";
 import { registerWithUsername, loginWithUsername, logout, watchAuthState, friendlyAuthError, ensureSignedIn } from "./auth.js";
-import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, getLeaderboardPosition, awardXp, xpForLevel, levelFromXp, currentWeekKey, currentDayKey, WEEKLY_RANKING_REWARDS, recordDailyResult, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag, getWeeklyChallenges, bumpWeeklyChallengeProgress, claimWeeklyChallenge, currentSeasonKey, seasonNumber, seasonRankForWins, SEASON_RANKS, updateSeasonProgress, getSeasonLeaderboard, getSeasonLeaderboardPosition, processSeasonRewardsIfNeeded, getPlayerSeasonHistory, consumeNextRewardNotice, claimWeeklyRankingReward, recordYearGuessRankingResult, getYearGuessLeaderboard, getYearGuessLeaderboardPosition, processYearGuessWeeklyRewardsIfNeeded, freezeSeasonZeroForRemainingPlayers, recordLeagueMatchParticipation, recordLeagueMatchWin } from "./stats.js";
+import { ensureStatsDoc, getStats, recordCardGuess, recordGameResult, recordSuccessfulGuess, recordSongAdded, topArtists, getLeaderboard, getLeaderboardPosition, awardXp, xpForLevel, levelFromXp, currentWeekKey, currentDayKey, WEEKLY_RANKING_REWARDS, recordDailyResult, getDailySongLeaderboard, claimAchievementXp, markPerfectDailyIfNeeded, updateAchievementCounters, checkQuickReturn, updateLongestGuessStreak, setAvatarUrl, consumeDoubleXpFlag, getWeeklyChallenges, bumpWeeklyChallengeProgress, claimWeeklyChallenge, currentSeasonKey, seasonNumber, seasonRankForWins, SEASON_RANKS, updateSeasonProgress, getSeasonLeaderboard, getSeasonLeaderboardPosition, processSeasonRewardsIfNeeded, getPlayerSeasonHistory, consumeNextRewardNotice, claimWeeklyRankingReward, recordYearGuessRankingResult, getYearGuessLeaderboard, getYearGuessLeaderboardPosition, processYearGuessWeeklyRewardsIfNeeded, freezeSeasonZeroForRemainingPlayers, recordLeagueMatchParticipation, recordLeagueMatchWin } from "./stats.js";
 import { fetchAllSongsFromDb, addSongToDb, updateSongInDb, deleteSongFromDb, submitSongProposal, fetchPendingProposals, updateProposal, acceptProposal, rejectProposal, importSongsFromCsv, logBrokenLink, fetchBrokenLinkReports, dismissBrokenLinkReport, deleteBrokenSongAndDismiss, updateBrokenSongAndDismiss, incrementSongPlayCount, getSongCount } from "./songsDb.js";
 import { cleanupOldRooms } from "./roomsDb.js";
 import { heartbeat, clearPresence, getOnlinePlayers } from "./presence.js";
@@ -1887,6 +1887,7 @@ export default function App() {
   const [dailyGuessTitle, setDailyGuessTitle] = useState("");
   const [dailyGuessYear, setDailyGuessYear] = useState("");
   const [dailyResult, setDailyResult] = useState(null);
+  const [dailySongLeaderboard, setDailySongLeaderboard] = useState([]);
   const [dailyBusy, setDailyBusy] = useState(false);
   const [dailyIsPlaying, setDailyIsPlaying] = useState(false);
   const [dailyPlayElapsed, setDailyPlayElapsed] = useState(0);
@@ -1902,7 +1903,10 @@ export default function App() {
       const pool = await getDailyFeaturesPool();
       const song = await getOrCreateDailySong(dayKey, pool);
       setDailySong(song);
-      const s = await getStats(user.uid);
+      const [s] = await Promise.all([
+        getStats(user.uid),
+        getDailySongLeaderboard(10).then(setDailySongLeaderboard).catch(() => setDailySongLeaderboard([])),
+      ]);
       const alreadyPlayed = s?.dailyLastResult?.dayKey === dayKey;
       setDailyAlreadyPlayed(alreadyPlayed);
       setDailyResult(alreadyPlayed ? {
@@ -11113,6 +11117,16 @@ export default function App() {
                 {dailyResult?.streak !== undefined && (
                   <p style={{ fontSize: 12, color: "var(--accent2)" }}>🔥 Seria dni z rzędu: {dailyResult.streak}</p>
                 )}
+                <div className="w-full rounded-lg p-3 text-left" style={{ background: "var(--surface2)" }}>
+                  <p style={{ fontFamily: "'Bebas Neue', sans-serif", color: "var(--accent)", fontSize: 17 }}>🏆 RANKING WSZECH CZASÓW</p>
+                  {dailySongLeaderboard.length ? dailySongLeaderboard.map((player, index) => (
+                    <div key={player.uid} className="flex justify-between gap-2" style={{ fontSize: 11, padding: "4px 0", borderBottom: "1px solid #33294f" }}>
+                      <span>{index + 1}. {player.username || "Gracz"}{player.uid === user?.uid ? " (Ty)" : ""}</span>
+                      <span>{Number(player.dailyPoints || 0)} pkt · 🔥 {Number(player.dailyLongestStreak || 0)}</span>
+                    </div>
+                  )) : <p style={{ fontSize: 11, color: "var(--muted)" }}>Ranking pojawi się po pierwszych wynikach.</p>}
+                  <p style={{ fontSize: 9, color: "var(--muted)", marginTop: 5 }}>Suma punktów · rekordowa seria dni</p>
+                </div>
                 {dailyResult?.xpEarned !== undefined && (
                   <p style={{ fontSize: 12, color: "var(--good)" }}>+{dailyResult.xpEarned} XP</p>
                 )}
