@@ -6980,6 +6980,7 @@ export default function App() {
         song={dailySong}
         alreadyPlayed={dailyAlreadyPlayed}
         result={dailyResult}
+        leaderboard={dailySongLeaderboard.map((player) => ({ ...player, isCurrentUser: player.uid === user?.uid }))}
         isPlaying={dailyIsPlaying}
         playElapsed={dailyPlayElapsed}
         playCapSeconds={PLAY_CAP_SECONDS}
@@ -7234,6 +7235,7 @@ export default function App() {
         song={dailySong}
         alreadyPlayed={dailyAlreadyPlayed}
         result={dailyResult}
+        leaderboard={dailySongLeaderboard.map((player) => ({ ...player, isCurrentUser: player.uid === user?.uid }))}
         isPlaying={dailyIsPlaying}
         playElapsed={dailyPlayElapsed}
         playCapSeconds={PLAY_CAP_SECONDS}
