@@ -1217,6 +1217,7 @@ export function MobileDailySongView({
   song,
   alreadyPlayed,
   result,
+  leaderboard = [],
   isPlaying,
   playElapsed,
   playCapSeconds = 15,
@@ -1332,6 +1333,16 @@ export function MobileDailySongView({
             <div><Zap size={18} /><strong>+{result?.xpEarned || 0}</strong><span>XP</span></div>
           </div>
 
+          <Panel className="mgv-daily-breakdown">
+            <div className="mgv-section-title"><Trophy size={18} /><span>RANKING WSZECH CZASÓW</span></div>
+            {leaderboard?.length ? leaderboard.map((player, index) => (
+              <div key={player.uid} className="flex justify-between gap-2" style={{ fontSize: 12, padding: "6px 2px", borderBottom: "1px solid rgba(120,140,190,.18)" }}>
+                <span>{index + 1}. {player.username || "Gracz"}{player.isCurrentUser ? " (Ty)" : ""}</span>
+                <strong>{Number(player.dailyPoints || 0)} pkt · 🔥 {Number(player.dailyLongestStreak || 0)}</strong>
+              </div>
+            )) : <p className="mgv-form-note">Ranking pojawi się po pierwszych wynikach.</p>}
+            <p className="mgv-form-note">Suma punktów · rekordowa seria dni</p>
+          </Panel>
           <button type="button" className="mgv-main-cta" onClick={onHome}>WRÓĆ NA STRONĘ GŁÓWNĄ</button>
         </>
       )}
