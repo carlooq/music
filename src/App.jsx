@@ -11051,7 +11051,7 @@ export default function App() {
             overflowY: "auto",
           }}
         >
-          <div className="rounded-2xl p-5 card-glow w-full" style={{ background: "var(--surface)", maxWidth: 380 }}>
+          <div className="rounded-2xl p-5 card-glow w-full" style={{ background: "var(--surface)", maxWidth: 380, maxHeight: "90vh", overflowY: "auto" }}>
             <div className="flex items-center justify-between mb-3">
               <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                 <img src={iconPiosenkaDnia} alt="" style={{ height: 26 }} /> PIOSENKA DNIA
@@ -11118,7 +11118,14 @@ export default function App() {
                 {dailyResult?.streak !== undefined && (
                   <p style={{ fontSize: 12, color: "var(--accent2)" }}>🔥 Seria dni z rzędu: {dailyResult.streak}</p>
                 )}
-                <div className="w-full rounded-lg p-3 text-left" style={{ background: "var(--surface2)" }}>
+
+                {dailyResult?.xpEarned !== undefined && (
+                  <p style={{ fontSize: 12, color: "var(--good)" }}>+{dailyResult.xpEarned} XP</p>
+                )}
+                <p style={{ fontSize: 11, color: "var(--muted)" }}>Wróć jutro po kolejną piosenkę!</p>
+              </div>
+            )}
+                            <div className="w-full rounded-lg p-3 text-left" style={{ background: "var(--surface2)" }}>
                   <p style={{ fontFamily: "'Bebas Neue', sans-serif", color: "var(--accent)", fontSize: 17 }}>🏆 RANKING WSZECH CZASÓW</p>
                   {dailySongLeaderboard.length ? dailySongLeaderboard.map((player, index) => (
                     <div key={player.uid} className="flex justify-between gap-2" style={{ fontSize: 11, padding: "4px 0", borderBottom: "1px solid #33294f" }}>
@@ -11128,12 +11135,6 @@ export default function App() {
                   )) : <p style={{ fontSize: 11, color: "var(--muted)" }}>Ranking pojawi się po pierwszych wynikach.</p>}
                   <p style={{ fontSize: 9, color: "var(--muted)", marginTop: 5 }}>Suma punktów · rekordowa seria dni</p>
                 </div>
-                {dailyResult?.xpEarned !== undefined && (
-                  <p style={{ fontSize: 12, color: "var(--good)" }}>+{dailyResult.xpEarned} XP</p>
-                )}
-                <p style={{ fontSize: 11, color: "var(--muted)" }}>Wróć jutro po kolejną piosenkę!</p>
-              </div>
-            )}
           </div>
         </div>
       )}
