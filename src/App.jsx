@@ -2461,6 +2461,7 @@ export default function App() {
       const before = myXp || 0;
       setMyXp(before + xp);
       setDailyResult({ ...result, dayKey: currentDayKey(), streak: newStreak, xpEarned: xp });
+      getDailySongLeaderboard(10).then(setDailySongLeaderboard).catch(() => {});
       setDailyAlreadyPlayed(true);
       if (score === 3) {
         playVictorySound();
