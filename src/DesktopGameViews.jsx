@@ -1786,6 +1786,7 @@ export function DesktopDailySongView({
   song,
   alreadyPlayed,
   result,
+  leaderboard = [],
   isPlaying,
   playElapsed,
   playCapSeconds,
@@ -1852,6 +1853,16 @@ export function DesktopDailySongView({
             <div className="dgv-daily-song-rewards">
               <span>🔥 Seria: <strong>{result?.streak ?? 0}</strong></span><span>XP: <strong>+{result?.xpEarned ?? 0}</strong></span><span>Wróć jutro po kolejny utwór.</span>
             </div>
+            <section className="dgv-panel">
+              <div className="dgv-section-heading"><Trophy size={18} /> RANKING WSZECH CZASÓW</div>
+              {leaderboard?.length ? leaderboard.map((player, index) => (
+                <div key={player.uid} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "8px 2px", borderBottom: "1px solid rgba(120,140,190,.18)" }}>
+                  <span>{index + 1}. {player.username || "Gracz"}{player.isCurrentUser ? " (Ty)" : ""}</span>
+                  <strong>{Number(player.dailyPoints || 0)} pkt · 🔥 {Number(player.dailyLongestStreak || 0)}</strong>
+                </div>
+              )) : <p>Ranking pojawi się po pierwszych wynikach.</p>}
+              <small>Suma punktów · rekordowa seria dni</small>
+            </section>
             <button type="button" className="dgv-ghost-button large" onClick={onHome}><ArrowLeft size={18} /> STRONA GŁÓWNA</button>
           </section>
         )}
