@@ -309,18 +309,37 @@ export async function progressWeeklyChallenge(uid) {
 // Zapisuje wynik "Piosenki dnia" i aktualizuje serię dni z rzędu.
 export async function recordDailyResult(uid, dayKey, result) {
   const ref = doc(db, "userStats", uid);
-  const snap = await getDoc(ref);
-  const data = snap.exists() ? snap.data() : {};
-  const yesterday = new Date(Date.now() - 86400000);
-  const yesterdayKey = currentDayKey(yesterday);
-  const prevStreak = data.dailyStreak || 0;
-  const newStreak = data.dailyLastPlayedDate === yesterdayKey ? prevStreak + 1 : 1;
-  await updateDoc(ref, {
-    dailyStreak: newStreak,
-    dailyLastPlayedDate: dayKey,
-    dailyLastResult: { dayKey, ...result },
+  let newStreak = 1;
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const data = snap.exists() ? snap.data() : {};
+    if (data.dailyLastResult?.dayKey === dayKey) {
+      newStreak = Number(data.dailyStreak || 0);
+      return;
+    }
+    const yesterdayKey = currentDayKey(new Date(Date.now() - 86400000));
+    const prevStreak = Number(data.dailyStreak || 0);
+    newStreak = data.dailyLastPlayedDate === yesterdayKey ? prevStreak + 1 : 1;
+    const points = Math.max(0, Number(result?.score || 0));
+    tx.set(ref, {
+      dailyStreak: newStreak,
+      dailyLongestStreak: Math.max(Number(data.dailyLongestStreak || 0), newStreak),
+      dailyPoints: Number(data.dailyPoints || 0) + points,
+      dailyLastPlayedDate: dayKey,
+      dailyLastResult: { dayKey, ...result },
+    }, { merge: true });
   });
   return newStreak;
+}
+
+export async function getDailySongLeaderboard(count = 10) {
+  const q = query(collection(db, "userStats"), orderBy("dailyPoints", "desc"), limit(count));
+  const snap = await getDocs(q);
+  return snap.docs
+    .map((d) => ({ uid: d.id, ...d.data() }))
+    .filter((p) => Number(p.dailyPoints || 0) > 0)
+    .sort((a, b) => Number(b.dailyPoints || 0) - Number(a.dailyPoints || 0)
+      || Number(b.dailyLongestStreak || 0) - Number(a.dailyLongestStreak || 0));
 }
 
 // Ręczne odebranie XP za odblokowane osiągnięcie — gracz klika sam, XP nie
